@@ -1,6 +1,13 @@
-[package]
-name = "bmsrs"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
+[workspace]
+resolver = "2"
+members = [
+    "bms/tokenizer",
+    "bms/parser",
+    "bms/processor",
+    "bmson/def",
+    "bmson/de-chumsky",
+    "bmson/ser",
+    "bmson/processor",
+    "core/processor",
+    "player",
+]
