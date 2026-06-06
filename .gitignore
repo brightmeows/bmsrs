@@ -1,0 +1,5 @@
+# Rust Cache
+/target
+
+# Git Worktrees
+/.worktrees
