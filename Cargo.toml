@@ -8,7 +8,7 @@ members = [
     "bmson/de-chumsky",
     "bmson/ser",
     "bmson/processor",
-    "core/processor",
+    "core/chart",
     "player",
 ]
 

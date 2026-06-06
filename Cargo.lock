@@ -31,9 +31,9 @@ name = "bmson-ser"
 version = "0.1.0"
 
 [[package]]
-name = "bmsrs-player"
+name = "bmsrs-chart"
 version = "0.1.0"
 
 [[package]]
-name = "bmsrs-processor"
+name = "bmsrs-player"
 version = "0.1.0"
