@@ -235,9 +235,6 @@ pub struct SoundChannel {
     pub notes: Vec<NoteEvent>,
 }
 
-// ===========================================================================
-// Conversions
-// ===========================================================================
 
 use crate::{BpmEvent, StopEvent};
 use crate::{ChartData, ChartInfo, SongInfo};

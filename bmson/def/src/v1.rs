@@ -168,9 +168,6 @@ pub struct SoundChannel {
     pub notes: Vec<crate::NoteEvent>,
 }
 
-// ===========================================================================
-// Conversions
-// ===========================================================================
 
 use crate::{Bmson as RootBmson, ChartData, ChartInfo, SongInfo};
 
