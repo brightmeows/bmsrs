@@ -1,3 +1,5 @@
+//! `#title`, `#artist`, `#genre` and related display metadata.
+
 /// Display and difficulty headers.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderDisplay<'a> {

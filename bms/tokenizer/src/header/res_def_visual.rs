@@ -1,3 +1,5 @@
+//! `#bmp`, `#bga` and related visual resource definitions.
+
 /// Visual resource definition headers.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderResDefVisual<'a> {

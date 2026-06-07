@@ -1,6 +1,4 @@
-// ---------------------------------------------------------------------------
-// Submodules — one per header category
-// ---------------------------------------------------------------------------
+//! BMS header command parsing, categorized by semantic domain.
 
 mod control_flow;
 mod display;
@@ -17,10 +15,6 @@ pub use metadata::BmsHeaderMetadata;
 pub use res_def_audio::BmsHeaderResDefAudio;
 pub use res_def_visual::BmsHeaderResDefVisual;
 pub use timing::BmsHeaderTiming;
-
-// ---------------------------------------------------------------------------
-// BmsHeader — top-level enum
-// ---------------------------------------------------------------------------
 
 /// A header command from a BMS file, categorized by semantic domain.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -54,10 +48,6 @@ pub struct BmsHeaderExt<'a> {
     #[serde(borrow)]
     pub value: &'a str,
 }
-
-// ---------------------------------------------------------------------------
-// Parsing
-// ---------------------------------------------------------------------------
 
 /// All non-indexed header commands (exact match).
 fn match_non_indexed<'a>(command: &str, value: &'a str) -> Option<BmsHeader<'a>> {
@@ -292,10 +282,6 @@ pub(crate) fn parse_header_line(line: &str) -> Option<BmsHeader<'_>> {
         value,
     }))
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

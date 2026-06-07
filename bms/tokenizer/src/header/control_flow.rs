@@ -1,3 +1,5 @@
+//! `#stop`, `#setrandom` and related flow-control commands.
+
 /// Control-flow headers.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderControlFlow<'a> {

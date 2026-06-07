@@ -1,3 +1,5 @@
+//! `#maker`, `#subtitle`, `#url` and other file-level metadata.
+
 /// Song/chart metadata headers.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderMetadata<'a> {

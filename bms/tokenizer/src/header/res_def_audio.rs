@@ -1,3 +1,5 @@
+//! `#wav` and related audio resource definitions.
+
 /// Audio resource definition headers.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderResDefAudio<'a> {

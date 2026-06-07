@@ -1,3 +1,5 @@
+//! `#stop`, `#exbpm`, `#exexbpm` timing-related commands.
+
 /// Timing definition headers.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderTiming<'a> {

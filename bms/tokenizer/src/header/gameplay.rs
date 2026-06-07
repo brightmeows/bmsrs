@@ -1,3 +1,5 @@
+//! `#difficulty`, `#total`, `#rank`, `#bpm`, `#exbpm` and related gameplay parameters.
+
 /// Gameplay behaviour headers.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderGameplay<'a> {

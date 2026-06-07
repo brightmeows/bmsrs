@@ -20,10 +20,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BGA, BarLine, BpmEvent, KeyChannel, MineChannel, ModeHint, ScrollEvent, StopEvent};
 
-// ---------------------------------------------------------------------------
-// Bmson (v1.0.0)
-// ---------------------------------------------------------------------------
-
 /// Top-level bmson object in the v1.0.0 schema.
 ///
 /// ```json
@@ -76,10 +72,6 @@ pub struct Bmson {
     #[serde(default)]
     pub key_channels: Vec<KeyChannel>,
 }
-
-// ---------------------------------------------------------------------------
-// BmsonInfo
-// ---------------------------------------------------------------------------
 
 /// Metadata object in the v1 schema.
 ///
@@ -155,13 +147,10 @@ pub struct BmsonInfo {
     pub resolution: u64,
 }
 
+/// Default value 100.0 for `#[serde(default)]` on fields like `resolution`.
 fn default_100() -> f64 {
     100.0
 }
-
-// ---------------------------------------------------------------------------
-// SoundChannel (v1.0.0) — uses `notes` field name
-// ---------------------------------------------------------------------------
 
 /// A sound channel in the v1 schema.
 ///
@@ -177,10 +166,6 @@ pub struct SoundChannel {
 }
 
 use crate::{Bmson as RootBmson, ChartData, ChartInfo, SongInfo};
-
-// ---------------------------------------------------------------------------
-// v1 → root (v2)
-// ---------------------------------------------------------------------------
 
 impl From<Bmson> for RootBmson {
     fn from(v1: Bmson) -> Self {
@@ -240,10 +225,6 @@ impl From<Bmson> for RootBmson {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// root (v2) → v1
-// ---------------------------------------------------------------------------
 
 impl From<RootBmson> for Bmson {
     fn from(root: RootBmson) -> Self {

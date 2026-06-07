@@ -1,3 +1,5 @@
+//! BMS message (channel data) line parsing.
+
 use crate::error::TokenizerError;
 
 /// A channel data line in a BMS file (`#xxxYY:values`).

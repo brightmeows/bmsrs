@@ -30,10 +30,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{LnMode, NoteEvent};
 
-// ---------------------------------------------------------------------------
-// Bmson (v0.2.1)
-// ---------------------------------------------------------------------------
-
 /// Top-level bmson object in the legacy v0.2.1 schema.
 ///
 /// ```json
@@ -91,10 +87,6 @@ pub struct Bmson {
     #[serde(default)]
     pub key_channels: Vec<crate::KeyChannel>,
 }
-
-// ---------------------------------------------------------------------------
-// BmsonInfo (v0.2.1)
-// ---------------------------------------------------------------------------
 
 /// Metadata object for v0.2.1.
 ///
@@ -191,13 +183,10 @@ pub struct BmsonInfo {
     pub ln_type: Option<LnMode>,
 }
 
+/// Default value 100.0 for `#[serde(default)]` on fields like `resolution`.
 fn default_100() -> f64 {
     100.0
 }
-
-// ---------------------------------------------------------------------------
-// BarLine (v0.2.1)
-// ---------------------------------------------------------------------------
 
 /// A bar line in the v0 schema.
 ///
@@ -212,10 +201,6 @@ pub struct BarLine {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k: Option<u64>,
 }
-
-// ---------------------------------------------------------------------------
-// EventNote (v0.2.1)
-// ---------------------------------------------------------------------------
 
 /// A unified timing event used in v0.2.1 for both BPM changes and stops.
 ///
@@ -232,10 +217,6 @@ pub struct EventNote {
     /// Value: BPM (if in `bpmNotes`) or duration in pulses (if in `stopEvents`).
     pub v: f64,
 }
-
-// ---------------------------------------------------------------------------
-// SoundChannel (v0.2.1) — uses `notes` field name
-// ---------------------------------------------------------------------------
 
 /// A sound channel in the v0 schema.
 ///
@@ -262,10 +243,6 @@ impl core::fmt::Display for TryFromV0Error {
 }
 
 impl std::error::Error for TryFromV0Error {}
-
-// ---------------------------------------------------------------------------
-// v0 → root (v2)
-// ---------------------------------------------------------------------------
 
 impl TryFrom<Bmson> for crate::Bmson {
     type Error = TryFromV0Error;
@@ -358,16 +335,13 @@ impl TryFrom<Bmson> for crate::Bmson {
     }
 }
 
+/// Converts v0 `BarLine` (with extra `k` field) to the common `BarLine`.
 fn convert_bar_lines(lines: Vec<BarLine>) -> Vec<crate::BarLine> {
     lines
         .into_iter()
         .map(|bl| crate::BarLine { y: bl.y })
         .collect()
 }
-
-// ---------------------------------------------------------------------------
-// root (v2) → v0
-// ---------------------------------------------------------------------------
 
 impl TryFrom<crate::Bmson> for Bmson {
     type Error = TryFromV0Error;
@@ -458,6 +432,8 @@ impl TryFrom<crate::Bmson> for Bmson {
     }
 }
 
+/// Returns `None` for empty strings, `Some(s)` otherwise.
+/// Used as a [`#[serde(skip_serializing_if)]`](serde::Serialize::serialize) helper.
 fn some_if_nonempty(s: String) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }

@@ -1,3 +1,5 @@
+//! Tokenizer error types.
+
 use thiserror::Error;
 
 /// Errors that can occur during BMS tokenization.
