@@ -17,6 +17,7 @@
 //! `notes` as root key). Leaf types are reused from the root module.
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 use crate::{BGA, BarLine, BpmEvent, KeyChannel, MineChannel, ModeHint, ScrollEvent, StopEvent};
 
@@ -120,24 +121,24 @@ pub struct BmsonInfo {
 
     /// Background image (gameplay).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub back_image: Option<String>,
+    pub back_image: Option<PathBuf>,
 
     /// Eyecatch image (load screen).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eyecatch_image: Option<String>,
+    pub eyecatch_image: Option<PathBuf>,
 
     /// Banner image (select / results).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub banner_image: Option<String>,
+    pub banner_image: Option<PathBuf>,
 
     /// Preview music path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preview_music: Option<String>,
+    pub preview_music: Option<PathBuf>,
 
     /// Title image displayed before gameplay starts.
     /// Equivalent to `#BACKBMP` in the OADX+ skin system.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title_image: Option<String>,
+    pub title_image: Option<PathBuf>,
 
     /// Pulse resolution (default 240).
     #[serde(
@@ -159,7 +160,7 @@ fn default_100() -> f64 {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SoundChannel {
     /// Audio file name.
-    pub name: String,
+    pub name: PathBuf,
     /// Notes referencing this audio file.
     #[serde(rename = "notes")]
     pub notes: Vec<crate::NoteEvent>,

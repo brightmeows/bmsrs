@@ -27,6 +27,7 @@
 //! | `t` (inside Note, beatoraja extension) | `t` |
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 use crate::{LnMode, NoteEvent};
 
@@ -137,7 +138,7 @@ pub struct BmsonInfo {
 
     /// Background image (`backImage` in JSON).
     #[serde(rename = "backImage", default, skip_serializing_if = "Option::is_none")]
-    pub back_image: Option<String>,
+    pub back_image: Option<PathBuf>,
 
     /// Eyecatch image (`eyecatchImage` in JSON).
     #[serde(
@@ -145,7 +146,7 @@ pub struct BmsonInfo {
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pub eyecatch_image: Option<String>,
+    pub eyecatch_image: Option<PathBuf>,
 
     /// Banner image (`bannerImage` in JSON).
     #[serde(
@@ -153,7 +154,7 @@ pub struct BmsonInfo {
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pub banner_image: Option<String>,
+    pub banner_image: Option<PathBuf>,
 
     /// Preview music (`previewMusic` in JSON).
     #[serde(
@@ -161,7 +162,7 @@ pub struct BmsonInfo {
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pub preview_music: Option<String>,
+    pub preview_music: Option<PathBuf>,
 
     /// Title image (`titleImage` in JSON).
     #[serde(
@@ -169,7 +170,7 @@ pub struct BmsonInfo {
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    pub title_image: Option<String>,
+    pub title_image: Option<PathBuf>,
 
     /// Pulse resolution (default 240).
     #[serde(
@@ -224,7 +225,7 @@ pub struct EventNote {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SoundChannel {
     /// Audio file name.
-    pub name: String,
+    pub name: PathBuf,
     /// Notes referencing this audio file.
     pub notes: Vec<NoteEvent>,
 }
@@ -234,11 +235,24 @@ use crate::{ChartData, ChartInfo, SongInfo};
 
 /// Error type for v0 ↔ root conversion failures.
 #[derive(Clone, Debug)]
-pub struct TryFromV0Error;
+pub struct TryFromV0Error {
+    /// Human‑readable description of what went wrong.
+    pub message: String,
+}
+
+impl TryFromV0Error {
+    /// Create a new conversion error with a descriptive message.
+    #[must_use]
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
 
 impl core::fmt::Display for TryFromV0Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("v0 ↔ root conversion error")
+        write!(f, "v0 conversion error: {}", self.message)
     }
 }
 
@@ -249,6 +263,13 @@ impl TryFrom<Bmson> for crate::Bmson {
 
     fn try_from(v0: Bmson) -> Result<Self, Self::Error> {
         let info = v0.info;
+
+        if info.init_bpm <= 0.0 {
+            return Err(TryFromV0Error::new(format!(
+                "init_bpm must be positive, got {bpm}",
+                bpm = info.init_bpm
+            )));
+        }
 
         let song_info = SongInfo {
             title: info.title,
@@ -347,6 +368,13 @@ impl TryFrom<crate::Bmson> for Bmson {
     type Error = TryFromV0Error;
 
     fn try_from(root: crate::Bmson) -> Result<Self, Self::Error> {
+        let init_bpm = root.chart_data.init_bpm;
+        if init_bpm <= 0.0 {
+            return Err(TryFromV0Error::new(format!(
+                "init_bpm must be positive, got {init_bpm}"
+            )));
+        }
+
         let info = BmsonInfo {
             title: root.song_info.title,
             subtitle: some_if_nonempty(root.chart_info.subtitle),
@@ -356,7 +384,7 @@ impl TryFrom<crate::Bmson> for Bmson {
             mode_hint: Some(root.chart_data.mode_hint),
             chart_name: some_if_nonempty(root.chart_info.chart_name),
             level: root.chart_info.level,
-            init_bpm: root.chart_data.init_bpm,
+            init_bpm,
             judge_rank: root.chart_data.judge_multiplier * 100.0,
             total: root.chart_data.life_multiplier * 100.0,
             back_image: root.chart_info.back_image,

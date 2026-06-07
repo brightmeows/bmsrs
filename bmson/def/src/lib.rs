@@ -45,6 +45,7 @@ pub use common::{
 };
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Custom judgement window offsets introduced by the DJ.NEXT player.
 ///
@@ -208,31 +209,31 @@ pub struct ChartInfo {
     /// Background image displayed **during gameplay**.
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub back_image: Option<String>,
+    pub back_image: Option<PathBuf>,
 
     /// Eyecatch image displayed **during song load**.
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eyecatch_image: Option<String>,
+    pub eyecatch_image: Option<PathBuf>,
 
     /// Banner image used in **song‑select and result screens**.
     ///
     /// Recommended aspect ratio: 15 : 4 (e.g. 600×160).
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub banner_image: Option<String>,
+    pub banner_image: Option<PathBuf>,
 
     /// Short preview audio file path.
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preview_music: Option<String>,
+    pub preview_music: Option<PathBuf>,
 
     /// Title image displayed **before gameplay starts**.
     ///
     /// Equivalent to `#BACKBMP` in the OADX+ skin system.
     /// If absent, the player displays the title in its default font.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title_image: Option<String>,
+    pub title_image: Option<PathBuf>,
 
     /// Background animation data.
     #[serde(rename = "bga")]

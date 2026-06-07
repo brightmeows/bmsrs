@@ -3,10 +3,11 @@
 use serde::de::{self, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
+use std::path::PathBuf;
 
 /// Game mode hint specifying the input layout.
 ///
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ModeHint {
     /// beat-5k (5 keys, 1 scratch).
@@ -123,7 +124,7 @@ impl<'de> Deserialize<'de> for ModeHint {
 /// | `ln` | Judged on initial press only |
 /// | `cn` | Judged on both press and release |
 ///
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum LnType {
@@ -141,7 +142,7 @@ pub enum LnType {
 /// | `normal` | Only the note itself is judged |
 /// | `ticks` | Extra ticks are judged during the hold |
 ///
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum LnJudge {
@@ -159,7 +160,7 @@ pub enum LnJudge {
 /// | `normal` | Only the note itself restores life |
 /// | `ticks` | Extra ticks restore life during the hold |
 ///
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum LnLife {
@@ -177,7 +178,7 @@ pub enum LnLife {
 /// | `1` | `Ln` | LN — press only |
 /// | `2` | `Cn` | CN — press + release |
 /// | `3` | `Hcn` | HCN — hell charge note |
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 #[non_exhaustive]
 pub enum LnMode {
     /// LN (1) — press only.
@@ -240,7 +241,7 @@ impl<'de> Deserialize<'de> for LnMode {
 /// | `ln_life_hint` | [`LnLife`] | Per‑note LN life override |
 /// | `vol` | `i8` | Volume (percent, DJ.NEXT) |
 /// | `pan` | `i8` | Pan (DJ.NEXT) |
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoteEvent {
     /// Player channel (`0` = BGM, `>0` = playable key/column).
     /// Defaults to `0` when the field is absent. `null` is also accepted
@@ -358,7 +359,7 @@ impl NoteEvent {
 /// 4. Each note is assigned the slice that starts at its pulse.
 ///    Notes with `c: false` cause a restart at that point.
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SoundChannel {
     /// Audio file name (relative path, extension may be omitted).
     ///
@@ -369,7 +370,7 @@ pub struct SoundChannel {
     ///
     /// Implementations **must** prevent directory traversal and absolute
     /// paths (e.g. `../secret.txt`, `/etc/passwd`).
-    pub name: String,
+    pub name: PathBuf,
 
     /// Notes that reference this audio file.
     ///
@@ -395,7 +396,7 @@ pub struct SoundChannel {
 ///
 /// v0.2.1 had an extra `k` field (now removed).  Use [`crate::v0::BarLine`]
 /// when round‑tripping through v0.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub struct BarLine {
     /// Pulse offset of this bar line.
     ///
@@ -410,7 +411,7 @@ pub struct BarLine {
 /// If multiple `BpmEvent` share the same pulse, the **last** one wins
 /// (consistent with BMS behaviour).
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Copy, Serialize, Deserialize)]
 pub struct BpmEvent {
     /// Pulse offset at which the tempo change takes effect.
     pub y: u64,
@@ -433,7 +434,7 @@ pub struct BpmEvent {
 /// The BPM value at the stop's pulse is used to compute the real‑time
 /// duration of the pause.  Notes at the same pulse as a stop must be
 /// pressed **before** the scroll halts.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub struct StopEvent {
     /// Pulse offset where the stop begins.
     pub y: u64,
@@ -446,7 +447,7 @@ pub struct StopEvent {
 
 /// Header entry for a BGA image or video resource.
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BGAHeader {
     /// Numeric identifier referenced by [`BGAEvent::id`].
     ///
@@ -461,12 +462,12 @@ pub struct BGAHeader {
     ///
     /// Supported formats: `PNG` (images), `WebM` (video, audio track is ignored).
     /// Recommended resolution: 1280×720; 1920×1080 is acceptable.
-    pub name: String,
+    pub name: PathBuf,
 }
 
 /// A BGA display event referencing a resource from [`BGAHeader`].
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub struct BGAEvent {
     /// Pulse offset at which this image/video becomes visible.
     pub y: u64,
@@ -490,7 +491,7 @@ pub struct BGAEvent {
 /// Unlike BMS `#LAYER` channels, black pixels in `layer_events` are **not**
 /// automatically made transparent.  Use a PNG with actual alpha if you need
 /// transparency.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BGA {
     /// Resource declarations (image/video id → filename mapping).
     #[serde(rename = "bga_header", alias = "bgaHeader")]
@@ -510,7 +511,7 @@ pub struct BGA {
 ///
 /// Analogous to BMS `#SCROLL` / `#SPEED`.
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Copy, Serialize, Deserialize)]
 pub struct ScrollEvent {
     /// Pulse offset.
     pub y: u64,
@@ -525,13 +526,13 @@ pub struct ScrollEvent {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MineChannel {
     /// Audio file name (played when a mine is triggered).
-    pub name: String,
+    pub name: PathBuf,
     /// Mine notes in this channel.
     pub notes: Vec<MineNote>,
 }
 
 /// A single mine note (beatoraja extension).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Copy, Serialize, Deserialize)]
 pub struct MineNote {
     /// Player channel (same semantics as [`NoteEvent::x`]).
     pub x: u64,
@@ -547,16 +548,16 @@ pub struct MineNote {
 /// audio is triggered when the player presses the corresponding key
 /// at the right time.
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyChannel {
     /// Audio file name.
-    pub name: String,
+    pub name: PathBuf,
     /// Invisible notes in this channel.
     pub notes: Vec<KeyNote>,
 }
 
 /// A single invisible note (beatoraja extension).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub struct KeyNote {
     /// Player channel.
     pub x: u64,

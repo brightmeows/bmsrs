@@ -157,3 +157,81 @@ fn v0_to_root_with_t_field_mapping() {
     assert_eq!(notes[1].t, None);
     assert_eq!(notes[1].ln_type_hint, None);
 }
+
+#[test]
+fn v0_init_bpm_negative_is_error() {
+    let v0_json = r#"{
+        "info": {"title": "T", "artist": "A", "genre": "G", "level": 1, "initBPM": -10, "judgeRank": 100, "total": 100},
+        "bpmNotes": [], "stopNotes": [], "soundChannel": [],
+        "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
+    }"#;
+    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    let result: Result<Bmson, _> = v0.try_into();
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.message.contains("init_bpm"), "error: {}", err.message);
+}
+
+#[test]
+fn v0_init_bpm_zero_is_error() {
+    let v0_json = r#"{
+        "info": {"title": "T", "artist": "A", "genre": "G", "level": 1, "initBPM": 0, "judgeRank": 100, "total": 100},
+        "bpmNotes": [], "stopNotes": [], "soundChannel": [],
+        "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
+    }"#;
+    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    let result: Result<Bmson, _> = v0.try_into();
+    assert!(result.is_err());
+}
+
+#[test]
+fn root_to_v0_invalid_init_bpm_errors() {
+    use bmson_def::Bmson;
+    use bmson_def::{ChartData, ChartInfo, SongInfo};
+
+    let root = Bmson {
+        version: "2.0.0".to_owned(),
+        song_info: SongInfo {
+            title: "T".to_owned(),
+            artist: "A".to_owned(),
+            genre: "G".to_owned(),
+        },
+        chart_info: ChartInfo {
+            subtitle: String::new(),
+            subartists: vec![],
+            chart_name: String::new(),
+            level: 1,
+            back_image: None,
+            eyecatch_image: None,
+            banner_image: None,
+            preview_music: None,
+            title_image: None,
+            bga: bmson_def::BGA::default(),
+        },
+        chart_data: ChartData {
+            mode_hint: bmson_def::ModeHint::Beat7k,
+            ln_type_hint: bmson_def::LnType::Ln,
+            ln_judge_hint: bmson_def::LnJudge::Normal,
+            ln_life_hint: bmson_def::LnLife::Normal,
+            init_bpm: 0.0,
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            resolution: 240,
+            lines: None,
+            bpm_events: vec![],
+            stop_events: vec![],
+            sound_channels: vec![],
+            judge_deltas: None,
+            life_deltas: None,
+        },
+        scroll_events: vec![],
+        mine_channels: vec![],
+        key_channels: vec![],
+    };
+    let result: Result<bmson_def::v0::Bmson, _> = root.try_into();
+    assert!(result.is_err());
+    assert!(
+        result.unwrap_err().message.contains("init_bpm"),
+        "expected init_bpm error"
+    );
+}
