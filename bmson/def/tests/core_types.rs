@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use bmson_def::{BGA, ChartData, ChartInfo, NoteEvent, V0LnType};
+use bmson_def::{BGA, ChartData, ChartInfo, LnMode, NoteEvent};
 
 #[test]
 fn note_x_null_becomes_zero() {
@@ -28,12 +28,10 @@ fn note_x_numeric() {
 
 #[test]
 fn resolution_zero_becomes_default() {
-    let cd: ChartData =
-        serde_json::from_str(r#"{"init_bpm": 120, "resolution": 0}"#).unwrap();
+    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 0}"#).unwrap();
     assert_eq!(cd.resolution, 240);
 
-    let cd: ChartData =
-        serde_json::from_str(r#"{"init_bpm": 120, "resolution": 480}"#).unwrap();
+    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 480}"#).unwrap();
     assert_eq!(cd.resolution, 480);
 
     let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
@@ -74,7 +72,7 @@ fn bga_v1_snake_case() {
 fn note_t_beatoraja_v0_extension() {
     let json = r#"{"x": 1, "y": 240, "l": 240, "c": false, "t": 2}"#;
     let note: NoteEvent = serde_json::from_str(json).unwrap();
-    assert_eq!(note.t, Some(V0LnType::Cn));
+    assert_eq!(note.t, Some(LnMode::Cn));
 }
 
 #[test]
@@ -90,29 +88,28 @@ fn note_t_round_trip() {
     let note: NoteEvent = serde_json::from_str(json).unwrap();
     let out = serde_json::to_string(&note).unwrap();
     assert!(out.contains(r#""t":3"#), "output: {out}");
-    assert_eq!(note.t, Some(V0LnType::Hcn));
+    assert_eq!(note.t, Some(LnMode::Hcn));
 }
 
 #[test]
-fn v0_ln_type_serde() {
-    assert_eq!(serde_json::to_string(&V0LnType::Ln).unwrap(), "1");
-    assert_eq!(serde_json::to_string(&V0LnType::Cn).unwrap(), "2");
-    assert_eq!(serde_json::to_string(&V0LnType::Hcn).unwrap(), "3");
+fn ln_mode_serde() {
+    assert_eq!(serde_json::to_string(&LnMode::Ln).unwrap(), "1");
+    assert_eq!(serde_json::to_string(&LnMode::Cn).unwrap(), "2");
+    assert_eq!(serde_json::to_string(&LnMode::Hcn).unwrap(), "3");
 
-    assert_eq!(serde_json::from_str::<V0LnType>("1").unwrap(), V0LnType::Ln);
-    assert_eq!(serde_json::from_str::<V0LnType>("2").unwrap(), V0LnType::Cn);
-    assert_eq!(serde_json::from_str::<V0LnType>("3").unwrap(), V0LnType::Hcn);
+    assert_eq!(serde_json::from_str::<LnMode>("1").unwrap(), LnMode::Ln);
+    assert_eq!(serde_json::from_str::<LnMode>("2").unwrap(), LnMode::Cn);
+    assert_eq!(serde_json::from_str::<LnMode>("3").unwrap(), LnMode::Hcn);
 
-    let err = serde_json::from_str::<V0LnType>("0");
+    let err = serde_json::from_str::<LnMode>("0");
     assert!(err.is_err());
 }
 
 #[test]
 fn null_arrays_become_empty() {
-    let cd: ChartData = serde_json::from_str(
-        r#"{"init_bpm": 120, "bpm_events": null, "stop_events": null}"#,
-    )
-    .unwrap();
+    let cd: ChartData =
+        serde_json::from_str(r#"{"init_bpm": 120, "bpm_events": null, "stop_events": null}"#)
+            .unwrap();
     assert!(cd.bpm_events.is_empty());
     assert!(cd.stop_events.is_empty());
 
@@ -147,14 +144,12 @@ fn lines_none_is_auto() {
     let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
     assert_eq!(cd.lines, None);
 
-    let cd: ChartData =
-        serde_json::from_str(r#"{"init_bpm": 120, "lines": null}"#).unwrap();
+    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "lines": null}"#).unwrap();
     assert_eq!(cd.lines, None);
 }
 
 #[test]
 fn lines_empty_array_no_bars() {
-    let cd: ChartData =
-        serde_json::from_str(r#"{"init_bpm": 120, "lines": []}"#).unwrap();
+    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "lines": []}"#).unwrap();
     assert_eq!(cd.lines, Some(vec![]));
 }

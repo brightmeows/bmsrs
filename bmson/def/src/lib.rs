@@ -36,61 +36,15 @@ pub mod v1;
 mod common;
 
 pub use common::{
-    BarLine, BGA, BGAEvent, BGAHeader, BpmEvent, KeyChannel, KeyNote, LnJudge, LnLife, LnType,
-    MineChannel, MineNote, ModeHint, NoteEvent, ScrollEvent, SoundChannel, StopEvent,
+    BGA, BGAEvent, BGAHeader, BarLine, BpmEvent, KeyChannel, KeyNote, LnJudge, LnLife, LnMode,
+    LnType, MineChannel, MineNote, ModeHint, NoteEvent, ScrollEvent, SoundChannel, StopEvent,
 };
 
 pub use common::{
     default_multiplier, default_resolution, deserialize_resolution_nonzero, null_to_default,
 };
 
-use serde::de::{self, Unexpected};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-
-/// beatoraja long-note type (v0 extension, numeric).
-///
-/// | Value | Variant | Meaning |
-/// |---|---|---|
-/// | `1` | `Ln` | LN — press only |
-/// | `2` | `Cn` | CN — press + release |
-/// | `3` | `Hcn` | HCN — hell charge note |
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum V0LnType {
-    /// LN (1) — press only.
-    Ln,
-    /// CN (2) — press + release.
-    Cn,
-    /// HCN (3) — hell charge note.
-    Hcn,
-}
-
-impl Serialize for V0LnType {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            Self::Ln => serializer.serialize_u64(1),
-            Self::Cn => serializer.serialize_u64(2),
-            Self::Hcn => serializer.serialize_u64(3),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for V0LnType {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let n = u64::deserialize(deserializer)?;
-        match n {
-            1 => Ok(Self::Ln),
-            2 => Ok(Self::Cn),
-            3 => Ok(Self::Hcn),
-            other => Err(de::Error::invalid_value(
-                Unexpected::Unsigned(other),
-                &"1 (LN), 2 (CN), or 3 (HCN)",
-            )),
-        }
-    }
-}
-
+use serde::{Deserialize, Serialize};
 
 /// Custom judgement window offsets introduced by the DJ.NEXT player.
 ///
@@ -125,7 +79,6 @@ pub struct LifeDeltas {
     /// Life change on MISS (percent, may be negative).
     pub miss: f64,
 }
-
 
 /// The root object of a bmson chart (v2.0.0-rc1 schema).
 ///
@@ -377,7 +330,10 @@ pub struct ChartData {
     /// 240 is the LCM of 48 (common BMS resolution) and 5, allowing
     /// quintuplet rhythms.
     ///
-    #[serde(default = "default_resolution", deserialize_with = "deserialize_resolution_nonzero")]
+    #[serde(
+        default = "default_resolution",
+        deserialize_with = "deserialize_resolution_nonzero"
+    )]
     pub resolution: u64,
 
     /// Bar‑line positions (measure boundaries).

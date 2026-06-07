@@ -148,7 +148,10 @@ pub struct BmsonInfo {
     pub title_image: Option<String>,
 
     /// Pulse resolution (default 240).
-    #[serde(default = "crate::default_resolution", deserialize_with = "crate::deserialize_resolution_nonzero")]
+    #[serde(
+        default = "crate::default_resolution",
+        deserialize_with = "crate::deserialize_resolution_nonzero"
+    )]
     pub resolution: u64,
 }
 
@@ -172,7 +175,6 @@ pub struct SoundChannel {
     #[serde(rename = "notes")]
     pub notes: Vec<crate::NoteEvent>,
 }
-
 
 use crate::{Bmson as RootBmson, ChartData, ChartInfo, SongInfo};
 

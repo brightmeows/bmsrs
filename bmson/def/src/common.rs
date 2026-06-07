@@ -1,9 +1,8 @@
 //! Types shared across bmson versions (v0, v1, v2).
 
-use serde::de::{self};
+use serde::de::{self, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
-
 
 /// Game mode hint specifying the input layout.
 ///
@@ -114,7 +113,6 @@ impl<'de> Deserialize<'de> for ModeHint {
     }
 }
 
-
 /// Long-note type hint (`"ln"` or `"cn"`).
 ///
 /// Can be set at the chart level ([`crate::ChartData::ln_type_hint`]) and overridden
@@ -172,6 +170,48 @@ pub enum LnLife {
     Ticks,
 }
 
+/// beatoraja long-note mode (numeric, v0 extension).
+///
+/// | Value | Variant | Meaning |
+/// |---|---|---|
+/// | `1` | `Ln` | LN — press only |
+/// | `2` | `Cn` | CN — press + release |
+/// | `3` | `Hcn` | HCN — hell charge note |
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum LnMode {
+    /// LN (1) — press only.
+    Ln,
+    /// CN (2) — press + release.
+    Cn,
+    /// HCN (3) — hell charge note.
+    Hcn,
+}
+
+impl Serialize for LnMode {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Ln => serializer.serialize_u64(1),
+            Self::Cn => serializer.serialize_u64(2),
+            Self::Hcn => serializer.serialize_u64(3),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LnMode {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let n = u64::deserialize(deserializer)?;
+        match n {
+            1 => Ok(Self::Ln),
+            2 => Ok(Self::Cn),
+            3 => Ok(Self::Hcn),
+            other => Err(de::Error::invalid_value(
+                Unexpected::Unsigned(other),
+                &"1 (LN), 2 (CN), or 3 (HCN)",
+            )),
+        }
+    }
+}
 
 /// A single note (playable or BGM) in a [`SoundChannel`].
 ///
@@ -251,7 +291,7 @@ pub struct NoteEvent {
     ///
     /// See also [`NoteEvent::ln_type_hint`] for the v2 equivalent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub t: Option<crate::V0LnType>,
+    pub t: Option<LnMode>,
 
     // ---- v2.0.0-rc1 optional fields ----
     /// Release‑sound / BSS (Back‑Spin‑Scratch) flag.
@@ -296,7 +336,6 @@ impl NoteEvent {
     }
 }
 
-
 /// An **audio channel** — a single audio file with its associated notes.
 ///
 /// Bmson is channel‑based: each [`SoundChannel`] bundles one audio file
@@ -338,7 +377,6 @@ pub struct SoundChannel {
     pub note_events: Vec<NoteEvent>,
 }
 
-
 /// A **bar line** event marking a measure boundary in the chart.
 ///
 /// Bmson has no native concept of measures or time signatures.  Instead,
@@ -366,7 +404,6 @@ pub struct BarLine {
     pub y: u64,
 }
 
-
 /// A **BPM change** event that alters the song tempo.
 ///
 /// At pulse `y` the playback BPM is updated to `bpm`.
@@ -380,7 +417,6 @@ pub struct BpmEvent {
     /// New tempo in beats per minute (BPM).
     pub bpm: f64,
 }
-
 
 /// A **stop** (pause) event that halts the music scroll for a duration.
 ///
@@ -407,7 +443,6 @@ pub struct StopEvent {
     /// wall‑clock time via the active BPM.
     pub duration: u64,
 }
-
 
 /// Header entry for a BGA image or video resource.
 ///
@@ -471,7 +506,6 @@ pub struct BGA {
     pub poor_events: Vec<BGAEvent>,
 }
 
-
 /// A scroll‑speed multiplier event (beatoraja extension).
 ///
 /// Analogous to BMS `#SCROLL` / `#SPEED`.
@@ -529,7 +563,6 @@ pub struct KeyNote {
     /// Pulse offset.
     pub y: u64,
 }
-
 
 /// Deserialise `null` as [`Default::default()`] for any type `T`.
 ///

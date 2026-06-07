@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use bmson_def::{BarLine, Bmson, ModeHint, V0LnType};
+use bmson_def::{BarLine, Bmson, LnMode, ModeHint};
 
 #[test]
 fn v1_to_root_basic() {
@@ -152,7 +152,7 @@ fn v0_to_root_with_t_field_mapping() {
     let root: Bmson = v0.try_into().unwrap();
 
     let notes = &root.chart_data.sound_channels[0].note_events;
-    assert_eq!(notes[0].t, Some(V0LnType::Cn));
+    assert_eq!(notes[0].t, Some(LnMode::Cn));
     assert_eq!(notes[0].ln_type_hint, Some(bmson_def::LnType::Cn));
     assert_eq!(notes[1].t, None);
     assert_eq!(notes[1].ln_type_hint, None);

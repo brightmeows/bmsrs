@@ -28,7 +28,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{NoteEvent, V0LnType};
+use crate::{LnMode, NoteEvent};
 
 // ---------------------------------------------------------------------------
 // Bmson (v0.2.1)
@@ -172,16 +172,23 @@ pub struct BmsonInfo {
     pub preview_music: Option<String>,
 
     /// Title image (`titleImage` in JSON).
-    #[serde(rename = "titleImage", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "titleImage",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub title_image: Option<String>,
 
     /// Pulse resolution (default 240).
-    #[serde(default = "crate::default_resolution", deserialize_with = "crate::deserialize_resolution_nonzero")]
+    #[serde(
+        default = "crate::default_resolution",
+        deserialize_with = "crate::deserialize_resolution_nonzero"
+    )]
     pub resolution: u64,
 
     /// Long-note type — beatoraja extension (`lnType` in JSON).
     #[serde(rename = "lnType", default, skip_serializing_if = "Option::is_none")]
-    pub ln_type: Option<V0LnType>,
+    pub ln_type: Option<LnMode>,
 }
 
 fn default_100() -> f64 {
@@ -240,7 +247,6 @@ pub struct SoundChannel {
     /// Notes referencing this audio file.
     pub notes: Vec<NoteEvent>,
 }
-
 
 use crate::{BpmEvent, StopEvent};
 use crate::{ChartData, ChartInfo, SongInfo};
@@ -326,9 +332,9 @@ impl TryFrom<Bmson> for crate::Bmson {
                             // Map v0 't' field → v2 'ln_type_hint' if not already set.
                             if note.ln_type_hint.is_none() {
                                 note.ln_type_hint = note.t.as_ref().and_then(|t| match t {
-                                    V0LnType::Hcn => None, // no LnType equivalent for HCN
-                                    V0LnType::Ln => Some(crate::LnType::Ln),
-                                    V0LnType::Cn => Some(crate::LnType::Cn),
+                                    LnMode::Hcn => None, // no LnType equivalent for HCN
+                                    LnMode::Ln => Some(crate::LnType::Ln),
+                                    LnMode::Cn => Some(crate::LnType::Cn),
                                 });
                             }
                             note
@@ -435,8 +441,8 @@ impl TryFrom<crate::Bmson> for Bmson {
                             // Map v2 'ln_type_hint' → v0 't' if not already set.
                             if note.t.is_none() {
                                 note.t = note.ln_type_hint.as_ref().map(|h| match h {
-                                    crate::LnType::Ln => V0LnType::Ln,
-                                    crate::LnType::Cn => V0LnType::Cn,
+                                    crate::LnType::Ln => LnMode::Ln,
+                                    crate::LnType::Cn => LnMode::Cn,
                                 });
                             }
                             note
