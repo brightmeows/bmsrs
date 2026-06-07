@@ -23,10 +23,12 @@
 //!
 //! | Module | Contents |
 //! |---|---|
-//! | [`common`] | Types shared across all versions ([`NoteEvent`], [`BpmEvent`], [`BGA`], …) |
 //! | [`v0`] | v0.2.1 specific types (`EventNote`, `BarLine` with `k`, …) |
 //! | [`v1`] | v1.0.0 specific types (flat `Bmson`, `BmsonInfo`, …) |
 //! | this module | v2.0.0-rc1 types (`Bmson`, `SongInfo`, `ChartInfo`, `ChartData`) |
+//!
+//! Cross-version shared types ([`NoteEvent`], [`BpmEvent`], [`BGA`], …) are
+//! re-exported from the crate root and live in an internal `common` module.
 
 pub mod v0;
 pub mod v1;
@@ -38,7 +40,9 @@ pub use common::{
     MineChannel, MineNote, ModeHint, NoteEvent, ScrollEvent, SoundChannel, StopEvent,
 };
 
-pub(crate) use common::{default_multiplier, default_resolution, null_to_default};
+pub use common::{
+    default_multiplier, default_resolution, deserialize_resolution_nonzero, null_to_default,
+};
 
 use serde::de::{self, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -52,6 +56,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// | `2` | `Cn` | CN — press + release |
 /// | `3` | `Hcn` | HCN — hell charge note |
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum V0LnType {
     /// LN (1) — press only.
     Ln,
@@ -269,6 +274,13 @@ pub struct ChartInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_music: Option<String>,
 
+    /// Title image displayed **before gameplay starts**.
+    ///
+    /// Equivalent to `#BACKBMP` in the OADX+ skin system.
+    /// If absent, the player displays the title in its default font.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title_image: Option<String>,
+
     /// Background animation data.
     #[serde(rename = "bga")]
     pub bga: BGA,
@@ -365,7 +377,7 @@ pub struct ChartData {
     /// 240 is the LCM of 48 (common BMS resolution) and 5, allowing
     /// quintuplet rhythms.
     ///
-    #[serde(default = "default_resolution")]
+    #[serde(default = "default_resolution", deserialize_with = "deserialize_resolution_nonzero")]
     pub resolution: u64,
 
     /// Bar‑line positions (measure boundaries).

@@ -8,8 +8,8 @@
 //!
 //! | Direction | Trait | Notes |
 //! |---|---|---|
-//! | `v0::Bmson` → [`crate::Bmson`] | [`TryFrom`] | Discards `BarLine.k`; maps `EventNote` by context; fills defaults for missing v2 fields |
-//! | [`crate::Bmson`] → `v0::Bmson` | [`TryFrom`] | Merges `BpmEvent`+`StopEvent` back into `EventNote`; defaults for missing v0 fields |
+//! | `v0::Bmson` → [`crate::Bmson`] | [`TryFrom`] | Discards `BarLine.k`; maps `EventNote` by context; maps `t`→`ln_type_hint`; fills defaults for missing v2 fields |
+//! | [`crate::Bmson`] → `v0::Bmson` | [`TryFrom`] | Merges `BpmEvent`+`StopEvent` back into `EventNote`; maps `ln_type_hint`→`t`; defaults for missing v0 fields |
 //!
 //! # Serde
 //!
@@ -23,6 +23,8 @@
 //! | `bgaHeader` / `bgaNotes` / `layerNotes` / `poorNotes` | reused [`crate::BGA`] handles these |
 //! | `ID` (inside BGAHeader → handled in [`crate::BGAHeader`]) | `id` |
 //! | `lnType` (inside BmsonInfo) | `ln_type` |
+//! | `titleImage` (inside BmsonInfo) | `title_image` |
+//! | `t` (inside Note, beatoraja extension) | `t` |
 
 use serde::{Deserialize, Serialize};
 
@@ -169,8 +171,12 @@ pub struct BmsonInfo {
     )]
     pub preview_music: Option<String>,
 
+    /// Title image (`titleImage` in JSON).
+    #[serde(rename = "titleImage", default, skip_serializing_if = "Option::is_none")]
+    pub title_image: Option<String>,
+
     /// Pulse resolution (default 240).
-    #[serde(default = "crate::default_resolution")]
+    #[serde(default = "crate::default_resolution", deserialize_with = "crate::deserialize_resolution_nonzero")]
     pub resolution: u64,
 
     /// Long-note type — beatoraja extension (`lnType` in JSON).
@@ -276,13 +282,14 @@ impl TryFrom<Bmson> for crate::Bmson {
             eyecatch_image: info.eyecatch_image,
             banner_image: info.banner_image,
             preview_music: info.preview_music,
+            title_image: info.title_image,
             bga: v0.bga,
         };
 
         #[expect(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
-            reason = "stop duration in v0 may be float; truncation to u64 is spec-equivalent"
+            reason = "stop duration in v0 may be float; .round() then as u64 is spec-safe"
         )]
         let chart_data = ChartData {
             mode_hint: info.mode_hint.unwrap_or(crate::ModeHint::Beat7k),
@@ -304,7 +311,7 @@ impl TryFrom<Bmson> for crate::Bmson {
                 .into_iter()
                 .map(|en| StopEvent {
                     y: en.y,
-                    duration: en.v as u64,
+                    duration: en.v.round() as u64,
                 })
                 .collect(),
             sound_channels: v0
@@ -312,7 +319,21 @@ impl TryFrom<Bmson> for crate::Bmson {
                 .into_iter()
                 .map(|ch| crate::SoundChannel {
                     name: ch.name,
-                    note_events: ch.notes,
+                    note_events: ch
+                        .notes
+                        .into_iter()
+                        .map(|mut note| {
+                            // Map v0 't' field → v2 'ln_type_hint' if not already set.
+                            if note.ln_type_hint.is_none() {
+                                note.ln_type_hint = note.t.as_ref().and_then(|t| match t {
+                                    V0LnType::Hcn => None, // no LnType equivalent for HCN
+                                    V0LnType::Ln => Some(crate::LnType::Ln),
+                                    V0LnType::Cn => Some(crate::LnType::Cn),
+                                });
+                            }
+                            note
+                        })
+                        .collect(),
                 })
                 .collect(),
             judge_deltas: None,
@@ -362,6 +383,7 @@ impl TryFrom<crate::Bmson> for Bmson {
             eyecatch_image: root.chart_info.eyecatch_image,
             banner_image: root.chart_info.banner_image,
             preview_music: root.chart_info.preview_music,
+            title_image: root.chart_info.title_image,
             resolution: root.chart_data.resolution,
             ln_type: None,
         };
@@ -406,7 +428,20 @@ impl TryFrom<crate::Bmson> for Bmson {
                 .into_iter()
                 .map(|ch| SoundChannel {
                     name: ch.name,
-                    notes: ch.note_events,
+                    notes: ch
+                        .note_events
+                        .into_iter()
+                        .map(|mut note| {
+                            // Map v2 'ln_type_hint' → v0 't' if not already set.
+                            if note.t.is_none() {
+                                note.t = note.ln_type_hint.as_ref().map(|h| match h {
+                                    crate::LnType::Ln => V0LnType::Ln,
+                                    crate::LnType::Cn => V0LnType::Cn,
+                                });
+                            }
+                            note
+                        })
+                        .collect(),
                 })
                 .collect(),
             bga: root.chart_info.bga,

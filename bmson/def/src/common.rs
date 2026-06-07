@@ -8,6 +8,7 @@ use std::fmt;
 /// Game mode hint specifying the input layout.
 ///
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub enum ModeHint {
     /// beat-5k (5 keys, 1 scratch).
     Beat5k,
@@ -59,7 +60,7 @@ impl fmt::Display for ModeHint {
             Self::Dj10k => f.write_str("dj-10k"),
             Self::Dj14k => f.write_str("dj-14k"),
             Self::DjAndromeda => f.write_str("dj-andromeda"),
-            Self::Generic(n) => write!(f, "generic-{n}k"),
+            Self::Generic(n) => write!(f, "generic-{n}keys"),
             Self::Other(s) => f.write_str(s),
         }
     }
@@ -83,8 +84,14 @@ impl core::str::FromStr for ModeHint {
             "dj-10k" => Self::Dj10k,
             "dj-14k" => Self::Dj14k,
             "dj-andromeda" => Self::DjAndromeda,
+            _ if s.starts_with("generic-") && s.ends_with("keys") => {
+                let inner = &s[8..s.len() - 4]; // strip "generic-" prefix and "keys" suffix
+                inner
+                    .parse()
+                    .map_or_else(|_| Self::Other(s.to_owned()), Self::Generic)
+            }
             _ if s.starts_with("generic-") && s.ends_with('k') => {
-                let inner = &s[8..s.len() - 1]; // strip "generic-" prefix and "k" suffix
+                let inner = &s[8..s.len() - 1]; // strip "generic-" prefix and "k" suffix (legacy compat)
                 inner
                     .parse()
                     .map_or_else(|_| Self::Other(s.to_owned()), Self::Generic)
@@ -120,6 +127,7 @@ impl<'de> Deserialize<'de> for ModeHint {
 ///
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum LnType {
     /// Long note — judged on initial press only.
     #[default]
@@ -137,6 +145,7 @@ pub enum LnType {
 ///
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum LnJudge {
     /// Only the note itself is judged.
     #[default]
@@ -154,6 +163,7 @@ pub enum LnJudge {
 ///
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum LnLife {
     /// Only the note itself restores life.
     #[default]
@@ -193,7 +203,8 @@ pub enum LnLife {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NoteEvent {
     /// Player channel (`0` = BGM, `>0` = playable key/column).
-    /// Defaults to `0` when the field is absent.
+    /// Defaults to `0` when the field is absent. `null` is also accepted
+    /// and treated as `0` (BGM).
     ///
     /// The exact mapping from channel number to on‑screen column depends
     /// on [`crate::ChartData::mode_hint`]:
@@ -204,7 +215,7 @@ pub struct NoteEvent {
     /// | `beat-5k` | 1–5 = keys, 8 = scratch |
     /// | `popn-9k` | 1–9 = keys |
     /// | `generic-nkeys` | 1…n left‑to‑right |
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_u64")]
     pub x: u64,
 
     /// Pulse offset of this note.
@@ -228,6 +239,19 @@ pub struct NoteEvent {
     /// - `false` — **do not continue**: restart the audio at this note's
     ///   slice point.
     pub c: bool,
+
+    // ---- v0 beatoraja extension ----
+    /// Per-note long-note type override (beatoraja extension, numeric).
+    ///
+    /// | Value | Meaning |
+    /// |---|---|---|
+    /// | `1` | LN — press only |
+    /// | `2` | CN — press + release |
+    /// | `3` | HCN — hell charge note |
+    ///
+    /// See also [`NoteEvent::ln_type_hint`] for the v2 equivalent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub t: Option<crate::V0LnType>,
 
     // ---- v2.0.0-rc1 optional fields ----
     /// Release‑sound / BSS (Back‑Spin‑Scratch) flag.
@@ -511,7 +535,12 @@ pub struct KeyNote {
 ///
 /// Used via `#[serde(deserialize_with = "null_to_default")]` on fields where
 /// the bmson spec allows `null` but we prefer the simpler `Vec<T>` type.
-pub(crate) fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+///
+/// # Errors
+///
+/// Delegates to `T`'s [`Deserialize`] implementation; returns an error if the
+/// JSON value is neither `null` nor a valid `T`.
+pub fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
     T: Default + Deserialize<'de>,
@@ -519,12 +548,50 @@ where
     Option::<T>::deserialize(deserializer).map(Option::unwrap_or_default)
 }
 
-pub(crate) fn default_multiplier() -> f64 {
+/// Default value for `judge_multiplier` / `life_multiplier` (`1.00`).
+#[must_use]
+pub fn default_multiplier() -> f64 {
     1.00
 }
 
-/// Resolution default (240 ticks per quarter-note).
-#[doc(hidden)]
-pub(crate) fn default_resolution() -> u64 {
+/// Default pulse resolution (240 ticks per quarter-note).
+#[must_use]
+pub fn default_resolution() -> u64 {
     240
+}
+
+/// Deserialise a `u64` field, accepting `null` as `0`.
+///
+/// Used for [`NoteEvent::x`] where the spec allows `null` (→ BGM).
+///
+/// # Errors
+///
+/// Returns an error if the JSON value is neither `null` nor a valid unsigned integer.
+pub fn null_to_u64<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum X {
+        Num(u64),
+        Null,
+    }
+    match X::deserialize(deserializer)? {
+        X::Num(n) => Ok(n),
+        X::Null => Ok(0),
+    }
+}
+
+/// Deserialise a `u64` resolution field, replacing `0` with the default `240`.
+///
+/// Per the bmson spec, a resolution of `0`, `null` or `undefined` must be
+/// treated as `240`.  This helper handles the `0` case; `null`/`undefined`
+/// are handled by `#[serde(default)]`.
+///
+/// # Errors
+///
+/// Returns an error if the JSON value is not a valid unsigned integer.
+pub fn deserialize_resolution_nonzero<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<u64, D::Error> {
+    let v = u64::deserialize(deserializer)?;
+    if v == 0 { Ok(240) } else { Ok(v) }
 }

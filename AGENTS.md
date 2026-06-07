@@ -12,7 +12,7 @@ cargo deny check
 
 ## Project Structure
 
-```
+```text
 bmson/def/          # bmson format type definitions (v0/v1/v2) — see bmson/def/AGENTS.md
 bmson/de-chumsky/   # bmson deserializer (chumsky parser)
 bmson/processor/    # bmson processing pipeline
@@ -23,6 +23,13 @@ core/chart/         # Shared chart model
 player/             # Music game player
 ```
 
+## Testing
+
+- **Integration tests** in `tests/` (public API).
+  **Unit tests** in `src/` (private API).
+- Test naming: `<scenario>_<expectation>`.
+- One assertion per test. Prefer testing edge cases through public types
+  over internal `Wrap` structs.
 
 ## Code Style
 

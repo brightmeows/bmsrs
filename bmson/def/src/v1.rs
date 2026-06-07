@@ -142,8 +142,13 @@ pub struct BmsonInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_music: Option<String>,
 
+    /// Title image displayed before gameplay starts.
+    /// Equivalent to `#BACKBMP` in the OADX+ skin system.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title_image: Option<String>,
+
     /// Pulse resolution (default 240).
-    #[serde(default = "crate::default_resolution")]
+    #[serde(default = "crate::default_resolution", deserialize_with = "crate::deserialize_resolution_nonzero")]
     pub resolution: u64,
 }
 
@@ -194,6 +199,7 @@ impl From<Bmson> for RootBmson {
             eyecatch_image: info.eyecatch_image,
             banner_image: info.banner_image,
             preview_music: info.preview_music,
+            title_image: info.title_image,
             bga: v1.bga,
         };
 
@@ -255,6 +261,7 @@ impl From<RootBmson> for Bmson {
             eyecatch_image: root.chart_info.eyecatch_image,
             banner_image: root.chart_info.banner_image,
             preview_music: root.chart_info.preview_music,
+            title_image: root.chart_info.title_image,
             resolution: root.chart_data.resolution,
         };
 
