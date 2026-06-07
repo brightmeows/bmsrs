@@ -34,9 +34,6 @@ use serde::de::{self, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
-// ===========================================================================
-// ModeHint
-// ===========================================================================
 
 /// Game mode hint specifying the input layout.
 ///
@@ -140,9 +137,6 @@ impl<'de> Deserialize<'de> for ModeHint {
     }
 }
 
-// ===========================================================================
-// LnType / LnJudge / LnLife
-// ===========================================================================
 
 /// Long-note type hint (`"ln"` or `"cn"`).
 ///
@@ -198,9 +192,6 @@ pub enum LnLife {
     Ticks,
 }
 
-// ===========================================================================
-// V0LnType (beatoraja extension, numeric 1/2/3)
-// ===========================================================================
 
 /// beatoraja long-note type (v0 extension, numeric).
 ///
@@ -244,95 +235,6 @@ impl<'de> Deserialize<'de> for V0LnType {
     }
 }
 
-// ===========================================================================
-// X – player channel
-// ===========================================================================
-
-/// Player channel identifier for a [`NoteEvent`].
-///
-/// In bmson the `x` field of a [`NoteEvent`] determines which column / key
-/// the note belongs to.  The spec declares `x` as `any` (Web IDL) because
-/// it can be a positive integer (playable channel), zero (BGM), or `null`
-/// (also BGM).
-///
-/// | `X` variant | JSON value | Meaning |
-/// |---|---|---|
-/// | `Bgm` | `0` or `null` | Background‑music note, not playable |
-/// | `Channel(n)` | positive integer | Playable key / column `n` |
-///
-/// The exact mapping from channel number to on‑screen column depends on
-/// [`ChartData::mode_hint`]:
-///
-/// | Mode | Channels |
-/// |---|---|
-/// | `beat-7k` | 1–7 = keys, 8 = scratch |
-/// | `beat-5k` | 1–5 = keys, 8 = scratch |
-/// | `popn-9k` | 1–9 = keys |
-/// | `generic-nkeys` | 1…n left‑to‑right |
-///
-#[derive(Clone, Debug, PartialEq)]
-pub enum X {
-    /// BGM note — not playable.
-    ///
-    /// Serialised as `0` in the JSON output (matching the behaviour of most
-    /// existing players).  Deserialises from both `0` and `null`.
-    Bgm,
-    /// Playable channel number (1‑indexed).
-    Channel(u64),
-}
-
-impl<'de> Deserialize<'de> for X {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use serde::de::Visitor;
-
-        struct XVisitor;
-
-        impl Visitor<'_> for XVisitor {
-            type Value = X;
-
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("null or non‑negative integer for x")
-            }
-
-            fn visit_u64<E: de::Error>(self, v: u64) -> Result<X, E> {
-                if v == 0 {
-                    Ok(X::Bgm)
-                } else {
-                    Ok(X::Channel(v))
-                }
-            }
-
-            fn visit_none<E: de::Error>(self) -> Result<X, E> {
-                Ok(X::Bgm)
-            }
-
-            fn visit_unit<E: de::Error>(self) -> Result<X, E> {
-                Ok(X::Bgm)
-            }
-        }
-
-        deserializer.deserialize_any(XVisitor)
-    }
-}
-
-impl Serialize for X {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Self::Bgm => serializer.serialize_u64(0),
-            Self::Channel(n) => serializer.serialize_u64(*n),
-        }
-    }
-}
-
-// ===========================================================================
-// NoteEvent
-// ===========================================================================
 
 /// A single note (playable or BGM) in a [`SoundChannel`].
 ///
@@ -343,7 +245,7 @@ impl Serialize for X {
 ///
 /// | Field | Type | Description |
 /// |---|---|---|
-/// | `x` | [`X`] | Player channel (or BGM) |
+/// | `x` | `u64` | Player channel (`0` = BGM, `>0` = playable channel) |
 /// | `y` | `u64` | Pulse offset |
 /// | `l` | `u64` | Length in pulses (`0` = short note, `>0` = long note) |
 /// | `c` | `bool` | Continuation flag (audio restart behaviour) |
@@ -363,8 +265,20 @@ impl Serialize for X {
 /// | `pan` | `i8` | Pan (DJ.NEXT) |
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NoteEvent {
-    /// Player channel (or BGM).
-    pub x: X,
+    /// Player channel (`0` = BGM, `>0` = playable key/column).
+    /// Defaults to `0` when the field is absent.
+    ///
+    /// The exact mapping from channel number to on‑screen column depends
+    /// on [`ChartData::mode_hint`]:
+    ///
+    /// | Mode | Channels |
+    /// |---|---|
+    /// | `beat-7k` | 1–7 = keys, 8 = scratch |
+    /// | `beat-5k` | 1–5 = keys, 8 = scratch |
+    /// | `popn-9k` | 1–9 = keys |
+    /// | `generic-nkeys` | 1…n left‑to‑right |
+    #[serde(default)]
+    pub x: u64,
 
     /// Pulse offset of this note.
     ///
@@ -427,13 +341,10 @@ impl NoteEvent {
     /// Returns `true` if this note is a BGM note (not playable).
     #[must_use]
     pub fn is_bgm(&self) -> bool {
-        self.x == X::Bgm
+        self.x == 0
     }
 }
 
-// ===========================================================================
-// SoundChannel
-// ===========================================================================
 
 /// An **audio channel** — a single audio file with its associated notes.
 ///
@@ -476,9 +387,6 @@ pub struct SoundChannel {
     pub note_events: Vec<NoteEvent>,
 }
 
-// ===========================================================================
-// BarLine
-// ===========================================================================
 
 /// A **bar line** event marking a measure boundary in the chart.
 ///
@@ -507,9 +415,6 @@ pub struct BarLine {
     pub y: u64,
 }
 
-// ===========================================================================
-// BpmEvent
-// ===========================================================================
 
 /// A **BPM change** event that alters the song tempo.
 ///
@@ -525,9 +430,6 @@ pub struct BpmEvent {
     pub bpm: f64,
 }
 
-// ===========================================================================
-// StopEvent
-// ===========================================================================
 
 /// A **stop** (pause) event that halts the music scroll for a duration.
 ///
@@ -555,9 +457,6 @@ pub struct StopEvent {
     pub duration: u64,
 }
 
-// ===========================================================================
-// BGA types
-// ===========================================================================
 
 /// Header entry for a BGA image or video resource.
 ///
@@ -621,9 +520,6 @@ pub struct BGA {
     pub poor_events: Vec<BGAEvent>,
 }
 
-// ===========================================================================
-// DJ.NEXT extensions (v2.0.0-rc1)
-// ===========================================================================
 
 /// Custom judgement window offsets introduced by the DJ.NEXT player.
 ///
@@ -659,9 +555,6 @@ pub struct LifeDeltas {
     pub miss: f64,
 }
 
-// ===========================================================================
-// beatoraja extensions
-// ===========================================================================
 
 /// A scroll‑speed multiplier event (beatoraja extension).
 ///
@@ -721,9 +614,6 @@ pub struct KeyNote {
     pub y: u64,
 }
 
-// ===========================================================================
-// Root (v2) top-level types
-// ===========================================================================
 
 /// The root object of a bmson chart (v2.0.0-rc1 schema).
 ///
@@ -1009,10 +899,6 @@ pub struct ChartData {
     pub life_deltas: Option<LifeDeltas>,
 }
 
-// ===========================================================================
-// Helper: treat JSON `null` as the default value for `Vec<T>`
-// (both v1 and v2 spec mark `bpm_events`/`stop_events` as nullable `?`).
-// ===========================================================================
 
 /// Deserialise `null` as [`Default::default()`] for any type `T`.
 ///
@@ -1026,9 +912,6 @@ where
     Option::<T>::deserialize(deserializer).map(Option::unwrap_or_default)
 }
 
-// ===========================================================================
-// Default helpers (used by serde `default` attributes)
-// ===========================================================================
 
 fn default_multiplier() -> f64 {
     1.00
