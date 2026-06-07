@@ -3,3 +3,6 @@
 
 # Git Worktrees
 /.worktrees
+
+# BrightMeowS workflow
+/docs/blueprint
