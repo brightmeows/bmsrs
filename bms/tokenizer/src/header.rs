@@ -3,9 +3,10 @@
 // ---------------------------------------------------------------------------
 
 /// A header command from a BMS file, categorized by semantic domain.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeader<'a> {
     /// Song/chart identification (title, artist, genre, ...).
+    #[serde(borrow)]
     Metadata(BmsHeaderMetadata<'a>),
     /// Gameplay behaviour (player count, rank, total, LN settings, ...).
     Gameplay(BmsHeaderGameplay<'a>),
@@ -28,250 +29,328 @@ pub enum BmsHeader<'a> {
 // ---------------------------------------------------------------------------
 
 /// Song/chart metadata headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderMetadata<'a> {
     /// `#TITLE`
+    #[serde(borrow)]
     Title(&'a str),
     /// `#SUBTITLE`
+    #[serde(borrow)]
     Subtitle(&'a str),
     /// `#ARTIST`
+    #[serde(borrow)]
     Artist(&'a str),
     /// `#SUBARTIST`
+    #[serde(borrow)]
     SubArtist(&'a str),
     /// `#GENRE`
+    #[serde(borrow)]
     Genre(&'a str),
     /// `#MAKER`
+    #[serde(borrow)]
     Maker(&'a str),
     /// `#COMMENT`
+    #[serde(borrow)]
     Comment(&'a str),
     /// `#TEXT` or `#SONG`
+    #[serde(borrow)]
     Text(&'a str),
     /// `#CHARSET`
+    #[serde(borrow)]
     Charset(&'a str),
     /// `%URL`
+    #[serde(borrow)]
     Url(&'a str),
     /// `%EMAIL`
+    #[serde(borrow)]
     Email(&'a str),
 }
 
 /// Gameplay behaviour headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderGameplay<'a> {
     /// `#PLAYER`
+    #[serde(borrow)]
     Player(&'a str),
     /// `#RANK`
+    #[serde(borrow)]
     Rank(&'a str),
     /// `#DEFEXRANK`
+    #[serde(borrow)]
     DefExRank(&'a str),
     /// `#EXRANKxx` with its 2-character index.
     ExRank {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
+        #[serde(borrow)]
         index: &'a str,
         /// The raw value string.
+        #[serde(borrow)]
         value: &'a str,
     },
     /// `#TOTAL`
+    #[serde(borrow)]
     Total(&'a str),
     /// `#VOLWAV`
+    #[serde(borrow)]
     VolWav(&'a str),
     /// `#LNTYPE`
+    #[serde(borrow)]
     LnType(&'a str),
     /// `#LNOBJ`
+    #[serde(borrow)]
     LnObj(&'a str),
     /// `#LNMODE` (beatoraja extension)
+    #[serde(borrow)]
     LnMode(&'a str),
     /// `#OCT`
+    #[serde(borrow)]
     Oct(&'a str),
     /// `#FP`
+    #[serde(borrow)]
     Fp(&'a str),
     /// `#OPTION`
+    #[serde(borrow)]
     Option(&'a str),
     /// `#CHANGEOPTION`
+    #[serde(borrow)]
     ChangeOption(&'a str),
 }
 
 /// Display and difficulty headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderDisplay<'a> {
     /// `#STAGEFILE`
+    #[serde(borrow)]
     StageFile(&'a str),
     /// `#BANNER`
+    #[serde(borrow)]
     Banner(&'a str),
     /// `#BACKBMP`
+    #[serde(borrow)]
     BackBmp(&'a str),
     /// `#CHARFILE`
+    #[serde(borrow)]
     CharFile(&'a str),
     /// `#PLAYLEVEL`
+    #[serde(borrow)]
     PlayLevel(&'a str),
     /// `#DIFFICULTY`
+    #[serde(borrow)]
     Difficulty(&'a str),
     /// `#PREVIEW` (beatoraja extension)
+    #[serde(borrow)]
     Preview(&'a str),
 }
 
 /// Timing definition headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderTiming<'a> {
     /// `#BPM` (global BPM)
+    #[serde(borrow)]
     Bpm(&'a str),
     /// `#BPMxx` with its 2-character index.
     BpmDef {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
+        #[serde(borrow)]
         index: &'a str,
         /// The raw value string.
+        #[serde(borrow)]
         value: &'a str,
     },
     /// `#BASEBPM`
+    #[serde(borrow)]
     BaseBpm(&'a str),
     /// `#STOPxx`
     StopDef {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// The raw value string.
+        #[serde(borrow)]
         value: &'a str,
     },
     /// `#SCROLLxx`
     ScrollDef {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// The raw value string.
+        #[serde(borrow)]
         value: &'a str,
     },
     /// `#SPEEDxx`
     SpeedDef {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// The raw value string.
+        #[serde(borrow)]
         value: &'a str,
     },
 }
 
 /// Audio resource definition headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderResDefAudio<'a> {
     /// `#WAVxx` — a sound effect definition.
     Wav {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#EXWAVxx`
     ExWav {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#WAVCMD`
+    #[serde(borrow)]
     WavCmd(&'a str),
     /// `#CDDA`
+    #[serde(borrow)]
     Cdda(&'a str),
     /// `#MIDIFILE`
+    #[serde(borrow)]
     Midifile(&'a str),
     /// `#PATH_WAV`
+    #[serde(borrow)]
     PathWav(&'a str),
 }
 
 /// Visual resource definition headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderResDefVisual<'a> {
     /// `#BMPxx`
     Bmp {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#EXBMPxx`
     ExBmp {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#BGAxx`
     Bga {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#@BGAxx`
     AtBga {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#POORBGA`
+    #[serde(borrow)]
     PoorBga(&'a str),
     /// `#SWBGAxx`
     SwBga {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#ARGBxx`
     Argb {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// Path or name of the resource file.
+        #[serde(borrow)]
         filename: &'a str,
     },
     /// `#VIDEOFILE`
+    #[serde(borrow)]
     VideoFile(&'a str),
     /// `#MOVIE`
+    #[serde(borrow)]
     Movie(&'a str),
     /// `#SEEKxx`
     Seek {
         /// The 2-character index.
+        #[serde(borrow)]
         index: &'a str,
         /// The raw value string.
+        #[serde(borrow)]
         value: &'a str,
     },
     /// `#ExtChr`
+    #[serde(borrow)]
     ExtChr(&'a str),
 }
 
 /// Control-flow headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsHeaderControlFlow<'a> {
     /// `#RANDOM`
+    #[serde(borrow)]
     Random(&'a str),
     /// `#SETRANDOM`
+    #[serde(borrow)]
     SetRandom(&'a str),
     /// `#ENDRANDOM`
     EndRandom,
     /// `#IF`
+    #[serde(borrow)]
     If(&'a str),
     /// `#ELSEIF`
+    #[serde(borrow)]
     ElseIf(&'a str),
     /// `#ELSE`
     Else,
     /// `#ENDIF`
     EndIf,
     /// `#SWITCH`
+    #[serde(borrow)]
     Switch(&'a str),
     /// `#SETSWITCH`
+    #[serde(borrow)]
     SetSwitch(&'a str),
     /// `#ENDSW` or `#ENDSWITCH`
     EndSwitch,
     /// `#CASE`
+    #[serde(borrow)]
     Case(&'a str),
     /// `#SKIP`
+    #[serde(borrow)]
     Skip(&'a str),
     /// `#DEF`
     Def,
 }
 
 /// Catch-all for unrecognised header commands.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BmsHeaderExt<'a> {
     /// The raw command name as it appears in the file (e.g., `"MYEXT"`).
+    #[serde(borrow)]
     pub command: &'a str,
     /// The value after the space separator.
+    #[serde(borrow)]
     pub value: &'a str,
 }
 
@@ -304,9 +383,7 @@ fn match_non_indexed<'a>(command: &str, value: &'a str) -> Option<BmsHeader<'a>>
         "OCT" => Some(BmsHeader::Gameplay(BmsHeaderGameplay::Oct(value))),
         "FP" => Some(BmsHeader::Gameplay(BmsHeaderGameplay::Fp(value))),
         "OPTION" => Some(BmsHeader::Gameplay(BmsHeaderGameplay::Option(value))),
-        "CHANGEOPTION" => {
-            Some(BmsHeader::Gameplay(BmsHeaderGameplay::ChangeOption(value)))
-        }
+        "CHANGEOPTION" => Some(BmsHeader::Gameplay(BmsHeaderGameplay::ChangeOption(value))),
         // -- Display --
         "STAGEFILE" => Some(BmsHeader::Display(BmsHeaderDisplay::StageFile(value))),
         "BANNER" => Some(BmsHeader::Display(BmsHeaderDisplay::Banner(value))),
@@ -321,13 +398,21 @@ fn match_non_indexed<'a>(command: &str, value: &'a str) -> Option<BmsHeader<'a>>
         // -- Audio resources --
         "WAVCMD" => Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd(value))),
         "CDDA" => Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Cdda(value))),
-        "MIDIFILE" => Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Midifile(value))),
+        "MIDIFILE" => Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Midifile(
+            value,
+        ))),
         "PATH_WAV" => Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::PathWav(value))),
         // -- Visual resources --
-        "POORBGA" => Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(value))),
-        "VIDEOFILE" => Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::VideoFile(value))),
+        "POORBGA" => Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(
+            value,
+        ))),
+        "VIDEOFILE" => Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::VideoFile(
+            value,
+        ))),
         "MOVIE" => Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Movie(value))),
-        "EXTCHR" => Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExtChr(value))),
+        "EXTCHR" => Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExtChr(
+            value,
+        ))),
         // -- Control flow (value-less) --
         "ENDRANDOM" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::EndRandom)),
         "ELSE" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Else)),
@@ -336,11 +421,15 @@ fn match_non_indexed<'a>(command: &str, value: &'a str) -> Option<BmsHeader<'a>>
         "DEF" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Def)),
         // -- Control flow (with value) --
         "RANDOM" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Random(value))),
-        "SETRANDOM" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::SetRandom(value))),
+        "SETRANDOM" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::SetRandom(
+            value,
+        ))),
         "IF" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::If(value))),
         "ELSEIF" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::ElseIf(value))),
         "SWITCH" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Switch(value))),
-        "SETSWITCH" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::SetSwitch(value))),
+        "SETSWITCH" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::SetSwitch(
+            value,
+        ))),
         "CASE" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Case(value))),
         "SKIP" => Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Skip(value))),
         // -- Not matched --
@@ -350,20 +439,8 @@ fn match_non_indexed<'a>(command: &str, value: &'a str) -> Option<BmsHeader<'a>>
 
 /// Known indexed command bases (longest first to avoid prefix collisions).
 const INDEXED_BASES: &[&str] = &[
-    "EXBMP",
-    "EXWAV",
-    "EXRANK",
-    "SCROLL",
-    "SPEED",
-    "SWBGA",
-    "@BGA",
-    "ARGB",
-    "BGA",
-    "BMP",
-    "BPM",
-    "STOP",
-    "SEEK",
-    "WAV",
+    "EXBMP", "EXWAV", "EXRANK", "SCROLL", "SPEED", "SWBGA", "@BGA", "ARGB", "BGA", "BMP", "BPM",
+    "STOP", "SEEK", "WAV",
 ];
 
 /// Try to match an indexed command (base + 2-char index suffix).
@@ -423,30 +500,14 @@ fn match_indexed<'a>(
                     index: idx,
                     filename: value,
                 }),
-                "SEEK" => BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Seek {
-                    index: idx,
-                    value,
-                }),
-                "BPM" => BmsHeader::Timing(BmsHeaderTiming::BpmDef {
-                    index: idx,
-                    value,
-                }),
-                "STOP" => BmsHeader::Timing(BmsHeaderTiming::StopDef {
-                    index: idx,
-                    value,
-                }),
-                "SCROLL" => BmsHeader::Timing(BmsHeaderTiming::ScrollDef {
-                    index: idx,
-                    value,
-                }),
-                "SPEED" => BmsHeader::Timing(BmsHeaderTiming::SpeedDef {
-                    index: idx,
-                    value,
-                }),
-                "EXRANK" => BmsHeader::Gameplay(BmsHeaderGameplay::ExRank {
-                    index: idx,
-                    value,
-                }),
+                "SEEK" => {
+                    BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Seek { index: idx, value })
+                }
+                "BPM" => BmsHeader::Timing(BmsHeaderTiming::BpmDef { index: idx, value }),
+                "STOP" => BmsHeader::Timing(BmsHeaderTiming::StopDef { index: idx, value }),
+                "SCROLL" => BmsHeader::Timing(BmsHeaderTiming::ScrollDef { index: idx, value }),
+                "SPEED" => BmsHeader::Timing(BmsHeaderTiming::SpeedDef { index: idx, value }),
+                "EXRANK" => BmsHeader::Gameplay(BmsHeaderGameplay::ExRank { index: idx, value }),
                 _ => unreachable!("all indexed bases must be handled"),
             });
         }
@@ -660,10 +721,7 @@ mod tests {
     #[test]
     fn parse_player() {
         let result = parse_header_line("#PLAYER 1").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::Player("1"))
-        );
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Player("1")));
     }
 
     #[test]
@@ -684,10 +742,7 @@ mod tests {
     #[test]
     fn parse_total() {
         let result = parse_header_line("#TOTAL 300").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::Total("300"))
-        );
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Total("300")));
     }
 
     #[test]
@@ -702,28 +757,19 @@ mod tests {
     #[test]
     fn parse_lntype() {
         let result = parse_header_line("#LNTYPE 1").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::LnType("1"))
-        );
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::LnType("1")));
     }
 
     #[test]
     fn parse_lnobj() {
         let result = parse_header_line("#LNOBJ 01").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::LnObj("01"))
-        );
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::LnObj("01")));
     }
 
     #[test]
     fn parse_lnmode() {
         let result = parse_header_line("#LNMODE 1").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::LnMode("1"))
-        );
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::LnMode("1")));
     }
 
     #[test]
@@ -741,10 +787,7 @@ mod tests {
     #[test]
     fn parse_option() {
         let result = parse_header_line("#OPTION -R").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::Option("-R"))
-        );
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Option("-R")));
     }
 
     #[test]
@@ -832,19 +875,13 @@ mod tests {
     #[test]
     fn parse_bpm_global_float() {
         let result = parse_header_line("#BPM 180.0").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Timing(BmsHeaderTiming::Bpm("180.0"))
-        );
+        assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::Bpm("180.0")));
     }
 
     #[test]
     fn parse_basebpm() {
         let result = parse_header_line("#BASEBPM 180").unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::Timing(BmsHeaderTiming::BaseBpm("180"))
-        );
+        assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::BaseBpm("180")));
     }
 
     // ---- ResDefAudio ----
@@ -946,7 +983,10 @@ mod tests {
     #[test]
     fn parse_if() {
         let result = parse_header_line("#IF 1").unwrap();
-        assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::If("1")));
+        assert_eq!(
+            result,
+            BmsHeader::ControlFlow(BmsHeaderControlFlow::If("1"))
+        );
     }
 
     #[test]

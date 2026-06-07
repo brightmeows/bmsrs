@@ -17,6 +17,7 @@ edition = "2024"
 license = "Apache-2.0"
 
 [workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 
 [workspace.lints.rust]

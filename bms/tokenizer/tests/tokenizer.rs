@@ -1,7 +1,7 @@
 //! Integration tests for the public API of `bms-tokenizer`.
 
 use bms_tokenizer::{
-    tokenize, tokenize_line, BmsHeader, BmsHeaderMetadata, BmsToken, TokenizerError,
+    BmsHeader, BmsHeaderMetadata, BmsToken, TokenizerError, tokenize, tokenize_line,
 };
 
 // ---------------------------------------------------------------------------
@@ -63,8 +63,14 @@ fn tokenize_mixed_content() {
     let tokens = tokenize(bms).unwrap();
     assert_eq!(tokens.len(), 6);
 
-    assert!(matches!(tokens[0], BmsToken::Header(BmsHeader::Metadata(_))));
-    assert!(matches!(tokens[1], BmsToken::Header(BmsHeader::Metadata(_))));
+    assert!(matches!(
+        tokens[0],
+        BmsToken::Header(BmsHeader::Metadata(_))
+    ));
+    assert!(matches!(
+        tokens[1],
+        BmsToken::Header(BmsHeader::Metadata(_))
+    ));
     assert!(matches!(tokens[2], BmsToken::Header(BmsHeader::Timing(_))));
     assert!(matches!(
         tokens[3],

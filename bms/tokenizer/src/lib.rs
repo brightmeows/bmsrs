@@ -22,9 +22,8 @@ mod message;
 
 pub use error::TokenizerError;
 pub use header::{
-    BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderExt,
-    BmsHeaderGameplay, BmsHeaderMetadata, BmsHeaderResDefAudio,
-    BmsHeaderResDefVisual, BmsHeaderTiming,
+    BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderExt, BmsHeaderGameplay,
+    BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
 };
 pub use message::BmsMessage;
 
@@ -32,11 +31,13 @@ use header::parse_header_line;
 use message::parse_message_line;
 
 /// A single token produced by tokenizing a BMS file.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum BmsToken<'a> {
     /// A header command (metadata, gameplay, timing, resources, etc.).
+    #[serde(borrow)]
     Header(BmsHeader<'a>),
     /// A channel data line (`#xxxYY:values`).
+    #[serde(borrow)]
     Message(BmsMessage<'a>),
 }
 
@@ -92,4 +93,3 @@ pub fn tokenize(input: &str) -> Result<Vec<BmsToken<'_>>, TokenizerError> {
 
     Ok(tokens)
 }
-

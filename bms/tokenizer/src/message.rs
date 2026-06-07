@@ -9,13 +9,14 @@ use crate::error::TokenizerError;
 /// # Examples
 ///
 /// `#00111:11223344` → measure=1, channel=11, values="11223344"
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BmsMessage<'a> {
     /// Measure number (0–999).
     pub measure: u16,
     /// Channel number (01–99, but typically 01–E9 in hex notation).
     pub channel: u8,
     /// Raw value string (sequence of 2-character object indices).
+    #[serde(borrow)]
     pub values: &'a str,
 }
 
@@ -25,9 +26,7 @@ pub struct BmsMessage<'a> {
 /// (e.g., it is a header, a comment, or empty).
 /// Returns `Err(...)` if the line looks like a channel message but has
 /// an invalid measure or channel number.
-pub(crate) fn parse_message_line(
-    line: &str,
-) -> Result<Option<BmsMessage<'_>>, TokenizerError> {
+pub(crate) fn parse_message_line(line: &str) -> Result<Option<BmsMessage<'_>>, TokenizerError> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() || !trimmed.starts_with('#') {
@@ -101,8 +100,7 @@ mod tests {
 
     #[test]
     fn parse_with_varied_values() {
-        let result =
-            parse_message_line("#00101:00112233445566778899AABBCCDDEEFFZZ").unwrap();
+        let result = parse_message_line("#00101:00112233445566778899AABBCCDDEEFFZZ").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.measure, 1);
         assert_eq!(msg.channel, 01);

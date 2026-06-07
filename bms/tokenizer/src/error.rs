@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 /// Errors that can occur during BMS tokenization.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error, serde::Serialize, serde::Deserialize)]
 pub enum TokenizerError {
     /// The measure number in a channel line is not a valid 3-digit value.
     #[error("invalid measure number: \"{0}\"")]
@@ -10,4 +10,3 @@ pub enum TokenizerError {
     #[error("invalid channel number: \"{0}\"")]
     InvalidChannel(String),
 }
-
