@@ -45,6 +45,11 @@ jobs:
           install /tmp/release-plz /usr/local/bin/ 2>/dev/null || \
             install /tmp/release-plz-*/release-plz /usr/local/bin/
 
+      - name: Configure git user
+        run: |
+          git config --global user.name "BrightMeowS"
+          git config --global user.email "brightmeows@163.com"
+
       - name: Create or update release PR
         run: |
           release-plz release-pr \
