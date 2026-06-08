@@ -8,6 +8,7 @@
 //! - [`enum@BmsToken`] represents a single meaningful line in a BMS file.
 //! - [`BmsHeader`] covers all header commands, categorized by semantic domain.
 //! - [`BmsMessage`] covers channel data lines (`#xxxYY:values`).
+//! - [`BmsTokenizer`] is the main entry point with configurable error strategy.
 //!
 //! Submodules are private; all public types are re-exported from the crate root.
 //!
@@ -15,6 +16,8 @@
 //!
 //! String data (paths, display text) borrows from the input. Typed values
 //! (numeric conversions, parsed enums) are owned.
+
+use std::num::NonZeroUsize;
 
 mod error;
 mod header;
@@ -49,55 +52,110 @@ pub enum BmsToken<'a> {
     Message(BmsMessage<'a>),
 }
 
-/// Parse a single line of BMS text into an optional token.
+/// Error strategy for BMS tokenization.
 ///
-/// Returns `Ok(None)` for lines that do not carry meaning
-/// (empty lines, comments, whitespace-only).
-///
-/// # Errors
-///
-/// Returns [`BmsTokenizeError`] if a channel message line has an invalid
-/// measure or channel number.
-pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, BmsTokenizeError<'_>> {
-    let trimmed = line.trim();
-
-    if trimmed.is_empty() || trimmed.starts_with("//") {
-        return Ok(None);
-    }
-
-    // Try message first (channel data lines have `#xxxYY:values` format).
-    if let Some(msg) = parse_message_line(trimmed)? {
-        return Ok(Some(BmsToken::Message(msg)));
-    }
-
-    // Try header second.
-    if let Some(hdr) = parse_header_line(trimmed)? {
-        return Ok(Some(BmsToken::Header(hdr)));
-    }
-
-    Ok(None)
+/// Controls how the tokenizer handles lines that fail to parse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ErrorStrategy {
+    /// Process every line; each line's result is wrapped individually.
+    /// Tokenization continues past errors so the caller can inspect all
+    /// failures at once.
+    #[default]
+    CollectAll,
+    /// Stop at the first error and return results up to (and including)
+    /// that line. Subsequent lines are not inspected.
+    FailFast,
 }
 
-/// Parse a complete BMS text into a vector of tokens.
+/// BMS tokenizer with builder-style configuration.
 ///
-/// Supports LF (`\n`), CRLF (`\r\n`), and standalone CR (`\r`) line endings
-/// without heap allocation.
+/// # Examples
 ///
-/// # Errors
-///
-/// Returns [`BmsTokenizeError`] if any line has an invalid channel message format.
-pub fn tokenize(input: &str) -> Result<Vec<BmsToken<'_>>, BmsTokenizeError<'_>> {
-    let mut tokens = Vec::new();
+/// ```
+/// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy};
+/// let tokens: Vec<_> = BmsTokenizer::new()
+///     .error_strategy(ErrorStrategy::CollectAll)
+///     .tokenize("#TITLE My Song\n#00101:11");
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct BmsTokenizer {
+    /// Controls how parse errors are handled.
+    error_strategy: ErrorStrategy,
+}
 
-    // `str::lines()` splits on `\n` and strips trailing `\r`.
-    // Standalone `\r` (old Mac style) is handled via `.split('\r')`.
-    for raw_line in input.lines() {
-        for segment in raw_line.split('\r') {
-            if let Some(token) = tokenize_line(segment)? {
-                tokens.push(token);
-            }
-        }
+impl BmsTokenizer {
+    /// Create a new `BmsTokenizer` with default configuration
+    /// ([`ErrorStrategy::CollectAll`]).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    Ok(tokens)
+    /// Set the error strategy.
+    #[must_use]
+    pub fn error_strategy(mut self, strategy: ErrorStrategy) -> Self {
+        self.error_strategy = strategy;
+        self
+    }
+
+    /// Tokenize a BMS string into a collection of line-numbered results.
+    ///
+    /// Each element is a tuple of `(1-based line number, result)`.
+    /// Empty lines and comments are skipped (no output entry).
+    ///
+    /// Supports LF (`\n`), CRLF (`\r\n`), and standalone CR (`\r`) line
+    /// endings.
+    ///
+    /// The output collection type `C` is generic — use `Vec`, `Box<[_]>`,
+    /// or any container that implements [`FromIterator`].
+    ///
+    /// # Error strategy
+    ///
+    /// - [`ErrorStrategy::CollectAll`] (default): all lines are processed.
+    ///   Errors are embedded in per-element [`Result::Err`].
+    /// - [`ErrorStrategy::FailFast`]: stops at the first error. The
+    ///   collection contains results up to (and including) the error line.
+    #[must_use]
+    pub fn tokenize<'a, C>(&self, input: &'a str) -> C
+    where
+        C: FromIterator<(NonZeroUsize, Result<BmsToken<'a>, BmsTokenizeError<'a>>)>,
+    {
+        let mut results = Vec::new();
+        let mut line_number: usize = 0;
+
+        for raw_line in input.lines() {
+            for segment in raw_line.split('\r') {
+                line_number += 1;
+
+                let trimmed = segment.trim();
+                if trimmed.is_empty() || trimmed.starts_with("//") {
+                    continue;
+                }
+
+                // SAFETY: line_number is always >= 1 here (incremented from 0
+                // before first use); the fallback is unreachable.
+                let nz_line = NonZeroUsize::new(line_number).unwrap_or(NonZeroUsize::MAX);
+
+                let result: Result<BmsToken<'_>, BmsTokenizeError<'_>> =
+                    match parse_message_line(trimmed) {
+                        Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
+                        Ok(None) => match parse_header_line(trimmed) {
+                            Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
+                            Ok(None) => continue,
+                            Err(e) => Err(e),
+                        },
+                        Err(e) => Err(e),
+                    };
+
+                if self.error_strategy == ErrorStrategy::FailFast && result.is_err() {
+                    results.push((nz_line, result));
+                    return results.into_iter().collect();
+                }
+
+                results.push((nz_line, result));
+            }
+        }
+
+        results.into_iter().collect()
+    }
 }

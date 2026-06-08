@@ -6,6 +6,12 @@ First stage of `tokenizer → parser → processor`.
 
 All `&'a str` fields borrow from input. Don't `.to_owned()` unnecessarily.
 
+## Entry point
+
+`BmsTokenizer` (builder pattern).  `tokenize<C: FromIterator<...>>` returns
+`C<(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)>` — one entry per
+meaningful line, line numbers skip empty/comment lines.
+
 ## Public API
 
 All types re-exported from `lib.rs`. Import from crate root, not submodules.

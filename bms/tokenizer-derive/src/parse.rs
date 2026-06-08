@@ -181,7 +181,6 @@ fn extract_value_field(part: &str) -> Result<String, TemplateParseError> {
     Ok(name.to_owned())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
