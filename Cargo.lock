@@ -35,6 +35,14 @@ name = "bmson-processor"
 version = "0.1.0"
 
 [[package]]
+name = "bmsrs"
+version = "0.1.0"
+dependencies = [
+ "bms-tokenizer",
+ "bmson-def",
+]
+
+[[package]]
 name = "bmsrs-chart"
 version = "0.1.0"
 
