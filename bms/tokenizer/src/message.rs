@@ -1,6 +1,6 @@
 //! BMS message (channel data) line parsing.
 
-use crate::error::TokenizerError;
+use crate::error::BmsTokenizeError;
 
 /// A channel data line in a BMS file (`#xxxYY:values`).
 ///
@@ -11,14 +11,13 @@ use crate::error::TokenizerError;
 /// # Examples
 ///
 /// `#00111:11223344` → measure=1, channel=11, values="11223344"
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BmsMessage<'a> {
     /// Measure number (0–999).
     pub measure: u16,
     /// Channel number (01–99, but typically 01–E9 in hex notation).
     pub channel: u8,
     /// Raw value string (sequence of 2-character object indices).
-    #[serde(borrow)]
     pub values: &'a str,
 }
 
@@ -28,7 +27,7 @@ pub struct BmsMessage<'a> {
 /// (e.g., it is a header, a comment, or empty).
 /// Returns `Err(...)` if the line looks like a channel message but has
 /// an invalid measure or channel number.
-pub(crate) fn parse_message_line(line: &str) -> Result<Option<BmsMessage<'_>>, TokenizerError> {
+pub(crate) fn parse_message_line(line: &str) -> Result<Option<BmsMessage<'_>>, BmsTokenizeError> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() || !trimmed.starts_with('#') {
@@ -48,19 +47,22 @@ pub(crate) fn parse_message_line(line: &str) -> Result<Option<BmsMessage<'_>>, T
         return Ok(None);
     }
 
-    let (channel_str, values_str) = rest[3..]
-        .split_once(':')
-        .ok_or(TokenizerError::InvalidChannel("missing colon".to_string()))?;
+    let (channel_str, values_str) =
+        rest[3..]
+            .split_once(':')
+            .ok_or(BmsTokenizeError::InvalidChannel(
+                "missing colon".to_string(),
+            ))?;
 
     if !channel_str.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(TokenizerError::InvalidChannel(channel_str.to_string()));
+        return Err(BmsTokenizeError::InvalidChannel(channel_str.to_string()));
     }
 
-    // Safe because we validated digits above
-    let measure: u16 = measure_str.parse().unwrap_or(0);
+    // Safe because we validated digits above — 3 decimal digits always fit in u16.
+    let measure: u16 = measure_str.parse().expect("measure digits validated above");
 
-    // Safe because we validated digits above
-    let channel: u8 = channel_str.parse().unwrap_or(0);
+    // Safe because we validated digits above — 2 decimal digits always fit in u8.
+    let channel: u8 = channel_str.parse().expect("channel digits validated above");
 
     Ok(Some(BmsMessage {
         measure,

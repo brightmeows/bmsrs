@@ -1,7 +1,7 @@
 //! Integration tests for the public API of `bms-tokenizer`.
 
 use bms_tokenizer::{
-    BmsHeader, BmsHeaderMetadata, BmsToken, TokenizerError, tokenize, tokenize_line,
+    BmsHeader, BmsHeaderMetadata, BmsToken, BmsTokenizeError, tokenize, tokenize_line,
 };
 
 // ---------------------------------------------------------------------------
@@ -162,40 +162,40 @@ fn debug_and_clone_bms_token() {
 }
 
 // ---------------------------------------------------------------------------
-// TokenizerError
+// BmsTokenizeError
 // ---------------------------------------------------------------------------
 
 #[test]
 fn tokenizer_error_display_invalid_measure() {
-    let err = TokenizerError::InvalidMeasure("abc".to_string());
+    let err = BmsTokenizeError::InvalidMeasure("abc".to_string());
     assert_eq!(err.to_string(), "invalid measure number: \"abc\"");
 }
 
 #[test]
 fn tokenizer_error_display_invalid_channel() {
-    let err = TokenizerError::InvalidChannel("xyz".to_string());
+    let err = BmsTokenizeError::InvalidChannel("xyz".to_string());
     assert_eq!(err.to_string(), "invalid channel number: \"xyz\"");
 }
 
 #[test]
 fn tokenizer_error_trait_is_implemented() {
     fn assert_error<T: std::error::Error>() {}
-    assert_error::<TokenizerError>();
+    assert_error::<BmsTokenizeError>();
 }
 
 #[test]
 fn tokenizer_error_debug_and_clone() {
-    let err = TokenizerError::InvalidMeasure("000".to_string());
+    let err = BmsTokenizeError::InvalidMeasure("000".to_string());
     let cloned = err.clone();
     assert_eq!(format!("{err:?}"), format!("{cloned:?}"));
 }
 
 #[test]
 fn tokenizer_error_partial_eq() {
-    let a = TokenizerError::InvalidMeasure("000".to_string());
-    let b = TokenizerError::InvalidMeasure("000".to_string());
+    let a = BmsTokenizeError::InvalidMeasure("000".to_string());
+    let b = BmsTokenizeError::InvalidMeasure("000".to_string());
     assert_eq!(a, b);
 
-    let c = TokenizerError::InvalidChannel("00".to_string());
+    let c = BmsTokenizeError::InvalidChannel("00".to_string());
     assert_ne!(a, c);
 }

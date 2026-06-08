@@ -1,40 +1,32 @@
 //! `#stop`, `#setrandom` and related flow-control commands.
 
 /// Control-flow headers.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum BmsHeaderControlFlow<'a> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum BmsHeaderControlFlow {
     /// `#RANDOM`
-    #[serde(borrow)]
-    Random(&'a str),
+    Random(u64),
     /// `#SETRANDOM`
-    #[serde(borrow)]
-    SetRandom(&'a str),
+    SetRandom(u64),
     /// `#ENDRANDOM`
     EndRandom,
     /// `#IF`
-    #[serde(borrow)]
-    If(&'a str),
+    If(u64),
     /// `#ELSEIF`
-    #[serde(borrow)]
-    ElseIf(&'a str),
+    ElseIf(u64),
     /// `#ELSE`
     Else,
     /// `#ENDIF`
     EndIf,
     /// `#SWITCH`
-    #[serde(borrow)]
-    Switch(&'a str),
+    Switch(u64),
     /// `#SETSWITCH`
-    #[serde(borrow)]
-    SetSwitch(&'a str),
+    SetSwitch(u64),
     /// `#ENDSW` or `#ENDSWITCH`
     EndSwitch,
     /// `#CASE`
-    #[serde(borrow)]
-    Case(&'a str),
+    Case(u64),
     /// `#SKIP`
-    #[serde(borrow)]
-    Skip(&'a str),
+    Skip(u64),
     /// `#DEF`
     Def,
 }

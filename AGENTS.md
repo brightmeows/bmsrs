@@ -10,6 +10,15 @@ cargo fmt
 cargo deny check
 ```
 
+## Comment style
+
+- Use doc comments (`///` for items, `//!` for modules) for all API
+  documentation — clippy enforces docs on all items.
+- **No** section header comments (`// Foo`, `// -- Foo --`, `// Foo ----`).
+  Doc comments on the item itself are sufficient.
+- **No** decorative divider lines (`// ----`, `// ====`, `// //`, etc.).
+  Use a blank line instead.
+
 ## Testing
 
 - Test naming: `<scenario>_<expectation>`.

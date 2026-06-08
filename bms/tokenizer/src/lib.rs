@@ -13,17 +13,26 @@
 //!
 //! # Zero-copy
 //!
-//! All string data borrows from the input; no allocation occurs during
-//! tokenization.
+//! String data (paths, display text) borrows from the input. Typed values
+//! (numeric conversions, parsed enums) are owned.
 
 mod error;
 mod header;
+mod id;
 mod message;
 
-pub use error::TokenizerError;
+pub use error::BmsTokenizeError;
 pub use header::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderExt, BmsHeaderGameplay,
     BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
+};
+pub use header::{
+    DifficultyLevel, LnMode, LnType, ParseDifficultyError, ParseLnModeError, ParseLnTypeError,
+    ParsePlayerModeError, PlayerMode,
+};
+pub use id::{
+    BmpTag, BmsChannelId, BmsChannelIdError, BpmTag, ExRankTag, LnObjTag, ScrollTag, SeekTag,
+    SpeedTag, StopTag, WavTag,
 };
 pub use message::BmsMessage;
 
@@ -31,13 +40,11 @@ use header::parse_header_line;
 use message::parse_message_line;
 
 /// A single token produced by tokenizing a BMS file.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BmsToken<'a> {
     /// A header command (metadata, gameplay, timing, resources, etc.).
-    #[serde(borrow)]
     Header(BmsHeader<'a>),
     /// A channel data line (`#xxxYY:values`).
-    #[serde(borrow)]
     Message(BmsMessage<'a>),
 }
 
@@ -48,9 +55,9 @@ pub enum BmsToken<'a> {
 ///
 /// # Errors
 ///
-/// Returns [`TokenizerError`] if a channel message line has an invalid
+/// Returns [`BmsTokenizeError`] if a channel message line has an invalid
 /// measure or channel number.
-pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, TokenizerError> {
+pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, BmsTokenizeError> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() || trimmed.starts_with("//") {
@@ -63,7 +70,7 @@ pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, TokenizerError>
     }
 
     // Try header second.
-    if let Some(hdr) = parse_header_line(trimmed) {
+    if let Some(hdr) = parse_header_line(trimmed)? {
         return Ok(Some(BmsToken::Header(hdr)));
     }
 
@@ -77,8 +84,8 @@ pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, TokenizerError>
 ///
 /// # Errors
 ///
-/// Returns [`TokenizerError`] if any line has an invalid channel message format.
-pub fn tokenize(input: &str) -> Result<Vec<BmsToken<'_>>, TokenizerError> {
+/// Returns [`BmsTokenizeError`] if any line has an invalid channel message format.
+pub fn tokenize(input: &str) -> Result<Vec<BmsToken<'_>>, BmsTokenizeError> {
     let mut tokens = Vec::new();
 
     // `str::lines()` splits on `\n` and strips trailing `\r`.
