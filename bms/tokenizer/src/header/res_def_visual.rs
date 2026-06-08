@@ -1,65 +1,77 @@
 //! `#bmp`, `#bga` and related visual resource definitions.
 
+use crate::BmsTokenAttr;
 use crate::id::{BmpTag, BmsChannelId, SeekTag};
 
 /// Visual resource definition headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderResDefVisual<'a> {
-    /// `#BMPxx`
+    /// `#BMP{id}`
+    #[bms_token("#BMP{id} {filename}")]
     Bmp {
         /// The 2-character index.
-        index: BmsChannelId<BmpTag>,
+        id: BmsChannelId<BmpTag>,
         /// Path or name of the resource file.
         filename: &'a str,
     },
-    /// `#EXBMPxx`
+    /// `#EXBMP{id}`
+    #[bms_token("#EXBMP{id} {filename}")]
     ExBmp {
         /// The 2-character index.
-        index: BmsChannelId<BmpTag>,
+        id: BmsChannelId<BmpTag>,
         /// Path or name of the resource file.
         filename: &'a str,
     },
-    /// `#BGAxx`
+    /// `#BGA{id}`
+    #[bms_token("#BGA{id} {filename}")]
     Bga {
         /// The 2-character index.
-        index: BmsChannelId<BmpTag>,
+        id: BmsChannelId<BmpTag>,
         /// Path or name of the resource file.
         filename: &'a str,
     },
-    /// `#@BGAxx`
+    /// `#@BGA{id}`
+    #[bms_token("#@BGA{id} {filename}")]
     AtBga {
         /// The 2-character index.
-        index: BmsChannelId<BmpTag>,
+        id: BmsChannelId<BmpTag>,
         /// Path or name of the resource file.
         filename: &'a str,
     },
     /// `#POORBGA`
+    #[bms_token("#POORBGA {value}")]
     PoorBga(&'a str),
-    /// `#SWBGAxx`
+    /// `#SWBGA{id}`
+    #[bms_token("#SWBGA{id} {filename}")]
     SwBga {
         /// The 2-character index.
-        index: BmsChannelId<BmpTag>,
+        id: BmsChannelId<BmpTag>,
         /// Path or name of the resource file.
         filename: &'a str,
     },
-    /// `#ARGBxx`
+    /// `#ARGB{id}`
+    #[bms_token("#ARGB{id} {filename}")]
     Argb {
         /// The 2-character index.
-        index: BmsChannelId<BmpTag>,
+        id: BmsChannelId<BmpTag>,
         /// Path or name of the resource file.
         filename: &'a str,
     },
     /// `#VIDEOFILE`
+    #[bms_token("#VIDEOFILE {value}")]
     VideoFile(&'a str),
     /// `#MOVIE`
+    #[bms_token("#MOVIE {value}")]
     Movie(&'a str),
-    /// `#SEEKxx`
+    /// `#SEEK{id}`
+    #[bms_token("#SEEK{id} {value}")]
     Seek {
         /// The 2-character index.
-        index: BmsChannelId<SeekTag>,
-        /// The raw value string.
+        id: BmsChannelId<SeekTag>,
+        /// The raw value.
         value: f64,
     },
     /// `#ExtChr`
+    #[bms_token("#ExtChr {value}")]
     ExtChr(&'a str),
 }

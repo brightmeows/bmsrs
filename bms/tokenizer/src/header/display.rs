@@ -3,9 +3,12 @@
 //! This module also defines [`DifficultyLevel`], the domain type for
 //! `#DIFFICULTY`.
 
+use std::fmt;
 use std::str::FromStr;
 
 use thiserror::Error;
+
+use crate::BmsTokenAttr;
 
 /// The difficulty category specified by `#DIFFICULTY` (values 1–5).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -36,22 +39,35 @@ impl FromStr for DifficultyLevel {
     }
 }
 
+impl fmt::Display for DifficultyLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Display and difficulty headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderDisplay<'a> {
     /// `#STAGEFILE`
+    #[bms_token("#STAGEFILE {value}")]
     StageFile(&'a str),
     /// `#BANNER`
+    #[bms_token("#BANNER {value}")]
     Banner(&'a str),
     /// `#BACKBMP`
+    #[bms_token("#BACKBMP {value}")]
     BackBmp(&'a str),
     /// `#CHARFILE`
+    #[bms_token("#CHARFILE {value}")]
     CharFile(&'a str),
     /// `#PLAYLEVEL`
+    #[bms_token("#PLAYLEVEL {value}")]
     PlayLevel(f64),
     /// `#DIFFICULTY`
+    #[bms_token("#DIFFICULTY {value}")]
     Difficulty(DifficultyLevel),
     /// `#PREVIEW` (beatoraja extension)
+    #[bms_token("#PREVIEW {value}")]
     Preview(&'a str),
 }
 

@@ -20,10 +20,6 @@ pub use res_def_visual::BmsHeaderResDefVisual;
 pub use timing::BmsHeaderTiming;
 
 use crate::error::BmsTokenizeError;
-use crate::id::{
-    BmpTag, BmsChannelId, BpmTag, ExRankTag, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag,
-    WavTag,
-};
 
 /// A header command from a BMS file, categorized by semantic domain.
 #[derive(Debug, Clone, PartialEq)]
@@ -55,407 +51,27 @@ pub struct BmsHeaderExt<'a> {
     pub value: &'a str,
 }
 
-/// All non-indexed header commands (exact match).
-#[expect(
-    clippy::too_many_lines,
-    reason = "one arm per header variant, ~30 variants"
-)]
-fn match_non_indexed<'a>(
+/// Dispatch a `(command, value)` pair to the matching sub-enum via its
+/// generated `__bms_dispatch` function.
+fn match_header<'a>(
     command: &str,
-    value: &'a str,
-) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError<'a>> {
-    match command {
-        // -- Metadata (free-text, no parsing needed) --
-        "TITLE" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Title(value)))),
-        "SUBTITLE" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Subtitle(
-            value,
-        )))),
-        "ARTIST" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Artist(value)))),
-        "SUBARTIST" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::SubArtist(
-            value,
-        )))),
-        "GENRE" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Genre(value)))),
-        "MAKER" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Maker(value)))),
-        "COMMENT" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Comment(value)))),
-        "TEXT" | "SONG" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Text(value)))),
-        "CHARSET" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Charset(value)))),
-        // -- Gameplay (typed) --
-        "PLAYER" => {
-            let v: PlayerMode = value.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                context: "#PLAYER",
-                value,
-            })?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::Player(v))))
-        }
-        "RANK" => {
-            let v: u8 = value.parse()?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::Rank(v))))
-        }
-        "DEFEXRANK" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::DefExRank(v))))
-        }
-        "TOTAL" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::Total(v))))
-        }
-        "VOLWAV" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::VolWav(v))))
-        }
-        "LNTYPE" => {
-            let v: LnType = value.parse().map_err(|_| BmsTokenizeError::OutOfRange {
-                context: "#LNTYPE",
-                value,
-                expected: "1 or 2",
-            })?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::LnType(v))))
-        }
-        "LNOBJ" => {
-            let id: BmsChannelId<LnObjTag> =
-                value.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                    context: "#LNOBJ",
-                    value,
-                })?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::LnObj(id))))
-        }
-        "LNMODE" => {
-            let v: LnMode = value.parse().map_err(|_| BmsTokenizeError::OutOfRange {
-                context: "#LNMODE",
-                value,
-                expected: "1, 2, or 3",
-            })?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::LnMode(v))))
-        }
-        "OCT" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::Oct(v))))
-        }
-        "FP" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::Fp(v))))
-        }
-        "OPTION" => Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::Option(value)))),
-        "CHANGEOPTION" => Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::ChangeOption(
-            value,
-        )))),
-        // -- Display (some typed) --
-        "STAGEFILE" => Ok(Some(BmsHeader::Display(BmsHeaderDisplay::StageFile(value)))),
-        "BANNER" => Ok(Some(BmsHeader::Display(BmsHeaderDisplay::Banner(value)))),
-        "BACKBMP" => Ok(Some(BmsHeader::Display(BmsHeaderDisplay::BackBmp(value)))),
-        "CHARFILE" => Ok(Some(BmsHeader::Display(BmsHeaderDisplay::CharFile(value)))),
-        "PLAYLEVEL" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Display(BmsHeaderDisplay::PlayLevel(v))))
-        }
-        "DIFFICULTY" => {
-            let v: DifficultyLevel = value.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                context: "#DIFFICULTY",
-                value,
-            })?;
-            Ok(Some(BmsHeader::Display(BmsHeaderDisplay::Difficulty(v))))
-        }
-        "PREVIEW" => Ok(Some(BmsHeader::Display(BmsHeaderDisplay::Preview(value)))),
-        // -- Timing (typed) --
-        "BPM" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Timing(BmsHeaderTiming::Bpm(v))))
-        }
-        "BASEBPM" => {
-            let v: f64 = value.parse()?;
-            Ok(Some(BmsHeader::Timing(BmsHeaderTiming::BaseBpm(v))))
-        }
-        // -- Audio resources (free-text) --
-        "WAVCMD" => Ok(Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd(
-            value,
-        )))),
-        "CDDA" => Ok(Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Cdda(
-            value,
-        )))),
-        "MIDIFILE" => Ok(Some(BmsHeader::ResDefAudio(
-            BmsHeaderResDefAudio::Midifile(value),
-        ))),
-        "PATH_WAV" => Ok(Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::PathWav(
-            value,
-        )))),
-        // -- Visual resources (free-text) --
-        "POORBGA" => Ok(Some(BmsHeader::ResDefVisual(
-            BmsHeaderResDefVisual::PoorBga(value),
-        ))),
-        "VIDEOFILE" => Ok(Some(BmsHeader::ResDefVisual(
-            BmsHeaderResDefVisual::VideoFile(value),
-        ))),
-        "MOVIE" => Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Movie(
-            value,
-        )))),
-        "EXTCHR" => Ok(Some(BmsHeader::ResDefVisual(
-            BmsHeaderResDefVisual::ExtChr(value),
-        ))),
-        // -- Control flow (value-less) --
-        "ENDRANDOM" => Ok(Some(BmsHeader::ControlFlow(
-            BmsHeaderControlFlow::EndRandom,
-        ))),
-        "ELSE" => Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Else))),
-        "ENDIF" => Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::EndIf))),
-        "ENDSW" | "ENDSWITCH" => Ok(Some(BmsHeader::ControlFlow(
-            BmsHeaderControlFlow::EndSwitch,
-        ))),
-        "DEF" => Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Def))),
-        // -- Control flow (typed) --
-        "RANDOM" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Random(
-                v,
-            ))))
-        }
-        "SETRANDOM" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(
-                BmsHeaderControlFlow::SetRandom(v),
-            )))
-        }
-        "IF" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::If(v))))
-        }
-        "ELSEIF" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::ElseIf(
-                v,
-            ))))
-        }
-        "SWITCH" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Switch(
-                v,
-            ))))
-        }
-        "SETSWITCH" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(
-                BmsHeaderControlFlow::SetSwitch(v),
-            )))
-        }
-        "CASE" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Case(v))))
-        }
-        "SKIP" => {
-            let v: u64 = value.parse()?;
-            Ok(Some(BmsHeader::ControlFlow(BmsHeaderControlFlow::Skip(v))))
-        }
-        // -- Not matched --
-        _ => Ok(None),
-    }
-}
-
-/// Known indexed command bases (longest first to avoid prefix collisions).
-const INDEXED_BASES: &[&str] = &[
-    "EXBMP", "EXWAV", "EXRANK", "SCROLL", "SPEED", "SWBGA", "@BGA", "ARGB", "BGA", "BMP", "BPM",
-    "STOP", "SEEK", "WAV",
-];
-
-/// All bases that have a match arm in `match_indexed`.
-/// Must be kept in the same order as `INDEXED_BASES`.
-#[cfg(test)]
-const INDEXED_BASES_HANDLED: &[&str] = &[
-    "EXBMP", "EXWAV", "EXRANK", "SCROLL", "SPEED", "SWBGA", "@BGA", "ARGB", "BGA", "BMP", "BPM",
-    "STOP", "SEEK", "WAV",
-];
-
-/// Try to match an indexed command (base + 2-char index suffix).
-///
-/// `command_raw` provides the index slice (borrowed from input, lifetime `'a`),
-/// while `command_upper` is the uppercased version used for base matching.
-#[expect(clippy::too_many_lines, reason = "one arm per indexed base, ~14 bases")]
-fn match_indexed<'a>(
-    command_upper: &str,
     command_raw: &'a str,
     value: &'a str,
 ) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError<'a>> {
-    let cmd_len = command_raw.len();
-
-    if cmd_len < 5 {
-        return Ok(None);
+    macro_rules! try_sub {
+        ($ty:ty) => {
+            if let Some(v) = <$ty>::__bms_dispatch(command, command_raw, value)? {
+                return Ok(Some(v));
+            }
+        };
     }
-
-    for &base in INDEXED_BASES {
-        if cmd_len == base.len() + 2 && command_upper.starts_with(base) {
-            let idx_start = base.len();
-            let idx = &command_raw[idx_start..];
-
-            return match base {
-                "WAV" => {
-                    let id: BmsChannelId<WavTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#WAV",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
-                        index: id,
-                        filename: value,
-                    })))
-                }
-                "EXWAV" => {
-                    let id: BmsChannelId<WavTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#WAV",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav {
-                        index: id,
-                        filename: value,
-                    })))
-                }
-                "BMP" => {
-                    let id: BmsChannelId<BmpTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#BMP",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bmp {
-                        index: id,
-                        filename: value,
-                    })))
-                }
-                "EXBMP" => {
-                    let id: BmsChannelId<BmpTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#BMP",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefVisual(
-                        BmsHeaderResDefVisual::ExBmp {
-                            index: id,
-                            filename: value,
-                        },
-                    )))
-                }
-                "BGA" => {
-                    let id: BmsChannelId<BmpTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#BMP",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga {
-                        index: id,
-                        filename: value,
-                    })))
-                }
-                "@BGA" => {
-                    let id: BmsChannelId<BmpTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "@BGA",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefVisual(
-                        BmsHeaderResDefVisual::AtBga {
-                            index: id,
-                            filename: value,
-                        },
-                    )))
-                }
-                "SWBGA" => {
-                    let id: BmsChannelId<BmpTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#SWBGA",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefVisual(
-                        BmsHeaderResDefVisual::SwBga {
-                            index: id,
-                            filename: value,
-                        },
-                    )))
-                }
-                "ARGB" => {
-                    let id: BmsChannelId<BmpTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#ARGB",
-                            value: idx,
-                        })?;
-                    Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Argb {
-                        index: id,
-                        filename: value,
-                    })))
-                }
-                "SEEK" => {
-                    let id: BmsChannelId<SeekTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#SEEK",
-                            value: idx,
-                        })?;
-                    let v: f64 = value.parse()?;
-                    Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Seek {
-                        index: id,
-                        value: v,
-                    })))
-                }
-                "BPM" => {
-                    let id: BmsChannelId<BpmTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#BPM",
-                            value: idx,
-                        })?;
-                    let v: f64 = value.parse()?;
-                    Ok(Some(BmsHeader::Timing(BmsHeaderTiming::BpmDef {
-                        index: id,
-                        value: v,
-                    })))
-                }
-                "STOP" => {
-                    let id: BmsChannelId<StopTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#STOP",
-                            value: idx,
-                        })?;
-                    let v: f64 = value.parse()?;
-                    Ok(Some(BmsHeader::Timing(BmsHeaderTiming::StopDef {
-                        index: id,
-                        value: v,
-                    })))
-                }
-                "SCROLL" => {
-                    let id: BmsChannelId<ScrollTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#SCROLL",
-                            value: idx,
-                        })?;
-                    let v: f64 = value.parse()?;
-                    Ok(Some(BmsHeader::Timing(BmsHeaderTiming::ScrollDef {
-                        index: id,
-                        value: v,
-                    })))
-                }
-                "SPEED" => {
-                    let id: BmsChannelId<SpeedTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#SPEED",
-                            value: idx,
-                        })?;
-                    let v: f64 = value.parse()?;
-                    Ok(Some(BmsHeader::Timing(BmsHeaderTiming::SpeedDef {
-                        index: id,
-                        value: v,
-                    })))
-                }
-                "EXRANK" => {
-                    let id: BmsChannelId<ExRankTag> =
-                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
-                            context: "#EXRANK",
-                            value: idx,
-                        })?;
-                    let v: f64 = value.parse()?;
-                    Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::ExRank {
-                        index: id,
-                        value: v,
-                    })))
-                }
-                _ => unreachable!("all indexed bases must be handled"),
-            };
-        }
-    }
-
+    try_sub!(BmsHeaderMetadata::<'_>);
+    try_sub!(BmsHeaderGameplay::<'_>);
+    try_sub!(BmsHeaderDisplay::<'_>);
+    try_sub!(BmsHeaderTiming);
+    try_sub!(BmsHeaderResDefAudio::<'_>);
+    try_sub!(BmsHeaderResDefVisual::<'_>);
+    try_sub!(BmsHeaderControlFlow);
     Ok(None)
 }
 
@@ -508,28 +124,24 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
         return Ok(None);
     }
 
-    // -- % commands: URL / EMAIL are metadata; everything else is Extension. --
-    if prefix == '%' {
-        let command_upper = command_raw.to_uppercase();
-        return Ok(Some(match command_upper.as_str() {
-            "URL" => BmsHeader::Metadata(BmsHeaderMetadata::Url(value)),
-            "EMAIL" => BmsHeader::Metadata(BmsHeaderMetadata::Email(value)),
-            _ => BmsHeader::Ext(BmsHeaderExt {
-                command: command_raw,
-                value,
-            }),
-        }));
-    }
-
     let command_upper = command_raw.to_uppercase();
 
-    // Try exact match first (non-indexed).
-    if let Some(header) = match_non_indexed(&command_upper, value)? {
-        return Ok(Some(header));
+    // `%` commands: only `%URL` and `%EMAIL` are valid BMS headers —
+    // everything else is an engine-specific extension.  The dispatch
+    // table below would catch `%URL`/`%EMAIL` via their command name,
+    // but unknown `%` commands must NOT fall through to the `#` dispatch
+    // (doing so would let `%TITLE` masquerade as `#TITLE`).
+    if prefix == '%' && command_upper != "URL" && command_upper != "EMAIL" {
+        return Ok(Some(BmsHeader::Ext(BmsHeaderExt {
+            command: command_raw,
+            value,
+        })));
     }
 
-    // Try indexed match (base + 2-char suffix).
-    if let Some(header) = match_indexed(&command_upper, command_raw, value)? {
+    // Single dispatch via sub-enum `__bms_dispatch` functions.
+    // `command_raw` carries the input lifetime so that index-slice errors
+    // can store the correct portion of the command.
+    if let Some(header) = match_header(&command_upper, command_raw, value)? {
         return Ok(Some(header));
     }
 
@@ -543,14 +155,10 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn all_indexed_bases_have_match_arms() {
-        assert_eq!(
-            INDEXED_BASES, INDEXED_BASES_HANDLED,
-            "INDEXED_BASES and INDEXED_BASES_HANDLED must match exactly"
-        );
-    }
+    use crate::id::{
+        BmpTag, BmsChannelId, BpmTag, ExRankTag, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag,
+        WavTag,
+    };
 
     #[test]
     fn parse_title() {
@@ -1042,7 +650,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
-                index: BmsChannelId::<WavTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<WavTag>::try_from("01").unwrap(),
                 filename: "kick.wav"
             })
         );
@@ -1054,7 +662,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
-                index: BmsChannelId::<WavTag>::try_from("2A").unwrap(),
+                id: BmsChannelId::<WavTag>::try_from("2A").unwrap(),
                 filename: "snare.wav"
             })
         );
@@ -1066,7 +674,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav {
-                index: BmsChannelId::<WavTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<WavTag>::try_from("01").unwrap(),
                 filename: "extra.ogg"
             })
         );
@@ -1078,7 +686,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bmp {
-                index: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
                 filename: "bg.bmp"
             })
         );
@@ -1090,7 +698,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExBmp {
-                index: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
                 filename: "extra.bmp"
             })
         );
@@ -1102,7 +710,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga {
-                index: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
                 filename: "layer.bmp"
             })
         );
@@ -1114,7 +722,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga {
-                index: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
                 filename: "layer.bmp"
             })
         );
@@ -1126,7 +734,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::SwBga {
-                index: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
                 filename: "switch.bmp"
             })
         );
@@ -1138,7 +746,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Argb {
-                index: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
                 filename: "rgba.bmp"
             })
         );
@@ -1150,7 +758,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Seek {
-                index: BmsChannelId::<SeekTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<SeekTag>::try_from("01").unwrap(),
                 value: 1.5
             })
         );
@@ -1162,7 +770,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::BpmDef {
-                index: BmsChannelId::<BpmTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<BpmTag>::try_from("01").unwrap(),
                 value: 180.0
             })
         );
@@ -1174,7 +782,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::StopDef {
-                index: BmsChannelId::<StopTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<StopTag>::try_from("01").unwrap(),
                 value: 192.0
             })
         );
@@ -1186,7 +794,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::ScrollDef {
-                index: BmsChannelId::<ScrollTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<ScrollTag>::try_from("01").unwrap(),
                 value: 1.5
             })
         );
@@ -1198,7 +806,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::SpeedDef {
-                index: BmsChannelId::<SpeedTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<SpeedTag>::try_from("01").unwrap(),
                 value: 2.0
             })
         );
@@ -1210,7 +818,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::ExRank {
-                index: BmsChannelId::<ExRankTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<ExRankTag>::try_from("01").unwrap(),
                 value: 5.0
             })
         );
@@ -1289,7 +897,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
-                index: BmsChannelId::<WavTag>::try_from("01").unwrap(),
+                id: BmsChannelId::<WavTag>::try_from("01").unwrap(),
                 filename: "sound.wav"
             })
         );

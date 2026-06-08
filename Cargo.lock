@@ -14,7 +14,17 @@ version = "0.1.0"
 name = "bms-tokenizer"
 version = "0.1.0"
 dependencies = [
+ "bms-tokenizer-derive",
  "thiserror",
+]
+
+[[package]]
+name = "bms-tokenizer-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

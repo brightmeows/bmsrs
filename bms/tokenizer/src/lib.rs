@@ -5,7 +5,7 @@
 //!
 //! # Architecture
 //!
-//! - [`BmsToken`] represents a single meaningful line in a BMS file.
+//! - [`enum@BmsToken`] represents a single meaningful line in a BMS file.
 //! - [`BmsHeader`] covers all header commands, categorized by semantic domain.
 //! - [`BmsMessage`] covers channel data lines (`#xxxYY:values`).
 //!
@@ -21,6 +21,7 @@ mod header;
 mod id;
 mod message;
 
+pub use bms_tokenizer_derive::BmsTokenAttr;
 pub use error::BmsTokenizeError;
 pub use header::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderExt, BmsHeaderGameplay,

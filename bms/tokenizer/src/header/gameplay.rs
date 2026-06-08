@@ -3,10 +3,12 @@
 //! This module also defines the domain types used by [`BmsHeaderGameplay`]:
 //! [`PlayerMode`], [`LnType`], and [`LnMode`].
 
+use std::fmt;
 use std::str::FromStr;
 
 use thiserror::Error;
 
+use crate::BmsTokenAttr;
 use crate::id::{BmsChannelId, ExRankTag, LnObjTag};
 
 /// The play mode specified by `#PLAYER`.
@@ -41,6 +43,17 @@ impl FromStr for PlayerMode {
     }
 }
 
+impl fmt::Display for PlayerMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PlayerMode::Single => write!(f, "1"),
+            PlayerMode::Couple => write!(f, "2"),
+            PlayerMode::Double => write!(f, "3"),
+            PlayerMode::Battle => write!(f, "4"),
+        }
+    }
+}
+
 /// The long-note type specified by `#LNTYPE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LnType {
@@ -63,6 +76,15 @@ impl FromStr for LnType {
             "1" | "01" => Ok(LnType::Type1),
             "2" | "02" => Ok(LnType::Type2),
             _ => Err(ParseLnTypeError(s.to_owned())),
+        }
+    }
+}
+
+impl fmt::Display for LnType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LnType::Type1 => write!(f, "1"),
+            LnType::Type2 => write!(f, "2"),
         }
     }
 }
@@ -96,39 +118,62 @@ impl FromStr for LnMode {
     }
 }
 
+impl fmt::Display for LnMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LnMode::Ln => write!(f, "1"),
+            LnMode::Cn => write!(f, "2"),
+            LnMode::Hcn => write!(f, "3"),
+        }
+    }
+}
+
 /// Gameplay behaviour headers.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderGameplay<'a> {
     /// `#PLAYER`
+    #[bms_token("#PLAYER {value}")]
     Player(PlayerMode),
     /// `#RANK`
+    #[bms_token("#RANK {value}")]
     Rank(u8),
     /// `#DEFEXRANK`
+    #[bms_token("#DEFEXRANK {value}")]
     DefExRank(f64),
-    /// `#EXRANKxx` with its 2-character index.
+    /// `#EXRANK{id}` with its 2-character index.
+    #[bms_token("#EXRANK{id} {value}")]
     ExRank {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
-        index: BmsChannelId<ExRankTag>,
-        /// The raw value string.
+        id: BmsChannelId<ExRankTag>,
+        /// The raw value.
         value: f64,
     },
     /// `#TOTAL`
+    #[bms_token("#TOTAL {value}")]
     Total(f64),
     /// `#VOLWAV`
+    #[bms_token("#VOLWAV {value}")]
     VolWav(f64),
     /// `#LNTYPE`
+    #[bms_token("#LNTYPE {value}")]
     LnType(LnType),
     /// `#LNOBJ`
+    #[bms_token("#LNOBJ {value}")]
     LnObj(BmsChannelId<LnObjTag>),
     /// `#LNMODE` (beatoraja extension)
+    #[bms_token("#LNMODE {value}")]
     LnMode(LnMode),
     /// `#OCT`
+    #[bms_token("#OCT {value}")]
     Oct(f64),
     /// `#FP`
+    #[bms_token("#FP {value}")]
     Fp(f64),
     /// `#OPTION`
+    #[bms_token("#OPTION {value}")]
     Option(&'a str),
     /// `#CHANGEOPTION`
+    #[bms_token("#CHANGEOPTION {value}")]
     ChangeOption(&'a str),
 }
 
