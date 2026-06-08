@@ -3,7 +3,7 @@
 use serde::de::{self, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
-use std::path::PathBuf;
+use std::path::Path;
 
 /// Game mode hint specifying the input layout.
 ///
@@ -360,7 +360,8 @@ impl NoteEvent {
 ///    Notes with `c: false` cause a restart at that point.
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SoundChannel {
+#[serde(bound(deserialize = "'de: 'a"))]
+pub struct SoundChannel<'a> {
     /// Audio file name (relative path, extension may be omitted).
     ///
     /// The player will search for compatible audio files (`.wav`, `.ogg`,
@@ -370,7 +371,8 @@ pub struct SoundChannel {
     ///
     /// Implementations **must** prevent directory traversal and absolute
     /// paths (e.g. `../secret.txt`, `/etc/passwd`).
-    pub name: PathBuf,
+    #[serde(deserialize_with = "de_path")]
+    pub name: &'a Path,
 
     /// Notes that reference this audio file.
     ///
@@ -448,7 +450,8 @@ pub struct StopEvent {
 /// Header entry for a BGA image or video resource.
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BGAHeader {
+#[serde(bound(deserialize = "'de: 'a"))]
+pub struct BGAHeader<'a> {
     /// Numeric identifier referenced by [`BGAEvent::id`].
     ///
     /// Duplicate `id` values within the same file are a warning;
@@ -462,7 +465,8 @@ pub struct BGAHeader {
     ///
     /// Supported formats: `PNG` (images), `WebM` (video, audio track is ignored).
     /// Recommended resolution: 1280×720; 1920×1080 is acceptable.
-    pub name: PathBuf,
+    #[serde(deserialize_with = "de_path")]
+    pub name: &'a Path,
 }
 
 /// A BGA display event referencing a resource from [`BGAHeader`].
@@ -492,10 +496,11 @@ pub struct BGAEvent {
 /// automatically made transparent.  Use a PNG with actual alpha if you need
 /// transparency.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BGA {
+#[serde(bound(deserialize = "'de: 'a"))]
+pub struct BGA<'a> {
     /// Resource declarations (image/video id → filename mapping).
     #[serde(rename = "bga_header", alias = "bgaHeader")]
-    pub bga_header: Vec<BGAHeader>,
+    pub bga_header: Vec<BGAHeader<'a>>,
     /// Primary background animation sequence.
     #[serde(rename = "bga_events", alias = "bgaNotes")]
     pub bga_events: Vec<BGAEvent>,
@@ -524,9 +529,11 @@ pub struct ScrollEvent {
 /// Each channel groups mine notes that share the same sound file.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MineChannel {
+#[serde(bound(deserialize = "'de: 'a"))]
+pub struct MineChannel<'a> {
     /// Audio file name (played when a mine is triggered).
-    pub name: PathBuf,
+    #[serde(deserialize_with = "de_path")]
+    pub name: &'a Path,
     /// Mine notes in this channel.
     pub notes: Vec<MineNote>,
 }
@@ -549,9 +556,11 @@ pub struct MineNote {
 /// at the right time.
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct KeyChannel {
+#[serde(bound(deserialize = "'de: 'a"))]
+pub struct KeyChannel<'a> {
     /// Audio file name.
-    pub name: PathBuf,
+    #[serde(deserialize_with = "de_path")]
+    pub name: &'a Path,
     /// Invisible notes in this channel.
     pub notes: Vec<KeyNote>,
 }
@@ -628,4 +637,32 @@ pub fn deserialize_resolution_nonzero<'de, D: Deserializer<'de>>(
 ) -> Result<u64, D::Error> {
     let v = u64::deserialize(deserializer)?;
     if v == 0 { Ok(240) } else { Ok(v) }
+}
+
+/// Deserialise a JSON string as a borrowed `&Path`.
+///
+/// The JSON input must be a valid UTF‑8 string; the resulting `&Path`
+/// reinterprets the same bytes as a path (zero‑copy).
+///
+/// # Errors
+///
+/// Returns an error if the JSON value is not a string.
+pub fn de_path<'de, D: Deserializer<'de>>(deserializer: D) -> Result<&'de Path, D::Error> {
+    let s: &'de str = Deserialize::deserialize(deserializer)?;
+    Ok(Path::new(s))
+}
+
+/// Deserialise a JSON string or `null` as an `Option<&Path>`.
+///
+/// JSON `null` maps to `None`; a string maps to `Some(&Path)` reinterpreting
+/// the same UTF‑8 bytes (zero‑copy).
+///
+/// # Errors
+///
+/// Returns an error if the JSON value is neither a string nor `null`.
+pub fn de_opt_path<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<&'de Path>, D::Error> {
+    let s: Option<&'de str> = Deserialize::deserialize(deserializer)?;
+    Ok(s.map(Path::new))
 }

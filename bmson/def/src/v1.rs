@@ -17,7 +17,7 @@
 //! `notes` as root key). Leaf types are reused from the root module.
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::Path;
 
 use crate::{BGA, BarLine, BpmEvent, KeyChannel, MineChannel, ModeHint, ScrollEvent, StopEvent};
 
@@ -36,12 +36,13 @@ use crate::{BGA, BarLine, BpmEvent, KeyChannel, MineChannel, ModeHint, ScrollEve
 /// ```
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Bmson {
+pub struct Bmson<'a> {
     /// bmson format version (should be `"1.0.0"`).
-    pub version: String,
+    #[serde(borrow)]
+    pub version: &'a str,
 
     /// Metadata object.
-    pub info: BmsonInfo,
+    pub info: BmsonInfo<'a>,
 
     /// Bar-line positions. `None` → 4/4 auto, `Some([])` → no bars.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -57,10 +58,10 @@ pub struct Bmson {
 
     /// Sound channels (v1 uses `notes` inside each channel).
     #[serde(default)]
-    pub sound_channels: Vec<SoundChannel>,
+    pub sound_channels: Vec<SoundChannel<'a>>,
 
     /// Background animation data.
-    pub bga: BGA,
+    pub bga: BGA<'a>,
 
     // ---- beatoraja extensions ----
     /// Scroll-speed events.
@@ -68,10 +69,10 @@ pub struct Bmson {
     pub scroll_events: Vec<ScrollEvent>,
     /// Mine channels.
     #[serde(default)]
-    pub mine_channels: Vec<MineChannel>,
+    pub mine_channels: Vec<MineChannel<'a>>,
     /// Invisible-key channels.
     #[serde(default)]
-    pub key_channels: Vec<KeyChannel>,
+    pub key_channels: Vec<KeyChannel<'a>>,
 }
 
 /// Metadata object in the v1 schema.
@@ -79,31 +80,34 @@ pub struct Bmson {
 /// Holds everything about the song and this specific chart.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BmsonInfo {
+pub struct BmsonInfo<'a> {
     /// Song title.
-    pub title: String,
+    #[serde(borrow)]
+    pub title: &'a str,
 
     /// Subtitle (default `""`).
-    #[serde(default)]
-    pub subtitle: String,
+    #[serde(borrow, default)]
+    pub subtitle: &'a str,
 
     /// Primary artist.
-    pub artist: String,
+    #[serde(borrow)]
+    pub artist: &'a str,
 
     /// Additional contributors (`["key:value", ...]`).
     #[serde(default, deserialize_with = "crate::null_to_default")]
-    pub subartists: Vec<String>,
+    pub subartists: Vec<&'a str>,
 
     /// Genre.
-    pub genre: String,
+    #[serde(borrow)]
+    pub genre: &'a str,
 
     /// Game-mode hint (default `"beat-7k"`).
     #[serde(default)]
     pub mode_hint: ModeHint,
 
     /// Chart name / difficulty label (default `""`).
-    #[serde(default)]
-    pub chart_name: String,
+    #[serde(borrow, default)]
+    pub chart_name: &'a str,
 
     /// Numeric difficulty level.
     pub level: u64,
@@ -120,25 +124,45 @@ pub struct BmsonInfo {
     pub total: f64,
 
     /// Background image (gameplay).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub back_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "crate::de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub back_image: Option<&'a Path>,
 
     /// Eyecatch image (load screen).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eyecatch_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "crate::de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub eyecatch_image: Option<&'a Path>,
 
     /// Banner image (select / results).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub banner_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "crate::de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub banner_image: Option<&'a Path>,
 
     /// Preview music path.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preview_music: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "crate::de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub preview_music: Option<&'a Path>,
 
     /// Title image displayed before gameplay starts.
     /// Equivalent to `#BACKBMP` in the OADX+ skin system.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "crate::de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub title_image: Option<&'a Path>,
 
     /// Pulse resolution (default 240).
     #[serde(
@@ -158,9 +182,11 @@ fn default_100() -> f64 {
 /// Identical to [`crate::SoundChannel`] except the notes field is
 /// `notes` (v1 convention) instead of `note_events` (v2).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SoundChannel {
+#[serde(bound(deserialize = "'de: 'a"))]
+pub struct SoundChannel<'a> {
     /// Audio file name.
-    pub name: PathBuf,
+    #[serde(deserialize_with = "crate::de_path")]
+    pub name: &'a Path,
     /// Notes referencing this audio file.
     #[serde(rename = "notes")]
     pub notes: Vec<crate::NoteEvent>,
@@ -168,8 +194,8 @@ pub struct SoundChannel {
 
 use crate::{Bmson as RootBmson, ChartData, ChartInfo, SongInfo};
 
-impl From<Bmson> for RootBmson {
-    fn from(v1: Bmson) -> Self {
+impl<'a> From<Bmson<'a>> for RootBmson<'a> {
+    fn from(v1: Bmson<'a>) -> Self {
         let info = v1.info;
 
         let song_info = SongInfo {
@@ -227,8 +253,8 @@ impl From<Bmson> for RootBmson {
     }
 }
 
-impl From<RootBmson> for Bmson {
-    fn from(root: RootBmson) -> Self {
+impl<'a> From<RootBmson<'a>> for Bmson<'a> {
+    fn from(root: RootBmson<'a>) -> Self {
         let info = BmsonInfo {
             title: root.song_info.title,
             subtitle: root.chart_info.subtitle,

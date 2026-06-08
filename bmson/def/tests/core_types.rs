@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use bmson_def::{
     BGA, ChartData, ChartInfo, JudgementDeltas, LifeDeltas, LnJudge, LnLife, LnMode, LnType,
@@ -54,7 +54,7 @@ fn bga_v0_camelcase_aliases() {
     let bga: BGA = serde_json::from_str(json).unwrap();
     assert_eq!(bga.bga_header.len(), 1);
     assert_eq!(bga.bga_header[0].id, 1);
-    assert_eq!(bga.bga_header[0].name, PathBuf::from("bg.png"));
+    assert_eq!(bga.bga_header[0].name, Path::new("bg.png"));
     assert_eq!(bga.bga_events.len(), 1);
     assert_eq!(bga.bga_events[0].y, 0);
     assert!(bga.layer_events.is_empty());
@@ -131,7 +131,7 @@ fn title_image_chart_info() {
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
     let info: ChartInfo = serde_json::from_str(json).unwrap();
-    assert_eq!(info.title_image, Some(PathBuf::from("title.png")));
+    assert_eq!(info.title_image, Some(Path::new("title.png")));
 }
 
 #[test]
@@ -309,7 +309,7 @@ fn bmson_mine_channels() {
     }"#;
     let root: bmson_def::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(root.mine_channels.len(), 1);
-    assert_eq!(root.mine_channels[0].name, PathBuf::from("mine.wav"));
+    assert_eq!(root.mine_channels[0].name, Path::new("mine.wav"));
     assert_eq!(root.mine_channels[0].notes[0].damage, 10.5);
 }
 
@@ -345,4 +345,46 @@ fn bmson_extensions_absent_default_empty() {
     assert!(root.scroll_events.is_empty());
     assert!(root.mine_channels.is_empty());
     assert!(root.key_channels.is_empty());
+}
+
+#[test]
+fn bga_header_round_trip() {
+    let json = r#"{"bga_header": [{"id": 1, "name": "bg.png"}], "bga_events": [], "layer_events": [], "poor_events": []}"#;
+    let bga: bmson_def::BGA = serde_json::from_str(json).unwrap();
+    assert_eq!(bga.bga_header[0].name, Path::new("bg.png"));
+
+    let serialized = serde_json::to_string(&bga).unwrap();
+    let bga2: bmson_def::BGA = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(bga2.bga_header[0].name, Path::new("bg.png"));
+    assert_eq!(bga.bga_header[0].id, bga2.bga_header[0].id);
+}
+
+#[test]
+fn sound_channel_round_trip() {
+    let json = r#"{"name": "kick.wav", "note_events": [{"x": 1, "y": 0, "l": 0, "c": false}]}"#;
+    let ch: bmson_def::SoundChannel = serde_json::from_str(json).unwrap();
+    assert_eq!(ch.name, Path::new("kick.wav"));
+
+    let serialized = serde_json::to_string(&ch).unwrap();
+    let ch2: bmson_def::SoundChannel = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(ch2.name, Path::new("kick.wav"));
+    assert_eq!(ch.note_events, ch2.note_events);
+}
+
+#[test]
+fn chart_info_image_round_trip() {
+    let json = r#"{
+        "subtitle": "",
+        "subartists": [],
+        "chart_name": "",
+        "level": 1,
+        "back_image": "bg.png",
+        "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
+    }"#;
+    let info: bmson_def::ChartInfo = serde_json::from_str(json).unwrap();
+    assert_eq!(info.back_image, Some(Path::new("bg.png")));
+
+    let serialized = serde_json::to_string(&info).unwrap();
+    let info2: bmson_def::ChartInfo = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(info2.back_image, Some(Path::new("bg.png")));
 }

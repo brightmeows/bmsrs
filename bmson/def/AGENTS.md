@@ -11,6 +11,7 @@ bmson format type definitions (v0/v1/v2).
   are re-exported from the **root module** (`bmson_def::*`) via `common.rs`.
 - Conversion traits (`From`/`TryFrom`) live in the version modules
   (`v0.rs`, `v1.rs`), not in `common.rs`.
-- Helper functions (`null_to_default`, `null_to_u64`, `default_multiplier`,
-  `default_resolution`, `deserialize_resolution_nonzero`) are `pub` — they
-  double as `#[serde(deserialize_with)]` targets.
+- Helper functions are re-exported from the root module and double as
+  `#[serde(deserialize_with)]` targets: `null_to_default`, `null_to_u64`,
+  `default_multiplier`, `default_resolution`, `deserialize_resolution_nonzero`,
+  `de_path`, `de_opt_path`.

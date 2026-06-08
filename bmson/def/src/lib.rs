@@ -41,11 +41,12 @@ pub use common::{
 };
 
 pub use common::{
-    default_multiplier, default_resolution, deserialize_resolution_nonzero, null_to_default,
+    de_opt_path, de_path, default_multiplier, default_resolution, deserialize_resolution_nonzero,
+    null_to_default,
 };
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::Path;
 
 /// Custom judgement window offsets introduced by the DJ.NEXT player.
 ///
@@ -99,26 +100,27 @@ pub struct LifeDeltas {
 /// specification.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Bmson {
+pub struct Bmson<'a> {
     /// bmson format version string.
     ///
     /// Must be a valid `SemVer` string.  For v2 files the value is `"2.0.0"`.
     /// If `version` is missing (`null`), the player should reject the file
     /// or treat it as an older format.
     ///
-    pub version: String,
+    #[serde(borrow)]
+    pub version: &'a str,
 
     /// Song‑level metadata (title, artist, genre).
     #[serde(rename = "song_info")]
-    pub song_info: SongInfo,
+    pub song_info: SongInfo<'a>,
 
     /// Per‑chart metadata (difficulty, images, BGA).
     #[serde(rename = "chart_info")]
-    pub chart_info: ChartInfo,
+    pub chart_info: ChartInfo<'a>,
 
     /// Chart data (notes, timing, sound channels).
     #[serde(rename = "chart_data")]
-    pub chart_data: ChartData,
+    pub chart_data: ChartData<'a>,
 
     // ---- beatoraja extensions ----
     /// Scroll‑speed change events (beatoraja 0.7.6+).
@@ -127,11 +129,11 @@ pub struct Bmson {
 
     /// Mine (landmine) channels (beatoraja extension).
     #[serde(default)]
-    pub mine_channels: Vec<MineChannel>,
+    pub mine_channels: Vec<MineChannel<'a>>,
 
     /// Invisible ("key") channels (beatoraja extension).
     #[serde(default)]
-    pub key_channels: Vec<KeyChannel>,
+    pub key_channels: Vec<KeyChannel<'a>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -144,24 +146,27 @@ pub struct Bmson {
 /// describe the **composition itself** (not a specific chart).
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SongInfo {
+pub struct SongInfo<'a> {
     /// Song title.
     ///
     /// Players must display this as-is without splitting on delimiters
     /// like `()` or `--`.
     ///
-    pub title: String,
+    #[serde(borrow)]
+    pub title: &'a str,
 
     /// Primary artist.
     ///
     /// Usually the music composer.  May contain multiple names separated
     /// by `vs`, `feat.`, etc.
     ///
-    pub artist: String,
+    #[serde(borrow)]
+    pub artist: &'a str,
 
     /// Song genre.
     ///
-    pub genre: String,
+    #[serde(borrow)]
+    pub genre: &'a str,
 }
 
 // ---------------------------------------------------------------------------
@@ -174,14 +179,14 @@ pub struct SongInfo {
 /// chart arrangement of a song.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChartInfo {
+pub struct ChartInfo<'a> {
     /// Chart subtitle.
     ///
     /// Displayed in a smaller font below [`SongInfo::title`].
     /// May contain `\n` for multi‑line subtitles.
     ///
-    #[serde(default)]
-    pub subtitle: String,
+    #[serde(borrow, default)]
+    pub subtitle: &'a str,
 
     /// Contributors other than the primary artist.
     ///
@@ -190,14 +195,14 @@ pub struct ChartInfo {
     /// If `key` is omitted it defaults to `other`.
     ///
     #[serde(default, deserialize_with = "null_to_default")]
-    pub subartists: Vec<String>,
+    pub subartists: Vec<&'a str>,
 
     /// Chart name / difficulty label.
     ///
     /// Examples: `"BEGINNER"`, `"HYPER"`, `"ANOTHER"`.
     ///
-    #[serde(default)]
-    pub chart_name: String,
+    #[serde(borrow, default)]
+    pub chart_name: &'a str,
 
     /// Numeric difficulty level.
     ///
@@ -208,36 +213,56 @@ pub struct ChartInfo {
 
     /// Background image displayed **during gameplay**.
     ///
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub back_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub back_image: Option<&'a Path>,
 
     /// Eyecatch image displayed **during song load**.
     ///
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub eyecatch_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub eyecatch_image: Option<&'a Path>,
 
     /// Banner image used in **song‑select and result screens**.
     ///
     /// Recommended aspect ratio: 15 : 4 (e.g. 600×160).
     ///
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub banner_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub banner_image: Option<&'a Path>,
 
     /// Short preview audio file path.
     ///
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preview_music: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub preview_music: Option<&'a Path>,
 
     /// Title image displayed **before gameplay starts**.
     ///
     /// Equivalent to `#BACKBMP` in the OADX+ skin system.
     /// If absent, the player displays the title in its default font.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title_image: Option<PathBuf>,
+    #[serde(
+        default,
+        deserialize_with = "de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub title_image: Option<&'a Path>,
 
     /// Background animation data.
     #[serde(rename = "bga")]
-    pub bga: BGA,
+    pub bga: BGA<'a>,
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +275,8 @@ pub struct ChartInfo {
 /// channels, LN hints, and optional DJ.NEXT extensions.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChartData {
+#[serde(bound(deserialize = "'de: 'a"))]
+pub struct ChartData<'a> {
     /// Game‑mode hint.
     ///
     /// Players should check this field to verify that the chart is
@@ -363,7 +389,7 @@ pub struct ChartData {
 
     /// Sound channels — each bundles an audio file with its notes.
     #[serde(default)]
-    pub sound_channels: Vec<SoundChannel>,
+    pub sound_channels: Vec<SoundChannel<'a>>,
 
     // ---- DJ.NEXT extensions ----
     /// Custom judgement window offsets (DJ.NEXT extension).
