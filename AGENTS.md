@@ -19,6 +19,17 @@ cargo deny check
 - **No** decorative divider lines (`// ----`, `// ====`, `// //`, etc.).
   Use a blank line instead.
 
+## MSRV
+
+- Minimum Rust version: **1.85**.
+
+## Clippy
+
+- `unwrap_used`, `expect_used`, `indexing_slicing` are **deny**.
+  Use `?` operator or `.get()` instead. Use `#[expect(…)]` with a `reason` only
+  when no alternative is practical (e.g., pre-validated input).
+- `pedantic` group is **deny**.
+
 ## Testing
 
 - Test naming: `<scenario>_<expectation>`.
