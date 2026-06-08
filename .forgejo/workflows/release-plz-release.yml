@@ -15,7 +15,7 @@ jobs:
           GIT_DEFAULT_HASH: sha256
         with:
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Restore Rust toolchain cache
         id: cache-rustup

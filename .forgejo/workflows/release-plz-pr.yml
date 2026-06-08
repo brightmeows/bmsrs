@@ -18,8 +18,8 @@ jobs:
           # Full history is required by release-plz to determine version bumps
           # based on conventional commits.
           fetch-depth: 0
-          # release-plz uses the git-token explicitly; no need to persist.
-          persist-credentials: false
+          # Persist credentials so git push (called by release-plz) can authenticate.
+          persist-credentials: true
 
       - name: Restore Rust toolchain cache
         id: cache-rustup
