@@ -3,6 +3,12 @@ name = "bmsrs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lints]
 workspace = true
@@ -28,6 +34,12 @@ members = [
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
+description = "BMS/BMSON format parsing, processing and playback toolkit"
+repository = "https://codeberg.org/brightmeows/bmsrs"
+authors = ["白喵斯 <brightmeows@163.com>"]
+homepage = "https://codeberg.org/brightmeows/bmsrs"
+keywords = ["bms", "bmson", "rhythm-game", "music-game"]
+categories = ["multimedia::encoding", "game::development"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
