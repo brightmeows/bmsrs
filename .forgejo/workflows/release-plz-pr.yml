@@ -21,6 +21,13 @@ jobs:
           # release-plz uses the git-token explicitly; no need to persist.
           persist-credentials: false
 
+      - name: Install Rust toolchain
+        id: rust
+        uses: https://codeberg.org/wackbyte/rust-toolchain@trunk
+        with:
+          toolchain: stable
+          profile: minimal
+
       - name: Install release-plz
         run: |
           curl -fsSL \
