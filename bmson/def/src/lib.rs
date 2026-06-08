@@ -122,7 +122,6 @@ pub struct Bmson<'a> {
     #[serde(rename = "chart_data")]
     pub chart_data: ChartData<'a>,
 
-    // ---- beatoraja extensions ----
     /// Scroll‑speed change events (beatoraja 0.7.6+).
     #[serde(default)]
     pub scroll_events: Vec<ScrollEvent>,
@@ -135,10 +134,6 @@ pub struct Bmson<'a> {
     #[serde(default)]
     pub key_channels: Vec<KeyChannel<'a>>,
 }
-
-// ---------------------------------------------------------------------------
-// SongInfo
-// ---------------------------------------------------------------------------
 
 /// Song‑level metadata (v2.0.0-rc1).
 ///
@@ -168,10 +163,6 @@ pub struct SongInfo<'a> {
     #[serde(borrow)]
     pub genre: &'a str,
 }
-
-// ---------------------------------------------------------------------------
-// ChartInfo
-// ---------------------------------------------------------------------------
 
 /// Per‑chart metadata (v2.0.0-rc1).
 ///
@@ -264,10 +255,6 @@ pub struct ChartInfo<'a> {
     #[serde(rename = "bga")]
     pub bga: BGA<'a>,
 }
-
-// ---------------------------------------------------------------------------
-// ChartData
-// ---------------------------------------------------------------------------
 
 /// The actual chart data (v2.0.0-rc1).
 ///
@@ -391,7 +378,6 @@ pub struct ChartData<'a> {
     #[serde(default)]
     pub sound_channels: Vec<SoundChannel<'a>>,
 
-    // ---- DJ.NEXT extensions ----
     /// Custom judgement window offsets (DJ.NEXT extension).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub judge_deltas: Option<JudgementDeltas>,
@@ -399,4 +385,103 @@ pub struct ChartData<'a> {
     /// Custom life‑gauge deltas (DJ.NEXT extension).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub life_deltas: Option<LifeDeltas>,
+}
+
+/// Errors that can occur during bmson version detection or format
+/// conversion.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum BmsonError {
+    /// Version string is present but not recognized.
+    ///
+    /// Only versions starting with `"0"` (v0.2.1 legacy), `"1"` (v1.0.0),
+    /// or `"2"` (v2.0.0-rc1) are supported.
+    #[error("unknown bmson version: {0}")]
+    UnknownVersion(String),
+
+    /// Conversion from the legacy v0.2.1 format failed.
+    #[error("v0 conversion error: {0}")]
+    V0Conversion(String),
+}
+
+/// Detected bmson format version, determined by inspecting the
+/// `"version"` field of a JSON chart file.
+///
+/// | Variant | Detection cue |
+/// |---|---|
+/// | [`V0`](DetectedVersion::V0) | No `"version"` field present (legacy) |
+/// | [`V1`](DetectedVersion::V1) | `"version"` starts with `"1"` |
+/// | [`V2`](DetectedVersion::V2) | `"version"` starts with `"2"` |
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetectedVersion {
+    /// v0.2.1 (legacy, no `version` field).
+    V0,
+    /// v1.0.0 (flat schema).
+    V1,
+    /// v2.0.0-rc1 (split schema).
+    V2,
+}
+
+/// Detect the bmson format version of a JSON chart file by scanning
+/// its `"version"` field.
+///
+/// This performs a **lightweight string scan** rather than a full JSON
+/// parse, making it suitable as a first pass before dispatching to
+/// a version‑specific deserializer.
+///
+/// # Detection logic
+///
+/// 1. Search for the literal `"version"` key in the JSON text.
+/// 2. If found, extract the string value after the colon.
+/// 3. If the value starts with `'2'` → [`V2`](DetectedVersion::V2).
+/// 4. If the value starts with `'1'` → [`V1`](DetectedVersion::V1).
+/// 5. If the value starts with `'0'` → [`V0`](DetectedVersion::V0).
+/// 6. Otherwise → [`BmsonError::UnknownVersion`].
+/// 7. If `"version"` is absent → [`V0`](DetectedVersion::V0) (legacy).
+///
+/// # Example
+///
+/// ```rust
+/// # use bmson_def::DetectedVersion;
+/// let json = r#"{"version":"2.0.0","song_info":{}}"#;
+/// assert_eq!(bmson_def::detect_version(json).unwrap(), DetectedVersion::V2);
+/// ```
+///
+/// # Errors
+///
+/// Returns [`BmsonError::UnknownVersion`] when a `"version"` field is
+/// found but its value is not a string or does not start with `'0'`,
+/// `'1'` or `'2'`.
+pub fn detect_version(json: &str) -> Result<DetectedVersion, BmsonError> {
+    // Find the `"version"` key by scanning for the literal substring.
+    let Some(key_pos) = json.find("\"version\"") else {
+        return Ok(DetectedVersion::V0);
+    };
+
+    let rest = &json[key_pos + 9..];
+    // Skip whitespace and expect `:`.
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix(':').ok_or_else(|| {
+        BmsonError::UnknownVersion("malformed version field: expected ':'".into())
+    })?;
+    // Skip whitespace and expect opening `"`.
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix('"').ok_or_else(|| {
+        BmsonError::UnknownVersion("malformed version field: expected string".into())
+    })?;
+    // Find the closing `"`.
+    let end = rest
+        .find('"')
+        .ok_or_else(|| BmsonError::UnknownVersion("unterminated version string".into()))?;
+    let version = &rest[..end];
+
+    if version.starts_with('2') {
+        Ok(DetectedVersion::V2)
+    } else if version.starts_with('1') {
+        Ok(DetectedVersion::V1)
+    } else if version.starts_with('0') {
+        Ok(DetectedVersion::V0)
+    } else {
+        Err(BmsonError::UnknownVersion(version.to_owned()))
+    }
 }

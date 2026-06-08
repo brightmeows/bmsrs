@@ -2,16 +2,22 @@
 
 bmson format type definitions (v0/v1/v2).
 
-## Public API Conventions
+## Module Layout
 
-- `v0` and `v1` are **independent modules** — each exports its own `Bmson`,
-  `BmsonInfo`, `SoundChannel`, and version-specific types. Users import
-  from `bmson_def::v0::*` or `bmson_def::v1::*`.
-- All other public types (`NoteEvent`, `BpmEvent`, `BGA`, `ModeHint`, etc.)
-  are re-exported from the **root module** (`bmson_def::*`) via `common.rs`.
-- Conversion traits (`From`/`TryFrom`) live in the version modules
-  (`v0.rs`, `v1.rs`), not in `common.rs`.
-- Helper functions are re-exported from the root module and double as
-  `#[serde(deserialize_with)]` targets: `null_to_default`, `null_to_u64`,
-  `default_multiplier`, `default_resolution`, `deserialize_resolution_nonzero`,
-  `de_path`, `de_opt_path`.
+- `v0` and `v1` are **independent modules** — each with its own `Bmson`,
+  `BmsonInfo`, `SoundChannel`. Import from `bmson_def::v0` or `bmson_def::v1`.
+- Common types (`NoteEvent`, `BpmEvent`, `BGA`, `ModeHint`, …) are
+  defined in `common.rs` and re‑exported from the crate root.
+- Version‑specific types and conversion traits (`From`/`TryFrom`) live
+  in each version submodule (`v0.rs`, `v1.rs`), not in `common.rs`.
+
+## Version Detection
+
+- `detect_version()` returns `DetectedVersion` (V0/V1/V2) by scanning
+  the JSON `"version"` field (lightweight, no `serde_json` needed).
+
+## Dependency Usage
+
+- `serde_json` is a **dev‑only** dependency — the lib itself does not
+  depend on any JSON library.  Tests use `serde_json::from_str`/`to_string`
+  directly with the version‑specific types.

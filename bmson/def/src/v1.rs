@@ -63,7 +63,6 @@ pub struct Bmson<'a> {
     /// Background animation data.
     pub bga: BGA<'a>,
 
-    // ---- beatoraja extensions ----
     /// Scroll-speed events.
     #[serde(default)]
     pub scroll_events: Vec<ScrollEvent>,

@@ -7,10 +7,6 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-// ---------------------------------------------------------------------------
-// DifficultyLevel
-// ---------------------------------------------------------------------------
-
 /// The difficulty category specified by `#DIFFICULTY` (values 1–5).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DifficultyLevel(u8);
@@ -39,10 +35,6 @@ impl FromStr for DifficultyLevel {
         Ok(DifficultyLevel(v))
     }
 }
-
-// ---------------------------------------------------------------------------
-// BmsHeaderDisplay
-// ---------------------------------------------------------------------------
 
 /// Display and difficulty headers.
 #[derive(Debug, Clone, PartialEq)]

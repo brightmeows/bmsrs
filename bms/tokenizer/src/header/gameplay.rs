@@ -9,10 +9,6 @@ use thiserror::Error;
 
 use crate::id::{BmsChannelId, ExRankTag, LnObjTag};
 
-// ---------------------------------------------------------------------------
-// PlayerMode
-// ---------------------------------------------------------------------------
-
 /// The play mode specified by `#PLAYER`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerMode {
@@ -45,10 +41,6 @@ impl FromStr for PlayerMode {
     }
 }
 
-// ---------------------------------------------------------------------------
-// LnType
-// ---------------------------------------------------------------------------
-
 /// The long-note type specified by `#LNTYPE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LnType {
@@ -74,10 +66,6 @@ impl FromStr for LnType {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// LnMode
-// ---------------------------------------------------------------------------
 
 /// The LN mode specified by `#LNMODE` (beatoraja extension).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,10 +95,6 @@ impl FromStr for LnMode {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// BmsHeaderGameplay
-// ---------------------------------------------------------------------------
 
 /// Gameplay behaviour headers.
 #[derive(Debug, Clone, PartialEq)]

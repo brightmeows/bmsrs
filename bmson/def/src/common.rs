@@ -281,7 +281,6 @@ pub struct NoteEvent {
     ///   slice point.
     pub c: bool,
 
-    // ---- v0 beatoraja extension ----
     /// Per-note long-note type override (beatoraja extension, numeric).
     ///
     /// | Value | Meaning |
@@ -294,7 +293,6 @@ pub struct NoteEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub t: Option<LnMode>,
 
-    // ---- v2.0.0-rc1 optional fields ----
     /// Release‑sound / BSS (Back‑Spin‑Scratch) flag.
     ///
     /// For CN (Charge Note) or BSS, place a `NoteEvent` with `up: true` at

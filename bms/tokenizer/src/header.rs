@@ -552,8 +552,6 @@ mod tests {
         );
     }
 
-    // ---- Metadata ----
-
     #[test]
     fn parse_title() {
         let result = parse_header_line("#TITLE My Song").unwrap().unwrap();
@@ -674,8 +672,6 @@ mod tests {
         );
     }
 
-    // ---- Gameplay ----
-
     #[test]
     fn parse_player() {
         let result = parse_header_line("#PLAYER 1").unwrap().unwrap();
@@ -771,8 +767,6 @@ mod tests {
         );
     }
 
-    // ---- Display ----
-
     #[test]
     fn parse_stagefile() {
         let result = parse_header_line("#STAGEFILE stage.png").unwrap().unwrap();
@@ -838,8 +832,6 @@ mod tests {
         );
     }
 
-    // ---- Timing ----
-
     #[test]
     fn parse_bpm_global() {
         let result = parse_header_line("#BPM 180").unwrap().unwrap();
@@ -857,8 +849,6 @@ mod tests {
         let result = parse_header_line("#BASEBPM 180").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::BaseBpm(180.0)));
     }
-
-    // ---- ResDefAudio ----
 
     #[test]
     fn parse_wavcmd() {
@@ -896,8 +886,6 @@ mod tests {
         );
     }
 
-    // ---- ResDefVisual ----
-
     #[test]
     fn parse_poorbga() {
         let result = parse_header_line("#POORBGA fallback.bmp").unwrap().unwrap();
@@ -933,8 +921,6 @@ mod tests {
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExtChr("extra"))
         );
     }
-
-    // ---- ControlFlow ----
 
     #[test]
     fn parse_random() {
@@ -1049,8 +1035,6 @@ mod tests {
             BmsHeader::ControlFlow(BmsHeaderControlFlow::EndSwitch)
         );
     }
-
-    // ---- Indexed commands ----
 
     #[test]
     fn parse_wav_indexed() {
@@ -1232,8 +1216,6 @@ mod tests {
         );
     }
 
-    // ---- WAVCMD is not confused with WAV + index ----
-
     #[test]
     fn wavcmd_not_confused_as_wav_indexed() {
         let result = parse_header_line("#WAVCMD test").unwrap().unwrap();
@@ -1242,8 +1224,6 @@ mod tests {
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd("test"))
         );
     }
-
-    // ---- Extension ----
 
     #[test]
     fn parse_unknown_header() {
@@ -1268,8 +1248,6 @@ mod tests {
             })
         );
     }
-
-    // ---- Edge cases ----
 
     #[test]
     fn empty_line_returns_none() {

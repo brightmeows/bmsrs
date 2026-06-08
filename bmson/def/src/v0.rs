@@ -78,7 +78,6 @@ pub struct Bmson<'a> {
     #[serde(rename = "bga")]
     pub bga: crate::BGA<'a>,
 
-    // ---- beatoraja extensions ----
     /// Scroll-speed events.
     #[serde(default)]
     pub scroll_events: Vec<crate::ScrollEvent>,

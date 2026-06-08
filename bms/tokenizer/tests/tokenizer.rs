@@ -4,10 +4,6 @@ use bms_tokenizer::{
     BmsHeader, BmsHeaderMetadata, BmsToken, BmsTokenizeError, tokenize, tokenize_line,
 };
 
-// ---------------------------------------------------------------------------
-// tokenize
-// ---------------------------------------------------------------------------
-
 #[test]
 fn tokenize_empty_input() {
     let tokens = tokenize("").unwrap();
@@ -124,10 +120,6 @@ fn tokenize_interleaved_headers_and_messages() {
     assert!(matches!(tokens[3], BmsToken::Message(_)));
 }
 
-// ---------------------------------------------------------------------------
-// tokenize_line
-// ---------------------------------------------------------------------------
-
 #[test]
 fn tokenize_line_empty() {
     assert_eq!(tokenize_line("").unwrap(), None);
@@ -150,20 +142,12 @@ fn tokenize_line_message() {
     assert!(matches!(result, BmsToken::Message(_)));
 }
 
-// ---------------------------------------------------------------------------
-// BmsToken
-// ---------------------------------------------------------------------------
-
 #[test]
 fn debug_and_clone_bms_token() {
     let token = BmsToken::Header(BmsHeader::Metadata(BmsHeaderMetadata::Title("t")));
     let cloned = token.clone();
     assert_eq!(format!("{token:?}"), format!("{cloned:?}"));
 }
-
-// ---------------------------------------------------------------------------
-// BmsTokenizeError
-// ---------------------------------------------------------------------------
 
 #[test]
 fn tokenizer_error_display_invalid_measure() {

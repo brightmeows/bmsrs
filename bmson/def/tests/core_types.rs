@@ -159,8 +159,6 @@ fn lines_empty_array_no_bars() {
     assert_eq!(cd.lines, Some(vec![]));
 }
 
-// ---- v2 NoteEvent optional field tests ----
-
 #[test]
 fn note_v2_up_true() {
     let json = r#"{"x": 1, "y": 240, "l": 240, "c": false, "up": true}"#;
@@ -236,8 +234,6 @@ fn note_v2_all_optional_fields_round_trip() {
     assert_eq!(note, restored);
 }
 
-// ---- JudgementDeltas / LifeDeltas tests ----
-
 #[test]
 fn judge_deltas_serde() {
     let d: JudgementDeltas =
@@ -270,8 +266,6 @@ fn chart_data_judge_life_deltas() {
     assert_eq!(cd.judge_deltas.unwrap().perfect, 5);
     assert_eq!(cd.life_deltas.unwrap().miss, -5.0);
 }
-
-// ---- beatoraja extension tests ----
 
 #[test]
 fn bmson_scroll_events() {
