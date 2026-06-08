@@ -21,30 +21,12 @@ jobs:
           # Persist credentials so git push (called by release-plz) can authenticate.
           persist-credentials: true
 
-      - name: Restore Rust toolchain cache
-        id: cache-rustup
-        uses: https://data.forgejo.org/actions/cache/restore@v4
-        with:
-          path: |
-            ~/.rustup
-            ~/.cargo/bin
-          key: rustup-${{ runner.os }}-stable
-
       - name: Install Rust toolchain
         id: rust
-        uses: https://codeberg.org/wackbyte/rust-toolchain@trunk
+        uses: https://codeberg.org/brightmeows/rust-toolchain-action@v0.1.0
         with:
           toolchain: stable
           profile: minimal
-
-      - name: Save Rust toolchain cache
-        uses: https://data.forgejo.org/actions/cache/save@v4
-        if: success() && steps.cache-rustup.outputs.cache-hit != 'true'
-        with:
-          path: |
-            ~/.rustup
-            ~/.cargo/bin
-          key: rustup-${{ runner.os }}-stable
 
       - name: Install release-plz
         run: |
