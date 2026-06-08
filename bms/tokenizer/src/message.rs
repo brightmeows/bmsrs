@@ -27,7 +27,9 @@ pub struct BmsMessage<'a> {
 /// (e.g., it is a header, a comment, or empty).
 /// Returns `Err(...)` if the line looks like a channel message but has
 /// an invalid measure or channel number.
-pub(crate) fn parse_message_line(line: &str) -> Result<Option<BmsMessage<'_>>, BmsTokenizeError> {
+pub(crate) fn parse_message_line(
+    line: &str,
+) -> Result<Option<BmsMessage<'_>>, BmsTokenizeError<'_>> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() || !trimmed.starts_with('#') {
@@ -47,15 +49,12 @@ pub(crate) fn parse_message_line(line: &str) -> Result<Option<BmsMessage<'_>>, B
         return Ok(None);
     }
 
-    let (channel_str, values_str) =
-        rest[3..]
-            .split_once(':')
-            .ok_or(BmsTokenizeError::InvalidChannel(
-                "missing colon".to_string(),
-            ))?;
+    let (channel_str, values_str) = rest[3..]
+        .split_once(':')
+        .ok_or(BmsTokenizeError::InvalidChannel("missing colon"))?;
 
     if !channel_str.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(BmsTokenizeError::InvalidChannel(channel_str.to_string()));
+        return Err(BmsTokenizeError::InvalidChannel(channel_str));
     }
 
     // Safe because we validated digits above — 3 decimal digits always fit in u16.

@@ -63,7 +63,7 @@ pub struct BmsHeaderExt<'a> {
 fn match_non_indexed<'a>(
     command: &str,
     value: &'a str,
-) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError> {
+) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError<'a>> {
     match command {
         // -- Metadata (free-text, no parsing needed) --
         "TITLE" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Title(value)))),
@@ -81,7 +81,10 @@ fn match_non_indexed<'a>(
         "CHARSET" => Ok(Some(BmsHeader::Metadata(BmsHeaderMetadata::Charset(value)))),
         // -- Gameplay (typed) --
         "PLAYER" => {
-            let v: PlayerMode = value.parse()?;
+            let v: PlayerMode = value.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                context: "#PLAYER",
+                value,
+            })?;
             Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::Player(v))))
         }
         "RANK" => {
@@ -101,15 +104,27 @@ fn match_non_indexed<'a>(
             Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::VolWav(v))))
         }
         "LNTYPE" => {
-            let v: LnType = value.parse()?;
+            let v: LnType = value.parse().map_err(|_| BmsTokenizeError::OutOfRange {
+                context: "#LNTYPE",
+                value,
+                expected: "1 or 2",
+            })?;
             Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::LnType(v))))
         }
         "LNOBJ" => {
-            let id: BmsChannelId<LnObjTag> = value.parse()?;
+            let id: BmsChannelId<LnObjTag> =
+                value.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                    context: "#LNOBJ",
+                    value,
+                })?;
             Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::LnObj(id))))
         }
         "LNMODE" => {
-            let v: LnMode = value.parse()?;
+            let v: LnMode = value.parse().map_err(|_| BmsTokenizeError::OutOfRange {
+                context: "#LNMODE",
+                value,
+                expected: "1, 2, or 3",
+            })?;
             Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::LnMode(v))))
         }
         "OCT" => {
@@ -134,7 +149,10 @@ fn match_non_indexed<'a>(
             Ok(Some(BmsHeader::Display(BmsHeaderDisplay::PlayLevel(v))))
         }
         "DIFFICULTY" => {
-            let v: DifficultyLevel = value.parse()?;
+            let v: DifficultyLevel = value.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                context: "#DIFFICULTY",
+                value,
+            })?;
             Ok(Some(BmsHeader::Display(BmsHeaderDisplay::Difficulty(v))))
         }
         "PREVIEW" => Ok(Some(BmsHeader::Display(BmsHeaderDisplay::Preview(value)))),
@@ -254,7 +272,7 @@ fn match_indexed<'a>(
     command_upper: &str,
     command_raw: &'a str,
     value: &'a str,
-) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError> {
+) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError<'a>> {
     let cmd_len = command_raw.len();
 
     if cmd_len < 5 {
@@ -268,28 +286,44 @@ fn match_indexed<'a>(
 
             return match base {
                 "WAV" => {
-                    let id: BmsChannelId<WavTag> = idx.parse()?;
+                    let id: BmsChannelId<WavTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#WAV",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
                         index: id,
                         filename: value,
                     })))
                 }
                 "EXWAV" => {
-                    let id: BmsChannelId<WavTag> = idx.parse()?;
+                    let id: BmsChannelId<WavTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#WAV",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav {
                         index: id,
                         filename: value,
                     })))
                 }
                 "BMP" => {
-                    let id: BmsChannelId<BmpTag> = idx.parse()?;
+                    let id: BmsChannelId<BmpTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#BMP",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bmp {
                         index: id,
                         filename: value,
                     })))
                 }
                 "EXBMP" => {
-                    let id: BmsChannelId<BmpTag> = idx.parse()?;
+                    let id: BmsChannelId<BmpTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#BMP",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefVisual(
                         BmsHeaderResDefVisual::ExBmp {
                             index: id,
@@ -298,14 +332,22 @@ fn match_indexed<'a>(
                     )))
                 }
                 "BGA" => {
-                    let id: BmsChannelId<BmpTag> = idx.parse()?;
+                    let id: BmsChannelId<BmpTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#BMP",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga {
                         index: id,
                         filename: value,
                     })))
                 }
                 "@BGA" => {
-                    let id: BmsChannelId<BmpTag> = idx.parse()?;
+                    let id: BmsChannelId<BmpTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "@BGA",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefVisual(
                         BmsHeaderResDefVisual::AtBga {
                             index: id,
@@ -314,7 +356,11 @@ fn match_indexed<'a>(
                     )))
                 }
                 "SWBGA" => {
-                    let id: BmsChannelId<BmpTag> = idx.parse()?;
+                    let id: BmsChannelId<BmpTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#SWBGA",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefVisual(
                         BmsHeaderResDefVisual::SwBga {
                             index: id,
@@ -323,14 +369,22 @@ fn match_indexed<'a>(
                     )))
                 }
                 "ARGB" => {
-                    let id: BmsChannelId<BmpTag> = idx.parse()?;
+                    let id: BmsChannelId<BmpTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#ARGB",
+                            value: idx,
+                        })?;
                     Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Argb {
                         index: id,
                         filename: value,
                     })))
                 }
                 "SEEK" => {
-                    let id: BmsChannelId<SeekTag> = idx.parse()?;
+                    let id: BmsChannelId<SeekTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#SEEK",
+                            value: idx,
+                        })?;
                     let v: f64 = value.parse()?;
                     Ok(Some(BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Seek {
                         index: id,
@@ -338,7 +392,11 @@ fn match_indexed<'a>(
                     })))
                 }
                 "BPM" => {
-                    let id: BmsChannelId<BpmTag> = idx.parse()?;
+                    let id: BmsChannelId<BpmTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#BPM",
+                            value: idx,
+                        })?;
                     let v: f64 = value.parse()?;
                     Ok(Some(BmsHeader::Timing(BmsHeaderTiming::BpmDef {
                         index: id,
@@ -346,7 +404,11 @@ fn match_indexed<'a>(
                     })))
                 }
                 "STOP" => {
-                    let id: BmsChannelId<StopTag> = idx.parse()?;
+                    let id: BmsChannelId<StopTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#STOP",
+                            value: idx,
+                        })?;
                     let v: f64 = value.parse()?;
                     Ok(Some(BmsHeader::Timing(BmsHeaderTiming::StopDef {
                         index: id,
@@ -354,7 +416,11 @@ fn match_indexed<'a>(
                     })))
                 }
                 "SCROLL" => {
-                    let id: BmsChannelId<ScrollTag> = idx.parse()?;
+                    let id: BmsChannelId<ScrollTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#SCROLL",
+                            value: idx,
+                        })?;
                     let v: f64 = value.parse()?;
                     Ok(Some(BmsHeader::Timing(BmsHeaderTiming::ScrollDef {
                         index: id,
@@ -362,7 +428,11 @@ fn match_indexed<'a>(
                     })))
                 }
                 "SPEED" => {
-                    let id: BmsChannelId<SpeedTag> = idx.parse()?;
+                    let id: BmsChannelId<SpeedTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#SPEED",
+                            value: idx,
+                        })?;
                     let v: f64 = value.parse()?;
                     Ok(Some(BmsHeader::Timing(BmsHeaderTiming::SpeedDef {
                         index: id,
@@ -370,7 +440,11 @@ fn match_indexed<'a>(
                     })))
                 }
                 "EXRANK" => {
-                    let id: BmsChannelId<ExRankTag> = idx.parse()?;
+                    let id: BmsChannelId<ExRankTag> =
+                        idx.parse().map_err(|_| BmsTokenizeError::InvalidValue {
+                            context: "#EXRANK",
+                            value: idx,
+                        })?;
                     let v: f64 = value.parse()?;
                     Ok(Some(BmsHeader::Gameplay(BmsHeaderGameplay::ExRank {
                         index: id,
@@ -393,7 +467,7 @@ fn match_indexed<'a>(
 ///
 /// Returns `Err(BmsTokenizeError)` if a header command is recognised but its
 /// value cannot be parsed into the expected type.
-pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, BmsTokenizeError> {
+pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, BmsTokenizeError<'_>> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() {

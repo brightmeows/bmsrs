@@ -3,11 +3,15 @@
 //! This module also defines the domain types used by [`BmsHeaderGameplay`]:
 //! [`PlayerMode`], [`LnType`], and [`LnMode`].
 
-use std::fmt;
 use std::str::FromStr;
 
-use crate::error::BmsTokenizeError;
+use thiserror::Error;
+
 use crate::id::{BmsChannelId, ExRankTag, LnObjTag};
+
+// ---------------------------------------------------------------------------
+// PlayerMode
+// ---------------------------------------------------------------------------
 
 /// The play mode specified by `#PLAYER`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,16 +27,9 @@ pub enum PlayerMode {
 }
 
 /// Error returned when a `#PLAYER` value cannot be parsed.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("invalid #PLAYER value: {0}")]
 pub struct ParsePlayerModeError(pub String);
-
-impl fmt::Display for ParsePlayerModeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid #PLAYER value: {:?}", self.0)
-    }
-}
-
-impl std::error::Error for ParsePlayerModeError {}
 
 impl FromStr for PlayerMode {
     type Err = ParsePlayerModeError;
@@ -48,11 +45,9 @@ impl FromStr for PlayerMode {
     }
 }
 
-impl From<ParsePlayerModeError> for BmsTokenizeError {
-    fn from(e: ParsePlayerModeError) -> Self {
-        BmsTokenizeError::InvalidPlayerMode(e.0)
-    }
-}
+// ---------------------------------------------------------------------------
+// LnType
+// ---------------------------------------------------------------------------
 
 /// The long-note type specified by `#LNTYPE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,16 +59,9 @@ pub enum LnType {
 }
 
 /// Error returned when a `#LNTYPE` value is not `"1"` or `"2"`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("invalid #LNTYPE value: {0} (expected 1 or 2)")]
 pub struct ParseLnTypeError(pub String);
-
-impl fmt::Display for ParseLnTypeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid #LNTYPE value: {:?} (expected 1 or 2)", self.0)
-    }
-}
-
-impl std::error::Error for ParseLnTypeError {}
 
 impl FromStr for LnType {
     type Err = ParseLnTypeError;
@@ -87,11 +75,9 @@ impl FromStr for LnType {
     }
 }
 
-impl From<ParseLnTypeError> for BmsTokenizeError {
-    fn from(e: ParseLnTypeError) -> Self {
-        BmsTokenizeError::InvalidLnType(e.0)
-    }
-}
+// ---------------------------------------------------------------------------
+// LnMode
+// ---------------------------------------------------------------------------
 
 /// The LN mode specified by `#LNMODE` (beatoraja extension).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,20 +91,9 @@ pub enum LnMode {
 }
 
 /// Error returned when a `#LNMODE` value is not `"1"`, `"2"`, or `"3"`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("invalid #LNMODE value: {0} (expected 1, 2, or 3)")]
 pub struct ParseLnModeError(pub String);
-
-impl fmt::Display for ParseLnModeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "invalid #LNMODE value: {:?} (expected 1, 2, or 3)",
-            self.0
-        )
-    }
-}
-
-impl std::error::Error for ParseLnModeError {}
 
 impl FromStr for LnMode {
     type Err = ParseLnModeError;
@@ -133,11 +108,9 @@ impl FromStr for LnMode {
     }
 }
 
-impl From<ParseLnModeError> for BmsTokenizeError {
-    fn from(e: ParseLnModeError) -> Self {
-        BmsTokenizeError::InvalidLnMode(e.0)
-    }
-}
+// ---------------------------------------------------------------------------
+// BmsHeaderGameplay
+// ---------------------------------------------------------------------------
 
 /// Gameplay behaviour headers.
 #[derive(Debug, Clone, PartialEq)]
@@ -179,6 +152,8 @@ pub enum BmsHeaderGameplay<'a> {
 mod tests {
     use super::*;
 
+    // -- PlayerMode --
+
     #[test]
     fn player_mode_single() {
         assert_eq!("1".parse::<PlayerMode>().unwrap(), PlayerMode::Single);
@@ -212,6 +187,8 @@ mod tests {
         assert!("0".parse::<PlayerMode>().is_err());
     }
 
+    // -- LnType --
+
     #[test]
     fn ln_type_1() {
         assert_eq!("1".parse::<LnType>().unwrap(), LnType::Type1);
@@ -230,6 +207,8 @@ mod tests {
         assert!("3".parse::<LnType>().is_err());
         assert!("abc".parse::<LnType>().is_err());
     }
+
+    // -- LnMode --
 
     #[test]
     fn ln_mode_ln() {

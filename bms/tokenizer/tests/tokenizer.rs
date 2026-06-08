@@ -167,13 +167,13 @@ fn debug_and_clone_bms_token() {
 
 #[test]
 fn tokenizer_error_display_invalid_measure() {
-    let err = BmsTokenizeError::InvalidMeasure("abc".to_string());
+    let err = BmsTokenizeError::InvalidMeasure("abc");
     assert_eq!(err.to_string(), "invalid measure number: \"abc\"");
 }
 
 #[test]
 fn tokenizer_error_display_invalid_channel() {
-    let err = BmsTokenizeError::InvalidChannel("xyz".to_string());
+    let err = BmsTokenizeError::InvalidChannel("xyz");
     assert_eq!(err.to_string(), "invalid channel number: \"xyz\"");
 }
 
@@ -185,17 +185,17 @@ fn tokenizer_error_trait_is_implemented() {
 
 #[test]
 fn tokenizer_error_debug_and_clone() {
-    let err = BmsTokenizeError::InvalidMeasure("000".to_string());
+    let err = BmsTokenizeError::InvalidMeasure("000");
     let cloned = err.clone();
     assert_eq!(format!("{err:?}"), format!("{cloned:?}"));
 }
 
 #[test]
 fn tokenizer_error_partial_eq() {
-    let a = BmsTokenizeError::InvalidMeasure("000".to_string());
-    let b = BmsTokenizeError::InvalidMeasure("000".to_string());
+    let a = BmsTokenizeError::InvalidMeasure("000");
+    let b = BmsTokenizeError::InvalidMeasure("000");
     assert_eq!(a, b);
 
-    let c = BmsTokenizeError::InvalidChannel("00".to_string());
+    let c = BmsTokenizeError::InvalidChannel("00");
     assert_ne!(a, c);
 }

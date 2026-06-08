@@ -16,8 +16,8 @@ pub mod bms {
 pub mod bmson {
     /// BMSON type system (v0/v1/v2).
     pub mod def {
-        pub use bmson_def::*;
         pub use bmson_def::v0;
         pub use bmson_def::v1;
+        pub use bmson_def::*;
     }
 }

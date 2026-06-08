@@ -3,10 +3,13 @@
 //! This module also defines [`DifficultyLevel`], the domain type for
 //! `#DIFFICULTY`.
 
-use std::fmt;
 use std::str::FromStr;
 
-use crate::error::BmsTokenizeError;
+use thiserror::Error;
+
+// ---------------------------------------------------------------------------
+// DifficultyLevel
+// ---------------------------------------------------------------------------
 
 /// The difficulty category specified by `#DIFFICULTY` (values 1–5).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -21,16 +24,9 @@ impl DifficultyLevel {
 }
 
 /// Error returned when a `#DIFFICULTY` value is not in the valid range (1–5).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("invalid #DIFFICULTY value: {0} (expected 1-5)")]
 pub struct ParseDifficultyError(pub String);
-
-impl fmt::Display for ParseDifficultyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid #DIFFICULTY value: {:?} (expected 1–5)", self.0)
-    }
-}
-
-impl std::error::Error for ParseDifficultyError {}
 
 impl FromStr for DifficultyLevel {
     type Err = ParseDifficultyError;
@@ -44,11 +40,9 @@ impl FromStr for DifficultyLevel {
     }
 }
 
-impl From<ParseDifficultyError> for BmsTokenizeError {
-    fn from(e: ParseDifficultyError) -> Self {
-        BmsTokenizeError::InvalidDifficulty(e.0)
-    }
-}
+// ---------------------------------------------------------------------------
+// BmsHeaderDisplay
+// ---------------------------------------------------------------------------
 
 /// Display and difficulty headers.
 #[derive(Debug, Clone, PartialEq)]

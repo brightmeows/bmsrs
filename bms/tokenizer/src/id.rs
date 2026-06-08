@@ -14,7 +14,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-use crate::error::BmsTokenizeError;
+use thiserror::Error;
 
 /// Returns `true` if the byte is a BMS base-36 character:
 /// `0`–`9`, `A`–`Z`, or `a`–`z`.
@@ -107,24 +107,11 @@ impl<T> FromStr for BmsChannelId<T> {
 
 /// Error returned when a channel ID string is not a valid 1–2 character
 /// `0`–`9` `A`–`Z` `a`–`z` sequence.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("invalid channel id: {input}")]
 pub struct BmsChannelIdError {
     /// The raw string that failed validation.
     pub input: String,
-}
-
-impl fmt::Display for BmsChannelIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid channel id: {:?}", self.input)
-    }
-}
-
-impl std::error::Error for BmsChannelIdError {}
-
-impl From<BmsChannelIdError> for BmsTokenizeError {
-    fn from(e: BmsChannelIdError) -> Self {
-        BmsTokenizeError::InvalidChannelId(e.input)
-    }
 }
 
 // Tag types — zero-sized, never instantiated.

@@ -57,7 +57,7 @@ pub enum BmsToken<'a> {
 ///
 /// Returns [`BmsTokenizeError`] if a channel message line has an invalid
 /// measure or channel number.
-pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, BmsTokenizeError> {
+pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, BmsTokenizeError<'_>> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() || trimmed.starts_with("//") {
@@ -85,7 +85,7 @@ pub fn tokenize_line(line: &str) -> Result<Option<BmsToken<'_>>, BmsTokenizeErro
 /// # Errors
 ///
 /// Returns [`BmsTokenizeError`] if any line has an invalid channel message format.
-pub fn tokenize(input: &str) -> Result<Vec<BmsToken<'_>>, BmsTokenizeError> {
+pub fn tokenize(input: &str) -> Result<Vec<BmsToken<'_>>, BmsTokenizeError<'_>> {
     let mut tokens = Vec::new();
 
     // `str::lines()` splits on `\n` and strips trailing `\r`.
