@@ -57,11 +57,11 @@ pub(crate) fn parse_message_line(
         return Err(BmsTokenizeError::InvalidChannel(channel_str));
     }
 
-    // Safe because we validated digits above — 3 decimal digits always fit in u16.
-    let measure: u16 = measure_str.parse().expect("measure digits validated above");
+    // 3 decimal digits (000–999) always fit in u16; `?` is for type-correctness.
+    let measure: u16 = measure_str.parse()?;
 
-    // Safe because we validated digits above — 2 decimal digits always fit in u8.
-    let channel: u8 = channel_str.parse().expect("channel digits validated above");
+    // 2 decimal digits (00–99) always fit in u8; `?` is for type-correctness.
+    let channel: u8 = channel_str.parse()?;
 
     Ok(Some(BmsMessage {
         measure,

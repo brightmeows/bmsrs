@@ -9,6 +9,7 @@ authors.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 
