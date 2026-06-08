@@ -12,7 +12,7 @@ bms-tokenizer = { path = "bms/tokenizer" }
 bmson-def = { path = "bmson/def" }
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "bms/tokenizer",
     "bms/parser",
