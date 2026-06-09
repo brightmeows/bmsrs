@@ -146,12 +146,14 @@ pub enum BmsHeaderGameplay<'a> {
     VolWav(f64),
     /// `#LNTYPE`
     #[bms_token("#LNTYPE {value}")]
+    #[bms_detail("expected 1 or 2")]
     LnType(LnType),
     /// `#LNOBJ`
     #[bms_token("#LNOBJ {value}")]
     LnObj(BmsChannelId<LnObjTag>),
     /// `#LNMODE` (beatoraja extension)
     #[bms_token("#LNMODE {value}")]
+    #[bms_detail("expected 1, 2, or 3")]
     LnMode(LnMode),
     /// `#OCT`/`#FP`/`#OCT/FP` — octave/fingering pitch flag.
     ///

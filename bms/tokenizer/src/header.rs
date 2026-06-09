@@ -24,20 +24,20 @@ use crate::BmsTokenizeError;
 /// A header command from a BMS file, categorized by semantic domain.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeader<'a> {
-    /// Song/chart identification (title, artist, genre, ...).
-    Metadata(BmsHeaderMetadata<'a>),
-    /// Gameplay behaviour (player count, rank, total, LN settings, ...).
-    Gameplay(BmsHeaderGameplay<'a>),
-    /// Display and difficulty markers.
-    Display(BmsHeaderDisplay<'a>),
-    /// Timing definitions (BPM, stops, scroll, speed).
-    Timing(BmsHeaderTiming),
     /// Audio resource definitions (WAV files, CDDA, ...).
     ResDefAudio(BmsHeaderResDefAudio<'a>),
+    /// Timing definitions (BPM, stops, scroll, speed).
+    Timing(BmsHeaderTiming),
     /// Visual resource definitions (BMP, BGA, video, ...).
     ResDefVisual(BmsHeaderResDefVisual<'a>),
     /// Control-flow commands (random, if, switch, ...).
     ControlFlow(BmsHeaderControlFlow),
+    /// Gameplay behaviour (player count, rank, total, LN settings, ...).
+    Gameplay(BmsHeaderGameplay<'a>),
+    /// Display and difficulty markers.
+    Display(BmsHeaderDisplay<'a>),
+    /// Song/chart identification (title, artist, genre, ...).
+    Metadata(BmsHeaderMetadata<'a>),
     /// An unrecognised or engine-specific header command.
     #[bms_fallback]
     Fallback(BmsHeaderFallback<'a>),
@@ -89,42 +89,42 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
     let split_pos = rest
         .find(|c: char| c.is_ascii_whitespace())
         .unwrap_or(rest.len());
-    let command_raw = &rest[..split_pos];
+    let command = &rest[..split_pos];
     let value = rest[split_pos..].trim();
 
-    if command_raw.is_empty() {
+    if command.is_empty() {
         return Ok(None);
     }
 
     // If the raw command contains a colon it is a channel message, not a header.
-    if command_raw.contains(':') {
+    if command.contains(':') {
         return Ok(None);
     }
 
-    let command_upper = command_raw.to_uppercase();
-
     // `%` commands: only `%URL` and `%EMAIL` are valid BMS headers —
-    // everything else is an engine-specific extension.  The dispatch
-    // table below would catch `%URL`/`%EMAIL` via their command name,
-    // but unknown `%` commands must NOT fall through to the `#` dispatch
-    // (doing so would let `%TITLE` masquerade as `#TITLE`).
-    if prefix == '%' && command_upper != "URL" && command_upper != "EMAIL" {
+    // everything else is an engine-specific extension.  Unknown `%` commands
+    // must NOT fall through (doing so would let `%TITLE` masquerade as
+    // `#TITLE`).
+    if prefix == '%'
+        && !command.eq_ignore_ascii_case("URL")
+        && !command.eq_ignore_ascii_case("EMAIL")
+    {
         return Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
-            command: command_raw,
+            command,
             value,
         })));
     }
 
-    // Single dispatch via sub-enum `__bms_dispatch` functions.
-    // `command_raw` carries the input lifetime so that index-slice errors
+    // Dispatch to sub-enum `try_match_header` functions.
+    // `command` carries the input lifetime so that index-slice errors
     // can store the correct portion of the command.
-    if let Some(header) = BmsHeader::try_match_header(&command_upper, command_raw, value)? {
+    if let Some(header) = BmsHeader::try_match_header(command, value)? {
         return Ok(Some(header));
     }
 
     // Nothing matched → Fallback.
     Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
-        command: command_raw,
+        command,
         value,
     })))
 }
@@ -272,7 +272,10 @@ mod tests {
     #[test]
     fn parse_rank() {
         let result = parse_header_line("#RANK 2").unwrap().unwrap();
-        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Rank(Rank::Normal)));
+        assert_eq!(
+            result,
+            BmsHeader::Gameplay(BmsHeaderGameplay::Rank(Rank::Normal))
+        );
     }
 
     #[test]

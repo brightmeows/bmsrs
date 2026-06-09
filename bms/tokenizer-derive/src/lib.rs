@@ -33,7 +33,7 @@ use crate::value_codegen::generate_bms_value_enum;
 ///
 /// See the [crate-level documentation](self) for a description of the three
 /// operating modes.
-#[proc_macro_derive(BmsTokenAttr, attributes(bms_token, bms_fallback))]
+#[proc_macro_derive(BmsTokenAttr, attributes(bms_token, bms_fallback, bms_detail))]
 pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
 

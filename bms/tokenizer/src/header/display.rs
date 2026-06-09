@@ -79,6 +79,7 @@ pub enum BmsHeaderDisplay<'a> {
     PlayLevel(f64),
     /// `#DIFFICULTY`
     #[bms_token("#DIFFICULTY {value}")]
+    #[bms_detail("expected 1-5")]
     Difficulty(DifficultyLevel),
     /// `#PREVIEW` (beatoraja extension)
     #[bms_token("#PREVIEW {value}")]

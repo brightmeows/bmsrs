@@ -37,22 +37,16 @@ impl fmt::Display for BgaParams {
 
 impl<'a> BmsValue<'a> for BgaParams {
     fn parse(s: &'a str) -> Option<Self> {
-        let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 7 {
-            return None;
-        }
-        let ints: Vec<i32> = parts
-            .iter()
-            .map(|p| p.parse().ok())
-            .collect::<Option<_>>()?;
+        let [bmp_index_raw, x1, y1, x2, y2, dx, dy] = parse_seven_ints(s)?;
+        let bmp_index = u16::try_from(bmp_index_raw).ok()?;
         Some(Self {
-            bmp_index: u16::try_from(*ints.first()?).ok()?,
-            x1: *ints.get(1)?,
-            y1: *ints.get(2)?,
-            x2: *ints.get(3)?,
-            y2: *ints.get(4)?,
-            dx: *ints.get(5)?,
-            dy: *ints.get(6)?,
+            bmp_index,
+            x1,
+            y1,
+            x2,
+            y2,
+            dx,
+            dy,
         })
     }
 }
@@ -88,22 +82,16 @@ impl fmt::Display for AtBgaParams {
 
 impl<'a> BmsValue<'a> for AtBgaParams {
     fn parse(s: &'a str) -> Option<Self> {
-        let parts: Vec<&str> = s.split_whitespace().collect();
-        if parts.len() != 7 {
-            return None;
-        }
-        let ints: Vec<i32> = parts
-            .iter()
-            .map(|p| p.parse().ok())
-            .collect::<Option<_>>()?;
+        let [bmp_index_raw, sx, sy, w, h, dx, dy] = parse_seven_ints(s)?;
+        let bmp_index = u16::try_from(bmp_index_raw).ok()?;
         Some(Self {
-            bmp_index: u16::try_from(*ints.first()?).ok()?,
-            sx: *ints.get(1)?,
-            sy: *ints.get(2)?,
-            w: *ints.get(3)?,
-            h: *ints.get(4)?,
-            dx: *ints.get(5)?,
-            dy: *ints.get(6)?,
+            bmp_index,
+            sx,
+            sy,
+            w,
+            h,
+            dx,
+            dy,
         })
     }
 }
@@ -182,26 +170,27 @@ impl fmt::Display for SwBgaParams<'_> {
 }
 
 impl<'a> BmsValue<'a> for SwBgaParams<'a> {
+    #[expect(clippy::many_single_char_names, reason = "ARGB component names")]
     fn parse(s: &'a str) -> Option<Self> {
         let (param_part, pattern) = s.split_once(' ')?;
-        let groups: Vec<&str> = param_part.split(':').collect();
-        if groups.len() != 5 {
+        let mut groups = param_part.split(':');
+        let fr: u32 = groups.next()?.parse().ok()?;
+        let time: u32 = groups.next()?.parse().ok()?;
+        let line: u8 = groups.next()?.parse().ok()?;
+        let r#loop = groups.next()? == "1";
+        let (a, r, g, b) = parse_argb(groups.next()?)?;
+        if groups.next().is_some() {
             return None;
         }
-        let fr: u32 = groups.first()?.parse().ok()?;
-        let time: u32 = groups.get(1)?.parse().ok()?;
-        let line: u8 = groups.get(2)?.parse().ok()?;
-        let r#loop = *groups.get(3)? == "1";
-        let (alpha, red, green, blue) = parse_argb(groups.get(4)?)?;
         Some(Self {
             fr,
             time,
             line,
             r#loop,
-            a: alpha,
-            r: red,
-            g: green,
-            b: blue,
+            a,
+            r,
+            g,
+            b,
             pattern: pattern.trim(),
         })
     }
@@ -238,17 +227,34 @@ impl<'a> BmsValue<'a> for ArgbParams {
     }
 }
 
-/// Parse a comma-separated `a,r,g,b` string into four `u8` values.
-fn parse_argb(s: &str) -> Option<(u8, u8, u8, u8)> {
-    let parts: Vec<&str> = s.split(',').collect();
-    if parts.len() != 4 {
+/// Parse a whitespace-separated string into exactly seven `i32` values.
+fn parse_seven_ints(s: &str) -> Option<[i32; 7]> {
+    let mut iter = s.split_whitespace();
+    let v0 = iter.next()?.parse().ok()?;
+    let v1 = iter.next()?.parse().ok()?;
+    let v2 = iter.next()?.parse().ok()?;
+    let v3 = iter.next()?.parse().ok()?;
+    let v4 = iter.next()?.parse().ok()?;
+    let v5 = iter.next()?.parse().ok()?;
+    let v6 = iter.next()?.parse().ok()?;
+    if iter.next().is_some() {
         return None;
     }
-    let vals: Vec<u8> = parts
-        .iter()
-        .map(|p| p.trim().parse().ok())
-        .collect::<Option<_>>()?;
-    Some((*vals.first()?, *vals.get(1)?, *vals.get(2)?, *vals.get(3)?))
+    Some([v0, v1, v2, v3, v4, v5, v6])
+}
+
+/// Parse a comma-separated `a,r,g,b` string into four `u8` values.
+#[expect(clippy::many_single_char_names, reason = "ARGB component names")]
+fn parse_argb(s: &str) -> Option<(u8, u8, u8, u8)> {
+    let mut parts = s.split(',');
+    let a = parts.next()?.trim().parse().ok()?;
+    let r = parts.next()?.trim().parse().ok()?;
+    let g = parts.next()?.trim().parse().ok()?;
+    let b = parts.next()?.trim().parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((a, r, g, b))
 }
 
 /// Visual resource definition headers.

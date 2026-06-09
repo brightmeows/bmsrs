@@ -32,18 +32,16 @@ pub struct BmsMessage<'a> {
 pub(crate) fn parse_message_line(
     line: &str,
 ) -> Result<Option<BmsMessage<'_>>, BmsTokenizeError<'_>> {
-    let trimmed = line.trim();
-
-    if trimmed.is_empty() || !trimmed.starts_with('#') {
+    if line.is_empty() || !line.starts_with('#') {
         return Ok(None);
     }
 
     // Must have at least: # + 3 digits + 2 chars + : = 7 chars before value
-    if trimmed.len() < 7 {
+    if line.len() < 7 {
         return Ok(None);
     }
 
-    let rest = &trimmed[1..]; // strip '#'
+    let rest = &line[1..]; // strip '#'
 
     // Rest must be: xxxYY:values
     let measure_str = &rest[..3];

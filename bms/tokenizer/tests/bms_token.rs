@@ -11,7 +11,7 @@ use bms_tokenizer::{
 
 #[test]
 fn metadata_title_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("TITLE", "TITLE", "My Song")
+    let parsed = BmsHeaderMetadata::try_match_header("TITLE", "My Song")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Title("My Song"));
@@ -22,7 +22,7 @@ fn metadata_title_roundtrip() {
 
 #[test]
 fn metadata_subtitle_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("SUBTITLE", "SUBTITLE", "(short ver.)")
+    let parsed = BmsHeaderMetadata::try_match_header("SUBTITLE", "(short ver.)")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Subtitle("(short ver.)"));
@@ -30,7 +30,7 @@ fn metadata_subtitle_roundtrip() {
 
 #[test]
 fn metadata_artist_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("ARTIST", "ARTIST", "composer")
+    let parsed = BmsHeaderMetadata::try_match_header("ARTIST", "composer")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Artist("composer"));
@@ -38,7 +38,7 @@ fn metadata_artist_roundtrip() {
 
 #[test]
 fn metadata_subartist_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("SUBARTIST", "SUBARTIST", "co-writer")
+    let parsed = BmsHeaderMetadata::try_match_header("SUBARTIST", "co-writer")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::SubArtist("co-writer"));
@@ -46,7 +46,7 @@ fn metadata_subartist_roundtrip() {
 
 #[test]
 fn metadata_genre_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("GENRE", "GENRE", "Piano")
+    let parsed = BmsHeaderMetadata::try_match_header("GENRE", "Piano")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Genre("Piano"));
@@ -54,7 +54,7 @@ fn metadata_genre_roundtrip() {
 
 #[test]
 fn metadata_maker_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("MAKER", "MAKER", "creator")
+    let parsed = BmsHeaderMetadata::try_match_header("MAKER", "creator")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Maker("creator"));
@@ -62,7 +62,7 @@ fn metadata_maker_roundtrip() {
 
 #[test]
 fn metadata_comment_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("COMMENT", "COMMENT", "hello")
+    let parsed = BmsHeaderMetadata::try_match_header("COMMENT", "hello")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Comment("hello"));
@@ -70,7 +70,7 @@ fn metadata_comment_roundtrip() {
 
 #[test]
 fn metadata_text_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("TEXT", "TEXT", "in-game text")
+    let parsed = BmsHeaderMetadata::try_match_header("TEXT", "in-game text")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Text("in-game text"));
@@ -78,7 +78,7 @@ fn metadata_text_roundtrip() {
 
 #[test]
 fn metadata_song_alias() {
-    let parsed = BmsHeaderMetadata::try_match_header("SONG", "SONG", "some text")
+    let parsed = BmsHeaderMetadata::try_match_header("SONG", "some text")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Text("some text"));
@@ -86,7 +86,7 @@ fn metadata_song_alias() {
 
 #[test]
 fn metadata_charset_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("CHARSET", "CHARSET", "UTF-8")
+    let parsed = BmsHeaderMetadata::try_match_header("CHARSET", "UTF-8")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Charset("UTF-8"));
@@ -94,7 +94,7 @@ fn metadata_charset_roundtrip() {
 
 #[test]
 fn metadata_url_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("URL", "URL", "https://example.com")
+    let parsed = BmsHeaderMetadata::try_match_header("URL", "https://example.com")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Url("https://example.com"));
@@ -104,7 +104,7 @@ fn metadata_url_roundtrip() {
 
 #[test]
 fn metadata_email_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("EMAIL", "EMAIL", "user@example.com")
+    let parsed = BmsHeaderMetadata::try_match_header("EMAIL", "user@example.com")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderMetadata::Email("user@example.com"));
@@ -114,7 +114,7 @@ fn metadata_email_roundtrip() {
 
 #[test]
 fn gameplay_player_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("PLAYER", "PLAYER", "1")
+    let parsed = BmsHeaderGameplay::try_match_header("PLAYER", "1")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::Player(PlayerMode::Single));
@@ -125,7 +125,7 @@ fn gameplay_player_roundtrip() {
 
 #[test]
 fn gameplay_rank_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("RANK", "RANK", "2")
+    let parsed = BmsHeaderGameplay::try_match_header("RANK", "2")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::Rank(Rank::Normal));
@@ -133,7 +133,7 @@ fn gameplay_rank_roundtrip() {
 
 #[test]
 fn gameplay_total_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("TOTAL", "TOTAL", "300")
+    let parsed = BmsHeaderGameplay::try_match_header("TOTAL", "300")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::Total(300.0));
@@ -141,7 +141,7 @@ fn gameplay_total_roundtrip() {
 
 #[test]
 fn gameplay_lntype_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("LNTYPE", "LNTYPE", "1")
+    let parsed = BmsHeaderGameplay::try_match_header("LNTYPE", "1")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::LnType(LnType::Type1));
@@ -152,7 +152,7 @@ fn gameplay_lntype_roundtrip() {
 
 #[test]
 fn gameplay_lnmode_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("LNMODE", "LNMODE", "2")
+    let parsed = BmsHeaderGameplay::try_match_header("LNMODE", "2")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::LnMode(LnMode::Cn));
@@ -163,7 +163,7 @@ fn gameplay_lnmode_roundtrip() {
 
 #[test]
 fn gameplay_option_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("OPTION", "OPTION", "-R")
+    let parsed = BmsHeaderGameplay::try_match_header("OPTION", "-R")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::Option("-R"));
@@ -174,7 +174,7 @@ fn gameplay_option_roundtrip() {
 
 #[test]
 fn display_stagefile_roundtrip() {
-    let parsed = BmsHeaderDisplay::try_match_header("STAGEFILE", "STAGEFILE", "stage.png")
+    let parsed = BmsHeaderDisplay::try_match_header("STAGEFILE", "stage.png")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderDisplay::StageFile("stage.png"));
@@ -182,7 +182,7 @@ fn display_stagefile_roundtrip() {
 
 #[test]
 fn display_difficulty_roundtrip() {
-    let parsed = BmsHeaderDisplay::try_match_header("DIFFICULTY", "DIFFICULTY", "3")
+    let parsed = BmsHeaderDisplay::try_match_header("DIFFICULTY", "3")
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -193,7 +193,7 @@ fn display_difficulty_roundtrip() {
 
 #[test]
 fn timing_bpm_roundtrip() {
-    let parsed = BmsHeaderTiming::try_match_header("BPM", "BPM", "180")
+    let parsed = BmsHeaderTiming::try_match_header("BPM", "180")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderTiming::Bpm(180.0));
@@ -204,7 +204,7 @@ fn timing_bpm_roundtrip() {
 
 #[test]
 fn timing_basebpm_roundtrip() {
-    let parsed = BmsHeaderTiming::try_match_header("BASEBPM", "BASEBPM", "120")
+    let parsed = BmsHeaderTiming::try_match_header("BASEBPM", "120")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderTiming::BaseBpm(120.0));
@@ -212,7 +212,7 @@ fn timing_basebpm_roundtrip() {
 
 #[test]
 fn timing_bpmdef_roundtrip() {
-    let parsed = BmsHeaderTiming::try_match_header("BPM01", "BPM01", "180.0")
+    let parsed = BmsHeaderTiming::try_match_header("BPM01", "180.0")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -223,7 +223,7 @@ fn timing_bpmdef_roundtrip() {
 
 #[test]
 fn timing_stopdef_roundtrip() {
-    let parsed = BmsHeaderTiming::try_match_header("STOP01", "STOP01", "192")
+    let parsed = BmsHeaderTiming::try_match_header("STOP01", "192")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -233,7 +233,7 @@ fn timing_stopdef_roundtrip() {
 
 #[test]
 fn audio_wav_roundtrip() {
-    let parsed = BmsHeaderResDefAudio::try_match_header("WAV01", "WAV01", "kick.wav")
+    let parsed = BmsHeaderResDefAudio::try_match_header("WAV01", "kick.wav")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -243,7 +243,7 @@ fn audio_wav_roundtrip() {
 
 #[test]
 fn audio_exwav_roundtrip() {
-    let parsed = BmsHeaderResDefAudio::try_match_header("EXWAV01", "EXWAV01", "extra.ogg")
+    let parsed = BmsHeaderResDefAudio::try_match_header("EXWAV01", "extra.ogg")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -253,7 +253,7 @@ fn audio_exwav_roundtrip() {
 
 #[test]
 fn visual_bmp_roundtrip() {
-    let parsed = BmsHeaderResDefVisual::try_match_header("BMP01", "BMP01", "bg.bmp")
+    let parsed = BmsHeaderResDefVisual::try_match_header("BMP01", "bg.bmp")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -263,7 +263,7 @@ fn visual_bmp_roundtrip() {
 
 #[test]
 fn visual_at_bga_roundtrip() {
-    let parsed = BmsHeaderResDefVisual::try_match_header("@BGA01", "@BGA01", "3 5 10 200 150 0 0")
+    let parsed = BmsHeaderResDefVisual::try_match_header("@BGA01", "3 5 10 200 150 0 0")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -273,7 +273,7 @@ fn visual_at_bga_roundtrip() {
 
 #[test]
 fn visual_seek_roundtrip() {
-    let parsed = BmsHeaderResDefVisual::try_match_header("SEEK01", "SEEK01", "1.5")
+    let parsed = BmsHeaderResDefVisual::try_match_header("SEEK01", "1.5")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -283,7 +283,7 @@ fn visual_seek_roundtrip() {
 
 #[test]
 fn control_random_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("RANDOM", "RANDOM", "10")
+    let parsed = BmsHeaderControlFlow::try_match_header("RANDOM", "10")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::Random(10));
@@ -291,7 +291,7 @@ fn control_random_roundtrip() {
 
 #[test]
 fn control_else_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("ELSE", "ELSE", "")
+    let parsed = BmsHeaderControlFlow::try_match_header("ELSE", "")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::Else);
@@ -302,11 +302,11 @@ fn control_else_roundtrip() {
 
 #[test]
 fn control_endswitch_alias() {
-    let parsed = BmsHeaderControlFlow::try_match_header("ENDSW", "ENDSW", "")
+    let parsed = BmsHeaderControlFlow::try_match_header("ENDSW", "")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::EndSwitch);
-    let parsed2 = BmsHeaderControlFlow::try_match_header("ENDSWITCH", "ENDSWITCH", "")
+    let parsed2 = BmsHeaderControlFlow::try_match_header("ENDSWITCH", "")
         .unwrap()
         .unwrap();
     assert_eq!(parsed2, BmsHeaderControlFlow::EndSwitch);
@@ -314,7 +314,7 @@ fn control_endswitch_alias() {
 
 #[test]
 fn control_if_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("IF", "IF", "1")
+    let parsed = BmsHeaderControlFlow::try_match_header("IF", "1")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::If(1));
@@ -322,7 +322,7 @@ fn control_if_roundtrip() {
 
 #[test]
 fn control_setrandom_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("SETRANDOM", "SETRANDOM", "5")
+    let parsed = BmsHeaderControlFlow::try_match_header("SETRANDOM", "5")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::SetRandom(5));
@@ -330,7 +330,7 @@ fn control_setrandom_roundtrip() {
 
 #[test]
 fn control_skip_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("SKIP", "SKIP", "1")
+    let parsed = BmsHeaderControlFlow::try_match_header("SKIP", "1")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::Skip(1));
@@ -338,7 +338,7 @@ fn control_skip_roundtrip() {
 
 #[test]
 fn audio_wavcmd_roundtrip() {
-    let parsed = BmsHeaderResDefAudio::try_match_header("WAVCMD", "WAVCMD", "test")
+    let parsed = BmsHeaderResDefAudio::try_match_header("WAVCMD", "test")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderResDefAudio::WavCmd("test"));
@@ -346,7 +346,7 @@ fn audio_wavcmd_roundtrip() {
 
 #[test]
 fn visual_poorbga_roundtrip() {
-    let parsed = BmsHeaderResDefVisual::try_match_header("POORBGA", "POORBGA", "0")
+    let parsed = BmsHeaderResDefVisual::try_match_header("POORBGA", "0")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -357,7 +357,7 @@ fn visual_poorbga_roundtrip() {
 #[test]
 fn visual_extchr_roundtrip() {
     // Command is uppercased by parse_header_line before dispatch.
-    let parsed = BmsHeaderResDefVisual::try_match_header("EXTCHR", "EXTCHR", "extra")
+    let parsed = BmsHeaderResDefVisual::try_match_header("EXTCHR", "extra")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderResDefVisual::ExtChr("extra"));
@@ -366,12 +366,12 @@ fn visual_extchr_roundtrip() {
 #[test]
 fn bpm_mixed_indexed_roundtrip() {
     // Verify that #BPM (non-indexed) and #BPM1A (indexed) route correctly.
-    let non_idx = BmsHeaderTiming::try_match_header("BPM", "BPM", "120")
+    let non_idx = BmsHeaderTiming::try_match_header("BPM", "120")
         .unwrap()
         .unwrap();
     assert_eq!(non_idx, BmsHeaderTiming::Bpm(120.0));
 
-    let idx = BmsHeaderTiming::try_match_header("BPM1A", "BPM1A", "140.5")
+    let idx = BmsHeaderTiming::try_match_header("BPM1A", "140.5")
         .unwrap()
         .unwrap();
     assert!(matches!(idx, BmsHeaderTiming::BpmDef { .. }));
@@ -382,7 +382,7 @@ fn bpm_mixed_indexed_roundtrip() {
 
 #[test]
 fn gameplay_volwav_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("VOLWAV", "VOLWAV", "100")
+    let parsed = BmsHeaderGameplay::try_match_header("VOLWAV", "100")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::VolWav(100.0));
@@ -393,7 +393,7 @@ fn gameplay_volwav_roundtrip() {
 
 #[test]
 fn gameplay_oct_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("OCT", "OCT", "1")
+    let parsed = BmsHeaderGameplay::try_match_header("OCT", "1")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::OctFp);
@@ -404,7 +404,7 @@ fn gameplay_oct_roundtrip() {
 
 #[test]
 fn gameplay_fp_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("FP", "FP", "1")
+    let parsed = BmsHeaderGameplay::try_match_header("FP", "1")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::OctFp);
@@ -412,7 +412,7 @@ fn gameplay_fp_roundtrip() {
 
 #[test]
 fn gameplay_changeoption_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("CHANGEOPTION", "CHANGEOPTION", "RANDOM")
+    let parsed = BmsHeaderGameplay::try_match_header("CHANGEOPTION", "RANDOM")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderGameplay::ChangeOption("RANDOM"));
@@ -423,7 +423,7 @@ fn gameplay_changeoption_roundtrip() {
 
 #[test]
 fn display_backbmp_roundtrip() {
-    let parsed = BmsHeaderDisplay::try_match_header("BACKBMP", "BACKBMP", "bg.png")
+    let parsed = BmsHeaderDisplay::try_match_header("BACKBMP", "bg.png")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderDisplay::BackBmp("bg.png"));
@@ -434,7 +434,7 @@ fn display_backbmp_roundtrip() {
 
 #[test]
 fn display_playlevel_roundtrip() {
-    let parsed = BmsHeaderDisplay::try_match_header("PLAYLEVEL", "PLAYLEVEL", "12")
+    let parsed = BmsHeaderDisplay::try_match_header("PLAYLEVEL", "12")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderDisplay::PlayLevel(12.0));
@@ -445,7 +445,7 @@ fn display_playlevel_roundtrip() {
 
 #[test]
 fn timing_scrolldef_roundtrip() {
-    let parsed = BmsHeaderTiming::try_match_header("SCROLL01", "SCROLL01", "1.5")
+    let parsed = BmsHeaderTiming::try_match_header("SCROLL01", "1.5")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -455,7 +455,7 @@ fn timing_scrolldef_roundtrip() {
 
 #[test]
 fn timing_speeddef_roundtrip() {
-    let parsed = BmsHeaderTiming::try_match_header("SPEED01", "SPEED01", "2.0")
+    let parsed = BmsHeaderTiming::try_match_header("SPEED01", "2.0")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
@@ -465,7 +465,7 @@ fn timing_speeddef_roundtrip() {
 
 #[test]
 fn audio_cdda_roundtrip() {
-    let parsed = BmsHeaderResDefAudio::try_match_header("CDDA", "CDDA", "track01.bin")
+    let parsed = BmsHeaderResDefAudio::try_match_header("CDDA", "track01.bin")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderResDefAudio::Cdda("track01.bin"));
@@ -476,7 +476,7 @@ fn audio_cdda_roundtrip() {
 
 #[test]
 fn control_switch_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("SWITCH", "SWITCH", "3")
+    let parsed = BmsHeaderControlFlow::try_match_header("SWITCH", "3")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::Switch(3));
@@ -487,7 +487,7 @@ fn control_switch_roundtrip() {
 
 #[test]
 fn control_def_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("DEF", "DEF", "")
+    let parsed = BmsHeaderControlFlow::try_match_header("DEF", "")
         .unwrap()
         .unwrap();
     assert_eq!(parsed, BmsHeaderControlFlow::Def);
@@ -498,24 +498,24 @@ fn control_def_roundtrip() {
 
 #[test]
 fn unmatched_command_returns_none() {
-    let result = BmsHeaderTiming::try_match_header("TITLE", "TITLE", "foo").unwrap();
+    let result = BmsHeaderTiming::try_match_header("TITLE", "foo").unwrap();
     assert!(result.is_none());
 }
 
 #[test]
 fn invalid_value_returns_error() {
-    let result = BmsHeaderTiming::try_match_header("BPM", "BPM", "not-a-number");
+    let result = BmsHeaderTiming::try_match_header("BPM", "not-a-number");
     assert!(result.is_err());
 }
 
 #[test]
 fn invalid_player_returns_error() {
-    let result = BmsHeaderGameplay::try_match_header("PLAYER", "PLAYER", "xyz");
+    let result = BmsHeaderGameplay::try_match_header("PLAYER", "xyz");
     assert!(result.is_err());
 }
 
 #[test]
 fn invalid_wav_index_returns_error() {
-    let result = BmsHeaderResDefAudio::try_match_header("WAV!!", "WAV!!", "file.wav");
+    let result = BmsHeaderResDefAudio::try_match_header("WAV!!", "file.wav");
     assert!(result.is_err());
 }

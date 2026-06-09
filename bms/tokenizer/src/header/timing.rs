@@ -27,7 +27,11 @@ impl fmt::Display for StpParams {
         if self.position == 0 {
             write!(f, "{:03} {}", self.measure, self.duration_ms)
         } else {
-            write!(f, "{:03}.{} {}", self.measure, self.position, self.duration_ms)
+            write!(
+                f,
+                "{:03}.{} {}",
+                self.measure, self.position, self.duration_ms
+            )
         }
     }
 }
