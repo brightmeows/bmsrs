@@ -27,7 +27,10 @@ use crate::id::{BmsChannelId, BpmTag, ScrollTag, SpeedTag, StopTag};
 pub struct StpParams {
     /// Measure number.
     pub measure: u16,
-    /// Position within the measure (0–255).
+    /// Position within the measure (0–999, as `yyy` in `xxx.yyy`).
+    ///
+    /// Interpreted as `yyy/1000` of a measure.  Values ≥ 960 may be
+    /// ignored or cause freezes in bemaniaDX.
     pub position: u16,
     /// Duration in milliseconds.
     pub duration_ms: f64,
@@ -60,7 +63,7 @@ impl<'a> BmsValue<'a> for StpParams {
 
         let measure: u16 = measure_str.parse().ok()?;
         let position: u16 = position_str.parse().ok()?;
-        if position > 255 {
+        if position > 999 {
             return None;
         }
 
@@ -91,9 +94,11 @@ pub enum BmsHeaderTiming {
     /// out-of-255 BPM values that the basic `#xxx03` channel (hex integer)
     /// cannot represent.
     ///
-    /// Negative values cause reverse scrolling in many players (LR2,
-    /// nanasi, Angolmois, Sonorous, etc.), but this is a de-facto
-    /// convention — the spec does not define negative BPM.
+    /// Negative values cause reverse scrolling in some players, but
+    /// this is a de-facto convention — the spec does not define them.
+    ///
+    /// `#EXBPM{id}` is a functional alias (nanasi, to work around a
+    /// BMSC parsing bug).
     #[bms_token("#BPM{id} {value}")]
     BpmDef {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
@@ -203,8 +208,16 @@ mod tests {
     }
 
     #[test]
-    fn stp_params_position_over_255_rejected() {
-        assert!(StpParams::parse("001.256 500").is_none());
+    fn stp_params_position_999_accepted() {
+        let p = StpParams::parse("001.999 500").unwrap();
+        assert_eq!(p.measure, 1);
+        assert_eq!(p.position, 999);
+        assert_eq!(p.duration_ms, 500.0);
+    }
+
+    #[test]
+    fn stp_params_position_over_999_rejected() {
+        assert!(StpParams::parse("001.1000 500").is_none());
     }
 
     #[test]

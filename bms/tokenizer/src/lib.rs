@@ -16,6 +16,8 @@
 //!
 //! String data (paths, display text) borrows from the input. Typed values
 //! (numeric conversions, parsed enums) are owned.
+//! [`ErrorStrategy::FailFast`] stops at the first error — useful for
+//! interactive validation where immediate feedback is preferred.
 
 use std::fmt;
 use std::num::NonZeroUsize;

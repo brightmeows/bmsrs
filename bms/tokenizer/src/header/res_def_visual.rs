@@ -393,6 +393,11 @@ pub enum BmsHeaderResDefVisual<'a> {
     /// Allows the BMS file to replace BM98's on-screen character sprites
     /// with custom images.  Only supported by `BM98k` and DDR (partial).
     /// Very complex syntax; rarely used in modern charts.
+    ///
+    /// **Historical note**: the `Project2DX` format used `#ExtChr` to
+    /// remap 5K visuals into a 7K layout before dedicated 7K channels
+    /// (`#xxx18-19`) were standardised.  DDR detects specific `#ExtChr`
+    /// patterns to activate `Project2DX` mode.
     #[bms_token("#ExtChr {value}")]
     ExtChr(&'a str),
     /// `#VIDEOf/s` — video frame rate override (`bemaniaDX` only).

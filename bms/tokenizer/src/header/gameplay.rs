@@ -224,7 +224,7 @@ pub enum BmsHeaderGameplay<'a> {
     /// `100` = original volume.  Default: `100`.
     ///
     /// **Deprecated** — highly implementation- and hardware-dependent.
-    /// Modern players (beatoraja) cap the value at 100.
+    /// Results vary across players and drivers.  beatoraja caps at 100.
     #[bms_token("#VOLWAV {value}")]
     VolWav(f64),
     /// `#LNTYPE` — long-note notation (RDM or MGQ).
@@ -240,7 +240,7 @@ pub enum BmsHeaderGameplay<'a> {
     /// `#xxx51-69` — popular because BMSE crashes when moving `#xxx51-69`
     /// objects to BGM.
     ///
-    /// Caveat: nanasi and fgt++ have a bug where lowercase `#WAV` indices
+    /// **Caveat**: nanasi and fgt++ have a bug where lowercase indices
     /// are not recognised as `#LNOBJ` markers — use uppercase.
     #[bms_token("#LNOBJ {value}")]
     LnObj(BmsChannelId<LnObjTag>),

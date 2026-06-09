@@ -22,7 +22,7 @@ use crate::BmsTokenAttr;
 /// tests).  `#RONDAM` is a common typo accepted as an alias for `#RANDOM`.
 ///
 /// Nesting and engine compatibility are complex — see the BMS command memo
-/// (`memo/13-control-flow.md`) for full details.
+/// for full details.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderControlFlow {
     /// `#RANDOM N` (or `#RONDAM`) — start a random branch block.
@@ -39,6 +39,9 @@ pub enum BmsHeaderControlFlow {
     #[bms_token("#SETRANDOM {value}")]
     SetRandom(u64),
     /// `#ENDRANDOM` — close the current `#RANDOM` block.
+    ///
+    /// Recommended when nesting `#RANDOM` blocks, as some players
+    /// (nanasi) require it for correct behaviour.
     #[bms_token("#ENDRANDOM")]
     EndRandom,
     /// `#IF N` — begin a branch that activates when the random value equals `N`.

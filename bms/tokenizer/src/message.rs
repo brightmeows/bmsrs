@@ -17,6 +17,9 @@ use crate::id::{BmsChannelId, ChannelTag, Hex};
 ///
 /// # Channel semantics (selected)
 ///
+/// Full channel mapping is the parser's responsibility — this table
+/// only lists the most common channels for reference:
+///
 /// | Channel | Purpose |
 /// |---------|---------|
 /// | `01` | BGM (can span multiple lines) |

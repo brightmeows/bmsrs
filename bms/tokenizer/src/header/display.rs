@@ -26,8 +26,7 @@ use crate::IntoTokensError;
 /// | `5` | INSANE / BLACK ANOTHER |
 ///
 /// Omitting `#DIFFICULTY` is allowed but means the chart cannot be
-/// filtered by difficulty category.  `TechnicalGroove` also accepts `0`
-/// and values above `5`, but the semantics are undefined.
+/// filtered by difficulty category.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DifficultyLevel(u8);
 
@@ -129,6 +128,10 @@ pub enum BmsHeaderDisplay<'a> {
     /// Display format varies by player (stars, bar graph, integer).
     /// Usually an integer but some players accept strings (e.g.
     /// `#PLAYLEVEL 安心`).  Default when omitted: `3` (BM98 convention).
+    ///
+    /// Value `0` has special meaning in BM98 and several other players:
+    /// it displays as a question mark (`?`) instead of a numeric value,
+    /// often used for charts whose difficulty varies via `#RANDOM`/`#SWITCH`.
     #[bms_token("#PLAYLEVEL {value}")]
     PlayLevel(f64),
     /// `#DIFFICULTY` — difficulty *category* (1–5) for chart filtering.
