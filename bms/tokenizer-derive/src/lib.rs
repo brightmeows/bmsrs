@@ -46,7 +46,6 @@ pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
             .into();
     };
 
-    // ── Mode detection ──────────────────────────────────────────────────────
     // Dispatch mode: no #[bms_token] on any variant, and all variants are
     // single-field tuple variants (like Metadata(BmsHeaderMetadata<'a>)).
     let has_bms_token = data_enum
@@ -84,7 +83,6 @@ pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
 
     match first_token {
         Some(tok) if tok.value().starts_with('#') || tok.value().starts_with('%') => {
-            // ── Command mode ──
             let mut templates: Vec<Vec<parse::BmsTokenTemplate>> = Vec::new();
             let mut fallbacks: Vec<bool> = Vec::new();
             for variant in &data_enum.variants {
@@ -107,9 +105,6 @@ pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
             }
             generate_impl(enum_name, generics, data_enum, &templates, &fallbacks).into()
         }
-        _ => {
-            // ── Literal mode ──
-            generate_bms_value_enum(enum_name, generics, data_enum).into()
-        }
+        _ => generate_bms_value_enum(enum_name, generics, data_enum).into(),
     }
 }

@@ -79,8 +79,6 @@ fn v1_missing_required_field_returns_deserialize_error() {
     }
 }
 
-// --- Integration with chumsky diagnostics ---
-
 #[test]
 fn trailing_comma_in_v2_returns_deserialize_with_diagnostics() {
     let json = r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},}"#;
@@ -97,8 +95,6 @@ fn trailing_comma_in_v2_returns_deserialize_with_diagnostics() {
         Ok(_) => panic!("expected error"),
     }
 }
-
-// --- Full roundtrip with data fields ---
 
 #[test]
 fn v2_with_sound_channels_roundtrip() {

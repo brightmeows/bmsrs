@@ -314,8 +314,6 @@ pub enum BmsHeaderGameplay<'a> {
 mod tests {
     use super::*;
 
-    // -- PlayerMode --
-
     #[test]
     fn player_mode_single() {
         assert_eq!("1".parse::<PlayerMode>().unwrap(), PlayerMode::Single);
@@ -349,8 +347,6 @@ mod tests {
         assert!("0".parse::<PlayerMode>().is_err());
     }
 
-    // -- LnType --
-
     #[test]
     fn ln_type_1() {
         assert_eq!("1".parse::<LnType>().unwrap(), LnType::Type1);
@@ -369,8 +365,6 @@ mod tests {
         assert!("3".parse::<LnType>().is_err());
         assert!("abc".parse::<LnType>().is_err());
     }
-
-    // -- LnMode --
 
     #[test]
     fn ln_mode_ln() {
@@ -396,8 +390,6 @@ mod tests {
         assert!("4".parse::<LnMode>().is_err());
         assert!("abc".parse::<LnMode>().is_err());
     }
-
-    // -- Rank --
 
     #[test]
     fn rank_standard_values() {

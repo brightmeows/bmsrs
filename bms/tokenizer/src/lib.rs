@@ -75,8 +75,6 @@ pub trait BmsValue<'a>: fmt::Display + Sized {
     fn parse(s: &'a str) -> Option<Self>;
 }
 
-// ── Blanket implementation ──────────────────────────────────────────────────
-//
 // Covers primitives (f64, u8, i32), BmsChannelId, PoorBgaMode, DifficultyLevel,
 // and any other type that already implements FromStr + Display.
 

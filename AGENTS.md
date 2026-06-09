@@ -8,7 +8,7 @@
 pre-commit run --all-files --quiet    # manually trigger all hooks at once
 ```
 
-Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --quiet`, `cargo doc --workspace --no-deps --quiet`, plus decorative divider detection (`.pre-commit-config.yaml`).
+Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --quiet`, `cargo doc --workspace --no-deps --quiet`.
 
 ### CI / manual only
 
@@ -45,10 +45,6 @@ Conventional Commits matching `release-plz.toml` changelog groups:
 
 - Use doc comments (`///` for items, `//!` for modules) for all API
   documentation — clippy enforces docs on all items.
-- **No** section header comments (`// Foo`, `// -- Foo --`, `// Foo ----`).
-  Doc comments on the item itself are sufficient.
-- **No** decorative divider lines (`// ----`, `// ====`, `// //`, etc.).
-  Use a blank line instead.
 
 ## MSRV
 

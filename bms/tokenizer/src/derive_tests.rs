@@ -4,8 +4,6 @@
 
 use crate::{BmsChannelId, BmsTokenAttr, BmsValue, WavTag};
 
-// ── Command mode: unnamed fields ──────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum SimpleHeaders<'a> {
     #[bms_token("#TITLE {}")]
@@ -81,8 +79,6 @@ fn command_invalid_float_returns_err() {
     assert!(result.is_err());
 }
 
-// ── Command mode: named fields (indexed) ──────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum NamedHeaders<'a> {
     #[bms_token("#WAV{id} {filename}")]
@@ -145,8 +141,6 @@ fn command_indexed_format() {
     );
 }
 
-// ── Command mode: unnamed indexed (tuple) ─────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum UnnamedIndexed {
     #[bms_token("#BPM{} {}")]
@@ -170,8 +164,6 @@ fn command_unnamed_indexed_format() {
     let h = UnnamedIndexed::BpmDef(BmsChannelId::<WavTag>::try_from("2A").unwrap(), 200.0);
     assert_eq!(h.format_header(), ("#BPM2A".to_owned(), "200".to_owned()));
 }
-
-// ── Command mode: fallback ────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 struct TestStp {
@@ -229,8 +221,6 @@ fn command_non_fallback_valid() {
     let result = FallbackHeaders::try_match_header("TITLE", "hello").unwrap();
     assert_eq!(result, Some(FallbackHeaders::Title("hello")));
 }
-
-// ── Literal mode ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 enum TestMode {

@@ -3,8 +3,6 @@
 use bmson_de_chumsky::json::{classify_errors, parse_json};
 use serde_json::Value;
 
-// --- Basic JSON types ---
-
 #[test]
 fn null_value_parses_successfully() {
     let (val, errors) = parse_json("null");
@@ -96,8 +94,6 @@ fn simple_object_parses_successfully() {
     assert_eq!(map.get("num").and_then(Value::as_u64), Some(1));
 }
 
-// --- String escape sequences ---
-
 #[test]
 fn string_escape_newline() {
     let (val, errors) = parse_json(r#""\n""#);
@@ -157,8 +153,6 @@ fn mixed_escape_and_literal_in_one_string() {
     assert_eq!(val, Some(Value::String("hello\nworld\t!".to_string())));
 }
 
-// --- Error recovery ---
-
 #[test]
 fn trailing_comma_in_object_parses_without_errors() {
     let (val, errors) = parse_json(r#"{"a": 1, "b": 2,}"#);
@@ -213,8 +207,6 @@ fn array_trailing_comma_and_missing_bracket_recovery() {
     };
     assert_eq!(arr.len(), 2);
 }
-
-// --- Edge cases ---
 
 #[test]
 fn empty_input_errors() {
@@ -288,8 +280,6 @@ fn json_types_in_array_parse() {
     assert_eq!(arr.first(), Some(&Value::Null));
 }
 
-// --- Diagnostics ---
-
 #[test]
 fn number_overflow_emits_diagnostic() {
     let (val, errors) = parse_json("1e999");
@@ -333,8 +323,6 @@ fn mixed_recovery_and_warnings_classified_correctly() {
     assert!(!warnings.is_empty(), "expected missing-comma warning");
     assert!(fatal.is_empty());
 }
-
-// --- classify_errors edge cases ---
 
 #[test]
 fn classify_errors_empty_input() {

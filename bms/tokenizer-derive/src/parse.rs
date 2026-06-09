@@ -274,8 +274,6 @@ fn extract_value_part(part: &str) -> Result<ValuePart, TemplateParseError> {
 mod tests {
     use super::*;
 
-    // ── Named value (non-indexed) ─────────────────────────────────────────
-
     #[test]
     fn non_indexed_with_unnamed_value() {
         let tmpl = parse_template_str("#TITLE {}").unwrap();
@@ -302,8 +300,6 @@ mod tests {
         assert!(tmpl.value_literal.is_none());
     }
 
-    // ── Indexed with named id + named value ───────────────────────────────
-
     #[test]
     fn indexed_with_id_and_value() {
         let tmpl = parse_template_str("#BPM{id} {value}").unwrap();
@@ -317,8 +313,6 @@ mod tests {
         );
     }
 
-    // ── Indexed with unnamed id + unnamed value ───────────────────────────
-
     #[test]
     fn indexed_with_unnamed_both() {
         let tmpl = parse_template_str("#BPM{} {}").unwrap();
@@ -328,8 +322,6 @@ mod tests {
         assert!(tmpl.is_unnamed_id());
         assert!(tmpl.is_unnamed_value());
     }
-
-    // ── Valueless ─────────────────────────────────────────────────────────
 
     #[test]
     fn valueless() {
@@ -342,8 +334,6 @@ mod tests {
         assert!(!tmpl.has_value());
     }
 
-    // ── Percent prefix ────────────────────────────────────────────────────
-
     #[test]
     fn percent_prefix() {
         let tmpl = parse_template_str("%URL {}").unwrap();
@@ -352,8 +342,6 @@ mod tests {
         assert!(tmpl.value_field.is_some());
         assert!(tmpl.is_unnamed_value());
     }
-
-    // ── Indexed with filename ─────────────────────────────────────────────
 
     #[test]
     fn indexed_with_filename() {
@@ -368,8 +356,6 @@ mod tests {
         );
     }
 
-    // ── Literal value ─────────────────────────────────────────────────────
-
     #[test]
     fn literal_value() {
         let tmpl = parse_template_str("#BASE 62").unwrap();
@@ -382,8 +368,6 @@ mod tests {
         assert!(tmpl.has_value());
     }
 
-    // ── Named value `{value}` still works (backward compat for named fields) ─
-
     #[test]
     fn named_value_placeholder_preserved() {
         let tmpl = parse_template_str("#TEXT{id} {value}").unwrap();
@@ -395,8 +379,6 @@ mod tests {
             Some("value")
         );
     }
-
-    // ── Error cases ───────────────────────────────────────────────────────
 
     #[test]
     fn empty_template_errors() {

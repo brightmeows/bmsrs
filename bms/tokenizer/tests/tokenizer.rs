@@ -320,8 +320,6 @@ fn bms_tokenizer_default() {
     assert!(t.tokenize::<Vec<_>>("").is_empty());
 }
 
-// ── Custom prefix tests ──────────────────────────────────────────────────
-
 #[test]
 fn custom_prefix_filters_percent() {
     // With only `#` prefix, `%URL` lines should be skipped.
