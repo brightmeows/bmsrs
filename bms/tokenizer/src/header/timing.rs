@@ -44,4 +44,28 @@ pub enum BmsHeaderTiming {
         /// The raw value.
         value: f64,
     },
+    /// `#EXBPM{id}` — extended BPM definition (alias of `#BPM{id}`).
+    #[bms_token("#EXBPM{id} {value}")]
+    ExBpm {
+        /// The 2-character index.
+        id: BmsChannelId<BpmTag>,
+        /// The BPM value.
+        value: f64,
+    },
+    /// `#STP` — step timing adjustment (non-standard format).
+    ///
+    /// Hand-parsed in `parse_header_line` because the value format
+    /// `xxx.yyy zzzz` does not follow standard header patterns.
+    ///
+    /// **Note:** `format_header` returns `("Stp".to_owned(), String::new())`
+    /// — not a valid round-trip representation.  The hand-parsed `Stp`
+    /// variant is not expected to be serialised back to BMS text.
+    Stp {
+        /// Measure number.
+        measure: u16,
+        /// Position within the measure (0–255).
+        position: u16,
+        /// Duration in milliseconds.
+        duration_ms: f64,
+    },
 }

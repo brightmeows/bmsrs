@@ -6,6 +6,7 @@
 //! - `"#ELSE"`                  — valueless
 //! - `"%URL {value}"`           — non-indexed with `%` prefix
 //! - `"#TEXT {value}"` (alias)  — multiple attrs on same variant
+//! - `"#BASE 62"`               — non-indexed with literal value (no placeholder)
 
 use std::fmt;
 
@@ -19,9 +20,12 @@ pub struct BmsTokenTemplate {
     /// If `Some`, this is an indexed command (e.g., `#BPM{id}`) and the value
     /// is the expected field name for the index (typically `"id"`).
     pub id_field: Option<String>,
-    /// If `Some`, this command carries a value and the value is the expected
-    /// field name for the value (e.g., `"value"`, `"filename"`).
+    /// If `Some`, this command carries a placeholder value and the value is
+    /// the expected field name (e.g., `"value"`, `"filename"`).
     pub value_field: Option<String>,
+    /// If `Some`, this command carries a fixed literal value (e.g., `"62"` in
+    /// `#BASE 62`). Mutually exclusive with `value_field`.
+    pub value_literal: Option<String>,
 }
 
 impl BmsTokenTemplate {
@@ -31,10 +35,17 @@ impl BmsTokenTemplate {
         self.id_field.is_some()
     }
 
-    /// `true` if this command expects a value.
+    /// `true` if this command expects a value (placeholder or literal).
     #[must_use]
     pub fn has_value(&self) -> bool {
-        self.value_field.is_some()
+        self.value_field.is_some() || self.value_literal.is_some()
+    }
+
+    /// `true` if this command uses a fixed literal value.
+    #[cfg(test)]
+    #[must_use]
+    pub fn is_literal_value(&self) -> bool {
+        self.value_literal.is_some()
     }
 }
 
@@ -108,11 +119,15 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
     // Extract command base and optional id placeholder from command part.
     let (command, id_field) = extract_command_and_id(command_part)?;
 
-    // Extract value field placeholder from value part.
-    let value_field = if has_value {
-        Some(extract_value_field(value_part)?)
+    // Extract value field placeholder or literal from value part.
+    let (value_field, value_literal) = if has_value {
+        match extract_value_part(value_part) {
+            Ok(ValuePart::Placeholder(name)) => (Some(name), None),
+            Ok(ValuePart::Literal(lit)) => (None, Some(lit)),
+            Err(e) => return Err(e),
+        }
     } else {
-        None
+        (None, None)
     };
 
     Ok(BmsTokenTemplate {
@@ -120,6 +135,7 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
         command: command.to_uppercase(),
         id_field,
         value_field,
+        value_literal,
     })
 }
 
@@ -157,28 +173,40 @@ fn extract_command_and_id(part: &str) -> Result<(String, Option<String>), Templa
     }
 }
 
-/// Extract the placeholder name from the value part of a template.
+/// The decoded value part of a template.
+enum ValuePart {
+    /// A placeholder like `{value}` or `{filename}`.
+    Placeholder(String),
+    /// A literal string like `62` in `#BASE 62`.
+    Literal(String),
+}
+
+/// Extract the placeholder name or literal from the value part of a template.
 ///
-/// `"{value}"` → `"value"`
-/// `"{filename}"` → `"filename"`
+/// `"{value}"` → `ValuePart::Placeholder("value")`
+/// `"62"` → `ValuePart::Literal("62")`
 ///
 /// # Errors
 ///
-/// Returns `TemplateParseError` if the value part is not a valid placeholder.
-fn extract_value_field(part: &str) -> Result<String, TemplateParseError> {
+/// Returns `TemplateParseError` if the value part is empty.
+fn extract_value_part(part: &str) -> Result<ValuePart, TemplateParseError> {
     let trimmed = part.trim();
-    if trimmed.len() < 3 || !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+    if trimmed.is_empty() {
         return Err(TemplateParseError {
-            message: "value part must be a placeholder like `{value}`",
+            message: "value part is empty",
         });
     }
-    let name = &trimmed[1..trimmed.len() - 1];
-    if name.is_empty() {
-        return Err(TemplateParseError {
-            message: "placeholder name in value part is empty",
-        });
+    if trimmed.starts_with('{') && trimmed.ends_with('}') && trimmed.len() >= 3 {
+        let name = &trimmed[1..trimmed.len() - 1];
+        if name.is_empty() {
+            return Err(TemplateParseError {
+                message: "placeholder name in value part is empty",
+            });
+        }
+        Ok(ValuePart::Placeholder(name.to_owned()))
+    } else {
+        Ok(ValuePart::Literal(trimmed.to_owned()))
     }
-    Ok(name.to_owned())
 }
 
 #[cfg(test)]
@@ -192,6 +220,8 @@ mod tests {
         assert_eq!(tmpl.command, "TITLE");
         assert!(!tmpl.is_indexed());
         assert_eq!(tmpl.value_field.as_deref(), Some("value"));
+        assert!(tmpl.value_literal.is_none());
+        assert!(!tmpl.is_literal_value());
     }
 
     #[test]
@@ -211,6 +241,8 @@ mod tests {
         assert_eq!(tmpl.command, "ELSE");
         assert!(!tmpl.is_indexed());
         assert!(tmpl.value_field.is_none());
+        assert!(tmpl.value_literal.is_none());
+        assert!(!tmpl.has_value());
     }
 
     #[test]
@@ -229,6 +261,18 @@ mod tests {
         assert!(tmpl.is_indexed());
         assert_eq!(tmpl.id_field.as_deref(), Some("id"));
         assert_eq!(tmpl.value_field.as_deref(), Some("filename"));
+    }
+
+    #[test]
+    fn literal_value() {
+        let tmpl = parse_template_str("#BASE 62").unwrap();
+        assert_eq!(tmpl.prefix, '#');
+        assert_eq!(tmpl.command, "BASE");
+        assert!(!tmpl.is_indexed());
+        assert!(tmpl.value_field.is_none());
+        assert_eq!(tmpl.value_literal.as_deref(), Some("62"));
+        assert!(tmpl.is_literal_value());
+        assert!(tmpl.has_value());
     }
 
     #[test]

@@ -17,8 +17,9 @@ pub enum BmsHeaderMetadata<'a> {
     /// `#SUBARTIST`
     #[bms_token("#SUBARTIST {value}")]
     SubArtist(&'a str),
-    /// `#GENRE`
+    /// `#GENRE` or `#GENLE`
     #[bms_token("#GENRE {value}")]
+    #[bms_token("#GENLE {value}")]
     Genre(&'a str),
     /// `#MAKER`
     #[bms_token("#MAKER {value}")]

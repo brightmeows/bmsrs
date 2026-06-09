@@ -17,6 +17,7 @@
 //! String data (paths, display text) borrows from the input. Typed values
 //! (numeric conversions, parsed enums) are owned.
 
+use std::fmt;
 use std::num::NonZeroUsize;
 
 mod error;
@@ -25,20 +26,64 @@ mod id;
 mod message;
 
 pub use bms_tokenizer_derive::BmsTokenAttr;
-pub use error::BmsTokenizeError;
+pub use error::{BmsTokenizeError, ParseBmsValueError};
 pub use header::{
-    BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderExt, BmsHeaderGameplay,
+    ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
+    ParseDifficultyError, PlayerMode, PoorBgaMode, SwBgaParams,
+};
+pub use header::{
+    BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay,
     BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
 };
-pub use header::{
-    DifficultyLevel, LnMode, LnType, ParseDifficultyError, ParseLnModeError, ParseLnTypeError,
-    ParsePlayerModeError, PlayerMode,
-};
 pub use id::{
-    BmpTag, BmsChannelId, BmsChannelIdError, BpmTag, ExRankTag, LnObjTag, ScrollTag, SeekTag,
-    SpeedTag, StopTag, WavTag,
+    AlphaNum, Base36Upper, BmpTag, BmsChannelId, BmsChannelIdError, BpmTag, ChannelTag, ExRankTag,
+    Hex, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag, WavTag,
 };
 pub use message::BmsMessage;
+
+/// Unified trait for BMS header values.
+///
+/// Combines parsing (from an input string) and formatting (back to a BMS value
+/// string) into a single contract.  Types that implement [`std::str::FromStr`] +
+/// [`std::fmt::Display`] get a blanket implementation — no manual work needed for simple
+/// numeric or identifier types.
+///
+/// # Lifetimes
+///
+/// The `'a` lifetime allows implementations to borrow from the input string
+/// without allocating (e.g., `ExBmpParams<'a>`).  Owned-only types can safely
+/// implement the trait with any `'a`.
+///
+/// # Formatting
+///
+/// This trait uses [`std::fmt::Display`] as a supertrait instead of providing its own
+/// format method.  Callers use `.to_string()` to obtain the BMS
+/// representation; this keeps the trait compatible with the standard library's
+/// formatting infrastructure.
+pub trait BmsValue<'a>: fmt::Display + Sized {
+    /// Parse `s` into `Self`.
+    ///
+    /// Return `None` to signal that parsing failed — the caller may allow the
+    /// input to fall through to `BmsHeaderFallback` instead of treating the
+    /// failure as a hard error.
+    #[must_use]
+    fn parse(s: &'a str) -> Option<Self>;
+}
+
+// ── Blanket implementation ──────────────────────────────────────────────────
+//
+// Covers primitives (f64, u8, i32), BmsChannelId, PoorBgaMode, DifficultyLevel,
+// and any other type that already implements FromStr + Display.
+
+impl<'a, T> BmsValue<'a> for T
+where
+    T: std::str::FromStr + fmt::Display,
+{
+    #[inline]
+    fn parse(s: &'a str) -> Option<Self> {
+        s.parse().ok()
+    }
+}
 
 use header::parse_header_line;
 use message::parse_message_line;

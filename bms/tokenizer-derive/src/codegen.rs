@@ -1,4 +1,4 @@
-//! Code generator for `#[derive(BmsToken)]`.
+//! Code generator for `#[derive(BmsTokenAttr)]`.
 
 #![expect(clippy::indexing_slicing, reason = "bounded by checked iteration")]
 
@@ -8,26 +8,23 @@ use syn::spanned::Spanned;
 
 use crate::parse::BmsTokenTemplate;
 
-/// Return a detail `TokenStream` for domain types whose `FromStr` errors
-/// are more informative with an expected-range annotation.
+/// Return a detail string literal for domain types whose parse failures
+/// benefit from an expected-range annotation.
 fn type_detail_ts(ty: &syn::Type) -> TokenStream {
-    let detail: Option<&'static str> = match ty {
+    let detail: &'static str = match ty {
         syn::Type::Path(type_path) => {
             let seg = type_path.path.segments.last();
             match seg.map(|s| s.ident.to_string()).as_deref() {
-                Some("LnType") => Some(" (expected 1 or 2)"),
-                Some("LnMode") => Some(" (expected 1, 2, or 3)"),
-                Some("DifficultyLevel") => Some(" (expected 1-5)"),
-                _ => None,
+                Some("LnType") => " (expected 1 or 2)",
+                Some("LnMode") => " (expected 1, 2, or 3)",
+                Some("DifficultyLevel") => " (expected 1-5)",
+                _ => "",
             }
         }
-        _ => None,
+        _ => "",
     };
-    if let Some(s) = detail {
-        quote! { Some(#s) }
-    } else {
-        quote! { None }
-    }
+    let lit = syn::LitStr::new(detail, ty.span());
+    quote! { #lit }
 }
 
 /// Generate the `BmsToken` impl block for a header sub-enum.
@@ -36,6 +33,7 @@ pub fn generate_impl(
     generics: &syn::Generics,
     data_enum: &syn::DataEnum,
     templates: &[Vec<BmsTokenTemplate>],
+    fallbacks: &[bool],
 ) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -46,31 +44,8 @@ pub fn generate_impl(
     });
     let header_where = header_bound.unwrap_or_default();
 
-    // For enums WITH a lifetime parameter, the dispatch return type uses
-    // the impl's `'a` (no redeclaration needed).  For enums WITHOUT a
-    // lifetime, the function declares its own `'a'.
-    let dispatch_sig = if first_lifetime.is_some() {
-        quote! {
-            fn __bms_dispatch<'header>(
-                command: &str,
-                command_raw: &'header str,
-                value: &'header str,
-            ) -> Result<Option<crate::BmsHeader<'a>>, crate::BmsTokenizeError<'header>>
-            #header_where
-        }
-    } else {
-        quote! {
-            fn __bms_dispatch<'a>(
-                command: &str,
-                command_raw: &'a str,
-                value: &'a str,
-            ) -> Result<Option<crate::BmsHeader<'a>>, crate::BmsTokenizeError<'a>>
-        }
-    };
-
-    let try_match_body = generate_try_match_body(data_enum, templates);
+    let try_match_body = generate_try_match_body(data_enum, templates, fallbacks);
     let format_body = generate_format_body(data_enum, templates);
-    let dispatch_arm = bms_header_variant(enum_name);
 
     quote! {
         impl #impl_generics #enum_name #ty_generics #where_clause {
@@ -96,17 +71,6 @@ pub fn generate_impl(
                     #format_body
                 }
             }
-
-            /// Convenience wrapper for use by the top-level dispatch in
-            /// `header.rs`.  Calls `try_match_header` and wraps the result
-            /// into the corresponding `BmsHeader` variant.
-            #[doc(hidden)]
-            #[must_use]
-            pub(crate) #dispatch_sig
-            {
-                Self::try_match_header(command, command_raw, value)
-                    .map(|opt| opt.map(crate::BmsHeader::#dispatch_arm))
-            }
         }
     }
 }
@@ -115,6 +79,7 @@ pub fn generate_impl(
 fn generate_try_match_body(
     data_enum: &syn::DataEnum,
     templates: &[Vec<BmsTokenTemplate>],
+    fallbacks: &[bool],
 ) -> TokenStream {
     let mut exact_arms = TokenStream::new();
     let mut indexed_checks = TokenStream::new();
@@ -123,13 +88,14 @@ fn generate_try_match_body(
         let Some(variant_templates) = templates.get(variant_idx) else {
             continue;
         };
+        let is_fallback = fallbacks.get(variant_idx).copied().unwrap_or(false);
 
         for tmpl in variant_templates {
             if tmpl.is_indexed() {
-                let check = generate_indexed_match(variant, tmpl);
+                let check = generate_indexed_match(variant, tmpl, is_fallback);
                 indexed_checks.extend(check);
             } else {
-                let arm = generate_exact_match_arm(variant, tmpl);
+                let arm = generate_exact_match_arm(variant, tmpl, is_fallback);
                 exact_arms.extend(arm);
             }
         }
@@ -148,10 +114,21 @@ fn generate_try_match_body(
 }
 
 /// Generate a single match arm for a non-indexed variant.
-fn generate_exact_match_arm(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -> TokenStream {
+fn generate_exact_match_arm(
+    variant: &syn::Variant,
+    tmpl: &BmsTokenTemplate,
+    is_fallback: bool,
+) -> TokenStream {
     let cmd_str = &tmpl.command;
     let context_str = format!("{}{}", tmpl.prefix, tmpl.command);
     let command_ident = &variant.ident;
+
+    // Literal-value template: match both command AND value literally.
+    if let Some(literal) = &tmpl.value_literal {
+        return quote! {
+            #cmd_str if value == #literal => { return Ok(Some(Self::#command_ident)); }
+        };
+    }
 
     if !tmpl.has_value() {
         return quote! {
@@ -161,66 +138,26 @@ fn generate_exact_match_arm(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -> 
 
     match &variant.fields {
         syn::Fields::Unnamed(fields_unnamed) if fields_unnamed.unnamed.len() == 1 => {
-            let field_ty = &fields_unnamed.unnamed[0].ty;
-            if is_str_ref(field_ty) {
-                quote! {
-                    #cmd_str => { return Ok(Some(Self::#command_ident(value))); }
-                }
-            } else {
-                let detail = type_detail_ts(field_ty);
-                quote! {
-                    #cmd_str => {
-                        let __value: #field_ty = value.parse().map_err(|_|
-                            crate::BmsTokenizeError::InvalidValue {
-                                context: #context_str,
-                                value,
-                                detail: #detail,
-                            }
-                        )?;
-                        return Ok(Some(Self::#command_ident(__value)));
-                    }
-                }
-            }
+            exact_unnamed_arm(
+                command_ident,
+                &fields_unnamed.unnamed[0].ty,
+                cmd_str,
+                &context_str,
+                is_fallback,
+            )
         }
         syn::Fields::Named(fields_named) => {
             let value_field_name = tmpl.value_field.as_deref().unwrap_or("value");
-            if let Some(field) = fields_named
+            let Some(field) = fields_named
                 .named
                 .iter()
                 .find(|f| f.ident.as_ref().is_some_and(|n| n == value_field_name))
-            {
-                let field_ty = &field.ty;
-                let field_ident = &field.ident;
-                if is_str_ref(field_ty) {
-                    quote! {
-                        #cmd_str => {
-                            return Ok(Some(Self::#command_ident {
-                                #field_ident: value,
-                            }));
-                        }
-                    }
-                } else {
-                    let detail = type_detail_ts(field_ty);
-                    quote! {
-                        #cmd_str => {
-                            let #field_ident: #field_ty = value.parse().map_err(|_|
-                                crate::BmsTokenizeError::InvalidValue {
-                                    context: #context_str,
-                                    value,
-                                    detail: #detail,
-                                }
-                            )?;
-                            return Ok(Some(Self::#command_ident {
-                                #field_ident,
-                            }));
-                        }
-                    }
-                }
-            } else {
-                quote! {
+            else {
+                return quote! {
                     #cmd_str => { return Ok(Some(Self::#command_ident)); }
-                }
-            }
+                };
+            };
+            exact_named_field_arm(command_ident, field, cmd_str, &context_str, is_fallback)
         }
         _ => {
             quote! {
@@ -230,10 +167,100 @@ fn generate_exact_match_arm(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -> 
     }
 }
 
+/// Generate a match arm for a tuple variant with exactly one field.
+fn exact_unnamed_arm(
+    command_ident: &syn::Ident,
+    field_ty: &syn::Type,
+    cmd_str: &str,
+    context_str: &str,
+    is_fallback: bool,
+) -> TokenStream {
+    if is_str_ref(field_ty) {
+        quote! {
+            #cmd_str => { return Ok(Some(Self::#command_ident(value))); }
+        }
+    } else if is_fallback {
+        quote! {
+            #cmd_str => {
+                let Some(__value) = <#field_ty as crate::BmsValue>::parse(value) else {
+                    return Ok(None);
+                };
+                return Ok(Some(Self::#command_ident(__value)));
+            }
+        }
+    } else {
+        let detail = type_detail_ts(field_ty);
+        quote! {
+            #cmd_str => {
+                let __value: #field_ty = value.parse().map_err(|_|
+                    crate::BmsTokenizeError::InvalidValue {
+                        context: #context_str,
+                        value,
+                        detail: #detail,
+                    }
+                )?;
+                return Ok(Some(Self::#command_ident(__value)));
+            }
+        }
+    }
+}
+
+/// Generate a match arm for a struct variant, parsing the value field.
+fn exact_named_field_arm(
+    command_ident: &syn::Ident,
+    field: &syn::Field,
+    cmd_str: &str,
+    context_str: &str,
+    is_fallback: bool,
+) -> TokenStream {
+    let field_ty = &field.ty;
+    let field_ident = &field.ident;
+    if is_str_ref(field_ty) {
+        quote! {
+            #cmd_str => {
+                return Ok(Some(Self::#command_ident {
+                    #field_ident: value,
+                }));
+            }
+        }
+    } else if is_fallback {
+        quote! {
+            #cmd_str => {
+                let Some(#field_ident) = <#field_ty as crate::BmsValue>::parse(value) else {
+                    return Ok(None);
+                };
+                return Ok(Some(Self::#command_ident {
+                    #field_ident,
+                }));
+            }
+        }
+    } else {
+        let detail = type_detail_ts(field_ty);
+        quote! {
+            #cmd_str => {
+                let #field_ident: #field_ty = value.parse().map_err(|_|
+                    crate::BmsTokenizeError::InvalidValue {
+                        context: #context_str,
+                        value,
+                        detail: #detail,
+                    }
+                )?;
+                return Ok(Some(Self::#command_ident {
+                    #field_ident,
+                }));
+            }
+        }
+    }
+}
+
 /// Generate prefix/length checks and variant construction for an indexed
 /// command.  Uses `command_raw` for index slicing so the error can store the
 /// correct portion of the input.
-fn generate_indexed_match(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -> TokenStream {
+fn generate_indexed_match(
+    variant: &syn::Variant,
+    tmpl: &BmsTokenTemplate,
+    is_fallback: bool,
+) -> TokenStream {
     let context_str = format!("{}{}", tmpl.prefix, tmpl.command);
     let base_len = tmpl.command.len();
     let cmd_prefix = &tmpl.command;
@@ -242,7 +269,8 @@ fn generate_indexed_match(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -> To
 
     let id_field_name = tmpl.id_field.as_deref().unwrap_or("id");
 
-    let variant_construction = build_indexed_variant_body(variant, id_field_name, &context_str);
+    let variant_construction =
+        build_indexed_variant_body(variant, id_field_name, &context_str, is_fallback);
 
     quote! {
         if command.len() == #expected_len && command.starts_with(#cmd_prefix) {
@@ -258,6 +286,7 @@ fn build_indexed_variant_body(
     variant: &syn::Variant,
     id_field_name: &str,
     context_str: &str,
+    is_fallback: bool,
 ) -> TokenStream {
     let command_ident = &variant.ident;
 
@@ -283,13 +312,19 @@ fn build_indexed_variant_body(
                     crate::BmsTokenizeError::InvalidValue {
                         context: #context_str,
                         value: __idx,
-                        detail: None,
+                        detail: "",
                     }
                 )?;
             });
         } else if is_str_ref(field_ty) {
             field_inits.extend(quote! {
                 let #field_ident = value;
+            });
+        } else if is_fallback {
+            field_inits.extend(quote! {
+                let Some(#field_ident) = <#field_ty as crate::BmsValue>::parse(value) else {
+                    return Ok(None);
+                };
             });
         } else {
             let detail = type_detail_ts(field_ty);
@@ -327,6 +362,8 @@ fn generate_format_body(
             continue;
         };
         let Some(tmpl) = variant_templates.first() else {
+            // Variant has no #[bms_token] attrs — handled by the fallback
+            // loop below.
             continue;
         };
 
@@ -350,11 +387,35 @@ fn generate_format_body(
         });
     }
 
+    // Fallback arms for variants WITHOUT any #[bms_token] attrs.
+    // These are hand-parsed variants (e.g., parameterized commands handled in
+    // parse_header_line). Without them, the match self would be non-exhaustive.
+    for (variant_idx, variant) in data_enum.variants.iter().enumerate() {
+        let Some(variant_templates) = templates.get(variant_idx) else {
+            continue;
+        };
+        if !variant_templates.is_empty() {
+            continue;
+        }
+        let pattern = variant_to_wildcard_pattern(variant);
+        let name_str = variant.ident.to_string();
+        let name_lit = syn::LitStr::new(&name_str, variant.span());
+        arms.extend(quote! {
+            #pattern => (#name_lit.to_owned(), String::new()),
+        });
+    }
+
     arms
 }
 
 /// Generate the value-side expression of a `format_header` match arm.
 fn generate_format_value_expr(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -> TokenStream {
+    // Literal-value template: return the literal string directly.
+    if let Some(literal) = &tmpl.value_literal {
+        let lit = syn::LitStr::new(literal, variant.span());
+        return quote! { #lit.to_owned() };
+    }
+
     let value_field_name = match &tmpl.value_field {
         Some(name) => name.clone(),
         None => return quote! { String::new() },
@@ -396,14 +457,17 @@ fn variant_to_pattern(variant: &syn::Variant) -> TokenStream {
     }
 }
 
-/// Derive the `BmsHeader` variant name from a sub-enum name.
+/// Convert a variant definition into a `match self` wildcard pattern.
 ///
-/// `BmsHeaderMetadata` → `Metadata`
-/// `BmsHeaderTiming` → `Timing`
-fn bms_header_variant(enum_name: &syn::Ident) -> syn::Ident {
-    let name = enum_name.to_string();
-    let variant = name.strip_prefix("BmsHeader").unwrap_or(&name);
-    format_ident!("{variant}")
+/// Like [`variant_to_pattern`] but uses `{ .. }` / `(..)` instead of
+/// naming each field, avoiding "unused variable" warnings in fallback arms.
+fn variant_to_wildcard_pattern(variant: &syn::Variant) -> TokenStream {
+    let ident = &variant.ident;
+    match &variant.fields {
+        syn::Fields::Named(_) => quote! { Self::#ident { .. } },
+        syn::Fields::Unnamed(_) => quote! { Self::#ident(..) },
+        syn::Fields::Unit => quote! { Self::#ident },
+    }
 }
 
 /// `true` if the type is a (possibly lifetime-qualified) `&str`.
@@ -415,4 +479,73 @@ fn is_str_ref(ty: &syn::Type) -> bool {
         return false;
     };
     type_path.path.is_ident("str")
+}
+
+/// Generate `try_match_header` on the top-level `BmsHeader` enum.
+///
+/// The generated method dispatches to each sub-enum's `try_match_header`
+/// in declaration order.  Variants annotated with `#[bms_fallback]`
+/// (e.g., the catch-all `Fallback` variant) are skipped.
+pub fn generate_header_dispatch(
+    enum_name: &syn::Ident,
+    generics: &syn::Generics,
+    data_enum: &syn::DataEnum,
+) -> TokenStream {
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let first_lifetime = generics.lifetimes().next();
+    let header_bound = first_lifetime.map(|lt| {
+        let lifetime = &lt.lifetime;
+        quote! { where 'header: #lifetime }
+    });
+    let header_where = header_bound.unwrap_or_default();
+
+    let mut dispatch_arms = TokenStream::new();
+
+    for variant in &data_enum.variants {
+        // Skip variants with #[bms_fallback] (e.g., the catch-all Fallback).
+        if variant
+            .attrs
+            .iter()
+            .any(|a| a.path().is_ident("bms_fallback"))
+        {
+            continue;
+        }
+        // Only tuple variants with one field (the inner sub-enum).
+        let syn::Fields::Unnamed(fields) = &variant.fields else {
+            continue;
+        };
+        if fields.unnamed.len() != 1 {
+            continue;
+        }
+
+        let variant_ident = &variant.ident;
+        let inner_type = &fields.unnamed[0].ty;
+
+        dispatch_arms.extend(quote! {
+            if let Some(v) = <#inner_type>::try_match_header(command, command_raw, value)? {
+                return Ok(Some(Self::#variant_ident(v)));
+            }
+        });
+    }
+
+    quote! {
+        impl #impl_generics #enum_name #ty_generics #where_clause {
+            /// Dispatch to each sub-enum's `try_match_header` in declaration
+            /// order.  Returns `Ok(None)` when no sub-enum recognises the
+            /// command.
+            #[doc(hidden)]
+            #[must_use]
+            pub fn try_match_header<'header>(
+                command: &str,
+                command_raw: &'header str,
+                value: &'header str,
+            ) -> Result<Option<Self>, crate::BmsTokenizeError<'header>>
+            #header_where
+            {
+                #dispatch_arms
+                Ok(None)
+            }
+        }
+    }
 }

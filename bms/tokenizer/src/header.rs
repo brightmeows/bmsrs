@@ -9,20 +9,20 @@ mod res_def_visual;
 mod timing;
 
 pub use control_flow::BmsHeaderControlFlow;
-pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError};
-pub use gameplay::{
-    BmsHeaderGameplay, LnMode, LnType, ParseLnModeError, ParseLnTypeError, ParsePlayerModeError,
-    PlayerMode,
-};
+pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
+pub use gameplay::{BmsHeaderGameplay, LnMode, LnType, PlayerMode};
 pub use metadata::BmsHeaderMetadata;
-pub use res_def_audio::BmsHeaderResDefAudio;
-pub use res_def_visual::BmsHeaderResDefVisual;
+pub use res_def_audio::{BmsHeaderResDefAudio, ExWavParams};
+pub use res_def_visual::{
+    ArgbParams, AtBgaParams, BgaParams, BmsHeaderResDefVisual, ExBmpParams, SwBgaParams,
+};
 pub use timing::BmsHeaderTiming;
 
-use crate::error::BmsTokenizeError;
+use crate::BmsTokenAttr;
+use crate::BmsTokenizeError;
 
 /// A header command from a BMS file, categorized by semantic domain.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeader<'a> {
     /// Song/chart identification (title, artist, genre, ...).
     Metadata(BmsHeaderMetadata<'a>),
@@ -39,40 +39,17 @@ pub enum BmsHeader<'a> {
     /// Control-flow commands (random, if, switch, ...).
     ControlFlow(BmsHeaderControlFlow),
     /// An unrecognised or engine-specific header command.
-    Ext(BmsHeaderExt<'a>),
+    #[bms_fallback]
+    Fallback(BmsHeaderFallback<'a>),
 }
 
 /// Catch-all for unrecognised header commands.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BmsHeaderExt<'a> {
+pub struct BmsHeaderFallback<'a> {
     /// The raw command name as it appears in the file (e.g., `"MYEXT"`).
     pub command: &'a str,
     /// The value after the space separator.
     pub value: &'a str,
-}
-
-/// Dispatch a `(command, value)` pair to the matching sub-enum via its
-/// generated `__bms_dispatch` function.
-fn match_header<'a>(
-    command: &str,
-    command_raw: &'a str,
-    value: &'a str,
-) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError<'a>> {
-    macro_rules! try_sub {
-        ($ty:ty) => {
-            if let Some(v) = <$ty>::__bms_dispatch(command, command_raw, value)? {
-                return Ok(Some(v));
-            }
-        };
-    }
-    try_sub!(BmsHeaderMetadata::<'_>);
-    try_sub!(BmsHeaderGameplay::<'_>);
-    try_sub!(BmsHeaderDisplay::<'_>);
-    try_sub!(BmsHeaderTiming);
-    try_sub!(BmsHeaderResDefAudio::<'_>);
-    try_sub!(BmsHeaderResDefVisual::<'_>);
-    try_sub!(BmsHeaderControlFlow);
-    Ok(None)
 }
 
 /// Parse a single header line into a `BmsHeader`.
@@ -132,7 +109,7 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
     // but unknown `%` commands must NOT fall through to the `#` dispatch
     // (doing so would let `%TITLE` masquerade as `#TITLE`).
     if prefix == '%' && command_upper != "URL" && command_upper != "EMAIL" {
-        return Ok(Some(BmsHeader::Ext(BmsHeaderExt {
+        return Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
             command: command_raw,
             value,
         })));
@@ -141,20 +118,76 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
     // Single dispatch via sub-enum `__bms_dispatch` functions.
     // `command_raw` carries the input lifetime so that index-slice errors
     // can store the correct portion of the command.
-    if let Some(header) = match_header(&command_upper, command_raw, value)? {
+    if let Some(header) = BmsHeader::try_match_header(&command_upper, command_raw, value)? {
         return Ok(Some(header));
     }
 
-    // Nothing matched → Extension.
-    Ok(Some(BmsHeader::Ext(BmsHeaderExt {
+    // #STP: non-standard format "xxx[.yyy] zzzz" — hand-parsed.
+    if command_upper == "STP" {
+        if let Some(stp) = parse_stp(value) {
+            return Ok(Some(BmsHeader::Timing(BmsHeaderTiming::Stp {
+                measure: stp.measure,
+                position: stp.position,
+                duration_ms: stp.duration_ms,
+            })));
+        }
+        return Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
+            command: command_raw,
+            value,
+        })));
+    }
+
+    // Nothing matched → Fallback.
+    Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
         command: command_raw,
         value,
     })))
 }
 
+/// Intermediate parsed result for `#STP` value.
+struct StpParts {
+    /// Measure number.
+    measure: u16,
+    /// Position within the measure (0–255).
+    position: u16,
+    /// Duration in milliseconds.
+    duration_ms: f64,
+}
+
+/// Parse `#STP` value format: `xxx[.yyy] zzzz`
+///
+/// - `xxx` = measure (decimal, 1–3 digits)
+/// - `.yyy` = position within measure (optional, 0–255)
+/// - `zzzz` = stop duration in milliseconds (decimal)
+fn parse_stp(value: &str) -> Option<StpParts> {
+    let (pos_part, dur_part) = value.split_once(' ')?;
+    let dur_ms: f64 = dur_part.trim().parse().ok()?;
+
+    let (measure_str, position_str) = if let Some(dot) = pos_part.find('.') {
+        let m = &pos_part[..dot];
+        let p = &pos_part[dot + 1..];
+        (m, p)
+    } else {
+        (pos_part, "0")
+    };
+
+    let measure: u16 = measure_str.parse().ok()?;
+    let position: u16 = position_str.parse().ok()?;
+    if position > 255 {
+        return None;
+    }
+
+    Some(StpParts {
+        measure,
+        position,
+        duration_ms: dur_ms,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::header::display::PoorBgaMode;
     use crate::id::{
         BmpTag, BmsChannelId, BpmTag, ExRankTag, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag,
         WavTag,
@@ -351,13 +384,19 @@ mod tests {
     #[test]
     fn parse_oct() {
         let result = parse_header_line("#OCT 1").unwrap().unwrap();
-        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Oct(1.0)));
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
     }
 
     #[test]
     fn parse_fp() {
         let result = parse_header_line("#FP 1").unwrap().unwrap();
-        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Fp(1.0)));
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
+    }
+
+    #[test]
+    fn parse_octfp() {
+        let result = parse_header_line("#OCT/FP 1").unwrap().unwrap();
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
     }
 
     #[test]
@@ -496,11 +535,35 @@ mod tests {
 
     #[test]
     fn parse_poorbga() {
-        let result = parse_header_line("#POORBGA fallback.bmp").unwrap().unwrap();
+        let result = parse_header_line("#POORBGA 0").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga("fallback.bmp"))
+            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(PoorBgaMode::Default))
         );
+    }
+
+    #[test]
+    fn parse_poorbga_overlay() {
+        let result = parse_header_line("#POORBGA 1").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(PoorBgaMode::Overlay))
+        );
+    }
+
+    #[test]
+    fn parse_poorbga_hidden() {
+        let result = parse_header_line("#POORBGA 2").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(PoorBgaMode::Hidden))
+        );
+    }
+
+    #[test]
+    fn parse_poorbga_invalid_fallback() {
+        let result = parse_header_line("#POORBGA 3").unwrap().unwrap();
+        assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 
     #[test]
@@ -671,13 +734,28 @@ mod tests {
     #[test]
     fn parse_exwav_indexed() {
         let result = parse_header_line("#EXWAV01 extra.ogg").unwrap().unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav {
-                id: BmsChannelId::<WavTag>::try_from("01").unwrap(),
-                filename: "extra.ogg"
-            })
-        );
+        if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
+            assert_eq!(id.as_str(), "01");
+            assert_eq!(params.filename, "extra.ogg");
+            assert!(params.flags.is_empty());
+        } else {
+            panic!("expected ExWav variant");
+        }
+    }
+
+    #[test]
+    fn parse_exwav_with_flags() {
+        let result = parse_header_line("#EXWAV01 pvf -100 50 440 sound.wav")
+            .unwrap()
+            .unwrap();
+        if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
+            assert_eq!(id.as_str(), "01");
+            assert_eq!(params.flags, "pvf");
+            assert_eq!(params.values, vec![-100.0, 50.0, 440.0]);
+            assert_eq!(params.filename, "sound.wav");
+        } else {
+            panic!("expected ExWav variant");
+        }
     }
 
     #[test]
@@ -694,62 +772,102 @@ mod tests {
 
     #[test]
     fn parse_exbmp_indexed() {
-        let result = parse_header_line("#EXBMP01 extra.bmp").unwrap().unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExBmp {
-                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
-                filename: "extra.bmp"
-            })
-        );
+        let result = parse_header_line("#EXBMP01 255,0,128,64 overlay.png")
+            .unwrap()
+            .unwrap();
+        if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExBmp { id, params }) = result {
+            assert_eq!(id.as_str(), "01");
+            assert_eq!(params.a, 255);
+            assert_eq!(params.r, 0);
+            assert_eq!(params.g, 128);
+            assert_eq!(params.b, 64);
+            assert_eq!(params.filename, "overlay.png");
+        } else {
+            panic!("expected ExBmp variant");
+        }
     }
 
     #[test]
     fn parse_bga_indexed() {
-        let result = parse_header_line("#BGA01 layer.bmp").unwrap().unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga {
-                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
-                filename: "layer.bmp"
-            })
-        );
+        let result = parse_header_line("#BGA01 02 0 0 100 100 10 20")
+            .unwrap()
+            .unwrap();
+        if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { id, params }) = result {
+            assert_eq!(id.as_str(), "01");
+            assert_eq!(params.bmp_index, 2);
+            assert_eq!(params.x1, 0);
+            assert_eq!(params.y1, 0);
+            assert_eq!(params.x2, 100);
+            assert_eq!(params.y2, 100);
+            assert_eq!(params.dx, 10);
+            assert_eq!(params.dy, 20);
+        } else {
+            panic!("expected Bga variant");
+        }
     }
 
     #[test]
     fn parse_at_bga_indexed() {
-        let result = parse_header_line("#@BGA01 layer.bmp").unwrap().unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga {
-                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
-                filename: "layer.bmp"
-            })
-        );
+        let result = parse_header_line("#@BGA01 03 5 10 200 150 0 0")
+            .unwrap()
+            .unwrap();
+        if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { id, params }) = result {
+            assert_eq!(id.as_str(), "01");
+            assert_eq!(params.bmp_index, 3);
+            assert_eq!(params.sx, 5);
+            assert_eq!(params.sy, 10);
+            assert_eq!(params.w, 200);
+            assert_eq!(params.h, 150);
+        } else {
+            panic!("expected AtBga variant");
+        }
     }
 
     #[test]
     fn parse_swbga_indexed() {
-        let result = parse_header_line("#SWBGA01 switch.bmp").unwrap().unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::SwBga {
-                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
-                filename: "switch.bmp"
-            })
-        );
+        let result = parse_header_line("#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp")
+            .unwrap()
+            .unwrap();
+        if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::SwBga { id, params }) = result {
+            assert_eq!(id.as_str(), "01");
+            assert_eq!(params.fr, 30);
+            assert_eq!(params.time, 60);
+            assert_eq!(params.line, 1);
+            assert!(!params.r#loop);
+            assert_eq!(params.a, 255);
+            assert_eq!(params.r, 0);
+            assert_eq!(params.g, 0);
+            assert_eq!(params.b, 128);
+            assert_eq!(params.pattern, "pattern.bmp");
+        } else {
+            panic!("expected SwBga variant");
+        }
     }
 
     #[test]
     fn parse_argb_indexed() {
-        let result = parse_header_line("#ARGB01 rgba.bmp").unwrap().unwrap();
-        assert_eq!(
-            result,
-            BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Argb {
-                id: BmsChannelId::<BmpTag>::try_from("01").unwrap(),
-                filename: "rgba.bmp"
-            })
-        );
+        let result = parse_header_line("#ARGB01 128,255,0,64").unwrap().unwrap();
+        if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Argb { id, params }) = result {
+            assert_eq!(id.as_str(), "01");
+            assert_eq!(params.a, 128);
+            assert_eq!(params.r, 255);
+            assert_eq!(params.g, 0);
+            assert_eq!(params.b, 64);
+        } else {
+            panic!("expected Argb variant");
+        }
+    }
+
+    #[test]
+    fn parse_bga_invalid_fallback() {
+        let result = parse_header_line("#BGA01 bad").unwrap().unwrap();
+        assert!(matches!(result, BmsHeader::Fallback(_)));
+    }
+
+    #[test]
+    fn parse_argb_invalid_fallback() {
+        let result = parse_header_line("#ARGB01 bad").unwrap().unwrap();
+        assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 
     #[test]
@@ -838,7 +956,7 @@ mod tests {
         let result = parse_header_line("#MYEXT abc123").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::Ext(BmsHeaderExt {
+            BmsHeader::Fallback(BmsHeaderFallback {
                 command: "MYEXT",
                 value: "abc123"
             })
@@ -850,7 +968,7 @@ mod tests {
         let result = parse_header_line("%CUSTOM x").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::Ext(BmsHeaderExt {
+            BmsHeader::Fallback(BmsHeaderFallback {
                 command: "CUSTOM",
                 value: "x"
             })
@@ -950,5 +1068,76 @@ mod tests {
     #[test]
     fn invalid_bpm_returns_error() {
         assert!(parse_header_line("#BPM notanumber").is_err());
+    }
+
+    #[test]
+    fn parse_exbpm_indexed() {
+        let result = parse_header_line("#EXBPM01 180.0").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::Timing(BmsHeaderTiming::ExBpm {
+                id: BmsChannelId::<BpmTag>::try_from("01").unwrap(),
+                value: 180.0
+            })
+        );
+    }
+
+    #[test]
+    fn parse_stp_with_position() {
+        let result = parse_header_line("#STP 001.128 500").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::Timing(BmsHeaderTiming::Stp {
+                measure: 1,
+                position: 128,
+                duration_ms: 500.0
+            })
+        );
+    }
+
+    #[test]
+    fn parse_stp_without_position() {
+        let result = parse_header_line("#STP 001 500.5").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::Timing(BmsHeaderTiming::Stp {
+                measure: 1,
+                position: 0,
+                duration_ms: 500.5
+            })
+        );
+    }
+
+    #[test]
+    fn parse_stp_invalid_fallback() {
+        let result = parse_header_line("#STP invalid").unwrap().unwrap();
+        assert!(matches!(result, BmsHeader::Fallback(_)));
+    }
+
+    #[test]
+    fn parse_genre_alias() {
+        let result = parse_header_line("#GENLE Pop").unwrap().unwrap();
+        assert_eq!(result, BmsHeader::Metadata(BmsHeaderMetadata::Genre("Pop")));
+    }
+
+    #[test]
+    fn parse_random_alias() {
+        let result = parse_header_line("#RONDAM 5").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::ControlFlow(BmsHeaderControlFlow::Random(5))
+        );
+    }
+
+    #[test]
+    fn parse_base62() {
+        let result = parse_header_line("#BASE 62").unwrap().unwrap();
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Base62));
+    }
+
+    #[test]
+    fn parse_base_other_fallback() {
+        let result = parse_header_line("#BASE 36").unwrap().unwrap();
+        assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 }

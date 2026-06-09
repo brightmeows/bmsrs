@@ -3,129 +3,66 @@
 //! This module also defines the domain types used by [`BmsHeaderGameplay`]:
 //! [`PlayerMode`], [`LnType`], and [`LnMode`].
 
-use std::fmt;
-use std::str::FromStr;
-
-use thiserror::Error;
-
 use crate::BmsTokenAttr;
 use crate::id::{BmsChannelId, ExRankTag, LnObjTag};
 
 /// The play mode specified by `#PLAYER`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum PlayerMode {
     /// 1-player (Single Play). Value: `"1"` or `"SP"`.
+    #[bms_token("1")]
+    #[bms_token("SP")]
+    #[bms_token("sp")]
+    #[bms_token("Sp")]
     Single,
     /// 2-player co-op (Couple Play). Value: `"2"` or `"CP"`.
+    #[bms_token("2")]
+    #[bms_token("CP")]
+    #[bms_token("cp")]
+    #[bms_token("Cp")]
     Couple,
     /// Double Play (one player, two sides). Value: `"3"` or `"DP"`.
+    #[bms_token("3")]
+    #[bms_token("DP")]
+    #[bms_token("dp")]
+    #[bms_token("Dp")]
     Double,
     /// Battle Play (two players, same chart). Value: `"4"` or `"BP"`.
+    #[bms_token("4")]
+    #[bms_token("BP")]
+    #[bms_token("bp")]
+    #[bms_token("Bp")]
     Battle,
 }
 
-/// Error returned when a `#PLAYER` value cannot be parsed.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("invalid #PLAYER value: {0}")]
-pub struct ParsePlayerModeError(pub String);
-
-impl FromStr for PlayerMode {
-    type Err = ParsePlayerModeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim() {
-            "1" | "SP" | "sp" | "Sp" => Ok(PlayerMode::Single),
-            "2" | "CP" | "cp" | "Cp" => Ok(PlayerMode::Couple),
-            "3" | "DP" | "dp" | "Dp" => Ok(PlayerMode::Double),
-            "4" | "BP" | "bp" | "Bp" => Ok(PlayerMode::Battle),
-            _ => Err(ParsePlayerModeError(s.to_owned())),
-        }
-    }
-}
-
-impl fmt::Display for PlayerMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PlayerMode::Single => write!(f, "1"),
-            PlayerMode::Couple => write!(f, "2"),
-            PlayerMode::Double => write!(f, "3"),
-            PlayerMode::Battle => write!(f, "4"),
-        }
-    }
-}
-
 /// The long-note type specified by `#LNTYPE`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnType {
     /// RDM-type LN (`#LNTYPE 1`).
+    #[bms_token("1")]
+    #[bms_token("01")]
     Type1,
     /// MGQ-type LN (`#LNTYPE 2`).
+    #[bms_token("2")]
+    #[bms_token("02")]
     Type2,
 }
 
-/// Error returned when a `#LNTYPE` value is not `"1"` or `"2"`.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("invalid #LNTYPE value: {0} (expected 1 or 2)")]
-pub struct ParseLnTypeError(pub String);
-
-impl FromStr for LnType {
-    type Err = ParseLnTypeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim() {
-            "1" | "01" => Ok(LnType::Type1),
-            "2" | "02" => Ok(LnType::Type2),
-            _ => Err(ParseLnTypeError(s.to_owned())),
-        }
-    }
-}
-
-impl fmt::Display for LnType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LnType::Type1 => write!(f, "1"),
-            LnType::Type2 => write!(f, "2"),
-        }
-    }
-}
-
 /// The LN mode specified by `#LNMODE` (beatoraja extension).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnMode {
     /// Standard long note (`#LNMODE 1`).
+    #[bms_token("1")]
+    #[bms_token("01")]
     Ln,
     /// Charge note (`#LNMODE 2`).
+    #[bms_token("2")]
+    #[bms_token("02")]
     Cn,
     /// Hell charge note (`#LNMODE 3`).
+    #[bms_token("3")]
+    #[bms_token("03")]
     Hcn,
-}
-
-/// Error returned when a `#LNMODE` value is not `"1"`, `"2"`, or `"3"`.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("invalid #LNMODE value: {0} (expected 1, 2, or 3)")]
-pub struct ParseLnModeError(pub String);
-
-impl FromStr for LnMode {
-    type Err = ParseLnModeError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim() {
-            "1" | "01" => Ok(LnMode::Ln),
-            "2" | "02" => Ok(LnMode::Cn),
-            "3" | "03" => Ok(LnMode::Hcn),
-            _ => Err(ParseLnModeError(s.to_owned())),
-        }
-    }
-}
-
-impl fmt::Display for LnMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LnMode::Ln => write!(f, "1"),
-            LnMode::Cn => write!(f, "2"),
-            LnMode::Hcn => write!(f, "3"),
-        }
-    }
 }
 
 /// Gameplay behaviour headers.
@@ -163,18 +100,24 @@ pub enum BmsHeaderGameplay<'a> {
     /// `#LNMODE` (beatoraja extension)
     #[bms_token("#LNMODE {value}")]
     LnMode(LnMode),
-    /// `#OCT`
-    #[bms_token("#OCT {value}")]
-    Oct(f64),
-    /// `#FP`
-    #[bms_token("#FP {value}")]
-    Fp(f64),
+    /// `#OCT`/`#FP`/`#OCT/FP` — octave/fingering pitch flag.
+    ///
+    /// Originally carried a numeric value, but no known player uses it.
+    /// The original value is discarded — `format_header` always outputs
+    /// `#OCT/FP` regardless of which input form was used.
+    #[bms_token("#OCT/FP")]
+    #[bms_token("#OCT")]
+    #[bms_token("#FP")]
+    OctFp,
     /// `#OPTION`
     #[bms_token("#OPTION {value}")]
     Option(&'a str),
     /// `#CHANGEOPTION`
     #[bms_token("#CHANGEOPTION {value}")]
     ChangeOption(&'a str),
+    /// `#BASE 62` — declares base-62 indexing for WAV/BMP channels.
+    #[bms_token("#BASE 62")]
+    Base62,
 }
 
 #[cfg(test)]

@@ -1,22 +1,24 @@
 //! BMS message (channel data) line parsing.
 
-use crate::error::BmsTokenizeError;
+use crate::BmsTokenizeError;
+use crate::id::{BmsChannelId, ChannelTag, Hex};
 
 /// A channel data line in a BMS file (`#xxxYY:values`).
 ///
 /// # Format
 ///
-/// `#` + 3-digit measure + 2-digit channel + `:` + value string
+/// `#` + 3-digit measure + 2-character hex channel + `:` + value string
 ///
 /// # Examples
 ///
-/// `#00111:11223344` → measure=1, channel=11, values="11223344"
+/// `#00111:11223344` → measure=1, channel="11", values="11223344"
+/// `#0010A:01`       → measure=1, channel="0A" (EXRANK), values="01"
 #[derive(Debug, Clone, PartialEq)]
 pub struct BmsMessage<'a> {
     /// Measure number (0–999).
     pub measure: u16,
-    /// Channel number (01–99, but typically 01–E9 in hex notation).
-    pub channel: u8,
+    /// Channel number as a validated hex ID.
+    pub channel: BmsChannelId<ChannelTag, Hex>,
     /// Raw value string (sequence of 2-character object indices).
     pub values: &'a str,
 }
@@ -36,7 +38,7 @@ pub(crate) fn parse_message_line(
         return Ok(None);
     }
 
-    // Must have at least: # + 3 digits + 2 digits + : = 7 chars before value
+    // Must have at least: # + 3 digits + 2 chars + : = 7 chars before value
     if trimmed.len() < 7 {
         return Ok(None);
     }
@@ -53,15 +55,13 @@ pub(crate) fn parse_message_line(
         .split_once(':')
         .ok_or(BmsTokenizeError::InvalidChannel("missing colon"))?;
 
-    if !channel_str.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(BmsTokenizeError::InvalidChannel(channel_str));
-    }
-
     // 3 decimal digits (000–999) always fit in u16; `?` is for type-correctness.
     let measure: u16 = measure_str.parse()?;
 
-    // 2 decimal digits (00–99) always fit in u8; `?` is for type-correctness.
-    let channel: u8 = channel_str.parse()?;
+    // Channel is 2 hex characters (e.g., "0A", "D1", "11").
+    let channel: BmsChannelId<ChannelTag, Hex> = channel_str
+        .try_into()
+        .map_err(|_| BmsTokenizeError::InvalidChannel(channel_str))?;
 
     Ok(Some(BmsMessage {
         measure,
@@ -74,12 +74,16 @@ pub(crate) fn parse_message_line(
 mod tests {
     use super::*;
 
+    fn ch(s: &str) -> BmsChannelId<ChannelTag, Hex> {
+        s.try_into().unwrap()
+    }
+
     #[test]
     fn parse_basic_message() {
         let result = parse_message_line("#00111:11223344").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.measure, 1);
-        assert_eq!(msg.channel, 11);
+        assert_eq!(msg.channel, ch("11"));
         assert_eq!(msg.values, "11223344");
     }
 
@@ -88,7 +92,7 @@ mod tests {
         let result = parse_message_line("#99908:FF").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.measure, 999);
-        assert_eq!(msg.channel, 08);
+        assert_eq!(msg.channel, ch("08"));
         assert_eq!(msg.values, "FF");
     }
 
@@ -97,8 +101,41 @@ mod tests {
         let result = parse_message_line("#00051:A0B0").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.measure, 0);
-        assert_eq!(msg.channel, 51);
+        assert_eq!(msg.channel, ch("51"));
         assert_eq!(msg.values, "A0B0");
+    }
+
+    #[test]
+    fn parse_hex_channel_0a() {
+        let result = parse_message_line("#0010A:01").unwrap();
+        let msg = result.expect("should parse");
+        assert_eq!(msg.measure, 1);
+        assert_eq!(msg.channel, ch("0A"));
+        assert_eq!(msg.channel.as_u8_hex(), Some(10));
+        assert_eq!(msg.values, "01");
+    }
+
+    #[test]
+    fn parse_hex_channel_d1() {
+        let result = parse_message_line("#001D1:01").unwrap();
+        let msg = result.expect("should parse");
+        assert_eq!(msg.channel, ch("D1"));
+        assert_eq!(msg.channel.as_u8_hex(), Some(209));
+    }
+
+    #[test]
+    fn parse_hex_channel_e9() {
+        let result = parse_message_line("#000E9:AA").unwrap();
+        let msg = result.expect("should parse");
+        assert_eq!(msg.channel, ch("E9"));
+    }
+
+    #[test]
+    fn parse_hex_channel_ff() {
+        let result = parse_message_line("#000FF:01").unwrap();
+        let msg = result.expect("should parse");
+        assert_eq!(msg.channel, ch("FF"));
+        assert_eq!(msg.channel.as_u8_hex(), Some(255));
     }
 
     #[test]
@@ -106,7 +143,7 @@ mod tests {
         let result = parse_message_line("#00101:00112233445566778899AABBCCDDEEFFZZ").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.measure, 1);
-        assert_eq!(msg.channel, 01);
+        assert_eq!(msg.channel, ch("01"));
         assert_eq!(msg.values, "00112233445566778899AABBCCDDEEFFZZ");
     }
 
@@ -147,17 +184,17 @@ mod tests {
     }
 
     #[test]
-    fn non_digit_channel_returns_err() {
-        let result = parse_message_line("#001ab:1122");
+    fn non_hex_channel_returns_err() {
+        let result = parse_message_line("#001GZ:1122");
         assert!(result.is_err());
     }
 
     #[test]
     fn measure_accepts_any_three_digits() {
-        let result = parse_message_line("#100011:1122").unwrap();
+        let result = parse_message_line("#10001:1122").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.measure, 100);
-        assert_eq!(msg.channel, 11);
+        assert_eq!(msg.channel, ch("01"));
         assert_eq!(msg.values, "1122");
     }
 
@@ -166,7 +203,7 @@ mod tests {
         let result = parse_message_line("#00111:").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.measure, 1);
-        assert_eq!(msg.channel, 11);
+        assert_eq!(msg.channel, ch("11"));
         assert_eq!(msg.values, "");
     }
 
@@ -174,12 +211,11 @@ mod tests {
     fn debug_format() {
         let msg = BmsMessage {
             measure: 1,
-            channel: 11,
+            channel: ch("11"),
             values: "1122",
         };
         let debug = format!("{msg:?}");
         assert!(debug.contains("measure: 1"));
-        assert!(debug.contains("channel: 11"));
         assert!(debug.contains("values: \"1122\""));
     }
 }

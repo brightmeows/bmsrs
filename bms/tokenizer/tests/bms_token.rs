@@ -263,12 +263,12 @@ fn visual_bmp_roundtrip() {
 
 #[test]
 fn visual_at_bga_roundtrip() {
-    let parsed = BmsHeaderResDefVisual::try_match_header("@BGA01", "@BGA01", "layer.bmp")
+    let parsed = BmsHeaderResDefVisual::try_match_header("@BGA01", "@BGA01", "3 5 10 200 150 0 0")
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
     assert_eq!(cmd, "#@BGA01");
-    assert_eq!(val, "layer.bmp");
+    assert_eq!(val, "3 5 10 200 150 0 0");
 }
 
 #[test]
@@ -346,10 +346,12 @@ fn audio_wavcmd_roundtrip() {
 
 #[test]
 fn visual_poorbga_roundtrip() {
-    let parsed = BmsHeaderResDefVisual::try_match_header("POORBGA", "POORBGA", "fallback.bmp")
+    let parsed = BmsHeaderResDefVisual::try_match_header("POORBGA", "POORBGA", "0")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderResDefVisual::PoorBga("fallback.bmp"));
+    let (cmd, val) = parsed.format_header();
+    assert_eq!(cmd, "#POORBGA");
+    assert_eq!(val, "0");
 }
 
 #[test]
@@ -394,10 +396,18 @@ fn gameplay_oct_roundtrip() {
     let parsed = BmsHeaderGameplay::try_match_header("OCT", "OCT", "1")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderGameplay::Oct(1.0));
+    assert_eq!(parsed, BmsHeaderGameplay::OctFp);
     let (cmd, val) = parsed.format_header();
-    assert_eq!(cmd, "#OCT");
-    assert_eq!(val, "1");
+    assert_eq!(cmd, "#OCT/FP");
+    assert_eq!(val, "");
+}
+
+#[test]
+fn gameplay_fp_roundtrip() {
+    let parsed = BmsHeaderGameplay::try_match_header("FP", "FP", "1")
+        .unwrap()
+        .unwrap();
+    assert_eq!(parsed, BmsHeaderGameplay::OctFp);
 }
 
 #[test]

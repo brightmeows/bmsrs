@@ -1,7 +1,7 @@
-//! `#title`, `#artist`, `#genre` and related display metadata.
+//! `#difficulty`, `#playlevel`, `#poorbga` and related display settings.
 //!
-//! This module also defines [`DifficultyLevel`], the domain type for
-//! `#DIFFICULTY`.
+//! This module also defines the domain types used by [`BmsHeaderDisplay`]:
+//! [`DifficultyLevel`] and [`PoorBgaMode`].
 
 use std::fmt;
 use std::str::FromStr;
@@ -43,6 +43,20 @@ impl fmt::Display for DifficultyLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
+}
+
+/// Poor BGA display mode specified by `#POORBGA`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
+pub enum PoorBgaMode {
+    /// `#POORBGA 0` — use default BGA display behaviour.
+    #[bms_token("0")]
+    Default,
+    /// `#POORBGA 1` — overlay the poor BGA on top of the current BGA.
+    #[bms_token("1")]
+    Overlay,
+    /// `#POORBGA 2` — hide the current BGA when displaying the poor BGA.
+    #[bms_token("2")]
+    Hidden,
 }
 
 /// Display and difficulty headers.

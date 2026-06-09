@@ -20,10 +20,25 @@ All types re-exported from `lib.rs`. Import from crate root, not submodules.
 
 Add a variant annotated with `#[bms_token("...")]` to the appropriate domain
 enum (e.g., `BmsHeaderMetadata`).  The derive macro generates
-`try_match_header` and `__bms_dispatch` automatically.  Only use
-`BmsHeaderExt` for genuinely unrecognised commands.
+`try_match_header` and `format_header` automatically.
+
+For commands with non-trivial value types, add `#[bms_fallback]` to the
+variant — parse failures return `Ok(None)` (falling through to
+`BmsHeaderFallback`) instead of hard errors.
+
+Only hand-interpret commands whose value format is fundamentally
+non-templateable (e.g., `#STP`'s `xxx[.yyy] zzzz`).
+
+## Value types
+
+Implement `BmsValue<'a>` (or `FromStr + Display` — blanket impl covers it)
+for custom value types used in header variants.  Simple domain enums can use
+`#[derive(BmsTokenAttr)]` with `#[bms_token("literal")]` on each variant.
 
 ## Dispatch
 
-No build script.  Dispatch in `header.rs` calls each sub-enum's
-`__bms_dispatch` via `macro_rules!` — 7 calls, effectively O(1).
+No build script.  `BmsHeader` uses `#[derive(BmsTokenAttr)]` in dispatch
+mode (auto-detected: no `#[bms_token]`, all single-tuple variants).  The
+derive generates `BmsHeader::try_match_header` which calls each sub-enum's
+`try_match_header` in declaration order.  Variants with `#[bms_fallback]`
+(e.g., the `Fallback` catch-all) are excluded from dispatch.

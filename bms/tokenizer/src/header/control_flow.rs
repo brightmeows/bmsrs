@@ -5,8 +5,9 @@ use crate::BmsTokenAttr;
 /// Control-flow headers.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderControlFlow {
-    /// `#RANDOM`
+    /// `#RANDOM` or `#RONDAM`
     #[bms_token("#RANDOM {value}")]
+    #[bms_token("#RONDAM {value}")]
     Random(u64),
     /// `#SETRANDOM`
     #[bms_token("#SETRANDOM {value}")]
