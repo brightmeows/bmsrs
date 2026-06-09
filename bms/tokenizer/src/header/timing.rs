@@ -1,4 +1,5 @@
-//! `#stop`, `#exbpm`, `#stp` timing-related commands.
+//! Timing definition headers: `#BPM`, `#BPMxx`/`#EXBPMxx`, `#BASEBPM`,
+//! `#STOPxx`, `#SCROLLxx`, `#SPEEDxx`, `#STP`.
 
 use std::fmt;
 
@@ -6,12 +7,22 @@ use crate::BmsTokenAttr;
 use crate::BmsValue;
 use crate::id::{BmsChannelId, BpmTag, ScrollTag, SpeedTag, StopTag};
 
-/// Parameters for `#STP` — step timing adjustment.
+/// Parameters for `#STP` — bemaniaDX-style stop (absolute time, in ms).
 ///
 /// Value format: `xxx[.yyy] zzzz`
-/// - `xxx` = measure number (decimal, 1–3 digits)
-/// - `.yyy` = position within measure (optional, 0–255)
-/// - `zzzz` = stop duration in milliseconds (decimal)
+/// - `xxx` = measure number (0–999, 3-digit zero-padded)
+/// - `.yyy` = position within measure (0–999, optional; interpreted as
+///   `yyy/1000` of a measure)
+/// - `zzzz` = stop duration in milliseconds
+///
+/// Unlike `#STOPxx` (which is in 192nd-note units and thus BPM-dependent),
+/// `#STP` always stops for a fixed wall-clock duration regardless of BPM.
+///
+/// Multiple `#STP` lines at the same position are additive.
+///
+/// **Caveats**: bemaniaDX ignores `#STP` lines beyond a certain count
+/// (limit unspecified).  Values of `yyy ≥ 960` may be ignored or cause
+/// freezes in bemaniaDX.  Angolmois and Sonorous have fewer quirks.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StpParams {
     /// Measure number.
@@ -62,47 +73,92 @@ impl<'a> BmsValue<'a> for StpParams {
 }
 
 /// Timing definition headers.
+///
+/// These commands control *when* events happen — tempo, stops, and scroll
+/// gimmicks.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderTiming {
-    /// `#BPM` (global BPM)
+    /// `#BPM` — global initial BPM.
+    ///
+    /// Default when omitted: `130` (spec), but players vary (nanasi:
+    /// `150`; nazo/BMSE: `120`; fgt++: `30`; fgt#/pomu2: `0`).
+    /// Supports fractional values in most players.
     #[bms_token("#BPM {value}")]
     Bpm(f64),
-    /// `#BPM{id}` with its 2-character index.
+    /// `#BPM{id}` — extended BPM definition (bemaniaDX origin).
+    ///
+    /// Referenced by channel `#xxx08`.  Supports fractional and
+    /// out-of-255 BPM values that the basic `#xxx03` channel (hex integer)
+    /// cannot represent.
+    ///
+    /// Negative values cause reverse scrolling in many players (LR2,
+    /// nanasi, Angolmois, Sonorous, etc.), but this is a de-facto
+    /// convention — the spec does not define negative BPM.
     #[bms_token("#BPM{id} {value}")]
     BpmDef {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
         id: BmsChannelId<BpmTag>,
-        /// The raw value.
+        /// The BPM value (may be fractional or negative).
         value: f64,
     },
-    /// `#BASEBPM`
+    /// `#BASEBPM` — reference BPM for auto HI-SPEED calculation (LR origin).
+    ///
+    /// Used when the chart has short extreme BPM spikes.  Normally the
+    /// player's auto-speed uses the max BPM, but `#BASEBPM` lets the
+    /// charter specify a more practical reference value.
     #[bms_token("#BASEBPM {value}")]
     BaseBpm(f64),
-    /// `#STOP{id}`
+    /// `#STOP{id}` — DDR-type stop (192nd-note units).
+    ///
+    /// Referenced by channel `#xxx09`.  The value is in 192nd-note
+    /// units of a 4/4 measure, so the actual wall-clock stop duration
+    /// depends on the BPM at that position: `duration = value * 60 /
+    /// (BPM * 192)`.
+    ///
+    /// When a STOP and a BPM change occur at the same position, the BPM
+    /// change is applied first, then the stop is evaluated against the
+    /// new BPM.
+    ///
+    /// Negative values cause forward skipping in some players (LR2,
+    /// nanasi, etc.) and are ignored by others.  Fractional values are
+    /// truncated (floor) by most players; only a few accept them.
     #[bms_token("#STOP{id} {value}")]
     StopDef {
         /// The 2-character index.
         id: BmsChannelId<StopTag>,
-        /// The raw value.
+        /// Stop duration in 192nd-note units (may be fractional).
         value: f64,
     },
-    /// `#SCROLL{id}`
+    /// `#SCROLL{id}` — scroll speed multiplier (beatoraja extension).
+    ///
+    /// Referenced by channel `#xxxSC`.  Multiplies the visual scroll
+    /// speed independently of BPM.  Default is `1.0`.  Negative values
+    /// cause reverse scrolling.
     #[bms_token("#SCROLL{id} {value}")]
     ScrollDef {
         /// The 2-character index.
         id: BmsChannelId<ScrollTag>,
-        /// The raw value.
+        /// Scroll speed multiplier.
         value: f64,
     },
-    /// `#SPEED{id}`
+    /// `#SPEED{id}` — speed/spacing multiplier (pomu2 origin).
+    ///
+    /// Referenced by channel `#xxxSP`.  Unlike `#SCROLL` (which scales
+    /// scroll speed), `#SPEED` changes the visual spacing between notes
+    /// without affecting scroll speed — similar to "sudden+" / "hidden+"
+    /// adjustments.  Supports interpolation between positions.
     #[bms_token("#SPEED{id} {value}")]
     SpeedDef {
         /// The 2-character index.
         id: BmsChannelId<SpeedTag>,
-        /// The raw value.
+        /// Speed multiplier value.
         value: f64,
     },
-    /// `#EXBPM{id}` — extended BPM definition (alias of `#BPM{id}`).
+    /// `#EXBPM{id}` — alias of `#BPM{id}` (nanasi origin).
+    ///
+    /// Identical in function to `#BPM{id}`.  Exists because BMSC had a
+    /// bug where it confused `#BPMxx` with the global `#BPM`.  Also
+    /// referenced by channel `#xxx08`.
     #[bms_token("#EXBPM{id} {value}")]
     ExBpm {
         /// The 2-character index.
@@ -110,7 +166,11 @@ pub enum BmsHeaderTiming {
         /// The BPM value.
         value: f64,
     },
-    /// `#STP` — step timing adjustment.
+    /// `#STP` — bemaniaDX-style stop (absolute milliseconds).
+    ///
+    /// Unlike `#STOPxx` (BPM-dependent 192nd-note units), this defines
+    /// a stop with a fixed wall-clock duration at a specific measure
+    /// position.
     ///
     /// Parse failures fall through to the `Fallback` header because the
     /// value format `xxx[.yyy] zzzz` is non-standard.

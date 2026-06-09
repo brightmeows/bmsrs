@@ -22,21 +22,25 @@ use crate::BmsTokenAttr;
 use crate::BmsTokenizeError;
 
 /// A header command from a BMS file, categorized by semantic domain.
+///
+/// The dispatch order follows the variant declaration order below.
+/// Variants annotated with `#[bms_fallback]` are excluded from dispatch
+/// and instead catch anything that didn't match a concrete variant.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeader<'a> {
-    /// Audio resource definitions (WAV files, CDDA, ...).
+    /// Audio resource definitions (`#WAV`, `#EXWAV`, `#WAVCMD`, etc.).
     ResDefAudio(BmsHeaderResDefAudio<'a>),
-    /// Timing definitions (BPM, stops, scroll, speed).
+    /// Timing definitions (`#BPM`, `#STOP`, `#SCROLL`, `#SPEED`, etc.).
     Timing(BmsHeaderTiming),
-    /// Visual resource definitions (BMP, BGA, video, ...).
+    /// Visual resource definitions (`#BMP`, `#BGA`, `#ARGB`, etc.).
     ResDefVisual(BmsHeaderResDefVisual<'a>),
-    /// Control-flow commands (random, if, switch, ...).
+    /// Control-flow commands (`#RANDOM`, `#SWITCH`, `#IF`, etc.).
     ControlFlow(BmsHeaderControlFlow),
-    /// Gameplay behaviour (player count, rank, total, LN settings, ...).
+    /// Gameplay behaviour (`#PLAYER`, `#RANK`, `#TOTAL`, `#LNTYPE`, etc.).
     Gameplay(BmsHeaderGameplay<'a>),
-    /// Display and difficulty markers.
+    /// Display and difficulty markers (`#STAGEFILE`, `#DIFFICULTY`, etc.).
     Display(BmsHeaderDisplay<'a>),
-    /// Song/chart identification (title, artist, genre, ...).
+    /// Song/chart identification (`#TITLE`, `#ARTIST`, `#GENRE`, etc.).
     Metadata(BmsHeaderMetadata<'a>),
     /// An unrecognised or engine-specific header command.
     #[bms_fallback]
@@ -44,6 +48,10 @@ pub enum BmsHeader<'a> {
 }
 
 /// Catch-all for unrecognised header commands.
+///
+/// Captures the raw command name and value so that downstream consumers
+/// (parsers, tools) can handle engine-specific extensions that the
+/// tokenizer doesn't know about.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BmsHeaderFallback<'a> {
     /// The raw command name as it appears in the file (e.g., `"MYEXT"`).
@@ -136,8 +144,8 @@ mod tests {
     use crate::header::gameplay::Rank;
     use crate::header::timing::StpParams;
     use crate::id::{
-        BmpTag, BmsChannelId, BpmTag, ExRankTag, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag,
-        WavTag,
+        BmpTag, BmsChannelId, BpmTag, ChangeOptionTag, ExRankTag, LnObjTag, ScrollTag, SeekTag,
+        SpeedTag, StopTag, TextTag, WavTag,
     };
 
     #[test]
@@ -213,19 +221,37 @@ mod tests {
 
     #[test]
     fn parse_text() {
-        let result = parse_header_line("#TEXT in-game text").unwrap().unwrap();
+        let result = parse_header_line("#TEXT01 in-game text").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::Metadata(BmsHeaderMetadata::Text("in-game text"))
+            BmsHeader::Metadata(BmsHeaderMetadata::Text {
+                id: BmsChannelId::<TextTag>::try_from("01").unwrap(),
+                value: "in-game text"
+            })
+        );
+    }
+
+    #[test]
+    fn parse_text_with_quotes() {
+        let result = parse_header_line("#TEXT00 \"MISS!!\"").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::Metadata(BmsHeaderMetadata::Text {
+                id: BmsChannelId::<TextTag>::try_from("00").unwrap(),
+                value: "\"MISS!!\""
+            })
         );
     }
 
     #[test]
     fn parse_song_as_text() {
-        let result = parse_header_line("#SONG some text").unwrap().unwrap();
+        let result = parse_header_line("#SONG01 some text").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::Metadata(BmsHeaderMetadata::Text("some text"))
+            BmsHeader::Metadata(BmsHeaderMetadata::Text {
+                id: BmsChannelId::<TextTag>::try_from("01").unwrap(),
+                value: "some text"
+            })
         );
     }
 
@@ -357,10 +383,15 @@ mod tests {
 
     #[test]
     fn parse_changeoption() {
-        let result = parse_header_line("#CHANGEOPTION RANDOM").unwrap().unwrap();
+        let result = parse_header_line("#CHANGEOPTION01 774:HIDDEN_STEALTH")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::ChangeOption("RANDOM"))
+            BmsHeader::Gameplay(BmsHeaderGameplay::ChangeOption {
+                id: BmsChannelId::<ChangeOptionTag>::try_from("01").unwrap(),
+                value: "774:HIDDEN_STEALTH"
+            })
         );
     }
 

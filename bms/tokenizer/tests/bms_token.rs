@@ -4,9 +4,9 @@
 //! again is identity (or at least consistent).
 
 use bms_tokenizer::{
-    BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
-    BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, DifficultyLevel, LnMode, LnType,
-    PlayerMode, Rank,
+    BmsChannelId, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
+    BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ChangeOptionTag, DifficultyLevel,
+    LnMode, LnType, PlayerMode, Rank, TextTag,
 };
 
 #[test]
@@ -70,18 +70,36 @@ fn metadata_comment_roundtrip() {
 
 #[test]
 fn metadata_text_roundtrip() {
-    let parsed = BmsHeaderMetadata::try_match_header("TEXT", "in-game text")
+    let parsed = BmsHeaderMetadata::try_match_header("TEXT01", "in-game text")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderMetadata::Text("in-game text"));
+    assert_eq!(
+        parsed,
+        BmsHeaderMetadata::Text {
+            id: BmsChannelId::<TextTag>::try_from("01").unwrap(),
+            value: "in-game text"
+        }
+    );
+    let (cmd, val) = parsed.format_header();
+    assert_eq!(cmd, "#TEXT01");
+    assert_eq!(val, "in-game text");
 }
 
 #[test]
 fn metadata_song_alias() {
-    let parsed = BmsHeaderMetadata::try_match_header("SONG", "some text")
+    let parsed = BmsHeaderMetadata::try_match_header("SONG01", "some text")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderMetadata::Text("some text"));
+    assert_eq!(
+        parsed,
+        BmsHeaderMetadata::Text {
+            id: BmsChannelId::<TextTag>::try_from("01").unwrap(),
+            value: "some text"
+        }
+    );
+    let (cmd, val) = parsed.format_header();
+    assert_eq!(cmd, "#TEXT01"); // SONG is an alias; canonical form is TEXT
+    assert_eq!(val, "some text");
 }
 
 #[test]
@@ -412,13 +430,19 @@ fn gameplay_fp_roundtrip() {
 
 #[test]
 fn gameplay_changeoption_roundtrip() {
-    let parsed = BmsHeaderGameplay::try_match_header("CHANGEOPTION", "RANDOM")
+    let parsed = BmsHeaderGameplay::try_match_header("CHANGEOPTION01", "774:HIDDEN_STEALTH")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderGameplay::ChangeOption("RANDOM"));
+    assert_eq!(
+        parsed,
+        BmsHeaderGameplay::ChangeOption {
+            id: BmsChannelId::<ChangeOptionTag>::try_from("01").unwrap(),
+            value: "774:HIDDEN_STEALTH"
+        }
+    );
     let (cmd, val) = parsed.format_header();
-    assert_eq!(cmd, "#CHANGEOPTION");
-    assert_eq!(val, "RANDOM");
+    assert_eq!(cmd, "#CHANGEOPTION01");
+    assert_eq!(val, "774:HIDDEN_STEALTH");
 }
 
 #[test]

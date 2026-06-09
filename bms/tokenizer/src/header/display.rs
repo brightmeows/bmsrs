@@ -1,4 +1,5 @@
-//! `#difficulty`, `#playlevel`, `#poorbga` and related display settings.
+//! Display and difficulty headers: `#STAGEFILE`, `#BANNER`, `#BACKBMP`,
+//! `#CHARFILE`, `#PLAYLEVEL`, `#DIFFICULTY`, `#PREVIEW`.
 //!
 //! This module also defines the domain types used by [`BmsHeaderDisplay`]:
 //! [`DifficultyLevel`] and [`PoorBgaMode`].
@@ -12,6 +13,21 @@ use crate::BmsTokenAttr;
 use crate::IntoTokensError;
 
 /// The difficulty category specified by `#DIFFICULTY` (values 1–5).
+///
+/// Used to sort and filter charts in song-selection screens.  Common
+/// mapping:
+///
+/// | Value | Typical label |
+/// |-------|---------------|
+/// | `1` | BEGINNER / EASY / LIGHT |
+/// | `2` | NORMAL / STANDARD |
+/// | `3` | HYPER / HARD |
+/// | `4` | ANOTHER / EX |
+/// | `5` | INSANE / BLACK ANOTHER |
+///
+/// Omitting `#DIFFICULTY` is allowed but means the chart cannot be
+/// filtered by difficulty category.  `TechnicalGroove` also accepts `0`
+/// and values above `5`, but the semantics are undefined.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DifficultyLevel(u8);
 
@@ -57,6 +73,14 @@ impl fmt::Display for DifficultyLevel {
 }
 
 /// Poor BGA display mode specified by `#POORBGA`.
+///
+/// Controls how the miss / poor image (channel `#xxx06`) is shown:
+///
+/// | Value | Behaviour |
+/// |-------|-----------|
+/// | `0` | **Default** — on miss, the entire BGA switches to `#xxx06` for a brief moment, then returns to the normal image sequence. |
+/// | `1` | **Overlay** — the `#xxx06` image is composited on top of the current BGA (like beatmaniaIIDX's miss character animation). |
+/// | `2` | **Hidden** — miss images are never shown; the normal BGA continues uninterrupted. |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum PoorBgaMode {
     /// `#POORBGA 0` — use default BGA display behaviour.
@@ -71,27 +95,50 @@ pub enum PoorBgaMode {
 }
 
 /// Display and difficulty headers.
+///
+/// These commands control *what the player sees* outside of actual
+/// gameplay notes — loading screens, banners, difficulty labels, etc.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderDisplay<'a> {
-    /// `#STAGEFILE`
+    /// `#STAGEFILE` — splash-screen image shown during loading (typically 640×480).
+    ///
+    /// Optional.  When omitted, players show their default loading screen.
     #[bms_token("#STAGEFILE {value}")]
     StageFile(&'a str),
-    /// `#BANNER`
+    /// `#BANNER` — banner image for song-selection and result screens (300×80).
+    ///
+    /// Optional.  Supports relative paths (descendant only).  Path length
+    /// is limited to 260 bytes.
     #[bms_token("#BANNER {value}")]
     Banner(&'a str),
-    /// `#BACKBMP`
+    /// `#BACKBMP` — background image for the play screen (typically 640×480).
+    ///
+    /// Original spec: the image fills the play-area background.  In some
+    /// LR2 skins, it is repurposed as a title card.  Size and behaviour
+    /// are skin-dependent.
     #[bms_token("#BACKBMP {value}")]
     BackBmp(&'a str),
-    /// `#CHARFILE`
+    /// `#CHARFILE` — pop'n music-style character file (pomu2 extension).
+    ///
+    /// A `.chp` file that defines an animated character shown during play.
+    /// Only supported by pomu2 and PMChr-V.
     #[bms_token("#CHARFILE {value}")]
     CharFile(&'a str),
-    /// `#PLAYLEVEL`
+    /// `#PLAYLEVEL` — difficulty number shown in the song-selection list.
+    ///
+    /// Display format varies by player (stars, bar graph, integer).
+    /// Usually an integer but some players accept strings (e.g.
+    /// `#PLAYLEVEL 安心`).  Default when omitted: `3` (BM98 convention).
     #[bms_token("#PLAYLEVEL {value}")]
     PlayLevel(f64),
-    /// `#DIFFICULTY`
+    /// `#DIFFICULTY` — difficulty *category* (1–5) for chart filtering.
     #[bms_token("#DIFFICULTY {value}")]
     Difficulty(DifficultyLevel),
-    /// `#PREVIEW` (beatoraja extension)
+    /// `#PREVIEW` — audio file played on the song-selection screen
+    /// (beatoraja extension).
+    ///
+    /// When omitted, beatoraja auto-discovers `preview*.wav` /
+    /// `preview*.ogg` in the chart folder.
     #[bms_token("#PREVIEW {value}")]
     Preview(&'a str),
 }

@@ -1,49 +1,80 @@
-//! `#stop`, `#setrandom` and related flow-control commands.
+//! `#RANDOM` / `#SWITCH` control-flow commands.
+//!
+//! These commands allow a single BMS file to contain multiple chart
+//! variations.  The tokenizer preserves all branches verbatim; selecting
+//! which branch to keep is the responsibility of a later pipeline stage
+//! (parser/processor).
 
 use crate::BmsTokenAttr;
 
-/// Control-flow headers.
+/// Control-flow headers for random chart branching.
+///
+/// BMS supports two branching constructs:
+///
+/// - **`#RANDOM` block**: `#RANDOM N` → `#IF k` … `#ENDIF` × N → `#ENDRANDOM`.
+///   At parse time, one integer in `[1, N]` is chosen; only the matching
+///   `#IF` branch is retained.
+/// - **`#SWITCH` block**: `#SWITCH N` → `#CASE k` … `#DEF` … `#ENDSW`.
+///   Similar to `#RANDOM`, but `#CASE` matches an integer value and `#DEF`
+///   provides a default fallback.
+///
+/// `#SETRANDOM` / `#SETSWITCH` force a specific branch (used in tools and
+/// tests).  `#RONDAM` is a common typo accepted as an alias for `#RANDOM`.
+///
+/// Nesting and engine compatibility are complex — see the BMS command memo
+/// (`memo/13-control-flow.md`) for full details.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderControlFlow {
-    /// `#RANDOM` or `#RONDAM`
+    /// `#RANDOM N` (or `#RONDAM`) — start a random branch block.
+    ///
+    /// `N` is the number of branches; the engine picks a value in `[1, N]`.
+    /// `#RONDAM` is a historical typo that some players recognise.
     #[bms_token("#RANDOM {value}")]
     #[bms_token("#RONDAM {value}")]
     Random(u64),
-    /// `#SETRANDOM`
+    /// `#SETRANDOM N` — force a specific random value instead of rolling.
+    ///
+    /// Used by tools (e.g., preview, IR replay) to deterministically
+    /// select a branch.
     #[bms_token("#SETRANDOM {value}")]
     SetRandom(u64),
-    /// `#ENDRANDOM`
+    /// `#ENDRANDOM` — close the current `#RANDOM` block.
     #[bms_token("#ENDRANDOM")]
     EndRandom,
-    /// `#IF`
+    /// `#IF N` — begin a branch that activates when the random value equals `N`.
     #[bms_token("#IF {value}")]
     If(u64),
-    /// `#ELSEIF`
+    /// `#ELSEIF N` — an alternative branch (like `else if`).
     #[bms_token("#ELSEIF {value}")]
     ElseIf(u64),
-    /// `#ELSE`
+    /// `#ELSE` — default branch when no `#IF` / `#ELSEIF` matched.
     #[bms_token("#ELSE")]
     Else,
-    /// `#ENDIF`
+    /// `#ENDIF` — close the current `#IF` / `#ELSEIF` / `#ELSE` chain.
     #[bms_token("#ENDIF")]
     EndIf,
-    /// `#SWITCH`
+    /// `#SWITCH N` — start a switch block with `N` cases.
+    ///
+    /// The engine picks a value in `[1, N]`; `#CASE k` activates when the
+    /// value equals `k`.
     #[bms_token("#SWITCH {value}")]
     Switch(u64),
-    /// `#SETSWITCH`
+    /// `#SETSWITCH N` — force a specific switch value (analogous to
+    /// `#SETRANDOM`).
     #[bms_token("#SETSWITCH {value}")]
     SetSwitch(u64),
-    /// `#ENDSW` or `#ENDSWITCH`
+    /// `#ENDSW` / `#ENDSWITCH` — close the current `#SWITCH` block.
     #[bms_token("#ENDSW")]
     #[bms_token("#ENDSWITCH")]
     EndSwitch,
-    /// `#CASE`
+    /// `#CASE N` — a branch that activates when the switch value equals `N`.
     #[bms_token("#CASE {value}")]
     Case(u64),
-    /// `#SKIP`
+    /// `#SKIP N` — skip `N` lines (used inside `#SWITCH` blocks to jump
+    /// past unwanted cases).
     #[bms_token("#SKIP {value}")]
     Skip(u64),
-    /// `#DEF`
+    /// `#DEF` — default branch inside a `#SWITCH` block.
     #[bms_token("#DEF")]
     Def,
 }

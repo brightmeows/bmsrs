@@ -1,4 +1,6 @@
-//! `#difficulty`, `#total`, `#rank`, `#bpm`, `#exbpm` and related gameplay parameters.
+//! Gameplay behaviour headers: `#PLAYER`, `#RANK`, `#TOTAL`, `#VOLWAV`,
+//! `#LNTYPE`, `#LNOBJ`, `#LNMODE`, `#OCT/FP`, `#OPTION`, `#CHANGEOPTION`,
+//! `#BASE 62`.
 //!
 //! This module also defines the domain types used by [`BmsHeaderGameplay`]:
 //! [`PlayerMode`], [`Rank`], [`LnType`], and [`LnMode`].
@@ -7,9 +9,20 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::BmsTokenAttr;
-use crate::id::{BmsChannelId, ExRankTag, LnObjTag};
+use crate::id::{BmsChannelId, ChangeOptionTag, ExRankTag, LnObjTag};
 
 /// The play mode specified by `#PLAYER`.
+///
+/// Modern players (LR2, nanasi, ruvit, beatoraja) generally **ignore**
+/// `#PLAYER` and infer the actual mode from the channels present in the
+/// chart.  The command is retained for backward compatibility only.
+///
+/// | Value | Mode | Groove gauges | Notes |
+/// |-------|------|---------------|-------|
+/// | `1` / `SP` | Single Play | 1 | default; 1P side only |
+/// | `2` / `CP` | Couple Play | 2 | two players co-op; rarely supported today |
+/// | `3` / `DP` | Double Play | 1 | one player uses both sides |
+/// | `4` / `BP` | Battle Play | 2 | two players on the same chart; only BM98 supports this |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum PlayerMode {
     /// 1-player (Single Play). Value: `"1"` or `"SP"`.
@@ -38,7 +51,19 @@ pub enum PlayerMode {
     Battle,
 }
 
-/// The long-note type specified by `#LNTYPE`.
+/// The long-note notation specified by `#LNTYPE`.
+///
+/// - **RDM** (`Type1`, `#LNTYPE 1`): the LN starts at the first non-`00`
+///   note and ends at the next non-`00` note.  This is the modern default;
+///   omitting `#LNTYPE` implies RDM.
+/// - **MGQ** (`Type2`, `#LNTYPE 2`): the LN persists while non-`00` notes
+///   are consecutive and closes on `00`.  **Obsolete** — no modern player
+///   uses MGQ notation.
+///
+/// Both types use channels `#xxx51-69`.  An alternative approach is
+/// [`LnObj`](BmsHeaderGameplay::LnObj) (RDM-type #2), which consumes one
+/// `#WAV` index as an LN termination marker and lets authors edit LNs on
+/// the normal `#xxx11-29` channels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnType {
     /// RDM-type LN (`#LNTYPE 1`).
@@ -52,6 +77,16 @@ pub enum LnType {
 }
 
 /// The LN mode specified by `#LNMODE` (beatoraja extension).
+///
+/// Determines how long notes behave when the chart is played in beatoraja.
+/// When present, the chart's LN kind is **forced** and unaffected by the
+/// player's LN MODE option.
+///
+/// | Value | Mode | Behaviour |
+/// |-------|------|-----------|
+/// | `1` | LN | Standard long note — key down at start, key up at end |
+/// | `2` | CN | Charge note — hold through the note; no key-up required at end |
+/// | `3` | HCN | Hell charge note — like CN but with stricter judgment |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnMode {
     /// Standard long note (`#LNMODE 1`).
@@ -70,8 +105,24 @@ pub enum LnMode {
 
 /// The judgment difficulty specified by `#RANK`.
 ///
-/// Standard values 0–4 map to named variants.  Non-standard values
-/// (e.g., fgt++ relative rank) are preserved as [`Rank::Other`].
+/// Controls how strictly the player's timing is judged.  Standard values
+/// 0–4 map to named variants; non-standard values (e.g., fgt++ relative
+/// rank) are preserved as [`Rank::Other`].
+///
+/// Default when `#RANK` is omitted: **`Normal` (2)** (in most players).
+/// Notable exceptions: BMSE and iBMSC default to `Easy` (3).
+///
+/// | Value | Label | Approx. window (LR2) | Notes |
+/// |-------|-------|----------------------|-------|
+/// | `0` | VERY HARD | ±8 ms | |
+/// | `1` | HARD | ±15 ms | |
+/// | `2` | NORMAL | ±18 ms | default |
+/// | `3` | EASY | ±21 ms | |
+/// | `4` | VERY EASY | — | nanasi/beatoraja extension |
+///
+/// Some players (fgt++, Angolmois, `TechnicalGroove`) accept values outside
+/// 0–4 and treat them as relative multipliers.  These are captured by
+/// [`Rank::Other`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rank {
     /// `#RANK 0` — VERY HARD (±8 ms in LR2).
@@ -119,56 +170,118 @@ impl fmt::Display for Rank {
 }
 
 /// Gameplay behaviour headers.
+///
+/// These commands control *how* the chart plays — judgment strictness,
+/// gauge (life-bar) behaviour, long-note interpretation, and chart
+/// options.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderGameplay<'a> {
-    /// `#PLAYER`
+    /// `#PLAYER` — game mode (Single / Couple / Double / Battle).
+    ///
+    /// Largely ignored by modern players, which infer mode from channels.
     #[bms_token("#PLAYER {value}")]
     Player(PlayerMode),
-    /// `#RANK`
+    /// `#RANK` — judgment difficulty (VERY HARD … VERY EASY).
+    ///
+    /// Default when omitted: `Normal` (2).
     #[bms_token("#RANK {value}")]
     Rank(Rank),
-    /// `#DEFEXRANK`
+    /// `#DEFEXRANK` — fine-grained judgment difficulty as a percentage.
+    ///
+    /// `100` equals `#RANK 2` (NORMAL).  Overrides `#RANK` when both are
+    /// present (the line closest to EOF wins).  Supports fractional values.
     #[bms_token("#DEFEXRANK {value}")]
     DefExRank(f64),
-    /// `#EXRANK{id}` with its 2-character index.
+    /// `#EXRANK{id}` — per-position judgment override.
+    ///
+    /// Referenced by channel `#xxxA0`.  When an `#EXRANK` object crosses
+    /// the judgment line, the judgment window changes to the specified
+    /// percentage.  The chart's displayed difficulty label becomes
+    /// "RANDOM" in nanasi.
     #[bms_token("#EXRANK{id} {value}")]
     ExRank {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
         id: BmsChannelId<ExRankTag>,
-        /// The raw value.
+        /// Judgment width as a percentage (NORMAL = 100).
         value: f64,
     },
-    /// `#TOTAL`
+    /// `#TOTAL` — maximum groove gauge increase (in percent).
+    ///
+    /// All notes judged perfectly will increase the gauge by `TOTAL / N`
+    /// percent each, where `N` is the total visible note count.
+    /// For example, `#TOTAL 200` with 400 notes gives +0.5% per note.
+    ///
+    /// **Strongly recommended** to always specify — the default varies
+    /// wildly across players (BM98: `200+NOTES`; LR2: `160`; nanasi:
+    /// `350`; fgt++: `100+NOTES/8`).
+    ///
+    /// Negative values are supported by some players (nazo, nazoZZ) and
+    /// cause *perfect* judgments to *decrease* the gauge.
     #[bms_token("#TOTAL {value}")]
     Total(f64),
-    /// `#VOLWAV`
+    /// `#VOLWAV` — master volume percentage for all audio.
+    ///
+    /// `100` = original volume.  Default: `100`.
+    ///
+    /// **Deprecated** — highly implementation- and hardware-dependent.
+    /// Modern players (beatoraja) cap the value at 100.
     #[bms_token("#VOLWAV {value}")]
     VolWav(f64),
-    /// `#LNTYPE`
+    /// `#LNTYPE` — long-note notation (RDM or MGQ).
+    ///
+    /// `1` = RDM (default); `2` = MGQ (obsolete).
     #[bms_token("#LNTYPE {value}")]
     LnType(LnType),
-    /// `#LNOBJ`
+    /// `#LNOBJ` — designate a `#WAV` index as an LN termination marker.
+    ///
+    /// When a note with this index appears on channels `#xxx11-29`, it
+    /// acts as the *end* of a long note (the previous visible note is the
+    /// start).  This is an alternative to `#LNTYPE 1` + channels
+    /// `#xxx51-69` — popular because BMSE crashes when moving `#xxx51-69`
+    /// objects to BGM.
+    ///
+    /// Caveat: nanasi and fgt++ have a bug where lowercase `#WAV` indices
+    /// are not recognised as `#LNOBJ` markers — use uppercase.
     #[bms_token("#LNOBJ {value}")]
     LnObj(BmsChannelId<LnObjTag>),
-    /// `#LNMODE` (beatoraja extension)
+    /// `#LNMODE` — force LN / CN / HCN mode (beatoraja extension).
+    ///
+    /// When present, the chart's long-note type is locked regardless of
+    /// the player's LN MODE option.
     #[bms_token("#LNMODE {value}")]
     LnMode(LnMode),
-    /// `#OCT`/`#FP`/`#OCT/FP` — octave/fingering pitch flag.
+    /// `#OCT` / `#FP` / `#OCT/FP` — OCTAVE MODE flag.
     ///
-    /// Originally carried a numeric value, but no known player uses it.
-    /// The original value is discarded — `format_header` always outputs
-    /// `#OCT/FP` regardless of which input form was used.
+    /// Originally a nanasi identifier for 14KEYS → OCT/FP visual remap.
+    /// The numeric value is discarded — no known player uses it.
+    /// `format_header` always outputs `#OCT/FP` regardless of input form.
     #[bms_token("#OCT/FP")]
     #[bms_token("#OCT")]
     #[bms_token("#FP")]
     OctFp,
-    /// `#OPTION`
+    /// `#OPTION` — force player-side options from the BMS file (nanasi).
+    ///
+    /// Values use vendor prefixes (e.g., `774:HI-SPEED_x0.77`).
+    /// Multiple `#OPTION` lines can coexist; same-category options use
+    /// the line closest to EOF.
     #[bms_token("#OPTION {value}")]
     Option(&'a str),
-    /// `#CHANGEOPTION`
-    #[bms_token("#CHANGEOPTION {value}")]
-    ChangeOption(&'a str),
-    /// `#BASE 62` — declares base-62 indexing for WAV/BMP channels.
+    /// `#CHANGEOPTION{id}` — dynamically change options mid-play (nanasi).
+    ///
+    /// Referenced by channel `#xxxA6`.  Not all options support dynamic
+    /// changes (e.g., `RANDOM`, `NOTES` series do not).
+    #[bms_token("#CHANGEOPTION{id} {value}")]
+    ChangeOption {
+        /// The 2-character index.
+        id: BmsChannelId<ChangeOptionTag>,
+        /// The option string (e.g., `"774:HIDDEN_STEALTH"`).
+        value: &'a str,
+    },
+    /// `#BASE 62` — declare base-62 indexing for all indexed commands.
+    ///
+    /// When present, `#WAVxx`, `#BMPxx`, `#BPMxx`, `#STOPxx`, etc. accept
+    /// `[0-9A-Za-z]` (62 values per digit, 3844 total with 2-char IDs)
+    /// instead of the default base-36 `[0-9A-Z]` (1296 total).
     #[bms_token("#BASE 62")]
     Base62,
 }

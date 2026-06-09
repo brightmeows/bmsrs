@@ -36,8 +36,8 @@ pub use header::{
     BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
 };
 pub use id::{
-    AlphaNum, Base36Upper, BmpTag, BmsChannelId, BmsChannelIdError, BpmTag, ChannelTag, ExRankTag,
-    Hex, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag, WavTag,
+    AlphaNum, Base36Upper, BmpTag, BmsChannelId, BmsChannelIdError, BpmTag, ChangeOptionTag,
+    ChannelTag, ExRankTag, Hex, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag, TextTag, WavTag,
 };
 pub use message::BmsMessage;
 

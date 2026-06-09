@@ -7,12 +7,38 @@ use crate::id::{BmsChannelId, ChannelTag, Hex};
 ///
 /// # Format
 ///
-/// `#` + 3-digit measure + 2-character hex channel + `:` + value string
+/// `#` + 3-digit decimal measure + 2-character hex channel + `:` + value string
+///
+/// The value string is a sequence of 2-character object indices (base-36
+/// or base-62 depending on `#BASE` declaration).  `00` is the rest /
+/// no-op marker.  The value string is left unparsed — splitting into
+/// individual object IDs and resolving their positions within the measure
+/// is the parser's responsibility.
+///
+/// # Channel semantics (selected)
+///
+/// | Channel | Purpose |
+/// |---------|---------|
+/// | `01` | BGM (can span multiple lines) |
+/// | `02` | Measure length change |
+/// | `03` | BPM change (hex integer, `[01-FF]`) |
+/// | `04` | BGA BASE layer |
+/// | `06` | BGA POOR (miss) layer |
+/// | `07` | BGA LAYER (black = transparent) |
+/// | `08` | Extended BPM change |
+/// | `09` | STOP sequence |
+/// | `11-19` | 1P visible notes |
+/// | `21-29` | 2P visible notes |
+/// | `31-39` | 1P invisible notes |
+/// | `41-49` | 2P invisible notes |
+/// | `51-69` | Long note channels |
+/// | `D1-D9` | 1P landmines |
+/// | `E1-E9` | 2P landmines |
 ///
 /// # Examples
 ///
-/// `#00111:11223344` → measure=1, channel="11", values="11223344"
-/// `#0010A:01`       → measure=1, channel="0A" (EXRANK), values="01"
+/// `#00101:11223344` → measure=1, channel="11", values="11223344"
+/// `#0010A:01`       → measure=1, channel="0A" (SCROLL), values="01"
 #[derive(Debug, Clone, PartialEq)]
 pub struct BmsMessage<'a> {
     /// Measure number (0–999).

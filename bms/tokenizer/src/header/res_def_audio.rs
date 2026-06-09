@@ -1,15 +1,34 @@
-//! `#wav` and related audio resource definitions.
+//! Audio resource definition headers: `#WAV`, `#EXWAV`, `#WAVCMD`,
+//! `#CDDA`, `#MIDIFILE`, `#PATH_WAV`.
 
 use std::fmt;
 
 use crate::id::{BmsChannelId, WavTag};
 use crate::{BmsTokenAttr, BmsValue};
 
-/// Parameters for `#EXWAV{id}` — extended WAV with pan/volume/frequency control.
+/// Parameters for `#EXWAV{id}` — extended WAV with pan/volume/frequency
+/// control (nanasi extension).
 ///
 /// `flags` is a string of characters from `{p, v, f}` indicating which
 /// sound parameters follow. The number of values equals the number of
-/// flag characters.
+/// flag characters.  Flag order determines value order:
+///
+/// ```text
+/// #EXWAV01 vfp -50 100 -10000 sound.wav
+///           │      │   │    │        └─ filename
+///           │      │   │    └─ frequency (f): 100 Hz
+///           │      │   └─ volume (v): -50 (attenuation)
+///           │      └─ pan (p): -10000 (hard left)
+///           └─ flags: volume, frequency, pan
+/// ```
+///
+/// Parameter ranges:
+/// - **pan** (`p`): `-10000` to `10000` (left ↔ right; default `0`).
+///   Decreases the volume of one channel rather than boosting the other.
+/// - **volume** (`v`): `-10000` to `0` (attenuation; `0` = original).
+/// - **frequency** (`f`): `100` to `100000` Hz (pitch control).
+///
+/// The `#EXWAV` index shares the same namespace as `#WAV`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExWavParams<'a> {
     /// Flag characters (e.g., `"pvf"`).
@@ -92,9 +111,25 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
 }
 
 /// Audio resource definition headers.
+///
+/// These commands define the sound files used by the chart.  WAV and OGG
+/// are the most widely supported formats; MP3 introduces audible latency
+/// in most players and is generally avoided.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderResDefAudio<'a> {
-    /// `#WAV{id}` — a sound effect definition.
+    /// `#WAV{id}` — sound effect or BGM file definition.
+    ///
+    /// Referenced by channels `#xxx01` (BGM), `#xxx11-19` / `#xxx21-29`
+    /// (visible notes), `#xxx31-39` / `#xxx41-49` (invisible notes),
+    /// `#xxx51-69` (long notes), `#xxxD1-E9` (landmines), and others.
+    ///
+    /// **Multi-definition trick**: assigning the same file to multiple
+    /// `#WAV` indices increases polyphony.  E.g., `#WAV01 kick.wav` and
+    /// `#WAV02 kick.wav` allows two simultaneous playbacks of the same
+    /// sound without one cutting off the other.
+    ///
+    /// `#WAV00` is special: it defines the landmine explosion sound
+    /// (referenced by channels `#xxxD1-E9`).
     #[bms_token("#WAV{id} {filename}")]
     Wav {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
@@ -102,7 +137,10 @@ pub enum BmsHeaderResDefAudio<'a> {
         /// Path or name of the resource file.
         filename: &'a str,
     },
-    /// `#EXWAV{id}` — extended WAV with pan/volume/frequency.
+    /// `#EXWAV{id}` — extended WAV with pan/volume/frequency (nanasi).
+    ///
+    /// Shares the `#WAV` index namespace.  Only nanasi processes the
+    /// effects; other players fall back to playing the file as-is.
     #[bms_token("#EXWAV{id} {params}")]
     #[bms_fallback]
     ExWav {
@@ -111,16 +149,29 @@ pub enum BmsHeaderResDefAudio<'a> {
         /// Parsed EXWAV parameters.
         params: ExWavParams<'a>,
     },
-    /// `#WAVCMD`
+    /// `#WAVCMD` — pitch/volume/duration overrides (`MacBeat` extension).
+    ///
+    /// Format: `commandID wavIndex value`.  Commands: `00` = pitch,
+    /// `01` = volume, `02` = duration.  Only `MacBeat` processes these;
+    /// Sonorous parses but ignores them.
     #[bms_token("#WAVCMD {value}")]
     WavCmd(&'a str),
-    /// `#CDDA`
+    /// `#CDDA` — CD-DA track as BGM (DDR only).
+    ///
+    /// Specifies a CD track number to play as background music.
     #[bms_token("#CDDA {value}")]
     Cdda(&'a str),
-    /// `#MIDIFILE`
+    /// `#MIDIFILE` — MIDI file as BGM (BM98 origin).
+    ///
+    /// Hardware-dependent with audible latency.  Not recommended for
+    /// new charts.  Supported by BM98, DDR, `IIDXv`, HDX, Sonorous.
     #[bms_token("#MIDIFILE {value}")]
     Midifile(&'a str),
-    /// `#PATH_WAV`
+    /// `#PATH_WAV` — directory prefix for audio file lookup (BMEV origin).
+    ///
+    /// When present, `#WAV` filenames are resolved relative to this
+    /// directory.  **Should be commented out before distribution** to
+    /// avoid path issues on other systems.
     #[bms_token("#PATH_WAV {value}")]
     PathWav(&'a str),
 }
