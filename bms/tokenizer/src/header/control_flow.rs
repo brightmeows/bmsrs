@@ -29,14 +29,14 @@ pub enum BmsHeaderControlFlow {
     ///
     /// `N` is the number of branches; the engine picks a value in `[1, N]`.
     /// `#RONDAM` is a historical typo that some players recognise.
-    #[bms_token("#RANDOM {value}")]
-    #[bms_token("#RONDAM {value}")]
+    #[bms_token("#RANDOM {}")]
+    #[bms_token("#RONDAM {}")]
     Random(u64),
     /// `#SETRANDOM N` — force a specific random value instead of rolling.
     ///
     /// Used by tools (e.g., preview, IR replay) to deterministically
     /// select a branch.
-    #[bms_token("#SETRANDOM {value}")]
+    #[bms_token("#SETRANDOM {}")]
     SetRandom(u64),
     /// `#ENDRANDOM` — close the current `#RANDOM` block.
     ///
@@ -45,10 +45,10 @@ pub enum BmsHeaderControlFlow {
     #[bms_token("#ENDRANDOM")]
     EndRandom,
     /// `#IF N` — begin a branch that activates when the random value equals `N`.
-    #[bms_token("#IF {value}")]
+    #[bms_token("#IF {}")]
     If(u64),
     /// `#ELSEIF N` — an alternative branch (like `else if`).
-    #[bms_token("#ELSEIF {value}")]
+    #[bms_token("#ELSEIF {}")]
     ElseIf(u64),
     /// `#ELSE` — default branch when no `#IF` / `#ELSEIF` matched.
     #[bms_token("#ELSE")]
@@ -68,22 +68,22 @@ pub enum BmsHeaderControlFlow {
     ///
     /// The engine picks a value in `[1, N]`; `#CASE k` activates when the
     /// value equals `k`.
-    #[bms_token("#SWITCH {value}")]
+    #[bms_token("#SWITCH {}")]
     Switch(u64),
     /// `#SETSWITCH N` — force a specific switch value (analogous to
     /// `#SETRANDOM`).
-    #[bms_token("#SETSWITCH {value}")]
+    #[bms_token("#SETSWITCH {}")]
     SetSwitch(u64),
     /// `#ENDSW` / `#ENDSWITCH` — close the current `#SWITCH` block.
     #[bms_token("#ENDSW")]
     #[bms_token("#ENDSWITCH")]
     EndSwitch,
     /// `#CASE N` — a branch that activates when the switch value equals `N`.
-    #[bms_token("#CASE {value}")]
+    #[bms_token("#CASE {}")]
     Case(u64),
     /// `#SKIP N` — skip `N` lines (used inside `#SWITCH` blocks to jump
     /// past unwanted cases).
-    #[bms_token("#SKIP {value}")]
+    #[bms_token("#SKIP {}")]
     Skip(u64),
     /// `#DEF` — default branch inside a `#SWITCH` block.
     #[bms_token("#DEF")]

@@ -319,3 +319,67 @@ fn bms_tokenizer_default() {
     let t: BmsTokenizer = Default::default();
     assert!(t.tokenize::<Vec<_>>("").is_empty());
 }
+
+// ── Custom prefix tests ──────────────────────────────────────────────────
+
+#[test]
+fn custom_prefix_filters_percent() {
+    // With only `#` prefix, `%URL` lines should be skipped.
+    let bms = "#TITLE Song\n%URL https://example.com";
+    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&['#']).tokenize(bms);
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(
+        tokens[0].1,
+        Ok(BmsToken::Header(BmsHeader::Metadata(
+            BmsHeaderMetadata::Title("Song")
+        )))
+    ));
+}
+
+#[test]
+fn custom_prefix_accepts_percent_only() {
+    // With only `%` prefix, `#TITLE` is skipped but `%URL` is parsed.
+    let bms = "#TITLE Song\n%URL https://example.com";
+    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&['%']).tokenize(bms);
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(
+        tokens[0].1,
+        Ok(BmsToken::Header(BmsHeader::Metadata(
+            BmsHeaderMetadata::Url("https://example.com")
+        )))
+    ));
+}
+
+#[test]
+fn empty_prefixes_skips_all() {
+    let bms = "#TITLE Song\n#BPM 180\n#00101:11";
+    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&[]).tokenize(bms);
+    // Only the channel message line remains (no `#` lines are headers)
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(tokens[0].1, Ok(BmsToken::Message(_))));
+}
+
+#[test]
+fn custom_prefix_single_char() {
+    let bms = "#TITLE A\n@CUSTOM value";
+    let tokens: Vec<_> = BmsTokenizer::new()
+        .header_prefixes(&['#', '@'])
+        .tokenize(bms);
+    assert_eq!(tokens.len(), 2);
+    // `@CUSTOM` is not a known header, so it falls through to Fallback
+    assert!(matches!(
+        tokens[1].1,
+        Ok(BmsToken::Header(BmsHeader::Fallback(_)))
+    ));
+}
+
+#[test]
+fn header_prefixes_default() {
+    let default = BmsTokenizer::new();
+    let explicit = BmsTokenizer::new().header_prefixes(&['#', '%']);
+    let bms = "#TITLE A\n%URL b\n";
+    let r1: Vec<_> = default.tokenize(bms);
+    let r2: Vec<_> = explicit.tokenize(bms);
+    assert_eq!(r1.len(), r2.len());
+    assert_eq!(r1, r2);
+}

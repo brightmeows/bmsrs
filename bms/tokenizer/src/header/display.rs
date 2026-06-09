@@ -102,26 +102,26 @@ pub enum BmsHeaderDisplay<'a> {
     /// `#STAGEFILE` — splash-screen image shown during loading (typically 640×480).
     ///
     /// Optional.  When omitted, players show their default loading screen.
-    #[bms_token("#STAGEFILE {value}")]
+    #[bms_token("#STAGEFILE {}")]
     StageFile(&'a str),
     /// `#BANNER` — banner image for song-selection and result screens (300×80).
     ///
     /// Optional.  Supports relative paths (descendant only).  Path length
     /// is limited to 260 bytes.
-    #[bms_token("#BANNER {value}")]
+    #[bms_token("#BANNER {}")]
     Banner(&'a str),
     /// `#BACKBMP` — background image for the play screen (typically 640×480).
     ///
     /// Original spec: the image fills the play-area background.  In some
     /// LR2 skins, it is repurposed as a title card.  Size and behaviour
     /// are skin-dependent.
-    #[bms_token("#BACKBMP {value}")]
+    #[bms_token("#BACKBMP {}")]
     BackBmp(&'a str),
     /// `#CHARFILE` — pop'n music-style character file (pomu2 extension).
     ///
     /// A `.chp` file that defines an animated character shown during play.
     /// Only supported by pomu2 and PMChr-V.
-    #[bms_token("#CHARFILE {value}")]
+    #[bms_token("#CHARFILE {}")]
     CharFile(&'a str),
     /// `#PLAYLEVEL` — difficulty number shown in the song-selection list.
     ///
@@ -132,17 +132,17 @@ pub enum BmsHeaderDisplay<'a> {
     /// Value `0` has special meaning in BM98 and several other players:
     /// it displays as a question mark (`?`) instead of a numeric value,
     /// often used for charts whose difficulty varies via `#RANDOM`/`#SWITCH`.
-    #[bms_token("#PLAYLEVEL {value}")]
+    #[bms_token("#PLAYLEVEL {}")]
     PlayLevel(f64),
     /// `#DIFFICULTY` — difficulty *category* (1–5) for chart filtering.
-    #[bms_token("#DIFFICULTY {value}")]
+    #[bms_token("#DIFFICULTY {}")]
     Difficulty(DifficultyLevel),
     /// `#PREVIEW` — audio file played on the song-selection screen
     /// (beatoraja extension).
     ///
     /// When omitted, beatoraja auto-discovers `preview*.wav` /
     /// `preview*.ogg` in the chart folder.
-    #[bms_token("#PREVIEW {value}")]
+    #[bms_token("#PREVIEW {}")]
     Preview(&'a str),
 }
 

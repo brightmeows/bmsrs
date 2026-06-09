@@ -6,7 +6,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::spanned::Spanned;
 
-use crate::parse::BmsTokenTemplate;
+use crate::parse::{BmsTokenTemplate, Placeholder};
 
 /// Generate the `BmsToken` impl block for a header sub-enum.
 pub fn generate_impl(
@@ -79,6 +79,11 @@ fn generate_try_match_body(
         let is_fallback = fallbacks.get(variant_idx).copied().unwrap_or(false);
 
         for tmpl in variant_templates {
+            // Validate placeholder consistency: all Named or all Unnamed.
+            if let Some(err) = check_placeholder_consistency(tmpl, variant) {
+                return err;
+            }
+
             if tmpl.is_indexed() {
                 let check = generate_indexed_match(variant, tmpl, is_fallback);
                 indexed_checks.extend(check);
@@ -156,7 +161,7 @@ fn generate_exact_branches(
             )
         }
         syn::Fields::Named(fields_named) => {
-            let value_field_name = tmpl.value_field.as_deref().unwrap_or("value");
+            let value_field_name = tmpl.value_field_name();
             let Some(field) = fields_named
                 .named
                 .iter()
@@ -282,10 +287,13 @@ fn generate_indexed_match(
     let idx_start = base_len;
     let expected_len = base_len + 2;
 
-    let id_field_name = tmpl.id_field.as_deref().unwrap_or("id");
-
-    let variant_construction =
-        build_indexed_variant_body(variant, id_field_name, &context_str, is_fallback);
+    let variant_construction = if tmpl.is_unnamed_id() && tmpl.is_unnamed_value() {
+        // Tuple variant with unnamed id + unnamed value.
+        build_indexed_tuple_body(variant, &context_str, is_fallback)
+    } else {
+        let id_field_name = tmpl.id_field_name();
+        build_indexed_variant_body(variant, id_field_name, &context_str, is_fallback)
+    };
 
     quote! {
         if command.len() == #expected_len && command[..#base_len].eq_ignore_ascii_case(#cmd_prefix) {
@@ -380,10 +388,15 @@ fn generate_format_body(
         let pattern = variant_to_pattern(variant);
 
         let cmd_expr = if tmpl.is_indexed() {
-            let id_field_str = tmpl.id_field.as_deref().unwrap_or("id");
-            let id_ident = format_ident!("{id_field_str}");
             let base_lit = syn::LitStr::new(&cmd_token, variant.span());
-            quote! { format!("{}{}", #base_lit, #id_ident) }
+            if tmpl.is_unnamed_id() {
+                // Unnamed id → use __bind_0 (first tuple field).
+                quote! { format!("{}{}", #base_lit, __bind_0) }
+            } else {
+                let id_field_str = tmpl.id_field_name();
+                let id_ident = format_ident!("{id_field_str}");
+                quote! { format!("{}{}", #base_lit, #id_ident) }
+            }
         } else {
             let cmd_lit = syn::LitStr::new(&cmd_token, variant.span());
             quote! { #cmd_lit.to_owned() }
@@ -423,12 +436,22 @@ fn generate_format_value_expr(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -
     }
 
     let value_field_name = match &tmpl.value_field {
-        Some(name) => name.clone(),
+        Some(Placeholder::Named(name)) => name.clone(),
+        Some(Placeholder::Unnamed) => {
+            // Unnamed value: unnamed fields handled by Fields::Unnamed branch
+            "value".to_owned()
+        }
         None => return quote! { String::new() },
     };
 
     match &variant.fields {
-        syn::Fields::Unnamed(_) => quote! { __bind_0.to_string() },
+        syn::Fields::Unnamed(fields_unnamed) => {
+            // Use the last unnamed field as the value (index 0 = id for
+            // indexed commands, index 1 or 0 = value).
+            let last = fields_unnamed.unnamed.len().saturating_sub(1);
+            let bind = format_ident!("__bind_{last}");
+            quote! { #bind.to_string() }
+        }
         syn::Fields::Named(fields_named) => {
             let field_ident = format_ident!("{value_field_name}");
             if fields_named
@@ -482,6 +505,89 @@ fn is_str_ref(ty: &syn::Type) -> bool {
         return false;
     };
     type_path.path.is_ident("str")
+}
+
+/// Check that a template's placeholders are consistent: all Named or all Unnamed.
+/// Returns `Some(TokenStream)` with a `compile_error!` if mixed, `None` if OK.
+fn check_placeholder_consistency(
+    tmpl: &BmsTokenTemplate,
+    variant: &syn::Variant,
+) -> Option<TokenStream> {
+    let id_is_named = tmpl.id_field.as_ref().map(Placeholder::is_named);
+    let value_is_named = tmpl.value_field.as_ref().map(Placeholder::is_named);
+
+    // If both are present and disagree, that's a mix.
+    let mixed = matches!(
+        (id_is_named, value_is_named),
+        (Some(id_named), Some(val_named)) if id_named != val_named
+    );
+
+    if mixed {
+        let msg = "cannot mix named and unnamed placeholders in the same #[bms_token] template";
+        Some(syn::Error::new_spanned(variant, msg).to_compile_error())
+    } else {
+        None
+    }
+}
+
+/// Build the body that constructs a tuple variant for an indexed command with
+/// unnamed placeholders (`#BPM{} {}`).  The first field is the index value,
+/// the second (or only remaining) field is the value.
+fn build_indexed_tuple_body(
+    variant: &syn::Variant,
+    context_str: &str,
+    is_fallback: bool,
+) -> TokenStream {
+    let command_ident = &variant.ident;
+
+    let syn::Fields::Unnamed(fields_unnamed) = &variant.fields else {
+        return quote! { return Ok(Some(Self::#command_ident)); };
+    };
+
+    let mut field_inits = TokenStream::new();
+    let mut field_exprs = Vec::new();
+
+    for (i, field) in fields_unnamed.unnamed.iter().enumerate() {
+        let field_ty = &field.ty;
+        let bind = format_ident!("__f{i}");
+
+        if i == 0 {
+            // First field is the index (from command suffix).
+            field_inits.extend(quote! {
+                let #bind: #field_ty = __idx.parse().map_err(|e|
+                    <<#field_ty as ::std::str::FromStr>::Err
+                        as crate::IntoTokensError>::into_error(
+                        e, #context_str, __idx,
+                    )
+                )?;
+            });
+        } else if is_str_ref(field_ty) {
+            field_inits.extend(quote! {
+                let #bind = value;
+            });
+        } else if is_fallback {
+            field_inits.extend(quote! {
+                let Some(#bind) = <#field_ty as crate::BmsValue>::parse(value) else {
+                    return Ok(None);
+                };
+            });
+        } else {
+            field_inits.extend(quote! {
+                let #bind: #field_ty = value.parse().map_err(|e|
+                    <<#field_ty as ::std::str::FromStr>::Err
+                        as crate::IntoTokensError>::into_error(
+                        e, #context_str, value,
+                    )
+                )?;
+            });
+        }
+        field_exprs.push(bind);
+    }
+
+    quote! {
+        #field_inits
+        return Ok(Some(Self::#command_ident(#(#field_exprs),*)));
+    }
 }
 
 /// Generate `try_match_header` on the top-level `BmsHeader` enum.

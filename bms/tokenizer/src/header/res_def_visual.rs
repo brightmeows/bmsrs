@@ -342,7 +342,7 @@ pub enum BmsHeaderResDefVisual<'a> {
         params: AtBgaParams,
     },
     /// `#POORBGA` — poor/miss BGA display mode (nanasi).
-    #[bms_token("#POORBGA {value}")]
+    #[bms_token("#POORBGA {}")]
     #[bms_fallback]
     PoorBga(PoorBgaMode),
     /// `#SWBGA{id}` — key-bound BGA animation (nanasi, experimental).
@@ -368,14 +368,14 @@ pub enum BmsHeaderResDefVisual<'a> {
     /// Plays from `#000`; loops if the chart is longer than the video.
     /// Video audio is muted (except nazoZZ).  Compatible formats: MPG
     /// (most compatible), AVI, `WebM`, MP4, etc. (player-dependent).
-    #[bms_token("#VIDEOFILE {value}")]
+    #[bms_token("#VIDEOFILE {}")]
     VideoFile(&'a str),
     /// `#MOVIE` — video file as BGA, no loop (`DXEmu` origin).
     ///
     /// Plays once from `#000`; holds the last frame when finished.
     /// Conflicts with `#xxx04`: image files in `#xxx04` lose to
     /// `#MOVIE`, but video files in `#xxx04` take priority.
-    #[bms_token("#MOVIE {value}")]
+    #[bms_token("#MOVIE {}")]
     Movie(&'a str),
     /// `#SEEK{id}` — video seek position in milliseconds (LR origin).
     ///
@@ -398,24 +398,24 @@ pub enum BmsHeaderResDefVisual<'a> {
     /// remap 5K visuals into a 7K layout before dedicated 7K channels
     /// (`#xxx18-19`) were standardised.  DDR detects specific `#ExtChr`
     /// patterns to activate `Project2DX` mode.
-    #[bms_token("#ExtChr {value}")]
+    #[bms_token("#ExtChr {}")]
     ExtChr(&'a str),
     /// `#VIDEOf/s` — video frame rate override (`bemaniaDX` only).
     ///
     /// Overrides the playback frame rate of the video specified by
     /// `#VIDEOFILE`.  Omit to use the video file's native frame rate.
-    #[bms_token("#VIDEOf/s {value}")]
+    #[bms_token("#VIDEOf/s {}")]
     VideoFps(f64),
     /// `#VIDEOCOLORS` — video palette depth (`bemaniaDX` only).
     ///
     /// Sets the colour depth (in bits) for video playback.
     /// Default: `16` (16-bit colour).
-    #[bms_token("#VIDEOCOLORS {value}")]
+    #[bms_token("#VIDEOCOLORS {}")]
     VideoColors(f64),
     /// `#VIDEODLY` — video start-frame delay (`bemaniaDX` only).
     ///
     /// Specifies which frame the video should start playing from.
     /// Default: `0` (start from the beginning).
-    #[bms_token("#VIDEODLY {value}")]
+    #[bms_token("#VIDEODLY {}")]
     VideoDly(f64),
 }

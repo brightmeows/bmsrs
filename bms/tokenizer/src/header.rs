@@ -62,13 +62,20 @@ pub struct BmsHeaderFallback<'a> {
 
 /// Parse a single header line into a `BmsHeader`.
 ///
+/// `prefixes` controls which leading characters are recognised as header
+/// markers (default: `#` and `%`).  Lines not starting with one of the
+/// configured prefixes are skipped.
+///
 /// Returns `Ok(None)` if the line is not a header (empty, comment, channel data).
 ///
 /// # Errors
 ///
 /// Returns `Err(BmsTokenizeError)` if a header command is recognised but its
 /// value cannot be parsed into the expected type.
-pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, BmsTokenizeError<'_>> {
+pub(crate) fn parse_header_line<'a>(
+    line: &'a str,
+    prefixes: &[char],
+) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError<'a>> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() {
@@ -80,14 +87,16 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
         return Ok(None);
     }
 
-    // Determine prefix character.
-    let (prefix, rest) = if let Some(r) = trimmed.strip_prefix('#') {
-        ('#', r)
-    } else if let Some(r) = trimmed.strip_prefix('%') {
-        ('%', r)
-    } else {
+    // Determine prefix character from the configured list.
+    // SAFETY: trimmed is non-empty (checked above).
+    let Some(first) = trimmed.chars().next() else {
         return Ok(None);
     };
+    if !prefixes.contains(&first) {
+        return Ok(None);
+    }
+    let prefix = first;
+    let rest = &trimmed[prefix.len_utf8()..];
 
     if rest.is_empty() {
         return Ok(None);
@@ -137,6 +146,15 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
     })))
 }
 
+/// Convenience wrapper for tests — calls [`parse_header_line`] with the
+/// default `#` and `%` prefixes.
+#[cfg(test)]
+pub(crate) fn parse_header_line_default(
+    line: &str,
+) -> Result<Option<BmsHeader<'_>>, BmsTokenizeError<'_>> {
+    parse_header_line(line, &['#', '%'])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,7 +168,9 @@ mod tests {
 
     #[test]
     fn parse_title() {
-        let result = parse_header_line("#TITLE My Song").unwrap().unwrap();
+        let result = parse_header_line_default("#TITLE My Song")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Title("My Song"))
@@ -159,13 +179,13 @@ mod tests {
 
     #[test]
     fn parse_title_empty() {
-        let result = parse_header_line("#TITLE").unwrap().unwrap();
+        let result = parse_header_line_default("#TITLE").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Metadata(BmsHeaderMetadata::Title("")));
     }
 
     #[test]
     fn parse_subtitle() {
-        let result = parse_header_line("#SUBTITLE (short ver.)")
+        let result = parse_header_line_default("#SUBTITLE (short ver.)")
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -176,7 +196,9 @@ mod tests {
 
     #[test]
     fn parse_artist() {
-        let result = parse_header_line("#ARTIST composer").unwrap().unwrap();
+        let result = parse_header_line_default("#ARTIST composer")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Artist("composer"))
@@ -185,7 +207,9 @@ mod tests {
 
     #[test]
     fn parse_subartist() {
-        let result = parse_header_line("#SUBARTIST co-writer").unwrap().unwrap();
+        let result = parse_header_line_default("#SUBARTIST co-writer")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::SubArtist("co-writer"))
@@ -194,7 +218,7 @@ mod tests {
 
     #[test]
     fn parse_genre() {
-        let result = parse_header_line("#GENRE Piano").unwrap().unwrap();
+        let result = parse_header_line_default("#GENRE Piano").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Genre("Piano"))
@@ -203,7 +227,9 @@ mod tests {
 
     #[test]
     fn parse_maker() {
-        let result = parse_header_line("#MAKER chart-creator").unwrap().unwrap();
+        let result = parse_header_line_default("#MAKER chart-creator")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Maker("chart-creator"))
@@ -212,7 +238,9 @@ mod tests {
 
     #[test]
     fn parse_comment() {
-        let result = parse_header_line("#COMMENT hello").unwrap().unwrap();
+        let result = parse_header_line_default("#COMMENT hello")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Comment("hello"))
@@ -221,7 +249,9 @@ mod tests {
 
     #[test]
     fn parse_text() {
-        let result = parse_header_line("#TEXT01 in-game text").unwrap().unwrap();
+        let result = parse_header_line_default("#TEXT01 in-game text")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Text {
@@ -233,7 +263,9 @@ mod tests {
 
     #[test]
     fn parse_text_with_quotes() {
-        let result = parse_header_line("#TEXT00 \"MISS!!\"").unwrap().unwrap();
+        let result = parse_header_line_default("#TEXT00 \"MISS!!\"")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Text {
@@ -245,7 +277,9 @@ mod tests {
 
     #[test]
     fn parse_song_as_text() {
-        let result = parse_header_line("#SONG01 some text").unwrap().unwrap();
+        let result = parse_header_line_default("#SONG01 some text")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Text {
@@ -257,7 +291,9 @@ mod tests {
 
     #[test]
     fn parse_charset() {
-        let result = parse_header_line("#CHARSET UTF-8").unwrap().unwrap();
+        let result = parse_header_line_default("#CHARSET UTF-8")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Charset("UTF-8"))
@@ -266,7 +302,7 @@ mod tests {
 
     #[test]
     fn parse_url() {
-        let result = parse_header_line("%URL https://example.com")
+        let result = parse_header_line_default("%URL https://example.com")
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -277,7 +313,7 @@ mod tests {
 
     #[test]
     fn parse_email() {
-        let result = parse_header_line("%EMAIL user@example.com")
+        let result = parse_header_line_default("%EMAIL user@example.com")
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -288,7 +324,7 @@ mod tests {
 
     #[test]
     fn parse_player() {
-        let result = parse_header_line("#PLAYER 1").unwrap().unwrap();
+        let result = parse_header_line_default("#PLAYER 1").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::Player(PlayerMode::Single))
@@ -297,7 +333,7 @@ mod tests {
 
     #[test]
     fn parse_rank() {
-        let result = parse_header_line("#RANK 2").unwrap().unwrap();
+        let result = parse_header_line_default("#RANK 2").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::Rank(Rank::Normal))
@@ -306,7 +342,7 @@ mod tests {
 
     #[test]
     fn parse_defexrank() {
-        let result = parse_header_line("#DEFEXRANK 3").unwrap().unwrap();
+        let result = parse_header_line_default("#DEFEXRANK 3").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::DefExRank(3.0))
@@ -315,13 +351,13 @@ mod tests {
 
     #[test]
     fn parse_total() {
-        let result = parse_header_line("#TOTAL 300").unwrap().unwrap();
+        let result = parse_header_line_default("#TOTAL 300").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Total(300.0)));
     }
 
     #[test]
     fn parse_volwav() {
-        let result = parse_header_line("#VOLWAV 100").unwrap().unwrap();
+        let result = parse_header_line_default("#VOLWAV 100").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::VolWav(100.0))
@@ -330,7 +366,7 @@ mod tests {
 
     #[test]
     fn parse_lntype() {
-        let result = parse_header_line("#LNTYPE 1").unwrap().unwrap();
+        let result = parse_header_line_default("#LNTYPE 1").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::LnType(LnType::Type1))
@@ -339,7 +375,7 @@ mod tests {
 
     #[test]
     fn parse_lnobj() {
-        let result = parse_header_line("#LNOBJ 01").unwrap().unwrap();
+        let result = parse_header_line_default("#LNOBJ 01").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::LnObj(
@@ -350,7 +386,7 @@ mod tests {
 
     #[test]
     fn parse_lnmode() {
-        let result = parse_header_line("#LNMODE 1").unwrap().unwrap();
+        let result = parse_header_line_default("#LNMODE 1").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::LnMode(LnMode::Ln))
@@ -359,31 +395,31 @@ mod tests {
 
     #[test]
     fn parse_oct() {
-        let result = parse_header_line("#OCT 1").unwrap().unwrap();
+        let result = parse_header_line_default("#OCT 1").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
     }
 
     #[test]
     fn parse_fp() {
-        let result = parse_header_line("#FP 1").unwrap().unwrap();
+        let result = parse_header_line_default("#FP 1").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
     }
 
     #[test]
     fn parse_octfp() {
-        let result = parse_header_line("#OCT/FP 1").unwrap().unwrap();
+        let result = parse_header_line_default("#OCT/FP 1").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
     }
 
     #[test]
     fn parse_option() {
-        let result = parse_header_line("#OPTION -R").unwrap().unwrap();
+        let result = parse_header_line_default("#OPTION -R").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Option("-R")));
     }
 
     #[test]
     fn parse_changeoption() {
-        let result = parse_header_line("#CHANGEOPTION01 774:HIDDEN_STEALTH")
+        let result = parse_header_line_default("#CHANGEOPTION01 774:HIDDEN_STEALTH")
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -397,7 +433,9 @@ mod tests {
 
     #[test]
     fn parse_stagefile() {
-        let result = parse_header_line("#STAGEFILE stage.png").unwrap().unwrap();
+        let result = parse_header_line_default("#STAGEFILE stage.png")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Display(BmsHeaderDisplay::StageFile("stage.png"))
@@ -406,7 +444,9 @@ mod tests {
 
     #[test]
     fn parse_banner() {
-        let result = parse_header_line("#BANNER banner.bmp").unwrap().unwrap();
+        let result = parse_header_line_default("#BANNER banner.bmp")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Display(BmsHeaderDisplay::Banner("banner.bmp"))
@@ -415,7 +455,9 @@ mod tests {
 
     #[test]
     fn parse_backbmp() {
-        let result = parse_header_line("#BACKBMP bg.png").unwrap().unwrap();
+        let result = parse_header_line_default("#BACKBMP bg.png")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Display(BmsHeaderDisplay::BackBmp("bg.png"))
@@ -424,7 +466,9 @@ mod tests {
 
     #[test]
     fn parse_charfile() {
-        let result = parse_header_line("#CHARFILE char.bmp").unwrap().unwrap();
+        let result = parse_header_line_default("#CHARFILE char.bmp")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Display(BmsHeaderDisplay::CharFile("char.bmp"))
@@ -433,7 +477,7 @@ mod tests {
 
     #[test]
     fn parse_playlevel() {
-        let result = parse_header_line("#PLAYLEVEL 12").unwrap().unwrap();
+        let result = parse_header_line_default("#PLAYLEVEL 12").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Display(BmsHeaderDisplay::PlayLevel(12.0))
@@ -442,7 +486,7 @@ mod tests {
 
     #[test]
     fn parse_difficulty() {
-        let result = parse_header_line("#DIFFICULTY 3").unwrap().unwrap();
+        let result = parse_header_line_default("#DIFFICULTY 3").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Display(BmsHeaderDisplay::Difficulty(
@@ -453,7 +497,9 @@ mod tests {
 
     #[test]
     fn parse_preview() {
-        let result = parse_header_line("#PREVIEW preview.ogg").unwrap().unwrap();
+        let result = parse_header_line_default("#PREVIEW preview.ogg")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Display(BmsHeaderDisplay::Preview("preview.ogg"))
@@ -462,25 +508,27 @@ mod tests {
 
     #[test]
     fn parse_bpm_global() {
-        let result = parse_header_line("#BPM 180").unwrap().unwrap();
+        let result = parse_header_line_default("#BPM 180").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::Bpm(180.0)));
     }
 
     #[test]
     fn parse_bpm_global_float() {
-        let result = parse_header_line("#BPM 180.0").unwrap().unwrap();
+        let result = parse_header_line_default("#BPM 180.0").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::Bpm(180.0)));
     }
 
     #[test]
     fn parse_basebpm() {
-        let result = parse_header_line("#BASEBPM 180").unwrap().unwrap();
+        let result = parse_header_line_default("#BASEBPM 180").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::BaseBpm(180.0)));
     }
 
     #[test]
     fn parse_wavcmd() {
-        let result = parse_header_line("#WAVCMD some-command").unwrap().unwrap();
+        let result = parse_header_line_default("#WAVCMD some-command")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd("some-command"))
@@ -489,7 +537,9 @@ mod tests {
 
     #[test]
     fn parse_cdda() {
-        let result = parse_header_line("#CDDA track01.bin").unwrap().unwrap();
+        let result = parse_header_line_default("#CDDA track01.bin")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Cdda("track01.bin"))
@@ -498,7 +548,9 @@ mod tests {
 
     #[test]
     fn parse_midifile() {
-        let result = parse_header_line("#MIDIFILE song.mid").unwrap().unwrap();
+        let result = parse_header_line_default("#MIDIFILE song.mid")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Midifile("song.mid"))
@@ -507,7 +559,9 @@ mod tests {
 
     #[test]
     fn parse_path_wav() {
-        let result = parse_header_line("#PATH_WAV ./sounds/").unwrap().unwrap();
+        let result = parse_header_line_default("#PATH_WAV ./sounds/")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::PathWav("./sounds/"))
@@ -516,7 +570,7 @@ mod tests {
 
     #[test]
     fn parse_poorbga() {
-        let result = parse_header_line("#POORBGA 0").unwrap().unwrap();
+        let result = parse_header_line_default("#POORBGA 0").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(PoorBgaMode::Default))
@@ -525,7 +579,7 @@ mod tests {
 
     #[test]
     fn parse_poorbga_overlay() {
-        let result = parse_header_line("#POORBGA 1").unwrap().unwrap();
+        let result = parse_header_line_default("#POORBGA 1").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(PoorBgaMode::Overlay))
@@ -534,7 +588,7 @@ mod tests {
 
     #[test]
     fn parse_poorbga_hidden() {
-        let result = parse_header_line("#POORBGA 2").unwrap().unwrap();
+        let result = parse_header_line_default("#POORBGA 2").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::PoorBga(PoorBgaMode::Hidden))
@@ -543,13 +597,15 @@ mod tests {
 
     #[test]
     fn parse_poorbga_invalid_fallback() {
-        let result = parse_header_line("#POORBGA 3").unwrap().unwrap();
+        let result = parse_header_line_default("#POORBGA 3").unwrap().unwrap();
         assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 
     #[test]
     fn parse_videofile() {
-        let result = parse_header_line("#VIDEOFILE bg.avi").unwrap().unwrap();
+        let result = parse_header_line_default("#VIDEOFILE bg.avi")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::VideoFile("bg.avi"))
@@ -558,7 +614,9 @@ mod tests {
 
     #[test]
     fn parse_movie() {
-        let result = parse_header_line("#MOVIE intro.mpg").unwrap().unwrap();
+        let result = parse_header_line_default("#MOVIE intro.mpg")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Movie("intro.mpg"))
@@ -567,7 +625,7 @@ mod tests {
 
     #[test]
     fn parse_extchr() {
-        let result = parse_header_line("#ExtChr extra").unwrap().unwrap();
+        let result = parse_header_line_default("#ExtChr extra").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExtChr("extra"))
@@ -576,7 +634,7 @@ mod tests {
 
     #[test]
     fn parse_random() {
-        let result = parse_header_line("#RANDOM 10").unwrap().unwrap();
+        let result = parse_header_line_default("#RANDOM 10").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::Random(10))
@@ -585,7 +643,7 @@ mod tests {
 
     #[test]
     fn parse_setrandom() {
-        let result = parse_header_line("#SETRANDOM 5").unwrap().unwrap();
+        let result = parse_header_line_default("#SETRANDOM 5").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::SetRandom(5))
@@ -594,13 +652,13 @@ mod tests {
 
     #[test]
     fn parse_if() {
-        let result = parse_header_line("#IF 1").unwrap().unwrap();
+        let result = parse_header_line_default("#IF 1").unwrap().unwrap();
         assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::If(1)));
     }
 
     #[test]
     fn parse_elseif() {
-        let result = parse_header_line("#ELSEIF 0").unwrap().unwrap();
+        let result = parse_header_line_default("#ELSEIF 0").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::ElseIf(0))
@@ -609,19 +667,19 @@ mod tests {
 
     #[test]
     fn parse_else() {
-        let result = parse_header_line("#ELSE").unwrap().unwrap();
+        let result = parse_header_line_default("#ELSE").unwrap().unwrap();
         assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::Else));
     }
 
     #[test]
     fn parse_endif() {
-        let result = parse_header_line("#ENDIF").unwrap().unwrap();
+        let result = parse_header_line_default("#ENDIF").unwrap().unwrap();
         assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::EndIf));
     }
 
     #[test]
     fn parse_endrandom() {
-        let result = parse_header_line("#ENDRANDOM").unwrap().unwrap();
+        let result = parse_header_line_default("#ENDRANDOM").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::EndRandom)
@@ -630,7 +688,7 @@ mod tests {
 
     #[test]
     fn parse_switch() {
-        let result = parse_header_line("#SWITCH 3").unwrap().unwrap();
+        let result = parse_header_line_default("#SWITCH 3").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::Switch(3))
@@ -639,7 +697,7 @@ mod tests {
 
     #[test]
     fn parse_setswitch() {
-        let result = parse_header_line("#SETSWITCH 2").unwrap().unwrap();
+        let result = parse_header_line_default("#SETSWITCH 2").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::SetSwitch(2))
@@ -648,7 +706,7 @@ mod tests {
 
     #[test]
     fn parse_case() {
-        let result = parse_header_line("#CASE 1").unwrap().unwrap();
+        let result = parse_header_line_default("#CASE 1").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::Case(1))
@@ -657,7 +715,7 @@ mod tests {
 
     #[test]
     fn parse_skip() {
-        let result = parse_header_line("#SKIP 1").unwrap().unwrap();
+        let result = parse_header_line_default("#SKIP 1").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::Skip(1))
@@ -666,13 +724,13 @@ mod tests {
 
     #[test]
     fn parse_def() {
-        let result = parse_header_line("#DEF").unwrap().unwrap();
+        let result = parse_header_line_default("#DEF").unwrap().unwrap();
         assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::Def));
     }
 
     #[test]
     fn parse_endsw() {
-        let result = parse_header_line("#ENDSW").unwrap().unwrap();
+        let result = parse_header_line_default("#ENDSW").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::EndSwitch)
@@ -681,7 +739,7 @@ mod tests {
 
     #[test]
     fn parse_endswitch_alias() {
-        let result = parse_header_line("#ENDSWITCH").unwrap().unwrap();
+        let result = parse_header_line_default("#ENDSWITCH").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::EndSwitch)
@@ -690,7 +748,9 @@ mod tests {
 
     #[test]
     fn parse_wav_indexed() {
-        let result = parse_header_line("#WAV01 kick.wav").unwrap().unwrap();
+        let result = parse_header_line_default("#WAV01 kick.wav")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
@@ -702,7 +762,9 @@ mod tests {
 
     #[test]
     fn parse_wav_36ary_index() {
-        let result = parse_header_line("#WAV2A snare.wav").unwrap().unwrap();
+        let result = parse_header_line_default("#WAV2A snare.wav")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
@@ -714,7 +776,9 @@ mod tests {
 
     #[test]
     fn parse_exwav_indexed() {
-        let result = parse_header_line("#EXWAV01 extra.ogg").unwrap().unwrap();
+        let result = parse_header_line_default("#EXWAV01 extra.ogg")
+            .unwrap()
+            .unwrap();
         if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
             assert_eq!(id.as_str(), "01");
             assert_eq!(params.filename, "extra.ogg");
@@ -726,7 +790,7 @@ mod tests {
 
     #[test]
     fn parse_exwav_with_flags() {
-        let result = parse_header_line("#EXWAV01 pvf -100 50 440 sound.wav")
+        let result = parse_header_line_default("#EXWAV01 pvf -100 50 440 sound.wav")
             .unwrap()
             .unwrap();
         if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
@@ -741,7 +805,7 @@ mod tests {
 
     #[test]
     fn parse_bmp_indexed() {
-        let result = parse_header_line("#BMP01 bg.bmp").unwrap().unwrap();
+        let result = parse_header_line_default("#BMP01 bg.bmp").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bmp {
@@ -753,7 +817,7 @@ mod tests {
 
     #[test]
     fn parse_exbmp_indexed() {
-        let result = parse_header_line("#EXBMP01 255,0,128,64 overlay.png")
+        let result = parse_header_line_default("#EXBMP01 255,0,128,64 overlay.png")
             .unwrap()
             .unwrap();
         if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExBmp { id, params }) = result {
@@ -770,7 +834,7 @@ mod tests {
 
     #[test]
     fn parse_bga_indexed() {
-        let result = parse_header_line("#BGA01 02 0 0 100 100 10 20")
+        let result = parse_header_line_default("#BGA01 02 0 0 100 100 10 20")
             .unwrap()
             .unwrap();
         if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { id, params }) = result {
@@ -789,7 +853,7 @@ mod tests {
 
     #[test]
     fn parse_at_bga_indexed() {
-        let result = parse_header_line("#@BGA01 03 5 10 200 150 0 0")
+        let result = parse_header_line_default("#@BGA01 03 5 10 200 150 0 0")
             .unwrap()
             .unwrap();
         if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { id, params }) = result {
@@ -806,7 +870,7 @@ mod tests {
 
     #[test]
     fn parse_swbga_indexed() {
-        let result = parse_header_line("#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp")
+        let result = parse_header_line_default("#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp")
             .unwrap()
             .unwrap();
         if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::SwBga { id, params }) = result {
@@ -827,7 +891,9 @@ mod tests {
 
     #[test]
     fn parse_argb_indexed() {
-        let result = parse_header_line("#ARGB01 128,255,0,64").unwrap().unwrap();
+        let result = parse_header_line_default("#ARGB01 128,255,0,64")
+            .unwrap()
+            .unwrap();
         if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Argb { id, params }) = result {
             assert_eq!(id.as_str(), "01");
             assert_eq!(params.a, 128);
@@ -841,19 +907,19 @@ mod tests {
 
     #[test]
     fn parse_bga_invalid_fallback() {
-        let result = parse_header_line("#BGA01 bad").unwrap().unwrap();
+        let result = parse_header_line_default("#BGA01 bad").unwrap().unwrap();
         assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 
     #[test]
     fn parse_argb_invalid_fallback() {
-        let result = parse_header_line("#ARGB01 bad").unwrap().unwrap();
+        let result = parse_header_line_default("#ARGB01 bad").unwrap().unwrap();
         assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 
     #[test]
     fn parse_seek_indexed() {
-        let result = parse_header_line("#SEEK01 1.5").unwrap().unwrap();
+        let result = parse_header_line_default("#SEEK01 1.5").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Seek {
@@ -865,7 +931,7 @@ mod tests {
 
     #[test]
     fn parse_bpm_def_indexed() {
-        let result = parse_header_line("#BPM01 180.0").unwrap().unwrap();
+        let result = parse_header_line_default("#BPM01 180.0").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::BpmDef {
@@ -877,7 +943,7 @@ mod tests {
 
     #[test]
     fn parse_stop_indexed() {
-        let result = parse_header_line("#STOP01 192").unwrap().unwrap();
+        let result = parse_header_line_default("#STOP01 192").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::StopDef {
@@ -889,7 +955,7 @@ mod tests {
 
     #[test]
     fn parse_scroll_indexed() {
-        let result = parse_header_line("#SCROLL01 1.5").unwrap().unwrap();
+        let result = parse_header_line_default("#SCROLL01 1.5").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::ScrollDef {
@@ -901,7 +967,7 @@ mod tests {
 
     #[test]
     fn parse_speed_indexed() {
-        let result = parse_header_line("#SPEED01 2.0").unwrap().unwrap();
+        let result = parse_header_line_default("#SPEED01 2.0").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::SpeedDef {
@@ -913,7 +979,7 @@ mod tests {
 
     #[test]
     fn parse_exrank_indexed() {
-        let result = parse_header_line("#EXRANK01 5").unwrap().unwrap();
+        let result = parse_header_line_default("#EXRANK01 5").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::ExRank {
@@ -925,7 +991,7 @@ mod tests {
 
     #[test]
     fn wavcmd_not_confused_as_wav_indexed() {
-        let result = parse_header_line("#WAVCMD test").unwrap().unwrap();
+        let result = parse_header_line_default("#WAVCMD test").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd("test"))
@@ -934,7 +1000,7 @@ mod tests {
 
     #[test]
     fn parse_unknown_header() {
-        let result = parse_header_line("#MYEXT abc123").unwrap().unwrap();
+        let result = parse_header_line_default("#MYEXT abc123").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Fallback(BmsHeaderFallback {
@@ -946,7 +1012,7 @@ mod tests {
 
     #[test]
     fn parse_unknown_percent_header() {
-        let result = parse_header_line("%CUSTOM x").unwrap().unwrap();
+        let result = parse_header_line_default("%CUSTOM x").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Fallback(BmsHeaderFallback {
@@ -958,32 +1024,34 @@ mod tests {
 
     #[test]
     fn empty_line_returns_none() {
-        assert_eq!(parse_header_line("").unwrap(), None);
+        assert_eq!(parse_header_line_default("").unwrap(), None);
     }
 
     #[test]
     fn whitespace_only_returns_none() {
-        assert_eq!(parse_header_line("   ").unwrap(), None);
+        assert_eq!(parse_header_line_default("   ").unwrap(), None);
     }
 
     #[test]
     fn comment_line_returns_none() {
-        assert_eq!(parse_header_line("// comment").unwrap(), None);
+        assert_eq!(parse_header_line_default("// comment").unwrap(), None);
     }
 
     #[test]
     fn just_hash_returns_none() {
-        assert_eq!(parse_header_line("#").unwrap(), None);
+        assert_eq!(parse_header_line_default("#").unwrap(), None);
     }
 
     #[test]
     fn just_percent_returns_none() {
-        assert_eq!(parse_header_line("%").unwrap(), None);
+        assert_eq!(parse_header_line_default("%").unwrap(), None);
     }
 
     #[test]
     fn case_insensitive_title() {
-        let result = parse_header_line("#title lowercase").unwrap().unwrap();
+        let result = parse_header_line_default("#title lowercase")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Title("lowercase"))
@@ -992,7 +1060,9 @@ mod tests {
 
     #[test]
     fn case_insensitive_wav() {
-        let result = parse_header_line("#wav01 sound.wav").unwrap().unwrap();
+        let result = parse_header_line_default("#wav01 sound.wav")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
@@ -1004,7 +1074,9 @@ mod tests {
 
     #[test]
     fn value_with_multiple_spaces() {
-        let result = parse_header_line("#TITLE   My   Song").unwrap().unwrap();
+        let result = parse_header_line_default("#TITLE   My   Song")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Title("My   Song"))
@@ -1013,47 +1085,52 @@ mod tests {
 
     #[test]
     fn non_header_line() {
-        assert_eq!(parse_header_line("just some text").unwrap(), None);
+        assert_eq!(parse_header_line_default("just some text").unwrap(), None);
     }
 
     #[test]
     fn channel_line_not_confused() {
-        assert_eq!(parse_header_line("#00111:1122").unwrap(), None);
+        assert_eq!(parse_header_line_default("#00111:1122").unwrap(), None);
     }
 
     #[test]
     fn hash_comment_line() {
-        assert_eq!(parse_header_line("## just a comment").unwrap(), None);
+        assert_eq!(
+            parse_header_line_default("## just a comment").unwrap(),
+            None
+        );
     }
 
     #[test]
     fn invalid_player_returns_error() {
-        assert!(parse_header_line("#PLAYER xyz").is_err());
+        assert!(parse_header_line_default("#PLAYER xyz").is_err());
     }
 
     #[test]
     fn invalid_difficulty_returns_error() {
-        assert!(parse_header_line("#DIFFICULTY 0").is_err());
+        assert!(parse_header_line_default("#DIFFICULTY 0").is_err());
     }
 
     #[test]
     fn invalid_rank_returns_error() {
-        assert!(parse_header_line("#RANK abc").is_err());
+        assert!(parse_header_line_default("#RANK abc").is_err());
     }
 
     #[test]
     fn invalid_wav_index_returns_error() {
-        assert!(parse_header_line("#WAV!! file.wav").is_err());
+        assert!(parse_header_line_default("#WAV!! file.wav").is_err());
     }
 
     #[test]
     fn invalid_bpm_returns_error() {
-        assert!(parse_header_line("#BPM notanumber").is_err());
+        assert!(parse_header_line_default("#BPM notanumber").is_err());
     }
 
     #[test]
     fn parse_exbpm_indexed() {
-        let result = parse_header_line("#EXBPM01 180.0").unwrap().unwrap();
+        let result = parse_header_line_default("#EXBPM01 180.0")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::ExBpm {
@@ -1065,7 +1142,9 @@ mod tests {
 
     #[test]
     fn parse_stp_with_position() {
-        let result = parse_header_line("#STP 001.128 500").unwrap().unwrap();
+        let result = parse_header_line_default("#STP 001.128 500")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::Stp {
@@ -1080,7 +1159,9 @@ mod tests {
 
     #[test]
     fn parse_stp_without_position() {
-        let result = parse_header_line("#STP 001 500.5").unwrap().unwrap();
+        let result = parse_header_line_default("#STP 001 500.5")
+            .unwrap()
+            .unwrap();
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::Stp {
@@ -1095,19 +1176,19 @@ mod tests {
 
     #[test]
     fn parse_stp_invalid_fallback() {
-        let result = parse_header_line("#STP invalid").unwrap().unwrap();
+        let result = parse_header_line_default("#STP invalid").unwrap().unwrap();
         assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 
     #[test]
     fn parse_genre_alias() {
-        let result = parse_header_line("#GENLE Pop").unwrap().unwrap();
+        let result = parse_header_line_default("#GENLE Pop").unwrap().unwrap();
         assert_eq!(result, BmsHeader::Metadata(BmsHeaderMetadata::Genre("Pop")));
     }
 
     #[test]
     fn parse_random_alias() {
-        let result = parse_header_line("#RONDAM 5").unwrap().unwrap();
+        let result = parse_header_line_default("#RONDAM 5").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::ControlFlow(BmsHeaderControlFlow::Random(5))
@@ -1116,7 +1197,7 @@ mod tests {
 
     #[test]
     fn parse_base_16() {
-        let result = parse_header_line("#BASE 16").unwrap().unwrap();
+        let result = parse_header_line_default("#BASE 16").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base16))
@@ -1125,7 +1206,7 @@ mod tests {
 
     #[test]
     fn parse_base_36() {
-        let result = parse_header_line("#BASE 36").unwrap().unwrap();
+        let result = parse_header_line_default("#BASE 36").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base36))
@@ -1134,7 +1215,7 @@ mod tests {
 
     #[test]
     fn parse_base_62() {
-        let result = parse_header_line("#BASE 62").unwrap().unwrap();
+        let result = parse_header_line_default("#BASE 62").unwrap().unwrap();
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base62))
@@ -1143,7 +1224,7 @@ mod tests {
 
     #[test]
     fn parse_base_unknown_fallback() {
-        let result = parse_header_line("#BASE 99").unwrap().unwrap();
+        let result = parse_header_line_default("#BASE 99").unwrap().unwrap();
         assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 }

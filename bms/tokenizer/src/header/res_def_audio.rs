@@ -154,24 +154,24 @@ pub enum BmsHeaderResDefAudio<'a> {
     /// Format: `commandID wavIndex value`.  Commands: `00` = pitch,
     /// `01` = volume, `02` = duration.  Only `MacBeat` processes these;
     /// Sonorous parses but ignores them.
-    #[bms_token("#WAVCMD {value}")]
+    #[bms_token("#WAVCMD {}")]
     WavCmd(&'a str),
     /// `#CDDA` — CD-DA track as BGM (DDR only).
     ///
     /// Specifies a CD track number to play as background music.
-    #[bms_token("#CDDA {value}")]
+    #[bms_token("#CDDA {}")]
     Cdda(&'a str),
     /// `#MIDIFILE` — MIDI file as BGM (BM98 origin).
     ///
     /// Hardware-dependent with audible latency.  Not recommended for
     /// new charts.  Supported by BM98, DDR, `IIDXv`, HDX, Sonorous.
-    #[bms_token("#MIDIFILE {value}")]
+    #[bms_token("#MIDIFILE {}")]
     Midifile(&'a str),
     /// `#PATH_WAV` — directory prefix for audio file lookup (BMEV origin).
     ///
     /// When present, `#WAV` filenames are resolved relative to this
     /// directory.  **Should be commented out before distribution** to
     /// avoid path issues on other systems.
-    #[bms_token("#PATH_WAV {value}")]
+    #[bms_token("#PATH_WAV {}")]
     PathWav(&'a str),
 }

@@ -124,15 +124,26 @@ pub enum ErrorStrategy {
 ///     .error_strategy(ErrorStrategy::CollectAll)
 ///     .tokenize("#TITLE My Song\n#00101:11");
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct BmsTokenizer {
     /// Controls how parse errors are handled.
     error_strategy: ErrorStrategy,
+    /// Allowed prefix characters for header commands.
+    header_prefixes: Vec<char>,
+}
+
+impl Default for BmsTokenizer {
+    fn default() -> Self {
+        Self {
+            error_strategy: ErrorStrategy::default(),
+            header_prefixes: vec!['#', '%'],
+        }
+    }
 }
 
 impl BmsTokenizer {
     /// Create a new `BmsTokenizer` with default configuration
-    /// ([`ErrorStrategy::CollectAll`]).
+    /// ([`ErrorStrategy::CollectAll`], prefixes `#` and `%`).
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -142,6 +153,16 @@ impl BmsTokenizer {
     #[must_use]
     pub fn error_strategy(mut self, strategy: ErrorStrategy) -> Self {
         self.error_strategy = strategy;
+        self
+    }
+
+    /// Set the allowed header prefix characters.
+    ///
+    /// Only lines starting with one of these characters will be treated as
+    /// potential header commands.  Default: `['#', '%']`.
+    #[must_use]
+    pub fn header_prefixes(mut self, prefixes: &[char]) -> Self {
+        self.header_prefixes = prefixes.to_vec();
         self
     }
 
@@ -186,7 +207,7 @@ impl BmsTokenizer {
                 let result: Result<BmsToken<'_>, BmsTokenizeError<'_>> =
                     match parse_message_line(trimmed) {
                         Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
-                        Ok(None) => match parse_header_line(trimmed) {
+                        Ok(None) => match parse_header_line(trimmed, &self.header_prefixes) {
                             Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
                             Ok(None) => continue,
                             Err(e) => Err(e),

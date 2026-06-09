@@ -202,18 +202,18 @@ pub enum BmsHeaderGameplay<'a> {
     /// `#PLAYER` — game mode (Single / Couple / Double / Battle).
     ///
     /// Largely ignored by modern players, which infer mode from channels.
-    #[bms_token("#PLAYER {value}")]
+    #[bms_token("#PLAYER {}")]
     Player(PlayerMode),
     /// `#RANK` — judgment difficulty (VERY HARD … VERY EASY).
     ///
     /// Default when omitted: `Normal` (2).
-    #[bms_token("#RANK {value}")]
+    #[bms_token("#RANK {}")]
     Rank(Rank),
     /// `#DEFEXRANK` — fine-grained judgment difficulty as a percentage.
     ///
     /// `100` equals `#RANK 2` (NORMAL).  Overrides `#RANK` when both are
     /// present (the line closest to EOF wins).  Supports fractional values.
-    #[bms_token("#DEFEXRANK {value}")]
+    #[bms_token("#DEFEXRANK {}")]
     DefExRank(f64),
     /// `#EXRANK{id}` — per-position judgment override.
     ///
@@ -223,7 +223,7 @@ pub enum BmsHeaderGameplay<'a> {
     /// "RANDOM" in nanasi.
     #[bms_token("#EXRANK{id} {value}")]
     ExRank {
-        /// The 2-character index (e.g., `"01"`, `"2A"`).
+        /// The 2-character index.
         id: BmsChannelId<ExRankTag>,
         /// Judgment width as a percentage (NORMAL = 100).
         value: f64,
@@ -240,7 +240,7 @@ pub enum BmsHeaderGameplay<'a> {
     ///
     /// Negative values are supported by some players (nazo, nazoZZ) and
     /// cause *perfect* judgments to *decrease* the gauge.
-    #[bms_token("#TOTAL {value}")]
+    #[bms_token("#TOTAL {}")]
     Total(f64),
     /// `#VOLWAV` — master volume percentage for all audio.
     ///
@@ -248,12 +248,12 @@ pub enum BmsHeaderGameplay<'a> {
     ///
     /// **Deprecated** — highly implementation- and hardware-dependent.
     /// Results vary across players and drivers.  beatoraja caps at 100.
-    #[bms_token("#VOLWAV {value}")]
+    #[bms_token("#VOLWAV {}")]
     VolWav(f64),
     /// `#LNTYPE` — long-note notation (RDM or MGQ).
     ///
     /// `1` = RDM (default); `2` = MGQ (obsolete).
-    #[bms_token("#LNTYPE {value}")]
+    #[bms_token("#LNTYPE {}")]
     LnType(LnType),
     /// `#LNOBJ` — designate a `#WAV` index as an LN termination marker.
     ///
@@ -265,13 +265,13 @@ pub enum BmsHeaderGameplay<'a> {
     ///
     /// **Caveat**: nanasi and fgt++ have a bug where lowercase indices
     /// are not recognised as `#LNOBJ` markers — use uppercase.
-    #[bms_token("#LNOBJ {value}")]
+    #[bms_token("#LNOBJ {}")]
     LnObj(BmsChannelId<LnObjTag>),
     /// `#LNMODE` — force LN / CN / HCN mode (beatoraja extension).
     ///
     /// When present, the chart's long-note type is locked regardless of
     /// the player's LN MODE option.
-    #[bms_token("#LNMODE {value}")]
+    #[bms_token("#LNMODE {}")]
     LnMode(LnMode),
     /// `#OCT` / `#FP` / `#OCT/FP` — OCTAVE MODE flag.
     ///
@@ -287,7 +287,7 @@ pub enum BmsHeaderGameplay<'a> {
     /// Values use vendor prefixes (e.g., `774:HI-SPEED_x0.77`).
     /// Multiple `#OPTION` lines can coexist; same-category options use
     /// the line closest to EOF.
-    #[bms_token("#OPTION {value}")]
+    #[bms_token("#OPTION {}")]
     Option(&'a str),
     /// `#CHANGEOPTION{id}` — dynamically change options mid-play (nanasi).
     ///
@@ -305,7 +305,7 @@ pub enum BmsHeaderGameplay<'a> {
     /// Valid values: `16` (hex, 256 slots), `36` (base-36, 1296 slots, default),
     /// `62` (case-sensitive base-62, 3844 slots, beatoraja extension).
     /// Unknown values fall through to `BmsHeaderFallback`.
-    #[bms_token("#BASE {value}")]
+    #[bms_token("#BASE {}")]
     #[bms_fallback]
     Base(BmsBaseMode),
 }

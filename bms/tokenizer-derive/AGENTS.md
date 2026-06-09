@@ -7,14 +7,14 @@ Proc-macro crate for `#[derive(BmsTokenAttr)]` — handles all
 
 | Mode | Detection | Generated items |
 |---|---|---|
-| **Command** | `#[bms_token("#BPM{id} {value}")]` | `try_match_header`, `format_header` |
+| **Command** | `#[bms_token("#BPM{id} {value}")]` or `#[bms_token("#TITLE {}")]` | `try_match_header`, `format_header` |
 | **Literal** | `#[bms_token("0")]` (no `#`/`%` prefix) | `FromStr`, `Display` |
 | **Dispatch** | no `#[bms_token]`, all single-tuple | `BmsHeader::try_match_header` |
 
 ## Module layout
 
 - `lib.rs` — derive macro entry point, mode detection
-- `parse.rs` — template string parser (`"#BPM{id} {value}"` → `BmsTokenTemplate`)
+- `parse.rs` — template string parser (`"#BPM{id} {value}"` or `"#TITLE {}"` → `BmsTokenTemplate`)
 - `codegen.rs` — generates `try_match_header` / `format_header` (command mode)
   and `BmsHeader::try_match_header` (dispatch mode)
 - `value_codegen.rs` — generates `FromStr` / `Display` (literal mode)

@@ -1,14 +1,42 @@
 //! Parser for `#[bms_token("...")]` attribute strings.
 //!
 //! Supported template patterns:
-//! - `"#TITLE {value}"`        — non-indexed with value
-//! - `"#BPM{id} {value}"`      — indexed with id + value
-//! - `"#ELSE"`                  — valueless
-//! - `"%URL {value}"`           — non-indexed with `%` prefix
-//! - `"#TEXT {value}"` (alias)  — multiple attrs on same variant
+//! - `"#TITLE {}"`              — non-indexed with unnamed value
+//! - `"#TITLE {value}"`         — non-indexed with named value
+//! - `"#BPM{id} {value}"`       — indexed with id + value
+//! - `"#BPM{} {}"`              — indexed with unnamed id + unnamed value
+//! - `"#ELSE"`                   — valueless
+//! - `"%URL {}"`                 — non-indexed with `%` prefix
+//! - `"#TEXT {text}"` (alias)    — multiple attrs on same variant
 //! - `"#BASE 62"`               — non-indexed with literal value (no placeholder)
 
 use std::fmt;
+
+/// Whether a placeholder in a template is named or unnamed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Placeholder {
+    /// A named placeholder like `{value}`, `{id}`, or `{filename}`.
+    Named(String),
+    /// An unnamed placeholder `{}` that binds to the unnamed field position.
+    Unnamed,
+}
+
+impl Placeholder {
+    /// If this is a named placeholder, return its name.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Named(n) => Some(n.as_str()),
+            Self::Unnamed => None,
+        }
+    }
+
+    /// `true` if this is a named placeholder.
+    #[must_use]
+    pub fn is_named(&self) -> bool {
+        matches!(self, Self::Named(_))
+    }
+}
 
 /// Parsed representation of a single `#[bms_token("...")]` attribute.
 #[derive(Debug, Clone)]
@@ -18,11 +46,10 @@ pub struct BmsTokenTemplate {
     /// Command name, uppercased (e.g., `"TITLE"`, `"BPM"`, `"URL"`).
     pub command: String,
     /// If `Some`, this is an indexed command (e.g., `#BPM{id}`) and the value
-    /// is the expected field name for the index (typically `"id"`).
-    pub id_field: Option<String>,
-    /// If `Some`, this command carries a placeholder value and the value is
-    /// the expected field name (e.g., `"value"`, `"filename"`).
-    pub value_field: Option<String>,
+    /// is the expected field reference for the index.
+    pub id_field: Option<Placeholder>,
+    /// If `Some`, this command carries a placeholder value (named or unnamed).
+    pub value_field: Option<Placeholder>,
     /// If `Some`, this command carries a fixed literal value (e.g., `"62"` in
     /// `#BASE 62`). Mutually exclusive with `value_field`.
     pub value_literal: Option<String>,
@@ -46,6 +73,38 @@ impl BmsTokenTemplate {
     #[must_use]
     pub fn is_literal_value(&self) -> bool {
         self.value_literal.is_some()
+    }
+
+    /// `true` if the command part's index placeholder is unnamed (`{}`).
+    #[must_use]
+    pub fn is_unnamed_id(&self) -> bool {
+        self.id_field.as_ref().is_some_and(|p| !p.is_named())
+    }
+
+    /// `true` if the value part's placeholder is unnamed (`{}`).
+    #[must_use]
+    pub fn is_unnamed_value(&self) -> bool {
+        self.value_field.as_ref().is_some_and(|p| !p.is_named())
+    }
+
+    /// Return the effective field name for the id placeholder.
+    /// For named placeholders returns the name; for unnamed returns `"id"`.
+    #[must_use]
+    pub fn id_field_name(&self) -> &str {
+        self.id_field
+            .as_ref()
+            .and_then(|p| p.name())
+            .unwrap_or("id")
+    }
+
+    /// Return the effective field name for the value placeholder.
+    /// For named placeholders returns the name; for unnamed returns `"value"`.
+    #[must_use]
+    pub fn value_field_name(&self) -> &str {
+        self.value_field
+            .as_ref()
+            .and_then(|p| p.name())
+            .unwrap_or("value")
     }
 }
 
@@ -122,7 +181,7 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
     // Extract value field placeholder or literal from value part.
     let (value_field, value_literal) = if has_value {
         match extract_value_part(value_part) {
-            Ok(ValuePart::Placeholder(name)) => (Some(name), None),
+            Ok(ValuePart::Placeholder(placeholder)) => (Some(placeholder), None),
             Ok(ValuePart::Literal(lit)) => (None, Some(lit)),
             Err(e) => return Err(e),
         }
@@ -139,16 +198,17 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
     })
 }
 
-/// Extract the command name and optional `{id}` placeholder from the command
+/// Extract the command name and optional `{...}` placeholder from the command
 /// portion of a template.
 ///
 /// `"TITLE"` → `("TITLE", None)`
-/// `"BPM{id}"` → `("BPM", Some("id"))`
+/// `"BPM{id}"` → `("BPM", Some(Placeholder::Named("id")))`
+/// `"BPM{}"` → `("BPM", Some(Placeholder::Unnamed))`
 ///
 /// # Errors
 ///
 /// Returns `TemplateParseError` if the braces are malformed.
-fn extract_command_and_id(part: &str) -> Result<(String, Option<String>), TemplateParseError> {
+fn extract_command_and_id(part: &str) -> Result<(String, Option<Placeholder>), TemplateParseError> {
     if let Some(open) = part.find('{') {
         if !part.ends_with('}') {
             return Err(TemplateParseError {
@@ -156,18 +216,18 @@ fn extract_command_and_id(part: &str) -> Result<(String, Option<String>), Templa
             });
         }
         let cmd = &part[..open];
-        let id_name = &part[open + 1..part.len() - 1];
+        let id_content = &part[open + 1..part.len() - 1];
         if cmd.is_empty() {
             return Err(TemplateParseError {
                 message: "command name is empty before '{'",
             });
         }
-        if id_name.is_empty() {
-            return Err(TemplateParseError {
-                message: "placeholder name in command part is empty",
-            });
-        }
-        Ok((cmd.to_owned(), Some(id_name.to_owned())))
+        let placeholder = if id_content.is_empty() {
+            Placeholder::Unnamed
+        } else {
+            Placeholder::Named(id_content.to_owned())
+        };
+        Ok((cmd.to_owned(), Some(placeholder)))
     } else {
         Ok((part.to_owned(), None))
     }
@@ -175,15 +235,16 @@ fn extract_command_and_id(part: &str) -> Result<(String, Option<String>), Templa
 
 /// The decoded value part of a template.
 enum ValuePart {
-    /// A placeholder like `{value}` or `{filename}`.
-    Placeholder(String),
+    /// A placeholder like `{}`, `{value}`, or `{filename}`.
+    Placeholder(Placeholder),
     /// A literal string like `62` in `#BASE 62`.
     Literal(String),
 }
 
-/// Extract the placeholder name or literal from the value part of a template.
+/// Extract the placeholder or literal from the value part of a template.
 ///
-/// `"{value}"` → `ValuePart::Placeholder("value")`
+/// `"{}"` → `ValuePart::Placeholder(Placeholder::Unnamed)`
+/// `"{value}"` → `ValuePart::Placeholder(Placeholder::Named("value"))`
 /// `"62"` → `ValuePart::Literal("62")`
 ///
 /// # Errors
@@ -196,14 +257,14 @@ fn extract_value_part(part: &str) -> Result<ValuePart, TemplateParseError> {
             message: "value part is empty",
         });
     }
-    if trimmed.starts_with('{') && trimmed.ends_with('}') && trimmed.len() >= 3 {
-        let name = &trimmed[1..trimmed.len() - 1];
-        if name.is_empty() {
-            return Err(TemplateParseError {
-                message: "placeholder name in value part is empty",
-            });
-        }
-        Ok(ValuePart::Placeholder(name.to_owned()))
+    if trimmed.starts_with('{') && trimmed.ends_with('}') && trimmed.len() >= 2 {
+        let content = &trimmed[1..trimmed.len() - 1];
+        let placeholder = if content.is_empty() {
+            Placeholder::Unnamed
+        } else {
+            Placeholder::Named(content.to_owned())
+        };
+        Ok(ValuePart::Placeholder(placeholder))
     } else {
         Ok(ValuePart::Literal(trimmed.to_owned()))
     }
@@ -213,16 +274,35 @@ fn extract_value_part(part: &str) -> Result<ValuePart, TemplateParseError> {
 mod tests {
     use super::*;
 
+    // ── Named value (non-indexed) ─────────────────────────────────────────
+
     #[test]
-    fn non_indexed_with_value() {
+    fn non_indexed_with_unnamed_value() {
+        let tmpl = parse_template_str("#TITLE {}").unwrap();
+        assert_eq!(tmpl.prefix, '#');
+        assert_eq!(tmpl.command, "TITLE");
+        assert!(!tmpl.is_indexed());
+        assert!(tmpl.value_field.is_some());
+        assert!(tmpl.is_unnamed_value());
+        assert!(!tmpl.value_field.as_ref().unwrap().is_named());
+        assert!(tmpl.value_literal.is_none());
+        assert!(!tmpl.is_literal_value());
+    }
+
+    #[test]
+    fn non_indexed_with_named_value() {
         let tmpl = parse_template_str("#TITLE {value}").unwrap();
         assert_eq!(tmpl.prefix, '#');
         assert_eq!(tmpl.command, "TITLE");
         assert!(!tmpl.is_indexed());
-        assert_eq!(tmpl.value_field.as_deref(), Some("value"));
+        assert_eq!(
+            tmpl.value_field.as_ref().and_then(|p| p.name()),
+            Some("value")
+        );
         assert!(tmpl.value_literal.is_none());
-        assert!(!tmpl.is_literal_value());
     }
+
+    // ── Indexed with named id + named value ───────────────────────────────
 
     #[test]
     fn indexed_with_id_and_value() {
@@ -230,9 +310,26 @@ mod tests {
         assert_eq!(tmpl.prefix, '#');
         assert_eq!(tmpl.command, "BPM");
         assert!(tmpl.is_indexed());
-        assert_eq!(tmpl.id_field.as_deref(), Some("id"));
-        assert_eq!(tmpl.value_field.as_deref(), Some("value"));
+        assert_eq!(tmpl.id_field.as_ref().and_then(|p| p.name()), Some("id"));
+        assert_eq!(
+            tmpl.value_field.as_ref().and_then(|p| p.name()),
+            Some("value")
+        );
     }
+
+    // ── Indexed with unnamed id + unnamed value ───────────────────────────
+
+    #[test]
+    fn indexed_with_unnamed_both() {
+        let tmpl = parse_template_str("#BPM{} {}").unwrap();
+        assert_eq!(tmpl.prefix, '#');
+        assert_eq!(tmpl.command, "BPM");
+        assert!(tmpl.is_indexed());
+        assert!(tmpl.is_unnamed_id());
+        assert!(tmpl.is_unnamed_value());
+    }
+
+    // ── Valueless ─────────────────────────────────────────────────────────
 
     #[test]
     fn valueless() {
@@ -245,13 +342,18 @@ mod tests {
         assert!(!tmpl.has_value());
     }
 
+    // ── Percent prefix ────────────────────────────────────────────────────
+
     #[test]
     fn percent_prefix() {
-        let tmpl = parse_template_str("%URL {value}").unwrap();
+        let tmpl = parse_template_str("%URL {}").unwrap();
         assert_eq!(tmpl.prefix, '%');
         assert_eq!(tmpl.command, "URL");
         assert!(tmpl.value_field.is_some());
+        assert!(tmpl.is_unnamed_value());
     }
+
+    // ── Indexed with filename ─────────────────────────────────────────────
 
     #[test]
     fn indexed_with_filename() {
@@ -259,9 +361,14 @@ mod tests {
         assert_eq!(tmpl.prefix, '#');
         assert_eq!(tmpl.command, "EXBMP");
         assert!(tmpl.is_indexed());
-        assert_eq!(tmpl.id_field.as_deref(), Some("id"));
-        assert_eq!(tmpl.value_field.as_deref(), Some("filename"));
+        assert_eq!(tmpl.id_field.as_ref().and_then(|p| p.name()), Some("id"));
+        assert_eq!(
+            tmpl.value_field.as_ref().and_then(|p| p.name()),
+            Some("filename")
+        );
     }
+
+    // ── Literal value ─────────────────────────────────────────────────────
 
     #[test]
     fn literal_value() {
@@ -275,6 +382,22 @@ mod tests {
         assert!(tmpl.has_value());
     }
 
+    // ── Named value `{value}` still works (backward compat for named fields) ─
+
+    #[test]
+    fn named_value_placeholder_preserved() {
+        let tmpl = parse_template_str("#TEXT{id} {value}").unwrap();
+        assert!(tmpl.is_indexed());
+        assert!(tmpl.id_field.as_ref().unwrap().is_named());
+        assert!(tmpl.value_field.as_ref().unwrap().is_named());
+        assert_eq!(
+            tmpl.value_field.as_ref().and_then(|p| p.name()),
+            Some("value")
+        );
+    }
+
+    // ── Error cases ───────────────────────────────────────────────────────
+
     #[test]
     fn empty_template_errors() {
         assert!(parse_template_str("").is_err());
@@ -282,11 +405,19 @@ mod tests {
 
     #[test]
     fn missing_prefix_errors() {
-        assert!(parse_template_str("TITLE {value}").is_err());
+        assert!(parse_template_str("TITLE {}").is_err());
     }
 
     #[test]
     fn unclosed_brace_errors() {
         assert!(parse_template_str("#BPM{id {value}").is_err());
+    }
+
+    #[test]
+    fn indexed_with_unnamed_id() {
+        let tmpl = parse_template_str("#BPM{} {value}").unwrap();
+        assert!(tmpl.is_indexed());
+        assert!(tmpl.is_unnamed_id());
+        assert!(tmpl.value_field.as_ref().unwrap().is_named());
     }
 }

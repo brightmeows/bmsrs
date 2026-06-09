@@ -86,7 +86,7 @@ pub enum BmsHeaderTiming {
     /// Default when omitted: `130` (spec), but players vary (nanasi:
     /// `150`; nazo/BMSE: `120`; fgt++: `30`; fgt#/pomu2: `0`).
     /// Supports fractional values in most players.
-    #[bms_token("#BPM {value}")]
+    #[bms_token("#BPM {}")]
     Bpm(f64),
     /// `#BPM{id}` — extended BPM definition (bemaniaDX origin).
     ///
@@ -111,7 +111,7 @@ pub enum BmsHeaderTiming {
     /// Used when the chart has short extreme BPM spikes.  Normally the
     /// player's auto-speed uses the max BPM, but `#BASEBPM` lets the
     /// charter specify a more practical reference value.
-    #[bms_token("#BASEBPM {value}")]
+    #[bms_token("#BASEBPM {}")]
     BaseBpm(f64),
     /// `#STOP{id}` — DDR-type stop (192nd-note units).
     ///

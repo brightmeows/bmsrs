@@ -17,7 +17,7 @@ pub enum BmsHeaderMetadata<'a> {
     /// (nanasi).  No length limit in the spec, but some players truncate
     /// or crash on very long titles (DDR: 500 byte limit).  May contain
     /// multi-byte characters depending on the file's encoding.
-    #[bms_token("#TITLE {value}")]
+    #[bms_token("#TITLE {}")]
     Title(&'a str),
     /// `#SUBTITLE` — explicit subtitle (nanasi extension).
     ///
@@ -26,37 +26,37 @@ pub enum BmsHeaderMetadata<'a> {
     /// to split the title.  Implicit subtitle handling varies by player.
     ///
     /// Multiple `#SUBTITLE` lines are supported by Sonorous.
-    #[bms_token("#SUBTITLE {value}")]
+    #[bms_token("#SUBTITLE {}")]
     Subtitle(&'a str),
     /// `#ARTIST` — song artist / composer.
-    #[bms_token("#ARTIST {value}")]
+    #[bms_token("#ARTIST {}")]
     Artist(&'a str),
     /// `#SUBARTIST` — co-creators (LR2 extension).
     ///
     /// Typically used for BGA authors, charter, etc.  Displayed
     /// differently from `#ARTIST` in supporting players.
     /// Multiple `#SUBARTIST` lines are supported by `TechnicalGroove`.
-    #[bms_token("#SUBARTIST {value}")]
+    #[bms_token("#SUBARTIST {}")]
     SubArtist(&'a str),
     /// `#GENRE` or `#GENLE` — music genre.
     ///
     /// `#GENLE` is a typo alias (uBMplay); both map to the same variant.
     /// Default when omitted: empty string.
-    #[bms_token("#GENRE {value}")]
-    #[bms_token("#GENLE {value}")]
+    #[bms_token("#GENRE {}")]
+    #[bms_token("#GENLE {}")]
     Genre(&'a str),
     /// `#MAKER` — BMS chart author name (bemaniaDX extension).
     ///
     /// Distinguishes the charter from the music composer.  Not displayed
     /// during gameplay — pure metadata.
-    #[bms_token("#MAKER {value}")]
+    #[bms_token("#MAKER {}")]
     Maker(&'a str),
     /// `#COMMENT` — text shown in the song-selection list (pomu extension).
     ///
     /// May be wrapped in double quotes for empty strings, but parsers
     /// should not rely on the quotes being present (legacy charts omit
     /// them).  Multiple `#COMMENT` lines are supported by Sonorous.
-    #[bms_token("#COMMENT {value}")]
+    #[bms_token("#COMMENT {}")]
     Comment(&'a str),
     /// `#TEXT[00-ZZ]` or `#SONG[01-ZZ]` — timed on-screen text (pomu extension).
     ///
@@ -78,16 +78,16 @@ pub enum BmsHeaderMetadata<'a> {
     /// Values: `EUC-KR`, `SHIFT-JIS`, `UTF-8`.  Modern ruvit (2.0b5p2+)
     /// auto-detects encoding and ignores this command.  For new charts,
     /// save as UTF-8 (with or without BOM).
-    #[bms_token("#CHARSET {value}")]
+    #[bms_token("#CHARSET {}")]
     Charset(&'a str),
     /// `%URL` — author's website URL (BMS Manager extension).
     ///
     /// **Caveat**: BMSE and iBMSC delete `%URL` on save.
-    #[bms_token("%URL {value}")]
+    #[bms_token("%URL {}")]
     Url(&'a str),
     /// `%EMAIL` — author's email address (BMS Manager extension).
     ///
     /// **Caveat**: BMSE and iBMSC delete `%EMAIL` on save.
-    #[bms_token("%EMAIL {value}")]
+    #[bms_token("%EMAIL {}")]
     Email(&'a str),
 }
