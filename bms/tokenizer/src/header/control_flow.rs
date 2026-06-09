@@ -54,7 +54,15 @@ pub enum BmsHeaderControlFlow {
     #[bms_token("#ELSE")]
     Else,
     /// `#ENDIF` — close the current `#IF` / `#ELSEIF` / `#ELSE` chain.
+    ///
+    /// Common typos from various engines:
+    /// - `#END IF` (IIDXv/HDX, misunderstood spacing)
+    /// - `#END` (Angolmois/Sonorous, partial match)
+    /// - `#IFEND` (alternative order)
     #[bms_token("#ENDIF")]
+    #[bms_token("#END IF")]
+    #[bms_token("#END")]
+    #[bms_token("#IFEND")]
     EndIf,
     /// `#SWITCH N` — start a switch block with `N` cases.
     ///

@@ -2,65 +2,51 @@
 
 First stage of `tokenizer → parser → processor`.
 
+## Scope
+
+The tokenizer is a syntactic pass. Every token exists solely for:
+1. **Roundtrip fidelity** — `format_header` reproduces the original line.
+2. **Syntax validation** — verifies well-formedness.
+
+All semantic interpretation is the responsibility of downstream stages
+(parser/processor).
+
 ## Zero-copy
 
 All `&'a str` fields borrow from input. Don't `.to_owned()` unnecessarily.
 
-## Entry point
+## Usage
 
-`BmsTokenizer` (builder pattern).  `tokenize<C: FromIterator<...>>` returns
-`C<(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)>` — one entry per
-meaningful line, line numbers skip empty/comment lines.
-
-## Public API
-
-All types re-exported from `lib.rs`. Import from crate root, not submodules.
+`BmsTokenizer` (builder). `tokenize<C>` returns per-line results.
+Import from crate root, not submodules.
 
 ## New headers
 
-Add a variant annotated with `#[bms_token("...")]` to the appropriate domain
-enum (e.g., `BmsHeaderMetadata`).  The derive macro generates
-`try_match_header` and `format_header` automatically.  All headers must use
-this flow — no command-specific parse logic in `parse_header_line`.
+Add `#[bms_token("...")]` variant to the appropriate domain enum.
+Derive generates everything — no custom logic in `parse_header_line`.
 
-Parsing proceeds in three layers:
+Three-layer parse:
 
-1. **Command match** (derive): match command name, extract `{id}` index.
-2. **Value parse** (derive calls per-field): `FromStr` for simple types,
-   `BmsValue::parse` for complex structs.  Literal enums use
-   `#[derive(BmsTokenAttr)]`; constrained types with fallback (e.g.
-   `Rank`) hand-write `FromStr` + `Display`; multi-field values (e.g.
-   `StpParams`, `BgaParams`) implement `BmsValue<'a>`.
-3. **Fallback** (opt-in via `#[bms_fallback]`): parse failure yields
-   `Ok(None)`, eventually reaching `BmsHeaderFallback`.  Without it,
-   failures are hard errors.
+1. **Command match** (derive) — match command, extract `{id}`.
+2. **Value parse** (derive per-field) — `FromStr`, `BmsValue::parse`, or
+   `#[derive(BmsTokenAttr)]` for literal enums.
+3. **Fallback** (`#[bms_fallback]`) — failure → `Ok(None)` → `BmsHeaderFallback`.
+   Without it, failures are hard errors.
 
-`parse_header_line` does only prefix detection, command/value splitting,
-and `%`-command filtering — no command-specific logic.
+### Value types
 
-For commands with non-trivial value types, add `#[bms_fallback]` to the
-variant — parse failures return `Ok(None)` (falling through to
-`BmsHeaderFallback`) instead of hard errors.
-
-## Value types
-
-Implement `BmsValue<'a>` (or `FromStr + Display` — blanket impl covers it)
-for custom value types used in header variants.  Literal enums use
-`#[derive(BmsTokenAttr)]`; constrained numeric types with fallback
-(e.g. `Rank`) hand-write `FromStr` + `Display`.
-
-### Error mapping
-
-Parse failures become [`BmsTokenizeError`] via [`IntoTokensError`].
-Built-in impls cover `ParseIntError`/`ParseFloatError` and common BMS types
-(`ParseBmsValueError`, `BmsChannelIdError`, `ParseDifficultyError`).
-Custom `FromStr` types implement `IntoTokensError` to choose the variant;
-no error attributes go on header variants.
+Implement `BmsValue<'a>` (or `FromStr + Display` — blanket impl).
+`ParseBmsValueError`, `BmsChannelIdError`, `ParseDifficultyError` have
+built-in `IntoTokensError` impls. Custom `FromStr` types can implement
+`IntoTokensError` to choose the error variant.
 
 ## Dispatch
 
-No build script.  `BmsHeader` uses `#[derive(BmsTokenAttr)]` in dispatch
-mode (auto-detected: no `#[bms_token]`, all single-tuple variants).  The
-derive generates `BmsHeader::try_match_header` which calls each sub-enum's
-`try_match_header` in declaration order.  Variants with `#[bms_fallback]`
-(e.g., the `Fallback` catch-all) are excluded from dispatch.
+No build script. `BmsHeader` uses `#[derive(BmsTokenAttr)]` in dispatch
+mode (no `#[bms_token]`, single-tuple variants). Variants with
+`#[bms_fallback]` are excluded from dispatch.
+
+## `#BASE`
+
+Tokenized as a plain header (`BmsHeaderGameplay::Base(BmsBaseMode)`) — no
+charset switching or case-folding.

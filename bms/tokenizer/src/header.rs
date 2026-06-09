@@ -10,7 +10,7 @@ mod timing;
 
 pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
-pub use gameplay::{BmsHeaderGameplay, LnMode, LnType, PlayerMode, Rank};
+pub use gameplay::{BmsBaseMode, BmsHeaderGameplay, LnMode, LnType, PlayerMode, Rank};
 pub use metadata::BmsHeaderMetadata;
 pub use res_def_audio::{BmsHeaderResDefAudio, ExWavParams};
 pub use res_def_visual::{
@@ -1115,14 +1115,35 @@ mod tests {
     }
 
     #[test]
-    fn parse_base62() {
-        let result = parse_header_line("#BASE 62").unwrap().unwrap();
-        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Base62));
+    fn parse_base_16() {
+        let result = parse_header_line("#BASE 16").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base16))
+        );
     }
 
     #[test]
-    fn parse_base_other_fallback() {
+    fn parse_base_36() {
         let result = parse_header_line("#BASE 36").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base36))
+        );
+    }
+
+    #[test]
+    fn parse_base_62() {
+        let result = parse_header_line("#BASE 62").unwrap().unwrap();
+        assert_eq!(
+            result,
+            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base62))
+        );
+    }
+
+    #[test]
+    fn parse_base_unknown_fallback() {
+        let result = parse_header_line("#BASE 99").unwrap().unwrap();
         assert!(matches!(result, BmsHeader::Fallback(_)));
     }
 }

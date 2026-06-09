@@ -1,9 +1,9 @@
 //! Gameplay behaviour headers: `#PLAYER`, `#RANK`, `#TOTAL`, `#VOLWAV`,
 //! `#LNTYPE`, `#LNOBJ`, `#LNMODE`, `#OCT/FP`, `#OPTION`, `#CHANGEOPTION`,
-//! `#BASE 62`.
+//! `#BASE`.
 //!
 //! This module also defines the domain types used by [`BmsHeaderGameplay`]:
-//! [`PlayerMode`], [`Rank`], [`LnType`], and [`LnMode`].
+//! [`PlayerMode`], [`Rank`], [`LnType`], [`LnMode`], and [`BmsBaseMode`].
 
 use std::fmt;
 use std::str::FromStr;
@@ -169,6 +169,29 @@ impl fmt::Display for Rank {
     }
 }
 
+/// The base numbering mode declared by `#BASE`.
+///
+/// Controls the character set used for two-character indices in
+/// `#WAV`, `#BMP`, `#BPM`, `#STOP`, `#SCROLL`, `#SPEED`, and `#LNOBJ`.
+///
+/// | Value | Slots | Charset | Notes |
+/// |-------|-------|---------|-------|
+/// | `16`  | 256   | `[0-9A-F]` | Original BM98 format |
+/// | `36`  | 1296  | `[0-9A-Z]` | Modern default (no `#BASE` = 36) |
+/// | `62`  | 3844  | `[0-9A-Za-z]` | beatoraja extension |
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
+pub enum BmsBaseMode {
+    /// `#BASE 16` — hexadecimal (256 slots).
+    #[bms_token("16")]
+    Base16,
+    /// `#BASE 36` — base-36 uppercase (1296 slots). Default when omitted.
+    #[bms_token("36")]
+    Base36,
+    /// `#BASE 62` — case-sensitive base-62 (3844 slots, beatoraja extension).
+    #[bms_token("62")]
+    Base62,
+}
+
 /// Gameplay behaviour headers.
 ///
 /// These commands control *how* the chart plays — judgment strictness,
@@ -277,13 +300,14 @@ pub enum BmsHeaderGameplay<'a> {
         /// The option string (e.g., `"774:HIDDEN_STEALTH"`).
         value: &'a str,
     },
-    /// `#BASE 62` — declare base-62 indexing for all indexed commands.
+    /// `#BASE` — declare the numbering base for indexed commands.
     ///
-    /// When present, `#WAVxx`, `#BMPxx`, `#BPMxx`, `#STOPxx`, etc. accept
-    /// `[0-9A-Za-z]` (62 values per digit, 3844 total with 2-char IDs)
-    /// instead of the default base-36 `[0-9A-Z]` (1296 total).
-    #[bms_token("#BASE 62")]
-    Base62,
+    /// Valid values: `16` (hex, 256 slots), `36` (base-36, 1296 slots, default),
+    /// `62` (case-sensitive base-62, 3844 slots, beatoraja extension).
+    /// Unknown values fall through to `BmsHeaderFallback`.
+    #[bms_token("#BASE {value}")]
+    #[bms_fallback]
+    Base(BmsBaseMode),
 }
 
 #[cfg(test)]
