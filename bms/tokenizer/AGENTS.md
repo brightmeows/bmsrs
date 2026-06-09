@@ -49,6 +49,14 @@ for custom value types used in header variants.  Literal enums use
 `#[derive(BmsTokenAttr)]`; constrained numeric types with fallback
 (e.g. `Rank`) hand-write `FromStr` + `Display`.
 
+### Error mapping
+
+Parse failures become [`BmsTokenizeError`] via [`IntoTokensError`].
+Built-in impls cover `ParseIntError`/`ParseFloatError` and common BMS types
+(`ParseBmsValueError`, `BmsChannelIdError`, `ParseDifficultyError`).
+Custom `FromStr` types implement `IntoTokensError` to choose the variant;
+no error attributes go on header variants.
+
 ## Dispatch
 
 No build script.  `BmsHeader` uses `#[derive(BmsTokenAttr)]` in dispatch

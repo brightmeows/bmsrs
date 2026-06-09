@@ -8,30 +8,6 @@ use syn::spanned::Spanned;
 
 use crate::parse::BmsTokenTemplate;
 
-/// Read `#[bms_detail("...")]` from a variant's attributes.
-///
-/// Returns a `TokenStream` containing a string literal with the detail text
-/// wrapped as `" (xxx)"` for direct use in error construction.
-/// Returns `""` when no `#[bms_detail]` attribute is present.
-fn get_bms_detail(variant: &syn::Variant) -> TokenStream {
-    let detail = variant
-        .attrs
-        .iter()
-        .find(|a| a.path().is_ident("bms_detail"))
-        .and_then(|a| a.parse_args::<syn::LitStr>().ok())
-        .map(|lit| {
-            let raw = lit.value();
-            if raw.is_empty() {
-                String::new()
-            } else {
-                format!(" ({raw})")
-            }
-        })
-        .unwrap_or_default();
-    let lit = syn::LitStr::new(&detail, variant.span());
-    quote! { #lit }
-}
-
 /// Generate the `BmsToken` impl block for a header sub-enum.
 pub fn generate_impl(
     enum_name: &syn::Ident,
@@ -218,41 +194,33 @@ fn exact_unnamed_branch(
     cmd_str: &str,
     context_str: &str,
     is_fallback: bool,
-    variant: &syn::Variant,
+    _variant: &syn::Variant,
 ) -> (TokenStream, TokenStream) {
     let cond = quote! { command.eq_ignore_ascii_case(#cmd_str) };
+    let map_body = |body| (cond, body);
 
     if is_str_ref(field_ty) {
-        (
-            cond,
-            quote! { return Ok(Some(Self::#command_ident(value))); },
-        )
-    } else if is_fallback {
-        (
-            cond,
-            quote! {
-                let Some(__value) = <#field_ty as crate::BmsValue>::parse(value) else {
-                    return Ok(None);
-                };
-                return Ok(Some(Self::#command_ident(__value)));
-            },
-        )
-    } else {
-        let detail = get_bms_detail(variant);
-        (
-            cond,
-            quote! {
-                let __value: #field_ty = value.parse().map_err(|_|
-                    crate::BmsTokenizeError::InvalidValue {
-                        context: #context_str,
-                        value,
-                        detail: #detail,
-                    }
-                )?;
-                return Ok(Some(Self::#command_ident(__value)));
-            },
-        )
+        return map_body(quote! { return Ok(Some(Self::#command_ident(value))); });
     }
+
+    if is_fallback {
+        return map_body(quote! {
+            let Some(__value) = <#field_ty as crate::BmsValue>::parse(value) else {
+                return Ok(None);
+            };
+            return Ok(Some(Self::#command_ident(__value)));
+        });
+    }
+
+    // All other fields: unified IntoTokensError conversion.
+    map_body(quote! {
+        let __value: #field_ty = value.parse().map_err(|e|
+            <<#field_ty as ::std::str::FromStr>::Err as crate::IntoTokensError>::into_error(
+                e, #context_str, value,
+            )
+        )?;
+        return Ok(Some(Self::#command_ident(__value)));
+    })
 }
 
 /// Generate a branch for a struct variant, parsing the value field.
@@ -262,51 +230,43 @@ fn exact_named_field_branch(
     cmd_str: &str,
     context_str: &str,
     is_fallback: bool,
-    variant: &syn::Variant,
+    _variant: &syn::Variant,
 ) -> (TokenStream, TokenStream) {
     let field_ty = &field.ty;
     let field_ident = &field.ident;
     let cond = quote! { command.eq_ignore_ascii_case(#cmd_str) };
+    let map_body = |body| (cond, body);
 
     if is_str_ref(field_ty) {
-        (
-            cond,
-            quote! {
-                return Ok(Some(Self::#command_ident {
-                    #field_ident: value,
-                }));
-            },
-        )
-    } else if is_fallback {
-        (
-            cond,
-            quote! {
-                let Some(#field_ident) = <#field_ty as crate::BmsValue>::parse(value) else {
-                    return Ok(None);
-                };
-                return Ok(Some(Self::#command_ident {
-                    #field_ident,
-                }));
-            },
-        )
-    } else {
-        let detail = get_bms_detail(variant);
-        (
-            cond,
-            quote! {
-                let #field_ident: #field_ty = value.parse().map_err(|_|
-                    crate::BmsTokenizeError::InvalidValue {
-                        context: #context_str,
-                        value,
-                        detail: #detail,
-                    }
-                )?;
-                return Ok(Some(Self::#command_ident {
-                    #field_ident,
-                }));
-            },
-        )
+        return map_body(quote! {
+            return Ok(Some(Self::#command_ident {
+                #field_ident: value,
+            }));
+        });
     }
+
+    if is_fallback {
+        return map_body(quote! {
+            let Some(#field_ident) = <#field_ty as crate::BmsValue>::parse(value) else {
+                return Ok(None);
+            };
+            return Ok(Some(Self::#command_ident {
+                #field_ident,
+            }));
+        });
+    }
+
+    // All other fields: unified IntoTokensError conversion.
+    map_body(quote! {
+        let #field_ident: #field_ty = value.parse().map_err(|e|
+            <<#field_ty as ::std::str::FromStr>::Err as crate::IntoTokensError>::into_error(
+                e, #context_str, value,
+            )
+        )?;
+        return Ok(Some(Self::#command_ident {
+            #field_ident,
+        }));
+    })
 }
 
 /// Generate prefix/length checks and variant construction for an indexed
@@ -359,13 +319,13 @@ fn build_indexed_variant_body(
         let field_ty = &field.ty;
 
         if field_name == id_field_name {
+            // Index (command suffix) parsing: unified IntoTokensError.
             field_inits.extend(quote! {
-                let #field_ident: #field_ty = __idx.parse().map_err(|_|
-                    crate::BmsTokenizeError::InvalidValue {
-                        context: #context_str,
-                        value: __idx,
-                        detail: "",
-                    }
+                let #field_ident: #field_ty = __idx.parse().map_err(|e|
+                    <<#field_ty as ::std::str::FromStr>::Err
+                        as crate::IntoTokensError>::into_error(
+                        e, #context_str, __idx,
+                    )
                 )?;
             });
         } else if is_str_ref(field_ty) {
@@ -379,14 +339,13 @@ fn build_indexed_variant_body(
                 };
             });
         } else {
-            let detail = get_bms_detail(variant);
+            // Value fields: unified IntoTokensError.
             field_inits.extend(quote! {
-                let #field_ident: #field_ty = value.parse().map_err(|_|
-                    crate::BmsTokenizeError::InvalidValue {
-                        context: #context_str,
-                        value,
-                        detail: #detail,
-                    }
+                let #field_ident: #field_ty = value.parse().map_err(|e|
+                    <<#field_ty as ::std::str::FromStr>::Err
+                        as crate::IntoTokensError>::into_error(
+                        e, #context_str, value,
+                    )
                 )?;
             });
         }

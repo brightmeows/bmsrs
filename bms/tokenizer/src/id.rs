@@ -22,6 +22,8 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
+use crate::IntoTokensError;
+
 /// Character set constraint for [`BmsChannelId`].
 ///
 /// Implementations define which bytes are valid for a given index context.
@@ -217,6 +219,12 @@ fn base36_digit_value(b: u8) -> Option<u16> {
 pub struct BmsChannelIdError {
     /// The raw string that failed validation.
     pub input: String,
+}
+
+impl<'a> IntoTokensError<'a> for BmsChannelIdError {
+    fn into_error(self, _context: &'static str, value: &'a str) -> crate::BmsTokenizeError<'a> {
+        crate::BmsTokenizeError::InvalidInteger { value }
+    }
 }
 
 // Tag types — zero-sized, never instantiated.

@@ -26,7 +26,7 @@ mod id;
 mod message;
 
 pub use bms_tokenizer_derive::BmsTokenAttr;
-pub use error::{BmsTokenizeError, ParseBmsValueError};
+pub use error::{BmsTokenizeError, IntoTokensError, ParseBmsValueError};
 pub use header::{
     ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
     ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams,

@@ -8,62 +8,124 @@ use thiserror::Error;
 
 /// Errors that can occur during BMS tokenization.
 ///
-/// Variants are categorised into four groups:
-/// - **Structural** — the line itself has invalid syntax.
-/// - **Numeric** — a numeric field failed to parse (std errors, owned).
-/// - **Invalid value** — the input is not a recognised value for its domain.
+/// Every variant carries the original input `value` so callers can inspect or
+/// display the raw text that caused the failure.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum BmsTokenizeError<'a> {
     /// The measure number in a channel line is not a valid 3-digit value.
-    #[error("invalid measure number: \"{0}\"")]
-    InvalidMeasure(&'a str),
-    /// The channel number in a channel line is not a valid 2-digit value.
-    #[error("invalid channel number: \"{0}\"")]
-    InvalidChannel(&'a str),
-
-    /// An integer field could not be parsed.
-    #[error("invalid integer: {0}")]
-    InvalidInteger(String),
-    /// A float field could not be parsed.
-    #[error("invalid float: {0}")]
-    InvalidFloat(String),
-
-    /// The input is not a recognised value for its domain.
-    ///
-    /// When `detail` is empty string, no additional hint is appended.
-    #[error("invalid value \"{value}\" for {context}{detail}")]
-    InvalidValue {
-        /// The header command name (e.g., `"#PLAYER"`).
-        context: &'static str,
-        /// The raw input that failed to parse.
+    #[error("invalid measure number: \"{value}\"")]
+    InvalidMeasure {
+        /// The raw measure string that failed validation.
         value: &'a str,
-        /// Contextual hint (e.g., `" (expected 1-5)"`) or `""` for none.
-        detail: &'static str,
     },
+    /// The channel number in a channel line is not a valid 2-digit value.
+    #[error("invalid channel number: \"{value}\"")]
+    InvalidChannel {
+        /// The raw channel string that failed validation.
+        value: &'a str,
+    },
+    /// An integer field could not be parsed.
+    #[error("invalid integer: \"{value}\"")]
+    InvalidInteger {
+        /// The raw input that could not be parsed as an integer.
+        value: &'a str,
+    },
+    /// A float field could not be parsed.
+    #[error("invalid float: \"{value}\"")]
+    InvalidFloat {
+        /// The raw input that could not be parsed as a float.
+        value: &'a str,
+    },
+    /// The input is not a recognised value for its context.
+    ///
+    /// This covers both "out of range" (the value has the right shape but
+    /// falls outside valid bounds) and "unrecognised" (the value does not
+    /// match any known option for a literal enum).  When no specific valid
+    /// set is available, `expected` is the empty string.
+    #[error("value out of range: \"{value}\" for {context} (expected {expected})")]
+    OutOfRange {
+        /// The header command name (e.g., `"#DIFFICULTY"`).
+        context: &'static str,
+        /// The raw input that is out of range or unrecognised.
+        value: &'a str,
+        /// A description of the valid range (e.g., `"1-5"`, `"1 or 2"`), or
+        /// the empty string when no specific hint is available.
+        expected: &'static str,
+    },
+}
+
+/// Conversion from a `FromStr::Err` into a [`BmsTokenizeError`].
+///
+/// The derive macro for `#[derive(BmsTokenAttr)]` calls this trait to
+/// transform any parse error into the tokenizer's unified error type.
+/// Implementations are provided for [`ParseIntError`], [`ParseFloatError`],
+/// [`ParseBmsValueError`], and — for custom `FromStr` impls that already
+/// produce a `BmsTokenizeError` — [`BmsTokenizeError`] itself (identity).
+pub trait IntoTokensError<'a> {
+    /// Convert this error into a `BmsTokenizeError`.
+    ///
+    /// * `context` — the header command name (e.g. `"#PLAYER"`).
+    /// * `value` — the raw input string that failed to parse.
+    fn into_error(self, context: &'static str, value: &'a str) -> BmsTokenizeError<'a>;
+}
+
+impl<'a> IntoTokensError<'a> for BmsTokenizeError<'a> {
+    fn into_error(self, context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+        match self {
+            BmsTokenizeError::OutOfRange {
+                context: "",
+                expected,
+                ..
+            } => BmsTokenizeError::OutOfRange {
+                context,
+                value,
+                expected,
+            },
+            other => other,
+        }
+    }
+}
+
+impl<'a> IntoTokensError<'a> for ParseIntError {
+    fn into_error(self, _context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+        BmsTokenizeError::InvalidInteger { value }
+    }
+}
+
+impl<'a> IntoTokensError<'a> for ParseFloatError {
+    fn into_error(self, _context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+        BmsTokenizeError::InvalidFloat { value }
+    }
+}
+
+impl<'a> IntoTokensError<'a> for ParseBmsValueError {
+    fn into_error(self, context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+        BmsTokenizeError::OutOfRange {
+            context,
+            value,
+            expected: self.0,
+        }
+    }
 }
 
 /// The input could not be parsed as the expected BMS value type.
 ///
-/// Returned by [`std::str::FromStr`] impls generated by `#[derive(BmsValue)]`.
+/// Returned by [`std::str::FromStr`] impls generated by `#[derive(BmsTokenAttr)]`
+/// in literal mode.
+///
+/// When non-empty, the string provides a human-readable hint about the expected
+/// values (e.g., `"expected 1 or 2"`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseBmsValueError;
+pub struct ParseBmsValueError(pub &'static str);
 
 impl fmt::Display for ParseBmsValueError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid BMS value")
+        if self.0.is_empty() {
+            write!(f, "invalid BMS value")
+        } else {
+            write!(f, "expected {}", self.0)
+        }
     }
 }
 
 impl std::error::Error for ParseBmsValueError {}
-
-impl From<ParseIntError> for BmsTokenizeError<'_> {
-    fn from(e: ParseIntError) -> Self {
-        BmsTokenizeError::InvalidInteger(e.to_string())
-    }
-}
-
-impl From<ParseFloatError> for BmsTokenizeError<'_> {
-    fn from(e: ParseFloatError) -> Self {
-        BmsTokenizeError::InvalidFloat(e.to_string())
-    }
-}

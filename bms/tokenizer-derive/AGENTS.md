@@ -32,6 +32,15 @@ Proc-macro crate for `#[derive(BmsTokenAttr)]` — handles all
 - `#[bms_fallback]` — in command mode: parse failure → `Ok(None)`;
   in dispatch mode: skip this variant
 
+## Error mapping
+
+The macro converts every `FromStr::Err` into a [`BmsTokenizeError`] via
+[`IntoTokensError`].  Built-in impls exist for `ParseIntError`/`ParseFloatError`
+and common BMS errors (`ParseBmsValueError`, `BmsChannelIdError`,
+`ParseDifficultyError`).  Custom `FromStr` types implement `IntoTokensError`
+to control which error variant is produced — no attributes needed on the
+header variant.
+
 ## Testing
 
 Tested indirectly via `bms-tokenizer`'s roundtrip tests (`bms_token.rs`).

@@ -9,6 +9,7 @@ use std::str::FromStr;
 use thiserror::Error;
 
 use crate::BmsTokenAttr;
+use crate::IntoTokensError;
 
 /// The difficulty category specified by `#DIFFICULTY` (values 1–5).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,6 +27,16 @@ impl DifficultyLevel {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("invalid #DIFFICULTY value: {0} (expected 1-5)")]
 pub struct ParseDifficultyError(pub String);
+
+impl<'a> IntoTokensError<'a> for ParseDifficultyError {
+    fn into_error(self, context: &'static str, value: &'a str) -> crate::BmsTokenizeError<'a> {
+        crate::BmsTokenizeError::OutOfRange {
+            context,
+            value,
+            expected: "1-5",
+        }
+    }
+}
 
 impl FromStr for DifficultyLevel {
     type Err = ParseDifficultyError;
@@ -79,7 +90,6 @@ pub enum BmsHeaderDisplay<'a> {
     PlayLevel(f64),
     /// `#DIFFICULTY`
     #[bms_token("#DIFFICULTY {value}")]
-    #[bms_detail("expected 1-5")]
     Difficulty(DifficultyLevel),
     /// `#PREVIEW` (beatoraja extension)
     #[bms_token("#PREVIEW {value}")]

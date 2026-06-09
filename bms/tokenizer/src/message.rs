@@ -49,17 +49,24 @@ pub(crate) fn parse_message_line(
         return Ok(None);
     }
 
-    let (channel_str, values_str) = rest[3..]
-        .split_once(':')
-        .ok_or(BmsTokenizeError::InvalidChannel("missing colon"))?;
+    let (channel_str, values_str) =
+        rest[3..]
+            .split_once(':')
+            .ok_or(BmsTokenizeError::InvalidChannel {
+                value: "missing colon",
+            })?;
 
-    // 3 decimal digits (000–999) always fit in u16; `?` is for type-correctness.
-    let measure: u16 = measure_str.parse()?;
+    // 3 decimal digits (000–999) always fit in u16.
+    // The `?` operator previously used From<ParseIntError> which is now removed;
+    // we map the error to InvalidMeasure for consistency.
+    let measure: u16 = measure_str
+        .parse()
+        .map_err(|_| BmsTokenizeError::InvalidMeasure { value: measure_str })?;
 
     // Channel is 2 hex characters (e.g., "0A", "D1", "11").
     let channel: BmsChannelId<ChannelTag, Hex> = channel_str
         .try_into()
-        .map_err(|_| BmsTokenizeError::InvalidChannel(channel_str))?;
+        .map_err(|_| BmsTokenizeError::InvalidChannel { value: channel_str })?;
 
     Ok(Some(BmsMessage {
         measure,
