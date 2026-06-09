@@ -27,6 +27,9 @@ mod header;
 mod id;
 mod message;
 
+#[cfg(test)]
+mod derive_tests;
+
 pub use bms_tokenizer_derive::BmsTokenAttr;
 pub use error::{BmsTokenizeError, IntoTokensError, ParseBmsValueError};
 pub use header::{

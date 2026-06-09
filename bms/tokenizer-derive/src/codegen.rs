@@ -202,30 +202,19 @@ fn exact_unnamed_branch(
     _variant: &syn::Variant,
 ) -> (TokenStream, TokenStream) {
     let cond = quote! { command.eq_ignore_ascii_case(#cmd_str) };
-    let map_body = |body| (cond, body);
-
-    if is_str_ref(field_ty) {
-        return map_body(quote! { return Ok(Some(Self::#command_ident(value))); });
-    }
-
-    if is_fallback {
-        return map_body(quote! {
-            let Some(__value) = <#field_ty as crate::BmsValue>::parse(value) else {
-                return Ok(None);
-            };
-            return Ok(Some(Self::#command_ident(__value)));
-        });
-    }
-
-    // All other fields: unified IntoTokensError conversion.
-    map_body(quote! {
-        let __value: #field_ty = value.parse().map_err(|e|
-            <<#field_ty as ::std::str::FromStr>::Err as crate::IntoTokensError>::into_error(
-                e, #context_str, value,
-            )
-        )?;
-        return Ok(Some(Self::#command_ident(__value)));
-    })
+    let __value = format_ident!("__value");
+    let init = gen_field_parse(
+        &quote!(#__value),
+        field_ty,
+        &quote!(value),
+        context_str,
+        is_fallback,
+    );
+    let body = quote! {
+        #init
+        return Ok(Some(Self::#command_ident(#__value)));
+    };
+    (cond, body)
 }
 
 /// Generate a branch for a struct variant, parsing the value field.
@@ -240,38 +229,20 @@ fn exact_named_field_branch(
     let field_ty = &field.ty;
     let field_ident = &field.ident;
     let cond = quote! { command.eq_ignore_ascii_case(#cmd_str) };
-    let map_body = |body| (cond, body);
-
-    if is_str_ref(field_ty) {
-        return map_body(quote! {
-            return Ok(Some(Self::#command_ident {
-                #field_ident: value,
-            }));
-        });
-    }
-
-    if is_fallback {
-        return map_body(quote! {
-            let Some(#field_ident) = <#field_ty as crate::BmsValue>::parse(value) else {
-                return Ok(None);
-            };
-            return Ok(Some(Self::#command_ident {
-                #field_ident,
-            }));
-        });
-    }
-
-    // All other fields: unified IntoTokensError conversion.
-    map_body(quote! {
-        let #field_ident: #field_ty = value.parse().map_err(|e|
-            <<#field_ty as ::std::str::FromStr>::Err as crate::IntoTokensError>::into_error(
-                e, #context_str, value,
-            )
-        )?;
+    let init = gen_field_parse(
+        &quote!(#field_ident),
+        field_ty,
+        &quote!(value),
+        context_str,
+        is_fallback,
+    );
+    let body = quote! {
+        #init
         return Ok(Some(Self::#command_ident {
             #field_ident,
         }));
-    })
+    };
+    (cond, body)
 }
 
 /// Generate prefix/length checks and variant construction for an indexed
@@ -326,37 +297,18 @@ fn build_indexed_variant_body(
             .unwrap_or_default();
         let field_ty = &field.ty;
 
-        if field_name == id_field_name {
-            // Index (command suffix) parsing: unified IntoTokensError.
-            field_inits.extend(quote! {
-                let #field_ident: #field_ty = __idx.parse().map_err(|e|
-                    <<#field_ty as ::std::str::FromStr>::Err
-                        as crate::IntoTokensError>::into_error(
-                        e, #context_str, __idx,
-                    )
-                )?;
-            });
-        } else if is_str_ref(field_ty) {
-            field_inits.extend(quote! {
-                let #field_ident = value;
-            });
-        } else if is_fallback {
-            field_inits.extend(quote! {
-                let Some(#field_ident) = <#field_ty as crate::BmsValue>::parse(value) else {
-                    return Ok(None);
-                };
-            });
-        } else {
-            // Value fields: unified IntoTokensError.
-            field_inits.extend(quote! {
-                let #field_ident: #field_ty = value.parse().map_err(|e|
-                    <<#field_ty as ::std::str::FromStr>::Err
-                        as crate::IntoTokensError>::into_error(
-                        e, #context_str, value,
-                    )
-                )?;
-            });
-        }
+        // id field always uses FromStr + IntoTokensError (never fallback).
+        let is_id = field_name == id_field_name;
+        let value_src = if is_id { quote!(__idx) } else { quote!(value) };
+        let fb = if is_id { false } else { is_fallback };
+
+        field_inits.extend(gen_field_parse(
+            &quote!(#field_ident),
+            field_ty,
+            &value_src,
+            context_str,
+            fb,
+        ));
     }
 
     let field_names: Vec<_> = fields_named.named.iter().map(|f| &f.ident).collect();
@@ -507,6 +459,38 @@ fn is_str_ref(ty: &syn::Type) -> bool {
     type_path.path.is_ident("str")
 }
 
+/// Generate a `let` binding that initializes a field from a string source.
+///
+/// Three cases:
+/// - `&str` fields: `let #ident = #value_src;`
+/// - Fallback fields: `let Some(#ident) = <T as BmsValue>::parse(#value_src) else { return Ok(None); };`
+/// - Other fields: `let #ident: T = #value_src.parse()...?;` (via `IntoTokensError`)
+fn gen_field_parse(
+    ident: &TokenStream,
+    field_ty: &syn::Type,
+    value_src: &TokenStream,
+    context_str: &str,
+    is_fallback: bool,
+) -> TokenStream {
+    if is_str_ref(field_ty) {
+        quote! { let #ident = #value_src; }
+    } else if is_fallback {
+        quote! {
+            let Some(#ident) = <#field_ty as crate::BmsValue>::parse(#value_src) else {
+                return Ok(None);
+            };
+        }
+    } else {
+        quote! {
+            let #ident: #field_ty = #value_src.parse().map_err(|e|
+                <<#field_ty as ::std::str::FromStr>::Err as crate::IntoTokensError>::into_error(
+                    e, #context_str, #value_src,
+                )
+            )?;
+        }
+    }
+}
+
 /// Check that a template's placeholders are consistent: all Named or all Unnamed.
 /// Returns `Some(TokenStream)` with a `compile_error!` if mixed, `None` if OK.
 fn check_placeholder_consistency(
@@ -551,37 +535,19 @@ fn build_indexed_tuple_body(
         let field_ty = &field.ty;
         let bind = format_ident!("__f{i}");
 
-        if i == 0 {
-            // First field is the index (from command suffix).
-            field_inits.extend(quote! {
-                let #bind: #field_ty = __idx.parse().map_err(|e|
-                    <<#field_ty as ::std::str::FromStr>::Err
-                        as crate::IntoTokensError>::into_error(
-                        e, #context_str, __idx,
-                    )
-                )?;
-            });
-        } else if is_str_ref(field_ty) {
-            field_inits.extend(quote! {
-                let #bind = value;
-            });
-        } else if is_fallback {
-            field_inits.extend(quote! {
-                let Some(#bind) = <#field_ty as crate::BmsValue>::parse(value) else {
-                    return Ok(None);
-                };
-            });
-        } else {
-            field_inits.extend(quote! {
-                let #bind: #field_ty = value.parse().map_err(|e|
-                    <<#field_ty as ::std::str::FromStr>::Err
-                        as crate::IntoTokensError>::into_error(
-                        e, #context_str, value,
-                    )
-                )?;
-            });
-        }
-        field_exprs.push(bind);
+        // First field is the index (from command suffix) — never fallback.
+        let is_id = i == 0;
+        let value_src = if is_id { quote!(__idx) } else { quote!(value) };
+        let fb = if is_id { false } else { is_fallback };
+
+        field_inits.extend(gen_field_parse(
+            &quote!(#bind),
+            field_ty,
+            &value_src,
+            context_str,
+            fb,
+        ));
+        field_exprs.push(quote!(#bind));
     }
 
     quote! {
