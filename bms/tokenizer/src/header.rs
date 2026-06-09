@@ -10,13 +10,13 @@ mod timing;
 
 pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
-pub use gameplay::{BmsHeaderGameplay, LnMode, LnType, PlayerMode};
+pub use gameplay::{BmsHeaderGameplay, LnMode, LnType, PlayerMode, Rank};
 pub use metadata::BmsHeaderMetadata;
 pub use res_def_audio::{BmsHeaderResDefAudio, ExWavParams};
 pub use res_def_visual::{
     ArgbParams, AtBgaParams, BgaParams, BmsHeaderResDefVisual, ExBmpParams, SwBgaParams,
 };
-pub use timing::BmsHeaderTiming;
+pub use timing::{BmsHeaderTiming, StpParams};
 
 use crate::BmsTokenAttr;
 use crate::BmsTokenizeError;
@@ -122,21 +122,6 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
         return Ok(Some(header));
     }
 
-    // #STP: non-standard format "xxx[.yyy] zzzz" — hand-parsed.
-    if command_upper == "STP" {
-        if let Some(stp) = parse_stp(value) {
-            return Ok(Some(BmsHeader::Timing(BmsHeaderTiming::Stp {
-                measure: stp.measure,
-                position: stp.position,
-                duration_ms: stp.duration_ms,
-            })));
-        }
-        return Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
-            command: command_raw,
-            value,
-        })));
-    }
-
     // Nothing matched → Fallback.
     Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
         command: command_raw,
@@ -144,50 +129,12 @@ pub(crate) fn parse_header_line(line: &str) -> Result<Option<BmsHeader<'_>>, Bms
     })))
 }
 
-/// Intermediate parsed result for `#STP` value.
-struct StpParts {
-    /// Measure number.
-    measure: u16,
-    /// Position within the measure (0–255).
-    position: u16,
-    /// Duration in milliseconds.
-    duration_ms: f64,
-}
-
-/// Parse `#STP` value format: `xxx[.yyy] zzzz`
-///
-/// - `xxx` = measure (decimal, 1–3 digits)
-/// - `.yyy` = position within measure (optional, 0–255)
-/// - `zzzz` = stop duration in milliseconds (decimal)
-fn parse_stp(value: &str) -> Option<StpParts> {
-    let (pos_part, dur_part) = value.split_once(' ')?;
-    let dur_ms: f64 = dur_part.trim().parse().ok()?;
-
-    let (measure_str, position_str) = if let Some(dot) = pos_part.find('.') {
-        let m = &pos_part[..dot];
-        let p = &pos_part[dot + 1..];
-        (m, p)
-    } else {
-        (pos_part, "0")
-    };
-
-    let measure: u16 = measure_str.parse().ok()?;
-    let position: u16 = position_str.parse().ok()?;
-    if position > 255 {
-        return None;
-    }
-
-    Some(StpParts {
-        measure,
-        position,
-        duration_ms: dur_ms,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::header::display::PoorBgaMode;
+    use crate::header::gameplay::Rank;
+    use crate::header::timing::StpParams;
     use crate::id::{
         BmpTag, BmsChannelId, BpmTag, ExRankTag, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag,
         WavTag,
@@ -325,7 +272,7 @@ mod tests {
     #[test]
     fn parse_rank() {
         let result = parse_header_line("#RANK 2").unwrap().unwrap();
-        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Rank(2u8)));
+        assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Rank(Rank::Normal)));
     }
 
     #[test]
@@ -1088,9 +1035,11 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::Stp {
-                measure: 1,
-                position: 128,
-                duration_ms: 500.0
+                params: StpParams {
+                    measure: 1,
+                    position: 128,
+                    duration_ms: 500.0
+                }
             })
         );
     }
@@ -1101,9 +1050,11 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::Stp {
-                measure: 1,
-                position: 0,
-                duration_ms: 500.5
+                params: StpParams {
+                    measure: 1,
+                    position: 0,
+                    duration_ms: 500.5
+                }
             })
         );
     }

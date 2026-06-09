@@ -1,7 +1,10 @@
 //! `#difficulty`, `#total`, `#rank`, `#bpm`, `#exbpm` and related gameplay parameters.
 //!
 //! This module also defines the domain types used by [`BmsHeaderGameplay`]:
-//! [`PlayerMode`], [`LnType`], and [`LnMode`].
+//! [`PlayerMode`], [`Rank`], [`LnType`], and [`LnMode`].
+
+use std::fmt;
+use std::str::FromStr;
 
 use crate::BmsTokenAttr;
 use crate::id::{BmsChannelId, ExRankTag, LnObjTag};
@@ -65,6 +68,56 @@ pub enum LnMode {
     Hcn,
 }
 
+/// The judgment difficulty specified by `#RANK`.
+///
+/// Standard values 0–4 map to named variants.  Non-standard values
+/// (e.g., fgt++ relative rank) are preserved as [`Rank::Other`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rank {
+    /// `#RANK 0` — VERY HARD (±8 ms in LR2).
+    VeryHard,
+    /// `#RANK 1` — HARD (±15 ms in LR2).
+    Hard,
+    /// `#RANK 2` — NORMAL (±18 ms in LR2). Default when `#RANK` is omitted.
+    Normal,
+    /// `#RANK 3` — EASY (±21 ms in LR2).
+    Easy,
+    /// `#RANK 4` — VERY EASY (nanasi/beatoraja extension).
+    VeryEasy,
+    /// A non-standard rank value preserved for forward compatibility.
+    Other(u8),
+}
+
+impl FromStr for Rank {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let v: u8 = s.parse()?;
+        Ok(match v {
+            0 => Self::VeryHard,
+            1 => Self::Hard,
+            2 => Self::Normal,
+            3 => Self::Easy,
+            4 => Self::VeryEasy,
+            n => Self::Other(n),
+        })
+    }
+}
+
+impl fmt::Display for Rank {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let v = match self {
+            Self::VeryHard => 0,
+            Self::Hard => 1,
+            Self::Normal => 2,
+            Self::Easy => 3,
+            Self::VeryEasy => 4,
+            Self::Other(n) => *n,
+        };
+        write!(f, "{v}")
+    }
+}
+
 /// Gameplay behaviour headers.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderGameplay<'a> {
@@ -73,7 +126,7 @@ pub enum BmsHeaderGameplay<'a> {
     Player(PlayerMode),
     /// `#RANK`
     #[bms_token("#RANK {value}")]
-    Rank(u8),
+    Rank(Rank),
     /// `#DEFEXRANK`
     #[bms_token("#DEFEXRANK {value}")]
     DefExRank(f64),
@@ -205,5 +258,35 @@ mod tests {
         assert!("0".parse::<LnMode>().is_err());
         assert!("4".parse::<LnMode>().is_err());
         assert!("abc".parse::<LnMode>().is_err());
+    }
+
+    // -- Rank --
+
+    #[test]
+    fn rank_standard_values() {
+        assert_eq!("0".parse::<Rank>().unwrap(), Rank::VeryHard);
+        assert_eq!("1".parse::<Rank>().unwrap(), Rank::Hard);
+        assert_eq!("2".parse::<Rank>().unwrap(), Rank::Normal);
+        assert_eq!("3".parse::<Rank>().unwrap(), Rank::Easy);
+        assert_eq!("4".parse::<Rank>().unwrap(), Rank::VeryEasy);
+    }
+
+    #[test]
+    fn rank_non_standard_preserved() {
+        assert_eq!("5".parse::<Rank>().unwrap(), Rank::Other(5));
+        assert_eq!("255".parse::<Rank>().unwrap(), Rank::Other(255));
+    }
+
+    #[test]
+    fn rank_non_numeric_is_error() {
+        assert!("abc".parse::<Rank>().is_err());
+        assert!("".parse::<Rank>().is_err());
+    }
+
+    #[test]
+    fn rank_display_roundtrip() {
+        assert_eq!("0".parse::<Rank>().unwrap().to_string(), "0");
+        assert_eq!("4".parse::<Rank>().unwrap().to_string(), "4");
+        assert_eq!("5".parse::<Rank>().unwrap().to_string(), "5");
     }
 }

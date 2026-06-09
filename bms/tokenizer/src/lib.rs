@@ -29,7 +29,7 @@ pub use bms_tokenizer_derive::BmsTokenAttr;
 pub use error::{BmsTokenizeError, ParseBmsValueError};
 pub use header::{
     ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
-    ParseDifficultyError, PlayerMode, PoorBgaMode, SwBgaParams,
+    ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams,
 };
 pub use header::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay,

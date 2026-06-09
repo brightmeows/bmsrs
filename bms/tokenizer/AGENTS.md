@@ -20,20 +20,34 @@ All types re-exported from `lib.rs`. Import from crate root, not submodules.
 
 Add a variant annotated with `#[bms_token("...")]` to the appropriate domain
 enum (e.g., `BmsHeaderMetadata`).  The derive macro generates
-`try_match_header` and `format_header` automatically.
+`try_match_header` and `format_header` automatically.  All headers must use
+this flow — no command-specific parse logic in `parse_header_line`.
+
+Parsing proceeds in three layers:
+
+1. **Command match** (derive): match command name, extract `{id}` index.
+2. **Value parse** (derive calls per-field): `FromStr` for simple types,
+   `BmsValue::parse` for complex structs.  Literal enums use
+   `#[derive(BmsTokenAttr)]`; constrained types with fallback (e.g.
+   `Rank`) hand-write `FromStr` + `Display`; multi-field values (e.g.
+   `StpParams`, `BgaParams`) implement `BmsValue<'a>`.
+3. **Fallback** (opt-in via `#[bms_fallback]`): parse failure yields
+   `Ok(None)`, eventually reaching `BmsHeaderFallback`.  Without it,
+   failures are hard errors.
+
+`parse_header_line` does only prefix detection, command/value splitting,
+and `%`-command filtering — no command-specific logic.
 
 For commands with non-trivial value types, add `#[bms_fallback]` to the
 variant — parse failures return `Ok(None)` (falling through to
 `BmsHeaderFallback`) instead of hard errors.
 
-Only hand-interpret commands whose value format is fundamentally
-non-templateable (e.g., `#STP`'s `xxx[.yyy] zzzz`).
-
 ## Value types
 
 Implement `BmsValue<'a>` (or `FromStr + Display` — blanket impl covers it)
-for custom value types used in header variants.  Simple domain enums can use
-`#[derive(BmsTokenAttr)]` with `#[bms_token("literal")]` on each variant.
+for custom value types used in header variants.  Literal enums use
+`#[derive(BmsTokenAttr)]`; constrained numeric types with fallback
+(e.g. `Rank`) hand-write `FromStr` + `Display`.
 
 ## Dispatch
 

@@ -6,7 +6,7 @@
 use bms_tokenizer::{
     BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, DifficultyLevel, LnMode, LnType,
-    PlayerMode,
+    PlayerMode, Rank,
 };
 
 #[test]
@@ -128,7 +128,7 @@ fn gameplay_rank_roundtrip() {
     let parsed = BmsHeaderGameplay::try_match_header("RANK", "RANK", "2")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderGameplay::Rank(2));
+    assert_eq!(parsed, BmsHeaderGameplay::Rank(Rank::Normal));
 }
 
 #[test]
