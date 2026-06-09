@@ -2,11 +2,18 @@
 
 ## Commands
 
+### Pre-commit (auto on commit)
+
 ```bash
-cargo clippy --workspace --quiet
+pre-commit run --all-files --quiet    # manually trigger all hooks at once
+```
+
+Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --quiet`, `cargo doc --workspace --no-deps --quiet`, plus decorative divider detection (`.pre-commit-config.yaml`).
+
+### CI / manual only
+
+```bash
 cargo test --workspace --quiet
-cargo doc --workspace --quiet --no-deps
-cargo fmt
 cargo deny check
 ```
 
