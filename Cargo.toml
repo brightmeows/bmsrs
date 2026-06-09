@@ -50,6 +50,9 @@ thiserror = "2"
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
+bmson-def = { path = "bmson/def" }
+chumsky = { version = "0.12", features = ["serde"] }
+serde_json = "1"
 
 [workspace.lints.rust]
 dead_code = "deny"
