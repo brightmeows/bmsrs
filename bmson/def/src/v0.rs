@@ -255,7 +255,7 @@ use crate::{ChartData, ChartInfo, SongInfo};
 /// Error type for v0 ↔ root conversion failures.
 #[derive(Clone, Debug)]
 pub struct TryFromV0Error {
-    /// Human‑readable description of what went wrong.
+    /// Human-readable description of what went wrong.
     pub message: String,
 }
 

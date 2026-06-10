@@ -51,7 +51,7 @@ mode (no `#[bms_token]`, single-tuple variants). Variants with
 All `BmsHeaderXXX` and `BmsMessage` get `From<T>` → parent, `TryFrom<Parent> → T`.
 Chain via `?.try_into()?`. Error type: [`crate::BmsTryFromError`].
 
-Add a new sub‑enum: `From<NewEnum<'_>> for BmsHeader<'_>` + `TryFrom<BmsHeader<'_>> for NewEnum<'_>` in its file.
+Add a new sub-enum: `From<NewEnum<'_>> for BmsHeader<'_>` + `TryFrom<BmsHeader<'_>> for NewEnum<'_>` in its file.
 
 ## `#BASE`
 

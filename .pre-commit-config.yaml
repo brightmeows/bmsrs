@@ -33,3 +33,11 @@ repos:
         entry: bash -c '! rg -l "^\s*//\s*[-=/*#~+—─━]{2,}" "$@"' _
         language: system
         types: [rust]
+
+  - repo: local
+    hooks:
+      - id: no-confusable-unicode
+        name: no confusable Unicode dashes/spaces (use ASCII instead)
+        entry: scripts/check-confusable-unicode.sh
+        language: script
+        types: [text]

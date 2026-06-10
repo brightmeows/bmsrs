@@ -67,7 +67,8 @@ indexing_slicing = "deny"
 allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
 missing_docs_in_private_items = "deny"
-mod_module_files = "warn"
+mod_module_files = "deny"
+macro_use = "deny"
 pub_use = "allow"
 
 # === Pedantic (strict, occasional false positives) ===

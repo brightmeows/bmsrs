@@ -228,17 +228,17 @@ impl<'de> Deserialize<'de> for LnMode {
 /// | `l` | `u64` | Length in pulses (`0` = short note, `>0` = long note) |
 /// | `c` | `bool` | Continuation flag (audio restart behaviour) |
 ///
-/// # V2‑only optional fields
+/// # V2-only optional fields
 ///
 /// The following fields are only present in v2.0.0-rc1+ and will be `None`
 /// when the note is deserialised from a v0/v1 file:
 ///
 /// | Field | Type | Description |
 /// |---|---|---|
-/// | `up` | `bool` | Release‑sound / BSS flag |
-/// | `ln_type_hint` | [`LnType`] | Per‑note LN type override |
-/// | `ln_judge_hint` | [`LnJudge`] | Per‑note LN judgement override |
-/// | `ln_life_hint` | [`LnLife`] | Per‑note LN life override |
+/// | `up` | `bool` | Release-sound / BSS flag |
+/// | `ln_type_hint` | [`LnType`] | Per-note LN type override |
+/// | `ln_judge_hint` | [`LnJudge`] | Per-note LN judgement override |
+/// | `ln_life_hint` | [`LnLife`] | Per-note LN life override |
 /// | `vol` | `i8` | Volume (percent, DJ.NEXT) |
 /// | `pan` | `i8` | Pan (DJ.NEXT) |
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -247,7 +247,7 @@ pub struct NoteEvent {
     /// Defaults to `0` when the field is absent. `null` is also accepted
     /// and treated as `0` (BGM).
     ///
-    /// The exact mapping from channel number to on‑screen column depends
+    /// The exact mapping from channel number to on-screen column depends
     /// on [`crate::ChartData::mode_hint`]:
     ///
     /// | Mode | Channels |
@@ -255,14 +255,14 @@ pub struct NoteEvent {
     /// | `beat-7k` | 1–7 = keys, 8 = scratch |
     /// | `beat-5k` | 1–5 = keys, 8 = scratch |
     /// | `popn-9k` | 1–9 = keys |
-    /// | `generic-nkeys` | 1…n left‑to‑right |
+    /// | `generic-nkeys` | 1…n left-to-right |
     #[serde(default, deserialize_with = "null_to_u64")]
     pub x: u64,
 
     /// Pulse offset of this note.
     ///
     /// All timing in bmson is relative to pulses (ticks), not seconds.
-    /// The number of pulses per quarter‑note is given by [`crate::ChartData::resolution`] (default 240).
+    /// The number of pulses per quarter-note is given by [`crate::ChartData::resolution`] (default 240).
     pub y: u64,
 
     /// Note length in pulses.
@@ -293,7 +293,7 @@ pub struct NoteEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub t: Option<LnMode>,
 
-    /// Release‑sound / BSS (Back‑Spin‑Scratch) flag.
+    /// Release-sound / BSS (Back-Spin-Scratch) flag.
     ///
     /// For CN (Charge Note) or BSS, place a `NoteEvent` with `up: true` at
     /// the release position and zero length.
@@ -301,17 +301,17 @@ pub struct NoteEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub up: Option<bool>,
 
-    /// Per‑note override for the chart‑level LN type hint.
+    /// Per-note override for the chart-level LN type hint.
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ln_type_hint: Option<LnType>,
 
-    /// Per‑note override for the chart‑level LN judgement hint.
+    /// Per-note override for the chart-level LN judgement hint.
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ln_judge_hint: Option<LnJudge>,
 
-    /// Per‑note override for the chart‑level LN life hint.
+    /// Per-note override for the chart-level LN life hint.
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ln_life_hint: Option<LnLife>,
@@ -337,7 +337,7 @@ impl NoteEvent {
 
 /// An **audio channel** — a single audio file with its associated notes.
 ///
-/// Bmson is channel‑based: each [`SoundChannel`] bundles one audio file
+/// Bmson is channel-based: each [`SoundChannel`] bundles one audio file
 /// (`name`) together with all the [`NoteEvent`]s that reference it.
 /// The player slices the audio file at the note positions and plays
 /// the appropriate segment for each note.
@@ -389,13 +389,13 @@ pub struct SoundChannel<'a> {
 /// | Value | Meaning |
 /// |---|---|
 /// | empty array (`[]`) | No bar lines displayed – scroll behaves like [100% minimoo-G](https://www.youtube.com/watch?v=f1VBBNrSdgk) |
-/// | `null` | Treated as 4/4 common time (bar line every 4 quarter‑notes = 960 pulses at default resolution) |
+/// | `null` | Treated as 4/4 common time (bar line every 4 quarter-notes = 960 pulses at default resolution) |
 /// | `\[{ y }\]` | Bar lines at the given pulse offsets |
 ///
 /// # Errata
 ///
 /// v0.2.1 had an extra `k` field (now removed).  Use [`crate::v0::BarLine`]
-/// when round‑tripping through v0.
+/// when round-tripping through v0.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub struct BarLine {
     /// Pulse offset of this bar line.
@@ -431,7 +431,7 @@ pub struct BpmEvent {
 /// 2. `BpmEvent`
 /// 3. `StopEvent`
 ///
-/// The BPM value at the stop's pulse is used to compute the real‑time
+/// The BPM value at the stop's pulse is used to compute the real-time
 /// duration of the pause.  Notes at the same pulse as a stop must be
 /// pressed **before** the scroll halts.
 #[derive(Clone, Debug, PartialEq, Eq, Copy, Serialize, Deserialize)]
@@ -441,7 +441,7 @@ pub struct StopEvent {
     /// Duration of the stop in pulses (not seconds).
     ///
     /// Duration is "amount of music time that is skipped", converted to
-    /// wall‑clock time via the active BPM.
+    /// wall-clock time via the active BPM.
     pub duration: u64,
 }
 
@@ -455,7 +455,7 @@ pub struct BGAHeader<'a> {
     /// Duplicate `id` values within the same file are a warning;
     /// the last occurrence wins.
     ///
-    /// **Note:** v0.2.1 used the key `ID` (upper‑case) for this field.
+    /// **Note:** v0.2.1 used the key `ID` (upper-case) for this field.
     /// The `alias` attribute allows deserializing both `id` and `ID`.
     #[serde(alias = "ID")]
     pub id: u64,
@@ -505,12 +505,12 @@ pub struct BGA<'a> {
     /// Overlay sequence composited on top of the primary BGA.
     #[serde(rename = "layer_events", alias = "layerNotes")]
     pub layer_events: Vec<BGAEvent>,
-    /// Poor‑performance (miss) animation sequence.
+    /// Poor-performance (miss) animation sequence.
     #[serde(rename = "poor_events", alias = "poorNotes")]
     pub poor_events: Vec<BGAEvent>,
 }
 
-/// A scroll‑speed multiplier event (beatoraja extension).
+/// A scroll-speed multiplier event (beatoraja extension).
 ///
 /// Analogous to BMS `#SCROLL` / `#SPEED`.
 ///
@@ -639,8 +639,8 @@ pub fn deserialize_resolution_nonzero<'de, D: Deserializer<'de>>(
 
 /// Deserialise a JSON string as a borrowed `&Path`.
 ///
-/// The JSON input must be a valid UTF‑8 string; the resulting `&Path`
-/// reinterprets the same bytes as a path (zero‑copy).
+/// The JSON input must be a valid UTF-8 string; the resulting `&Path`
+/// reinterprets the same bytes as a path (zero-copy).
 ///
 /// # Errors
 ///
@@ -653,7 +653,7 @@ pub fn de_path<'de, D: Deserializer<'de>>(deserializer: D) -> Result<&'de Path, 
 /// Deserialise a JSON string or `null` as an `Option<&Path>`.
 ///
 /// JSON `null` maps to `None`; a string maps to `Some(&Path)` reinterpreting
-/// the same UTF‑8 bytes (zero‑copy).
+/// the same UTF-8 bytes (zero-copy).
 ///
 /// # Errors
 ///

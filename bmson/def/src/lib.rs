@@ -65,7 +65,7 @@ pub struct JudgementDeltas {
     pub miss: u64,
 }
 
-/// Custom life‑gauge deltas introduced by the DJ.NEXT player.
+/// Custom life-gauge deltas introduced by the DJ.NEXT player.
 ///
 /// Each field specifies the life change (as a percentage of the gauge)
 /// for that judgement tier.  Negative values drain life.
@@ -84,12 +84,12 @@ pub struct LifeDeltas {
 
 /// The root object of a bmson chart (v2.0.0-rc1 schema).
 ///
-/// In v2 the flat `Bmson` from v1/v0 has been split into three sub‑objects:
+/// In v2 the flat `Bmson` from v1/v0 has been split into three sub-objects:
 ///
 /// | Object | Role |
 /// |---|---|---|
 /// | [`SongInfo`] | Musical metadata (title, artist, genre) |
-/// | [`ChartInfo`] | Per‑chart metadata (difficulty, images, BGA) |
+/// | [`ChartInfo`] | Per-chart metadata (difficulty, images, BGA) |
 /// | [`ChartData`] | Actual chart data (notes, timing, sound channels) |
 ///
 ///
@@ -110,11 +110,11 @@ pub struct Bmson<'a> {
     #[serde(borrow)]
     pub version: &'a str,
 
-    /// Song‑level metadata (title, artist, genre).
+    /// Song-level metadata (title, artist, genre).
     #[serde(rename = "song_info")]
     pub song_info: SongInfo<'a>,
 
-    /// Per‑chart metadata (difficulty, images, BGA).
+    /// Per-chart metadata (difficulty, images, BGA).
     #[serde(rename = "chart_info")]
     pub chart_info: ChartInfo<'a>,
 
@@ -122,7 +122,7 @@ pub struct Bmson<'a> {
     #[serde(rename = "chart_data")]
     pub chart_data: ChartData<'a>,
 
-    /// Scroll‑speed change events (beatoraja 0.7.6+).
+    /// Scroll-speed change events (beatoraja 0.7.6+).
     #[serde(default)]
     pub scroll_events: Vec<ScrollEvent>,
 
@@ -135,7 +135,7 @@ pub struct Bmson<'a> {
     pub key_channels: Vec<KeyChannel<'a>>,
 }
 
-/// Song‑level metadata (v2.0.0-rc1).
+/// Song-level metadata (v2.0.0-rc1).
 ///
 /// Extracted from the old `BmsonInfo` in v1.  Contains only the fields that
 /// describe the **composition itself** (not a specific chart).
@@ -164,7 +164,7 @@ pub struct SongInfo<'a> {
     pub genre: &'a str,
 }
 
-/// Per‑chart metadata (v2.0.0-rc1).
+/// Per-chart metadata (v2.0.0-rc1).
 ///
 /// Carries difficulty information, display assets and BGA for one specific
 /// chart arrangement of a song.
@@ -174,7 +174,7 @@ pub struct ChartInfo<'a> {
     /// Chart subtitle.
     ///
     /// Displayed in a smaller font below [`SongInfo::title`].
-    /// May contain `\n` for multi‑line subtitles.
+    /// May contain `\n` for multi-line subtitles.
     ///
     #[serde(borrow, default)]
     pub subtitle: &'a str,
@@ -220,9 +220,9 @@ pub struct ChartInfo<'a> {
     )]
     pub eyecatch_image: Option<&'a Path>,
 
-    /// Banner image used in **song‑select and result screens**.
+    /// Banner image used in **song-select and result screens**.
     ///
-    /// Recommended aspect ratio: 15 : 4 (e.g. 600×160).
+    /// Recommended aspect ratio: 15 : 4 (e.g. 600×160).
     ///
     #[serde(
         default,
@@ -264,7 +264,7 @@ pub struct ChartInfo<'a> {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'a"))]
 pub struct ChartData<'a> {
-    /// Game‑mode hint.
+    /// Game-mode hint.
     ///
     /// Players should check this field to verify that the chart is
     /// compatible with their input layout.
@@ -272,19 +272,19 @@ pub struct ChartData<'a> {
     #[serde(default)]
     pub mode_hint: ModeHint,
 
-    /// Chart‑level LN (long‑note) type hint.
+    /// Chart-level LN (long-note) type hint.
     ///
     /// | Value | Meaning |
     /// |---|---|
     /// | `ln` | Judged on initial press only |
     /// | `cn` | Judged on both press and release |
     ///
-    /// This can be overridden per‑note via [`NoteEvent::ln_type_hint`].
+    /// This can be overridden per-note via [`NoteEvent::ln_type_hint`].
     ///
     #[serde(default)]
     pub ln_type_hint: LnType,
 
-    /// Chart‑level LN judgement hint.
+    /// Chart-level LN judgement hint.
     ///
     /// | Value | Meaning |
     /// |---|---|
@@ -294,7 +294,7 @@ pub struct ChartData<'a> {
     #[serde(default)]
     pub ln_judge_hint: LnJudge,
 
-    /// Chart‑level LN life (gauge) hint.
+    /// Chart-level LN life (gauge) hint.
     ///
     /// | Value | Meaning |
     /// |---|---|
@@ -316,7 +316,7 @@ pub struct ChartData<'a> {
     ///
     /// | Value | Window width |
     /// |---|---|
-    /// | `1.00` | Default (player‑specific) |
+    /// | `1.00` | Default (player-specific) |
     /// | `>1.00` | Wider (easier) |
     /// | `<1.00` | Narrower (harder) |
     ///
@@ -326,7 +326,7 @@ pub struct ChartData<'a> {
     #[serde(default = "default_multiplier")]
     pub judge_multiplier: f64,
 
-    /// Life‑gauge multiplier (v2).
+    /// Life-gauge multiplier (v2).
     ///
     /// Default: `1.00`.
     ///
@@ -337,7 +337,7 @@ pub struct ChartData<'a> {
     #[serde(default = "default_multiplier")]
     pub life_multiplier: f64,
 
-    /// Ticks per quarter‑note (pulse resolution).
+    /// Ticks per quarter-note (pulse resolution).
     ///
     /// Default: `240`.  Must be > 0.
     ///
@@ -350,9 +350,9 @@ pub struct ChartData<'a> {
     )]
     pub resolution: u64,
 
-    /// Bar‑line positions (measure boundaries).
+    /// Bar-line positions (measure boundaries).
     ///
-    /// `None` → auto‑generate 4/4 bar lines.
+    /// `None` → auto-generate 4/4 bar lines.
     /// `Some([])` → no bar lines displayed.
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -382,7 +382,7 @@ pub struct ChartData<'a> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub judge_deltas: Option<JudgementDeltas>,
 
-    /// Custom life‑gauge deltas (DJ.NEXT extension).
+    /// Custom life-gauge deltas (DJ.NEXT extension).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub life_deltas: Option<LifeDeltas>,
 }
@@ -427,7 +427,7 @@ pub enum DetectedVersion {
 ///
 /// This performs a **lightweight string scan** rather than a full JSON
 /// parse, making it suitable as a first pass before dispatching to
-/// a version‑specific deserializer.
+/// a version-specific deserializer.
 ///
 /// # Detection logic
 ///
