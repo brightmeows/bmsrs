@@ -20,6 +20,7 @@ pub use timing::{BmsHeaderTiming, StpParams};
 
 use crate::BmsTokenAttr;
 use crate::BmsTokenizeError;
+use crate::BmsTryFromError;
 
 /// A header command from a BMS file, categorized by semantic domain.
 ///
@@ -58,6 +59,27 @@ pub struct BmsHeaderFallback<'a> {
     pub command: &'a str,
     /// The value after the space separator.
     pub value: &'a str,
+}
+
+// From / TryFrom conversions
+
+impl<'a> From<BmsHeaderFallback<'a>> for BmsHeader<'a> {
+    #[inline]
+    fn from(fallback: BmsHeaderFallback<'a>) -> Self {
+        BmsHeader::Fallback(fallback)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderFallback<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::Fallback(f) => Ok(f),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }
 
 /// Parse a single header line into a `BmsHeader`.

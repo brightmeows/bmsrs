@@ -1,7 +1,7 @@
 //! BMS message (channel data) line parsing.
 
-use crate::BmsTokenizeError;
 use crate::id::{BmsChannelId, ChannelTag, Hex};
+use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#xxxYY:values`).
 ///
@@ -50,6 +50,25 @@ pub struct BmsMessage<'a> {
     pub channel: BmsChannelId<ChannelTag, Hex>,
     /// Raw value string (sequence of 2-character object indices).
     pub values: &'a str,
+}
+
+impl<'a> From<BmsMessage<'a>> for BmsToken<'a> {
+    #[inline]
+    fn from(msg: BmsMessage<'a>) -> Self {
+        BmsToken::Message(msg)
+    }
+}
+
+impl<'a> TryFrom<BmsToken<'a>> for BmsMessage<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(token: BmsToken<'a>) -> Result<Self, Self::Error> {
+        match token {
+            BmsToken::Message(m) => Ok(m),
+            BmsToken::Header(_) => Err(BmsTryFromError::NotAMessage),
+        }
+    }
 }
 
 /// Attempts to parse a single line as a BMS channel message.

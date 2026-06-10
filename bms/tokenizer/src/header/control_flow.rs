@@ -6,6 +6,7 @@
 //! (parser/processor).
 
 use crate::BmsTokenAttr;
+use crate::{BmsHeader, BmsTryFromError};
 
 /// Control-flow headers for random chart branching.
 ///
@@ -88,4 +89,25 @@ pub enum BmsHeaderControlFlow {
     /// `#DEF` — default branch inside a `#SWITCH` block.
     #[bms_token("#DEF")]
     Def,
+}
+
+// From / TryFrom conversions
+
+impl From<BmsHeaderControlFlow> for BmsHeader<'_> {
+    #[inline]
+    fn from(flow: BmsHeaderControlFlow) -> Self {
+        BmsHeader::ControlFlow(flow)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderControlFlow {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::ControlFlow(f) => Ok(f),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }

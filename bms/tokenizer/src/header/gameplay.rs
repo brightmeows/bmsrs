@@ -10,6 +10,7 @@ use std::str::FromStr;
 
 use crate::BmsTokenAttr;
 use crate::id::{BmsChannelId, ChangeOptionTag, ExRankTag, LnObjTag};
+use crate::{BmsHeader, BmsTryFromError};
 
 /// The play mode specified by `#PLAYER`.
 ///
@@ -308,6 +309,27 @@ pub enum BmsHeaderGameplay<'a> {
     #[bms_token("#BASE {}")]
     #[bms_fallback]
     Base(BmsBaseMode),
+}
+
+// From / TryFrom conversions
+
+impl<'a> From<BmsHeaderGameplay<'a>> for BmsHeader<'a> {
+    #[inline]
+    fn from(gameplay: BmsHeaderGameplay<'a>) -> Self {
+        BmsHeader::Gameplay(gameplay)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderGameplay<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::Gameplay(g) => Ok(g),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }
 
 #[cfg(test)]

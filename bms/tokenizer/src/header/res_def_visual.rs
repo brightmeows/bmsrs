@@ -6,7 +6,7 @@ use std::fmt;
 
 use crate::header::display::PoorBgaMode;
 use crate::id::{BmpTag, BmsChannelId, SeekTag};
-use crate::{BmsTokenAttr, BmsValue};
+use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
 /// Parameters for `#BGA{id}` — image crop-and-place definition.
 ///
@@ -418,4 +418,25 @@ pub enum BmsHeaderResDefVisual<'a> {
     /// Default: `0` (start from the beginning).
     #[bms_token("#VIDEODLY {}")]
     VideoDly(f64),
+}
+
+// From / TryFrom conversions
+
+impl<'a> From<BmsHeaderResDefVisual<'a>> for BmsHeader<'a> {
+    #[inline]
+    fn from(visual: BmsHeaderResDefVisual<'a>) -> Self {
+        BmsHeader::ResDefVisual(visual)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderResDefVisual<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::ResDefVisual(v) => Ok(v),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }

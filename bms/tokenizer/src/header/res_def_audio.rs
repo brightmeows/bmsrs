@@ -4,7 +4,7 @@
 use std::fmt;
 
 use crate::id::{BmsChannelId, WavTag};
-use crate::{BmsTokenAttr, BmsValue};
+use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
 /// Parameters for `#EXWAV{id}` — extended WAV with pan/volume/frequency
 /// control (nanasi extension).
@@ -174,4 +174,25 @@ pub enum BmsHeaderResDefAudio<'a> {
     /// avoid path issues on other systems.
     #[bms_token("#PATH_WAV {}")]
     PathWav(&'a str),
+}
+
+// From / TryFrom conversions
+
+impl<'a> From<BmsHeaderResDefAudio<'a>> for BmsHeader<'a> {
+    #[inline]
+    fn from(audio: BmsHeaderResDefAudio<'a>) -> Self {
+        BmsHeader::ResDefAudio(audio)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderResDefAudio<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::ResDefAudio(a) => Ok(a),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }

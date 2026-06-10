@@ -31,7 +31,7 @@ mod message;
 mod derive_tests;
 
 pub use bms_tokenizer_derive::BmsTokenAttr;
-pub use error::{BmsTokenizeError, IntoTokensError, ParseBmsValueError};
+pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::{
     ArgbParams, AtBgaParams, BgaParams, BmsBaseMode, DifficultyLevel, ExBmpParams, ExWavParams,
     LnMode, LnType, ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams,
@@ -85,6 +85,39 @@ where
     #[inline]
     fn parse(s: &'a str) -> Option<Self> {
         s.parse().ok()
+    }
+}
+
+// From / TryFrom conversions
+
+impl<'a> From<BmsHeader<'a>> for BmsToken<'a> {
+    #[inline]
+    fn from(header: BmsHeader<'a>) -> Self {
+        BmsToken::Header(header)
+    }
+}
+
+impl<'a> TryFrom<BmsToken<'a>> for BmsHeader<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(token: BmsToken<'a>) -> Result<Self, Self::Error> {
+        match token {
+            BmsToken::Header(h) => Ok(h),
+            BmsToken::Message(_) => Err(BmsTryFromError::NotAHeader),
+        }
+    }
+}
+
+impl<'a> TryFrom<(NonZeroUsize, Result<BmsToken<'a>, BmsTokenizeError<'a>>)> for BmsToken<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(
+        pair: (NonZeroUsize, Result<BmsToken<'a>, BmsTokenizeError<'a>>),
+    ) -> Result<Self, Self::Error> {
+        let (line, result) = pair;
+        result.map_err(|error| BmsTryFromError::TokenizationError { line, error })
     }
 }
 

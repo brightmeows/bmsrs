@@ -1,6 +1,7 @@
 //! Tokenizer error types — the single error type for the BMS tokenizer.
 
 use std::fmt;
+use std::num::NonZeroUsize;
 use std::num::ParseFloatError;
 use std::num::ParseIntError;
 
@@ -129,3 +130,29 @@ impl fmt::Display for ParseBmsValueError {
 }
 
 impl std::error::Error for ParseBmsValueError {}
+
+/// Error type for `TryFrom` conversions between token types.
+///
+/// Used when extracting a specific header variant or message from a
+/// [`BmsToken`](crate::BmsToken), [`BmsHeader`](crate::BmsHeader), or
+/// `(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)` pair.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum BmsTryFromError<'a> {
+    /// The source `(NonZeroUsize, Result<BmsToken, …>)` contained an `Err`.
+    #[error("tokenization error on line {line}: {error}")]
+    TokenizationError {
+        /// The 1-based line number where the error occurred.
+        line: NonZeroUsize,
+        /// The underlying tokenization error.
+        error: BmsTokenizeError<'a>,
+    },
+    /// The `BmsToken` is a `Message`, not a `Header`.
+    #[error("expected a header, but the token is a channel message")]
+    NotAHeader,
+    /// The `BmsToken` is a `Header`, not a `Message`.
+    #[error("expected a message, but the token is a header")]
+    NotAMessage,
+    /// The `BmsHeader` variant does not match the requested header type.
+    #[error("the header is not of the requested type")]
+    WrongHeaderType,
+}

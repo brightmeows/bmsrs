@@ -6,6 +6,7 @@ use std::fmt;
 use crate::BmsTokenAttr;
 use crate::BmsValue;
 use crate::id::{BmsChannelId, BpmTag, ScrollTag, SpeedTag, StopTag};
+use crate::{BmsHeader, BmsTryFromError};
 
 /// Parameters for `#STP` — bemaniaDX-style stop (absolute time, in ms).
 ///
@@ -185,6 +186,27 @@ pub enum BmsHeaderTiming {
         /// Parsed step timing parameters.
         params: StpParams,
     },
+}
+
+// From / TryFrom conversions
+
+impl From<BmsHeaderTiming> for BmsHeader<'_> {
+    #[inline]
+    fn from(timing: BmsHeaderTiming) -> Self {
+        BmsHeader::Timing(timing)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderTiming {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::Timing(t) => Ok(t),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }
 
 #[cfg(test)]

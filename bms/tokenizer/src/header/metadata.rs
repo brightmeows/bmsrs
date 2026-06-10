@@ -4,6 +4,7 @@
 
 use crate::BmsTokenAttr;
 use crate::id::{BmsChannelId, TextTag};
+use crate::{BmsHeader, BmsTryFromError};
 
 /// Song/chart metadata headers.
 ///
@@ -90,4 +91,25 @@ pub enum BmsHeaderMetadata<'a> {
     /// **Caveat**: BMSE and iBMSC delete `%EMAIL` on save.
     #[bms_token("%EMAIL {}")]
     Email(&'a str),
+}
+
+// From / TryFrom conversions
+
+impl<'a> From<BmsHeaderMetadata<'a>> for BmsHeader<'a> {
+    #[inline]
+    fn from(meta: BmsHeaderMetadata<'a>) -> Self {
+        BmsHeader::Metadata(meta)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderMetadata<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::Metadata(m) => Ok(m),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }

@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::BmsTokenAttr;
 use crate::IntoTokensError;
+use crate::{BmsHeader, BmsTryFromError};
 
 /// The difficulty category specified by `#DIFFICULTY` (values 1–5).
 ///
@@ -144,6 +145,27 @@ pub enum BmsHeaderDisplay<'a> {
     /// `preview*.ogg` in the chart folder.
     #[bms_token("#PREVIEW {}")]
     Preview(&'a str),
+}
+
+// From / TryFrom conversions
+
+impl<'a> From<BmsHeaderDisplay<'a>> for BmsHeader<'a> {
+    #[inline]
+    fn from(display: BmsHeaderDisplay<'a>) -> Self {
+        BmsHeader::Display(display)
+    }
+}
+
+impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderDisplay<'a> {
+    type Error = BmsTryFromError<'a>;
+
+    #[inline]
+    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+        match header {
+            BmsHeader::Display(d) => Ok(d),
+            _ => Err(BmsTryFromError::WrongHeaderType),
+        }
+    }
 }
 
 #[cfg(test)]

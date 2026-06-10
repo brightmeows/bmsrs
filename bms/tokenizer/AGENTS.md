@@ -46,6 +46,13 @@ No build script. `BmsHeader` uses `#[derive(BmsTokenAttr)]` in dispatch
 mode (no `#[bms_token]`, single-tuple variants). Variants with
 `#[bms_fallback]` are excluded from dispatch.
 
+## Conversions (`From` / `TryFrom`)
+
+All `BmsHeaderXXX` and `BmsMessage` get `From<T>` → parent, `TryFrom<Parent> → T`.
+Chain via `?.try_into()?`. Error type: [`crate::BmsTryFromError`].
+
+Add a new sub‑enum: `From<NewEnum<'_>> for BmsHeader<'_>` + `TryFrom<BmsHeader<'_>> for NewEnum<'_>` in its file.
+
 ## `#BASE`
 
 Tokenized as a plain header (`BmsHeaderGameplay::Base(BmsBaseMode)`) — no
