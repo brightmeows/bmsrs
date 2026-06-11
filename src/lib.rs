@@ -10,6 +10,16 @@ pub mod bms {
     pub mod tokenizer {
         pub use bms_tokenizer::*;
     }
+
+    /// Control-flow tree construction, branch selection, and roundtrip conversion.
+    pub mod control_flow {
+        pub use bms_control_flow::*;
+    }
+
+    /// BMS parser — structured document model from flat token streams.
+    pub mod parser {
+        pub use bms_parser::*;
+    }
 }
 
 /// BMSON format type definitions and converters.

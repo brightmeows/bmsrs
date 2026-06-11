@@ -20,10 +20,13 @@ disallowed-methods = [
   { path = "std::fs::File::create", reason = "use tokio::fs::File::create (or into_std in spawn_blocking)" },
   { path = "std::thread::spawn", reason = "use tokio::spawn or tokio::task::spawn_blocking" },
   { path = "std::mem::zeroed", reason = "use MaybeUninit" },
+  { path = "alloc::boxed::Box::leak", reason = "memory leak; restructure to avoid 'static promotion of borrowed data" },
+  { path = "alloc::string::String::leak", reason = "memory leak; restructure to avoid 'static promotion of borrowed data" },
 ]
 
 # Disallowed sync types (use tokio variants when held across .await)
 disallowed-types = [
+  { path = "std::borrow::Cow", reason = "use separate borrowed/owned types instead of runtime dispatch" },
   { path = "std::sync::Mutex", reason = "use tokio::sync::Mutex (if held across .await) or OnceLock" },
   { path = "std::sync::RwLock", reason = "use tokio::sync::RwLock (if held across .await)" },
 ]

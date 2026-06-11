@@ -16,6 +16,8 @@ workspace = true
 
 [dependencies]
 bms-tokenizer = { path = "bms/tokenizer" }
+bms-control-flow = { path = "bms/control-flow" }
+bms-parser = { path = "bms/parser" }
 bmson-def = { path = "bmson/def" }
 
 [workspace]
@@ -23,6 +25,7 @@ resolver = "3"
 members = [
     "bms/tokenizer",
     "bms/tokenizer-derive",
+    "bms/control-flow",
     "bms/parser",
     "bms/processor",
     "bmson/def",

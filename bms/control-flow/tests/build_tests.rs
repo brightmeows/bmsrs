@@ -1,0 +1,360 @@
+//! Integration tests for `FlowDocumentBuilder::from_tokens`.
+
+use std::num::NonZeroUsize;
+
+use bms_control_flow::{
+    ControlFlowError, FlowBlock, FlowContent, FlowDocumentBuilder, FlowItem, RandomBranchKind,
+    SwitchCaseKind,
+};
+use bms_tokenizer::{BmsToken, BmsTokenizer};
+
+type TestResult = std::result::Result<(), ControlFlowError>;
+
+/// Helper: tokenize BMS text and filter to successful tokens only.
+fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<'_>)> {
+    BmsTokenizer::new()
+        .tokenize::<Vec<_>>(input)
+        .into_iter()
+        .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
+        .collect()
+}
+
+/// Helper: tokenize and build a `Vec<FlowItem>`.
+fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<'_>>, ControlFlowError> {
+    let tokens = tokenize(input);
+    FlowDocumentBuilder::from_tokens(tokens)
+}
+
+/// Extract the first item as a `Random` block reference, or panic.
+fn as_random<'a>(items: &'a [FlowItem<'a>]) -> &'a bms_control_flow::RandomBlock<'a> {
+    let Some(FlowContent::Block(FlowBlock::Random(r))) = items.first().map(|i| &i.content) else {
+        panic!("expected Random block");
+    };
+    r
+}
+
+/// Extract the first item as a `Switch` block reference, or panic.
+fn as_switch<'a>(items: &'a [FlowItem<'a>]) -> &'a bms_control_flow::SwitchBlock<'a> {
+    let Some(FlowContent::Block(FlowBlock::Switch(s))) = items.first().map(|i| &i.content) else {
+        panic!("expected Switch block");
+    };
+    s
+}
+
+#[test]
+fn plain_headers_no_control_flow_returns_flat_items() -> TestResult {
+    let items = build_doc("#TITLE Test\n#BPM 120\n#00101:1122")?;
+    assert_eq!(items.len(), 3);
+    assert!(matches!(
+        items.first().map(|i| &i.content),
+        Some(FlowContent::Header(_))
+    ));
+    assert!(matches!(
+        items.get(1).map(|i| &i.content),
+        Some(FlowContent::Header(_))
+    ));
+    assert!(matches!(
+        items.get(2).map(|i| &i.content),
+        Some(FlowContent::Message(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn simple_random_block_has_two_branches() -> TestResult {
+    let items = build_doc(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #00101:22\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    assert_eq!(items.len(), 1);
+    let block = as_random(&items);
+    assert_eq!(block.branches.len(), 2);
+    assert_eq!(block.value, bms_control_flow::BranchValue::Max(2));
+    assert!(block.has_end_random);
+    assert_eq!(
+        block.branches.first().map(|b| b.kind),
+        Some(RandomBranchKind::If(1))
+    );
+    assert_eq!(
+        block.branches.get(1).map(|b| b.kind),
+        Some(RandomBranchKind::If(2))
+    );
+    Ok(())
+}
+
+#[test]
+fn random_with_elseif_else_has_three_branches() -> TestResult {
+    let items = build_doc(
+        "#RANDOM 3\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ENDIF\n\
+         #ELSEIF 2\n\
+         #00101:22\n\
+         #ENDIF\n\
+         #ELSE\n\
+         #00101:33\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    let block = as_random(&items);
+    assert_eq!(block.branches.len(), 3);
+    assert_eq!(
+        block.branches.first().map(|b| b.kind),
+        Some(RandomBranchKind::If(1))
+    );
+    assert_eq!(
+        block.branches.get(1).map(|b| b.kind),
+        Some(RandomBranchKind::ElseIf(2))
+    );
+    assert_eq!(
+        block.branches.get(2).map(|b| b.kind),
+        Some(RandomBranchKind::Else)
+    );
+    Ok(())
+}
+
+#[test]
+fn simple_switch_block_has_two_cases() -> TestResult {
+    let items = build_doc(
+        "#SWITCH 2\n\
+         #CASE 1\n\
+         #00101:11\n\
+         #CASE 2\n\
+         #00101:22\n\
+         #ENDSW",
+    )?;
+
+    assert_eq!(items.len(), 1);
+    let block = as_switch(&items);
+    assert_eq!(block.cases.len(), 2);
+    assert_eq!(block.value, bms_control_flow::BranchValue::Max(2));
+    assert_eq!(
+        block.cases.first().map(|c| c.kind),
+        Some(SwitchCaseKind::Case(1))
+    );
+    assert_eq!(
+        block.cases.get(1).map(|c| c.kind),
+        Some(SwitchCaseKind::Case(2))
+    );
+    Ok(())
+}
+
+#[test]
+fn switch_with_def_and_skip_flags_set() -> TestResult {
+    let items = build_doc(
+        "#SWITCH 2\n\
+         #CASE 1\n\
+         #00101:11\n\
+         #SKIP 1\n\
+         #DEF\n\
+         #00101:22\n\
+         #ENDSW",
+    )?;
+
+    let block = as_switch(&items);
+    assert_eq!(block.cases.len(), 2);
+    assert_eq!(
+        block.cases.first().map(|c| c.kind),
+        Some(SwitchCaseKind::Case(1))
+    );
+    assert_eq!(block.cases.first().map(|c| c.has_skip), Some(true));
+    assert_eq!(
+        block.cases.get(1).map(|c| c.kind),
+        Some(SwitchCaseKind::Def)
+    );
+    assert_eq!(block.cases.get(1).map(|c| c.has_skip), Some(false));
+    Ok(())
+}
+
+#[test]
+fn nested_random_in_switch_builds_tree() -> TestResult {
+    let items = build_doc(
+        "#SWITCH 2\n\
+         #CASE 1\n\
+         #RANDOM 2\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #00101:22\n\
+         #ENDIF\n\
+         #ENDRANDOM\n\
+         #CASE 2\n\
+         #00101:33\n\
+         #ENDSW",
+    )?;
+
+    assert_eq!(items.len(), 1);
+    let switch = as_switch(&items);
+    assert_eq!(switch.cases.len(), 2);
+
+    // Case 1 body should contain a nested Random block
+    let case1 = switch.cases.first().unwrap();
+    assert_eq!(case1.body.len(), 1);
+    assert!(matches!(
+        case1.body.first().map(|i| &i.content),
+        Some(FlowContent::Block(FlowBlock::Random(_)))
+    ));
+
+    // Case 2 body should contain a message
+    let case2 = switch.cases.get(1).unwrap();
+    assert_eq!(case2.body.len(), 1);
+    assert!(matches!(
+        case2.body.first().map(|i| &i.content),
+        Some(FlowContent::Message(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn set_random_sets_value() -> TestResult {
+    let items = build_doc(
+        "#SETRANDOM 5\n\
+         #IF 5\n\
+         #00101:11\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    let block = as_random(&items);
+    assert_eq!(block.value, bms_control_flow::BranchValue::Set(5));
+    Ok(())
+}
+
+#[test]
+fn set_switch_sets_value() -> TestResult {
+    let items = build_doc(
+        "#SETSWITCH 3\n\
+         #CASE 3\n\
+         #00101:11\n\
+         #ENDSW",
+    )?;
+
+    let block = as_switch(&items);
+    assert_eq!(block.value, bms_control_flow::BranchValue::Set(3));
+    Ok(())
+}
+
+#[test]
+fn endrandom_present_sets_has_end_random_true() -> TestResult {
+    let items = build_doc(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    let block = as_random(&items);
+    assert!(block.has_end_random);
+    Ok(())
+}
+
+#[test]
+fn no_endrandom_leaves_block_unpopped() -> TestResult {
+    let items = build_doc(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #ENDIF",
+    )?;
+
+    assert!(items.is_empty());
+    Ok(())
+}
+
+#[test]
+fn unmatched_if_returns_error() {
+    let tokens = tokenize("#IF 1\n#ENDIF");
+    let result = FlowDocumentBuilder::from_tokens(tokens);
+    assert!(matches!(result, Err(ControlFlowError::UnmatchedIf { .. })));
+}
+
+#[test]
+fn unmatched_endif_returns_error() {
+    let tokens = tokenize("#ENDIF");
+    let result = FlowDocumentBuilder::from_tokens(tokens);
+    assert!(matches!(
+        result,
+        Err(ControlFlowError::UnmatchedEndIf { .. })
+    ));
+}
+
+#[test]
+fn unmatched_endrandom_returns_error() {
+    let tokens = tokenize("#ENDRANDOM");
+    let result = FlowDocumentBuilder::from_tokens(tokens);
+    assert!(matches!(
+        result,
+        Err(ControlFlowError::UnmatchedEndRandom { .. })
+    ));
+}
+
+#[test]
+fn unmatched_case_returns_error() {
+    let tokens = tokenize("#CASE 1");
+    let result = FlowDocumentBuilder::from_tokens(tokens);
+    assert!(matches!(
+        result,
+        Err(ControlFlowError::UnmatchedCase { .. })
+    ));
+}
+
+#[test]
+fn unmatched_endsw_returns_error() {
+    let tokens = tokenize("#ENDSW");
+    let result = FlowDocumentBuilder::from_tokens(tokens);
+    assert!(matches!(
+        result,
+        Err(ControlFlowError::UnmatchedEndSw { .. })
+    ));
+}
+
+#[test]
+fn branch_body_contains_correct_items() -> TestResult {
+    let items = build_doc(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #WAV01 kick.wav\n\
+         #00101:AA\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #WAV02 snare.wav\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    let block = as_random(&items);
+    let branch1 = block.branches.first().unwrap();
+    assert_eq!(branch1.body.len(), 2);
+    let branch2 = block.branches.get(1).unwrap();
+    assert_eq!(branch2.body.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn switch_case_bodies_have_correct_item_count() -> TestResult {
+    let items = build_doc(
+        "#SWITCH 2\n\
+         #CASE 1\n\
+         #WAV01 kick.wav\n\
+         #00101:11\n\
+         #CASE 2\n\
+         #00101:22\n\
+         #ENDSW",
+    )?;
+
+    let block = as_switch(&items);
+    let case1 = block.cases.first().unwrap();
+    assert_eq!(case1.body.len(), 2);
+    let case2 = block.cases.get(1).unwrap();
+    assert_eq!(case2.body.len(), 1);
+    Ok(())
+}

@@ -39,7 +39,7 @@ pub trait BmsCharset {
 /// indices use this full range (3844 unique IDs); otherwise the
 /// conventional range is base-36 `[0-9A-Z]` (1296 IDs), with lowercase
 /// letters mapping to the same values as uppercase.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AlphaNum {}
 
 impl BmsCharset for AlphaNum {
@@ -53,7 +53,7 @@ impl BmsCharset for AlphaNum {
 /// Used by commands that only accept uppercase indices (e.g., some
 /// older implementations).  The standard BMS range is `[01-ZZ]`,
 /// giving 1296 unique two-character IDs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Base36Upper {}
 
 impl BmsCharset for Base36Upper {
@@ -66,7 +66,7 @@ impl BmsCharset for Base36Upper {
 ///
 /// Used for channel numbers in message lines (`#xxxYY:values`), where
 /// `YY` is a two-digit hex value (`00`–`FF`, 256 channels).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Hex {}
 
 impl BmsCharset for Hex {
@@ -84,7 +84,7 @@ impl BmsCharset for Hex {
 ///
 /// `C` is a charset constraint (default: [`AlphaNum`]). For example,
 /// `BmsChannelId<ChannelTag, Hex>` only accepts hexadecimal characters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BmsChannelId<T, C: BmsCharset = AlphaNum> {
     /// Raw ASCII bytes of the characters.
     ///
@@ -246,51 +246,51 @@ impl<'a> IntoTokensError<'a> for BmsChannelIdError {
 /// or "function" the objects belong to (BGM, visible notes, invisible
 /// notes, long notes, BPM changes, stops, landmines, etc.).
 /// See the BMS command memo channel-mapping table for the full list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChannelTag {}
 /// Tag type for `#WAVxx` / `#EXWAVxx` index IDs.
 ///
 /// Sound definitions.  `00` is special: it defines the landmine
 /// explosion sound (channels `#xxxD1-E9`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WavTag {}
 /// Tag type for `#BMPxx` / `#EXBMPxx` / `#BGAxx` / `#@BGAxx` /
 /// `#SWBGAxx` / `#ARGBxx` index IDs.
 ///
 /// Image / BGA definitions.  `00` is the default miss/poor image.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BmpTag {}
 /// Tag type for `#BPMxx` / `#EXBPMxx` index IDs.
 ///
 /// Extended BPM definitions, referenced by channel `#xxx08`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BpmTag {}
 /// Tag type for `#STOPxx` index IDs.
 ///
 /// Stop-sequence definitions, referenced by channel `#xxx09`.
 /// Values are in 192nd-note units.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StopTag {}
 /// Tag type for `#SCROLLxx` index IDs.
 ///
 /// Scroll speed multiplier definitions, referenced by channel `#xxxSC`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScrollTag {}
 /// Tag type for `#SPEEDxx` index IDs.
 ///
 /// Visual note-spacing definitions, referenced by channel `#xxxSP`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SpeedTag {}
 /// Tag type for `#EXRANKxx` index IDs.
 ///
 /// Per-position judgment width overrides, referenced by channel
 /// `#xxxA0`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExRankTag {}
 /// Tag type for `#SEEKxx` index IDs.
 ///
 /// Video seek positions, referenced by channel `#xxx05`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SeekTag {}
 /// Tag type for `#LNOBJ` value (a WAV index used as LN terminator).
 ///
@@ -298,19 +298,19 @@ pub enum SeekTag {}
 /// appears on channels `#xxx11-29`, it marks the end of a long note.
 /// **Recommendation**: use uppercase to avoid nanasi/fgt++ lowercase
 /// recognition bugs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LnObjTag {}
 /// Tag type for `#TEXT[00-ZZ]` / `#SONG[01-ZZ]` index IDs.
 ///
 /// Timed on-screen text definitions, referenced by channel `#xxx99`.
 /// `#TEXT00` is the miss text shown on poor judgment in nanasi.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TextTag {}
 /// Tag type for `#CHANGEOPTION[01-ZZ]` index IDs.
 ///
 /// Dynamic option-change definitions, referenced by channel `#xxxA6`.
 /// Used to change player options mid-chart (nanasi extension).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChangeOptionTag {}
 
 #[cfg(test)]

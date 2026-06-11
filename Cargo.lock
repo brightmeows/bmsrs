@@ -27,8 +27,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bms-control-flow"
+version = "0.1.0"
+dependencies = [
+ "bms-tokenizer",
+ "thiserror",
+]
+
+[[package]]
 name = "bms-parser"
 version = "0.1.0"
+dependencies = [
+ "bms-tokenizer",
+]
 
 [[package]]
 name = "bms-processor"
@@ -78,6 +89,8 @@ version = "0.1.0"
 name = "bmsrs"
 version = "0.1.0"
 dependencies = [
+ "bms-control-flow",
+ "bms-parser",
  "bms-tokenizer",
  "bmson-def",
 ]

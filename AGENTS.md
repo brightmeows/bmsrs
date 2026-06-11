@@ -22,9 +22,10 @@ cargo deny check
 | Crate | Directory | Summary |
 |---|---|---|
 | `bmsrs` | `./src` | Re-export facade |
-| `bms-tokenizer` | `bms/tokenizer` | First stage of `tokenizer → parser → processor` |
+| `bms-tokenizer` | `bms/tokenizer` | First stage of `tokenizer → control-flow → parser` |
 | `bms-tokenizer-derive` | `bms/tokenizer-derive` | Proc-macro for `#[derive(BmsTokenAttr)]` |
-| `bms-parser` | `bms/parser` | |
+| `bms-control-flow` | `bms/control-flow` | Flow document tree, branch selection, roundtrip |
+| `bms-parser` | `bms/parser` | Structured `Bms` model from flat token stream |
 | `bms-processor` | `bms/processor` | |
 | `bmson-def` | `bmson/def` | bmson format type definitions (v0/v1/v2) |
 | `bmson-de-chumsky` | `bmson/de-chumsky` | |
@@ -45,6 +46,14 @@ Conventional Commits matching `release-plz.toml` changelog groups:
 
 - Use doc comments (`///` for items, `//!` for modules) for all API
   documentation — clippy enforces docs on all items.
+
+## API convention
+
+Expose public operations through associated functions on a relevant type
+(typically a domain struct or a zero-sized `*Builder`). Avoid free functions
+as public API — namespacing on a type is mandatory for consistency.
+Prefer a `*Builder` only when the API has configurable parameters; a
+bare struct with methods is sufficient when there is no state to configure.
 
 ## MSRV
 

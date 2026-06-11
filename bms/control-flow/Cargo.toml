@@ -1,9 +1,9 @@
 [package]
-name = "bms-parser"
+name = "bms-control-flow"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description.workspace = true
+description = "BMS control-flow tree construction, branch selection, and roundtrip conversion"
 repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -13,8 +13,7 @@ rust-version.workspace = true
 
 [dependencies]
 bms-tokenizer = { path = "../tokenizer" }
-
-[lib]
+thiserror.workspace = true
 
 [lints]
 workspace = true
