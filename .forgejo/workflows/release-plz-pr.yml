@@ -28,11 +28,19 @@ jobs:
       - name: Prepare release PR
         run: |
           curl -fsSL \
-            "https://github.com/release-plz/release-plz/releases/download/release-plz-v0.3.158/release-plz-x86_64-unknown-linux-gnu.tar.gz" \
+            "https://github.com/release-plz/release-plz/releases/download/release-plz-v0.3.159/release-plz-x86_64-unknown-linux-gnu.tar.gz" \
             -o /tmp/release-plz.tar.gz
           tar xzf /tmp/release-plz.tar.gz -C /tmp
           install /tmp/release-plz /usr/local/bin/ 2>/dev/null || \
             install /tmp/release-plz-*/release-plz /usr/local/bin/
+
+          # Install cargo-semver-checks (for semver_check: true)
+          curl -fsSL \
+            "https://github.com/obi1kenobi/cargo-semver-checks/releases/download/v0.48.0/cargo-semver-checks-x86_64-unknown-linux-gnu.tar.gz" \
+            -o /tmp/semver.tar.gz
+          tar xzf /tmp/semver.tar.gz -C /tmp
+          install /tmp/cargo-semver-checks /usr/local/bin/
+
           git config --global user.name "BrightMeowS"
           git config --global user.email "brightmeows@163.com"
           release-plz release-pr \
