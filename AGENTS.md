@@ -33,6 +33,8 @@ cargo deny check
 | `bmsrs-chart` | `core/chart` | |
 | `bmsrs-player` | `player` | |
 
+All dependencies (local and external) use `workspace = true` — see `[workspace.dependencies]` in root `Cargo.toml`.
+
 ## Commit format
 
 Conventional Commits matching `release-plz.toml` changelog groups:

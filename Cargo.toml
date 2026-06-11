@@ -15,10 +15,10 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-bms-tokenizer = { path = "bms/tokenizer" }
-bms-control-flow = { path = "bms/control-flow" }
-bms-parser = { path = "bms/parser" }
-bmson-def = { path = "bmson/def" }
+bms-tokenizer.workspace = true
+bms-control-flow.workspace = true
+bms-parser.workspace = true
+bmson-def.workspace = true
 
 [workspace]
 resolver = "3"
@@ -48,14 +48,21 @@ categories = ["multimedia::encoding", "game::development"]
 rust-version = "1.85"
 
 [workspace.dependencies]
+# External
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
-bmson-def = { path = "bmson/def" }
 chumsky = { version = "0.12", features = ["serde"] }
 serde_json = "1"
+
+# Local (path)
+bmson-def = { path = "bmson/def" }
+bms-tokenizer = { path = "bms/tokenizer" }
+bms-control-flow = { path = "bms/control-flow" }
+bms-parser = { path = "bms/parser" }
+bms-tokenizer-derive = { path = "bms/tokenizer-derive" }
 
 [workspace.lints.rust]
 dead_code = "deny"
