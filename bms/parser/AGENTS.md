@@ -3,6 +3,13 @@
 Third stage: tokenizer → control-flow → **parser**.
 Builds owned `Bms` struct from flat tokens (no control-flow commands).
 
+## Design goals
+
+1. **Semantic parse + info preservation** — Domain-typed `Bms`, not raw commands.
+   Discard only what has no semantic interpretation.
+2. **Editability** — `Bms` is the editing API. Mutate fields, re-serialize.
+   No raw token manipulation.
+
 ```mermaid
 flowchart LR
     Flat["impl IntoIterator&lt;Item = BmsToken&gt;"]
