@@ -5,7 +5,7 @@
 use std::fmt;
 
 use crate::header::display::PoorBgaMode;
-use crate::id::{BmpTag, BmsChannelId, SeekTag};
+use crate::index::{BmpTag, BmsIndex, SeekTag};
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
 /// Parameters for `#BGA{id}` — image crop-and-place definition.
@@ -310,7 +310,7 @@ pub enum BmsHeaderResDefVisual<'a> {
     #[bms_token("#BMP{id} {filename}")]
     Bmp {
         /// The 2-character index.
-        id: BmsChannelId<BmpTag>,
+        id: BmsIndex<BmpTag>,
         /// Path or name of the resource file.
         filename: &'a str,
     },
@@ -319,7 +319,7 @@ pub enum BmsHeaderResDefVisual<'a> {
     #[bms_fallback]
     ExBmp {
         /// The 2-character index.
-        id: BmsChannelId<BmpTag>,
+        id: BmsIndex<BmpTag>,
         /// Parsed parameters.
         params: ExBmpParams<'a>,
     },
@@ -328,7 +328,7 @@ pub enum BmsHeaderResDefVisual<'a> {
     #[bms_fallback]
     Bga {
         /// The 2-character index.
-        id: BmsChannelId<BmpTag>,
+        id: BmsIndex<BmpTag>,
         /// Parsed placement parameters.
         params: BgaParams,
     },
@@ -337,7 +337,7 @@ pub enum BmsHeaderResDefVisual<'a> {
     #[bms_fallback]
     AtBga {
         /// The 2-character index.
-        id: BmsChannelId<BmpTag>,
+        id: BmsIndex<BmpTag>,
         /// Parsed placement parameters.
         params: AtBgaParams,
     },
@@ -350,7 +350,7 @@ pub enum BmsHeaderResDefVisual<'a> {
     #[bms_fallback]
     SwBga {
         /// The 2-character index.
-        id: BmsChannelId<BmpTag>,
+        id: BmsIndex<BmpTag>,
         /// Parsed transition parameters.
         params: SwBgaParams<'a>,
     },
@@ -359,7 +359,7 @@ pub enum BmsHeaderResDefVisual<'a> {
     #[bms_fallback]
     Argb {
         /// The 2-character index.
-        id: BmsChannelId<BmpTag>,
+        id: BmsIndex<BmpTag>,
         /// Parsed ARGB values.
         params: ArgbParams,
     },
@@ -384,7 +384,7 @@ pub enum BmsHeaderResDefVisual<'a> {
     #[bms_token("#SEEK{id} {value}")]
     Seek {
         /// The 2-character index.
-        id: BmsChannelId<SeekTag>,
+        id: BmsIndex<SeekTag>,
         /// Seek time in milliseconds.
         value: f64,
     },

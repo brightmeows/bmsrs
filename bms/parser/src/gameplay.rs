@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    BmsBaseMode, BmsChannelId, BmsHeaderGameplay, ChangeOptionTag, ExRankTag, LnMode, LnObjTag,
-    LnType, PlayerMode, Rank,
+    BmsBaseMode, BmsHeaderGameplay, BmsIndex, ChangeOptionTag, ExRankTag, LnMode, LnObjTag, LnType,
+    PlayerMode, Rank,
 };
 
 /// Gameplay behaviour settings.
@@ -28,15 +28,15 @@ pub struct Gameplay {
     /// Long-note notation (`#LNTYPE`).
     pub ln_type: Option<LnType>,
     /// WAV index used as LN termination marker (`#LNOBJ`).
-    pub ln_obj: Option<BmsChannelId<LnObjTag>>,
+    pub ln_obj: Option<BmsIndex<LnObjTag>>,
     /// Forced LN / CN / HCN mode (`#LNMODE`).
     pub ln_mode: Option<LnMode>,
     /// Numbering base for indexed commands (`#BASE`).
     pub base: Option<BmsBaseMode>,
     /// Per-position judgment width overrides (`#EXRANKxx`).
-    pub ex_rank_defs: BTreeMap<BmsChannelId<ExRankTag>, f64>,
+    pub ex_rank_defs: BTreeMap<BmsIndex<ExRankTag>, f64>,
     /// Dynamic option-change definitions (`#CHANGEOPTIONxx`).
-    pub change_option_defs: BTreeMap<BmsChannelId<ChangeOptionTag>, String>,
+    pub change_option_defs: BTreeMap<BmsIndex<ChangeOptionTag>, String>,
     /// Octave / Folding-point flag (`#OCT` / `#FP` / `#OCT/FP`).
     pub oct_fp: Option<bool>,
     /// Engine-specific option string (`#OPTION`).

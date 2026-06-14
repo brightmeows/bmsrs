@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsChannelId, BmsHeaderResDefAudio, WavTag};
+use bms_tokenizer::{BmsHeaderResDefAudio, BmsIndex, WavTag};
 
 /// Audio resource definitions.
 ///
@@ -12,7 +12,7 @@ use bms_tokenizer::{BmsChannelId, BmsHeaderResDefAudio, WavTag};
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Audio {
     /// Sound effect / BGM file definitions (`#WAV`, `#EXWAV`).
-    pub wav_files: BTreeMap<BmsChannelId<WavTag>, String>,
+    pub wav_files: BTreeMap<BmsIndex<WavTag>, String>,
     /// Audio playback command (`#WAVCMD`).
     pub wav_cmd: Option<String>,
     /// CD audio track reference (`#CDDA`).

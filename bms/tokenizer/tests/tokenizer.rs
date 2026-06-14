@@ -44,9 +44,9 @@ fn tokenize_single_message() {
     assert_eq!(tokens[0].0.get(), 1);
     match &tokens[0].1 {
         Ok(BmsToken::Message(msg)) => {
-            assert_eq!(msg.measure, 1);
+            assert_eq!(msg.track, 1);
             assert_eq!(msg.channel.as_str(), "11");
-            assert_eq!(msg.values, "11223344");
+            assert_eq!(msg.body, "11223344");
         }
         _ => panic!("expected Message token"),
     }
@@ -159,10 +159,10 @@ fn collect_all_returns_all_results() {
 
 #[test]
 fn collect_all_continues_past_errors() {
-    // #001GZ: has an invalid channel number (non-hex character G)
+    // #001..: has an invalid channel (dot is not valid Base62)
     let bms = "\
 #TITLE Song
-#001GZ:1122
+#001..:1122
 #00201:AABB
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
@@ -181,7 +181,7 @@ fn collect_all_continues_past_errors() {
 fn fail_fast_stops_at_first_error() {
     let bms = "\
 #TITLE Song
-#001GZ:1122
+#001..:1122
 #00201:AABB
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
@@ -230,7 +230,7 @@ fn line_number_gaps_with_skipped_lines() {
 fn default_strategy_is_collect_all() {
     let tokenizer = BmsTokenizer::new();
     // Tokenize with default should be CollectAll
-    let bms = "#00101:11\n#001GZ:FF\n#00201:22";
+    let bms = "#00101:11\n#001..:FF\n#00201:22";
     let tokens: Vec<_> = tokenizer.tokenize(bms);
     assert_eq!(tokens.len(), 3);
     assert!(tokens[0].1.is_ok());
@@ -296,7 +296,7 @@ fn tokenize_into_hashmap() {
 
 #[test]
 fn fail_fast_error_line_included_in_results() {
-    let bms = "#00101:11\n#001GZ:FF";
+    let bms = "#00101:11\n#001..:FF";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
         .tokenize(bms);

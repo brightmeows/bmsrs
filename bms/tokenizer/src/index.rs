@@ -1,13 +1,14 @@
-//! Type-safe channel ID wrapper backed by `[u8; 2]`.
+//! Type-safe BMS index wrapper backed by `[u8; 2]`.
 //!
 //! BMS uses 2-character indices to reference resources (WAV, BMP), timing
-//! definitions (BPM, STOP, SCROLL, SPEED), and other indexed commands.  The
-//! character set varies by context:
+//! definitions (BPM, STOP, SCROLL, SPEED), channel numbers, and other
+//! indexed commands.  The character set varies by context:
 //!
-//! - Most indexed commands use base-36 (`"01"`–`"ZZ"`, `"aa"`–`"zz"`).
-//! - Channel data lines (`#xxxYY:values`) use hexadecimal (`"0A"`, `"D1"`).
+//! - Most indexed commands use Base62 (`"01"`–`"zz"`, with `#BASE 62`).
+//! - Standard resource indices use Base36 (`"01"`–`"ZZ"`).
+//! - Channel data lines (`#xxxYY:values`) use hexadecimal (Base16).
 //!
-//! This module provides a typed wrapper [`BmsChannelId<T, C>`] where `T`
+//! This module provides a typed wrapper [`BmsIndex<T, C>`] where `T`
 //! prevents mixing index *kinds* and `C` constrains the *character set*
 //! at compile time.
 //!
@@ -24,7 +25,7 @@ use thiserror::Error;
 
 use crate::IntoTokensError;
 
-/// Character set constraint for [`BmsChannelId`].
+/// Character set constraint for [`BmsIndex`].
 ///
 /// Implementations define which bytes are valid for a given index context.
 pub trait BmsCharset {
@@ -40,9 +41,9 @@ pub trait BmsCharset {
 /// conventional range is base-36 `[0-9A-Z]` (1296 IDs), with lowercase
 /// letters mapping to the same values as uppercase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum AlphaNum {}
+pub enum Base62 {}
 
-impl BmsCharset for AlphaNum {
+impl BmsCharset for Base62 {
     fn is_valid(b: u8) -> bool {
         matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
     }
@@ -54,38 +55,37 @@ impl BmsCharset for AlphaNum {
 /// older implementations).  The standard BMS range is `[01-ZZ]`,
 /// giving 1296 unique two-character IDs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Base36Upper {}
+pub enum Base36 {}
 
-impl BmsCharset for Base36Upper {
+impl BmsCharset for Base36 {
     fn is_valid(b: u8) -> bool {
         matches!(b, b'0'..=b'9' | b'A'..=b'Z')
     }
 }
 
-/// Hexadecimal charset: `0`–`9`, `A`–`F`, `a`–`f`.
+/// Base16 (hexadecimal) charset: `0`–`9`, `A`–`F`, `a`–`f`.
 ///
 /// Used for channel numbers in message lines (`#xxxYY:values`), where
 /// `YY` is a two-digit hex value (`00`–`FF`, 256 channels).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Hex {}
+pub enum Base16 {}
 
-impl BmsCharset for Hex {
+impl BmsCharset for Base16 {
     fn is_valid(b: u8) -> bool {
         b.is_ascii_hexdigit()
     }
 }
 
-/// A validated BMS channel ID (1–2 characters from the charset `C`),
-/// stored as raw ASCII bytes.
+/// A validated BMS 1–2 character index, stored as raw ASCII bytes.
 ///
 /// `T` is a zero-size tag type (e.g., [`WavTag`], [`BpmTag`]) that prevents
-/// cross-type misuse at compile time — a `BmsChannelId<WavTag>` cannot be
-/// used where a `BmsChannelId<BmpTag>` is expected.
+/// cross-type misuse at compile time — a `BmsIndex<WavTag>` cannot be
+/// used where a `BmsIndex<BmpTag>` is expected.
 ///
-/// `C` is a charset constraint (default: [`AlphaNum`]). For example,
-/// `BmsChannelId<ChannelTag, Hex>` only accepts hexadecimal characters.
+/// `C` is a charset constraint (default: [`Base62`]). For example,
+/// `BmsIndex<ChannelTag, Base16>` only accepts hexadecimal characters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BmsChannelId<T, C: BmsCharset = AlphaNum> {
+pub struct BmsIndex<T, C: BmsCharset = Base62> {
     /// Raw ASCII bytes of the characters.
     ///
     /// # Invariant
@@ -98,7 +98,7 @@ pub struct BmsChannelId<T, C: BmsCharset = AlphaNum> {
     _phantom: PhantomData<(T, C)>,
 }
 
-impl<T, C: BmsCharset> fmt::Display for BmsChannelId<T, C> {
+impl<T, C: BmsCharset> fmt::Display for BmsIndex<T, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
@@ -108,7 +108,7 @@ impl<T, C: BmsCharset> fmt::Display for BmsChannelId<T, C> {
     clippy::indexing_slicing,
     reason = "guarded by match on bytes.len() or bytes[1] sentinel check"
 )]
-impl<T, C: BmsCharset> BmsChannelId<T, C> {
+impl<T, C: BmsCharset> BmsIndex<T, C> {
     /// Return the ASCII string representation of this ID (borrows from self).
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -123,51 +123,13 @@ impl<T, C: BmsCharset> BmsChannelId<T, C> {
         let len = if self.bytes[1] == 0 { 1 } else { 2 };
         &self.bytes[..len]
     }
-}
 
-#[expect(
-    clippy::indexing_slicing,
-    reason = "guarded by match on bytes.len() or sentinel check"
-)]
-impl<T, C: BmsCharset> TryFrom<&str> for BmsChannelId<T, C> {
-    type Error = BmsChannelIdError;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        let bytes = s.as_bytes();
-        match bytes.len() {
-            1 if C::is_valid(bytes[0]) => Ok(Self {
-                bytes: [bytes[0], 0],
-                _phantom: PhantomData,
-            }),
-            2 if C::is_valid(bytes[0]) && C::is_valid(bytes[1]) => Ok(Self {
-                bytes: [bytes[0], bytes[1]],
-                _phantom: PhantomData,
-            }),
-            _ => Err(BmsChannelIdError {
-                input: s.to_owned(),
-            }),
-        }
-    }
-}
-
-/// Allows `value.parse::<BmsChannelId<T, C>>()` with unified error conversion.
-impl<T, C: BmsCharset> FromStr for BmsChannelId<T, C> {
-    type Err = BmsChannelIdError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::try_from(s)
-    }
-}
-
-/// Hex-charset methods for channel IDs.
-impl<T> BmsChannelId<T, Hex> {
     /// Convert the hexadecimal characters to a `u8` value.
     ///
     /// For a two-character ID like `"0A"` returns `10`.  For a
     /// single-character ID like `"A"` returns `10` (no shift).
     ///
-    /// Returns `None` if the characters are not valid hex (should not happen
-    /// when the ID was constructed through [`TryFrom`]).
+    /// Returns `None` if either byte is not a valid hex character.
     #[must_use]
     pub fn as_u8_hex(&self) -> Option<u8> {
         let hi = hex_digit_value(self.bytes[0])?;
@@ -180,8 +142,42 @@ impl<T> BmsChannelId<T, Hex> {
     }
 }
 
+#[expect(
+    clippy::indexing_slicing,
+    reason = "guarded by match on bytes.len() or sentinel check"
+)]
+impl<T, C: BmsCharset> TryFrom<&str> for BmsIndex<T, C> {
+    type Error = BmsIndexError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let bytes = s.as_bytes();
+        match bytes.len() {
+            1 if C::is_valid(bytes[0]) => Ok(Self {
+                bytes: [bytes[0], 0],
+                _phantom: PhantomData,
+            }),
+            2 if C::is_valid(bytes[0]) && C::is_valid(bytes[1]) => Ok(Self {
+                bytes: [bytes[0], bytes[1]],
+                _phantom: PhantomData,
+            }),
+            _ => Err(BmsIndexError {
+                input: s.to_owned(),
+            }),
+        }
+    }
+}
+
+/// Allows `value.parse::<BmsIndex<T, C>>()` with unified error conversion.
+impl<T, C: BmsCharset> FromStr for BmsIndex<T, C> {
+    type Err = BmsIndexError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_from(s)
+    }
+}
+
 /// Base-62 index methods for channel IDs.
-impl<T> BmsChannelId<T, AlphaNum> {
+impl<T> BmsIndex<T, Base62> {
     /// Convert the base-36 characters to a numeric index.
     ///
     /// `"00"` → `0`, `"ZZ"` → `1295`.  For a single-character ID like
@@ -224,13 +220,13 @@ fn base36_digit_value(b: u8) -> Option<u16> {
 /// Error returned when a channel ID string is not a valid 1–2 character
 /// sequence for the specified charset.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("invalid channel id: {input}")]
-pub struct BmsChannelIdError {
+#[error("invalid BMS index: {input}")]
+pub struct BmsIndexError {
     /// The raw string that failed validation.
     pub input: String,
 }
 
-impl<'a> IntoTokensError<'a> for BmsChannelIdError {
+impl<'a> IntoTokensError<'a> for BmsIndexError {
     fn into_error(self, _context: &'static str, value: &'a str) -> crate::BmsTokenizeError<'a> {
         crate::BmsTokenizeError::InvalidInteger { value }
     }
@@ -313,112 +309,128 @@ pub enum TextTag {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChangeOptionTag {}
 
+/// Tag type for 2-character object indices in message body values
+/// (the string after `:` in `#xxxYY:values`).
+///
+/// These indices reference resource definitions (WAV, BMP, BPM, etc.)
+/// and are parsed leniently — invalid characters are skipped, and every
+/// 2 consecutive valid Base62 characters form an object ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ObjectTag {}
+
+/// A validated 2-character object index from a message body.
+///
+/// This is a type alias for [`BmsIndex`] parameterized with [`ObjectTag`]
+/// and the [`Base62`] charset, used for the leniently parsed object IDs
+/// in [`BmsMessage`](crate::BmsMessage).
+pub type BmsObjectId = BmsIndex<ObjectTag, Base62>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn base62_valid_two_char_ids() {
-        assert!(BmsChannelId::<WavTag, AlphaNum>::try_from("01").is_ok());
-        assert!(BmsChannelId::<WavTag>::try_from("ZZ").is_ok());
-        assert!(BmsChannelId::<WavTag>::try_from("aa").is_ok());
-        assert!(BmsChannelId::<WavTag>::try_from("zZ").is_ok());
-        assert!(BmsChannelId::<WavTag>::try_from("FF").is_ok());
+        assert!(BmsIndex::<WavTag, Base62>::try_from("01").is_ok());
+        assert!(BmsIndex::<WavTag>::try_from("ZZ").is_ok());
+        assert!(BmsIndex::<WavTag>::try_from("aa").is_ok());
+        assert!(BmsIndex::<WavTag>::try_from("zZ").is_ok());
+        assert!(BmsIndex::<WavTag>::try_from("FF").is_ok());
     }
 
     #[test]
     fn base62_valid_one_char_ids() {
-        assert!(BmsChannelId::<WavTag>::try_from("A").is_ok());
-        assert!(BmsChannelId::<WavTag>::try_from("9").is_ok());
-        assert!(BmsChannelId::<WavTag>::try_from("0").is_ok());
+        assert!(BmsIndex::<WavTag>::try_from("A").is_ok());
+        assert!(BmsIndex::<WavTag>::try_from("9").is_ok());
+        assert!(BmsIndex::<WavTag>::try_from("0").is_ok());
     }
 
     #[test]
     fn base62_empty_id_is_invalid() {
-        assert!(BmsChannelId::<WavTag>::try_from("").is_err());
+        assert!(BmsIndex::<WavTag>::try_from("").is_err());
     }
 
     #[test]
     fn base62_three_char_id_is_invalid() {
-        assert!(BmsChannelId::<WavTag>::try_from("AAA").is_err());
+        assert!(BmsIndex::<WavTag>::try_from("AAA").is_err());
     }
 
     #[test]
     fn base62_non_alphanumeric_is_invalid() {
-        assert!(BmsChannelId::<WavTag>::try_from("*!").is_err());
-        assert!(BmsChannelId::<WavTag>::try_from(" ").is_err());
-        assert!(BmsChannelId::<WavTag>::try_from("ab:").is_err());
-        assert!(BmsChannelId::<WavTag>::try_from("-1").is_err());
+        assert!(BmsIndex::<WavTag>::try_from("*!").is_err());
+        assert!(BmsIndex::<WavTag>::try_from(" ").is_err());
+        assert!(BmsIndex::<WavTag>::try_from("ab:").is_err());
+        assert!(BmsIndex::<WavTag>::try_from("-1").is_err());
     }
 
     #[test]
     fn hex_valid_ids() {
-        assert!(BmsChannelId::<ChannelTag, Hex>::try_from("0A").is_ok());
-        assert!(BmsChannelId::<ChannelTag, Hex>::try_from("FF").is_ok());
-        assert!(BmsChannelId::<ChannelTag, Hex>::try_from("D1").is_ok());
-        assert!(BmsChannelId::<ChannelTag, Hex>::try_from("ff").is_ok());
+        assert!(BmsIndex::<ChannelTag, Base16>::try_from("0A").is_ok());
+        assert!(BmsIndex::<ChannelTag, Base16>::try_from("FF").is_ok());
+        assert!(BmsIndex::<ChannelTag, Base16>::try_from("D1").is_ok());
+        assert!(BmsIndex::<ChannelTag, Base16>::try_from("ff").is_ok());
     }
 
     #[test]
     fn hex_rejects_non_hex() {
-        assert!(BmsChannelId::<ChannelTag, Hex>::try_from("GZ").is_err());
-        assert!(BmsChannelId::<ChannelTag, Hex>::try_from("ZZ").is_err());
-        assert!(BmsChannelId::<ChannelTag, Hex>::try_from("gh").is_err());
+        assert!(BmsIndex::<ChannelTag, Base16>::try_from("GZ").is_err());
+        assert!(BmsIndex::<ChannelTag, Base16>::try_from("ZZ").is_err());
+        assert!(BmsIndex::<ChannelTag, Base16>::try_from("gh").is_err());
     }
 
     #[test]
     fn base36_upper_valid_ids() {
-        assert!(BmsChannelId::<WavTag, Base36Upper>::try_from("01").is_ok());
-        assert!(BmsChannelId::<WavTag, Base36Upper>::try_from("ZZ").is_ok());
-        assert!(BmsChannelId::<WavTag, Base36Upper>::try_from("A0").is_ok());
+        assert!(BmsIndex::<WavTag, Base36>::try_from("01").is_ok());
+        assert!(BmsIndex::<WavTag, Base36>::try_from("ZZ").is_ok());
+        assert!(BmsIndex::<WavTag, Base36>::try_from("A0").is_ok());
     }
 
     #[test]
     fn base36_upper_rejects_lowercase() {
-        assert!(BmsChannelId::<WavTag, Base36Upper>::try_from("aa").is_err());
-        assert!(BmsChannelId::<WavTag, Base36Upper>::try_from("zZ").is_err());
+        assert!(BmsIndex::<WavTag, Base36>::try_from("aa").is_err());
+        assert!(BmsIndex::<WavTag, Base36>::try_from("zZ").is_err());
     }
 
     #[test]
     fn different_tags_prevent_mixing() {
-        let wav_id = BmsChannelId::<WavTag>::try_from("01").unwrap();
-        let bmp_id = BmsChannelId::<BmpTag>::try_from("01").unwrap();
+        let wav_id = BmsIndex::<WavTag>::try_from("01").unwrap();
+        let bmp_id = BmsIndex::<BmpTag>::try_from("01").unwrap();
         assert_eq!(wav_id.as_str(), bmp_id.as_str());
     }
 
     #[test]
     fn as_str_returns_original() {
-        let id = BmsChannelId::<WavTag>::try_from("2A").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("2A").unwrap();
         assert_eq!(id.as_str(), "2A");
     }
 
     #[test]
     fn as_str_one_char() {
-        let id = BmsChannelId::<WavTag>::try_from("A").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("A").unwrap();
         assert_eq!(id.as_str(), "A");
     }
 
     #[test]
     fn as_bytes_two_char() {
-        let id = BmsChannelId::<WavTag>::try_from("2A").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("2A").unwrap();
         assert_eq!(id.as_bytes(), &[b'2', b'A']);
     }
 
     #[test]
     fn as_bytes_one_char() {
-        let id = BmsChannelId::<WavTag>::try_from("A").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("A").unwrap();
         assert_eq!(id.as_bytes(), &[b'A']);
     }
 
     #[test]
     fn display_output() {
-        let id = BmsChannelId::<WavTag>::try_from("FF").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("FF").unwrap();
         assert_eq!(id.to_string(), "FF");
     }
 
     #[test]
     fn bms_channel_id_error_display() {
-        let err = BmsChannelIdError {
+        let err = BmsIndexError {
             input: "!!!".to_string(),
         };
         assert!(err.to_string().contains("!!!"));
@@ -435,46 +447,46 @@ mod tests {
     #[test]
     fn size_of_bms_channel_id() {
         // [u8; 2] + PhantomData<(T, C)> → 2 bytes, no pointer overhead.
-        assert_eq!(std::mem::size_of::<BmsChannelId<WavTag>>(), 2);
-        assert_eq!(std::mem::size_of::<BmsChannelId<WavTag, AlphaNum>>(), 2);
-        assert_eq!(std::mem::size_of::<BmsChannelId<ChannelTag, Hex>>(), 2);
+        assert_eq!(std::mem::size_of::<BmsIndex<WavTag>>(), 2);
+        assert_eq!(std::mem::size_of::<BmsIndex<WavTag, Base62>>(), 2);
+        assert_eq!(std::mem::size_of::<BmsIndex<ChannelTag, Base16>>(), 2);
     }
 
     #[test]
     fn as_u8_hex_two_digits() {
-        let id = BmsChannelId::<ChannelTag, Hex>::try_from("0A").unwrap();
+        let id = BmsIndex::<ChannelTag, Base16>::try_from("0A").unwrap();
         assert_eq!(id.as_u8_hex(), Some(10));
-        let id = BmsChannelId::<ChannelTag, Hex>::try_from("FF").unwrap();
+        let id = BmsIndex::<ChannelTag, Base16>::try_from("FF").unwrap();
         assert_eq!(id.as_u8_hex(), Some(255));
-        let id = BmsChannelId::<ChannelTag, Hex>::try_from("D1").unwrap();
+        let id = BmsIndex::<ChannelTag, Base16>::try_from("D1").unwrap();
         assert_eq!(id.as_u8_hex(), Some(209));
     }
 
     #[test]
     fn as_u8_hex_one_digit() {
-        let id = BmsChannelId::<ChannelTag, Hex>::try_from("A").unwrap();
+        let id = BmsIndex::<ChannelTag, Base16>::try_from("A").unwrap();
         assert_eq!(id.as_u8_hex(), Some(10));
-        let id = BmsChannelId::<ChannelTag, Hex>::try_from("f").unwrap();
+        let id = BmsIndex::<ChannelTag, Base16>::try_from("f").unwrap();
         assert_eq!(id.as_u8_hex(), Some(15));
     }
 
     #[test]
     fn to_index_base62() {
-        let id = BmsChannelId::<WavTag>::try_from("00").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("00").unwrap();
         assert_eq!(id.to_index(), Some(0));
-        let id = BmsChannelId::<WavTag>::try_from("01").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("01").unwrap();
         assert_eq!(id.to_index(), Some(1));
-        let id = BmsChannelId::<WavTag>::try_from("ZZ").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("ZZ").unwrap();
         assert_eq!(id.to_index(), Some(1295));
-        let id = BmsChannelId::<WavTag>::try_from("0A").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("0A").unwrap();
         assert_eq!(id.to_index(), Some(10));
     }
 
     #[test]
     fn to_index_single_char() {
-        let id = BmsChannelId::<WavTag>::try_from("A").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("A").unwrap();
         assert_eq!(id.to_index(), Some(10));
-        let id = BmsChannelId::<WavTag>::try_from("z").unwrap();
+        let id = BmsIndex::<WavTag>::try_from("z").unwrap();
         assert_eq!(id.to_index(), Some(35));
     }
 }

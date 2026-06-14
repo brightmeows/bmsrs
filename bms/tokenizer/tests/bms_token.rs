@@ -4,9 +4,9 @@
 //! again is identity (or at least consistent).
 
 use bms_tokenizer::{
-    BmsChannelId, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
-    BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ChangeOptionTag, DifficultyLevel,
-    LnMode, LnType, PlayerMode, Rank, TextTag,
+    BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
+    BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, BmsIndex, ChangeOptionTag,
+    DifficultyLevel, LnMode, LnType, PlayerMode, Rank, TextTag,
 };
 
 #[test]
@@ -76,7 +76,7 @@ fn metadata_text_roundtrip() {
     assert_eq!(
         parsed,
         BmsHeaderMetadata::Text {
-            id: BmsChannelId::<TextTag>::try_from("01").unwrap(),
+            id: BmsIndex::<TextTag>::try_from("01").unwrap(),
             value: "in-game text"
         }
     );
@@ -93,7 +93,7 @@ fn metadata_song_alias() {
     assert_eq!(
         parsed,
         BmsHeaderMetadata::Text {
-            id: BmsChannelId::<TextTag>::try_from("01").unwrap(),
+            id: BmsIndex::<TextTag>::try_from("01").unwrap(),
             value: "some text"
         }
     );
@@ -436,7 +436,7 @@ fn gameplay_changeoption_roundtrip() {
     assert_eq!(
         parsed,
         BmsHeaderGameplay::ChangeOption {
-            id: BmsChannelId::<ChangeOptionTag>::try_from("01").unwrap(),
+            id: BmsIndex::<ChangeOptionTag>::try_from("01").unwrap(),
             value: "774:HIDDEN_STEALTH"
         }
     );

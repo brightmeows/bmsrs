@@ -24,7 +24,7 @@ use std::num::NonZeroUsize;
 
 mod error;
 mod header;
-mod id;
+mod index;
 mod message;
 
 #[cfg(test)]
@@ -40,9 +40,10 @@ pub use header::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay,
     BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
 };
-pub use id::{
-    AlphaNum, Base36Upper, BmpTag, BmsChannelId, BmsChannelIdError, BpmTag, ChangeOptionTag,
-    ChannelTag, ExRankTag, Hex, LnObjTag, ScrollTag, SeekTag, SpeedTag, StopTag, TextTag, WavTag,
+pub use index::{
+    Base16, Base36, Base62, BmpTag, BmsIndex, BmsIndexError, BmsObjectId, BpmTag, ChangeOptionTag,
+    ChannelTag, ExRankTag, LnObjTag, ObjectTag, ScrollTag, SeekTag, SpeedTag, StopTag, TextTag,
+    WavTag,
 };
 pub use message::BmsMessage;
 
@@ -75,7 +76,7 @@ pub trait BmsValue<'a>: fmt::Display + Sized {
     fn parse(s: &'a str) -> Option<Self>;
 }
 
-// Covers primitives (f64, u8, i32), BmsChannelId, PoorBgaMode, DifficultyLevel,
+// Covers primitives (f64, u8, i32), BmsIndex, PoorBgaMode, DifficultyLevel,
 // and any other type that already implements FromStr + Display.
 
 impl<'a, T> BmsValue<'a> for T

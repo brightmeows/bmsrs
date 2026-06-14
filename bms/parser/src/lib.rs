@@ -123,7 +123,7 @@ impl Bms {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bms_tokenizer::{BmsChannelId, BmsTokenizer};
+    use bms_tokenizer::{BmsIndex, BmsTokenizer};
 
     fn parse_tokens(input: &str) -> Vec<BmsToken<'_>> {
         BmsTokenizer::new()
@@ -146,8 +146,8 @@ mod tests {
 
         let tokens = parse_tokens("#WAV01 a.wav\n#WAV02 b.wav");
         let bms = Bms::from_flat_tokens(tokens);
-        let id1: BmsChannelId<WavTag> = "01".try_into().unwrap();
-        let id2: BmsChannelId<WavTag> = "02".try_into().unwrap();
+        let id1: BmsIndex<WavTag> = "01".try_into().unwrap();
+        let id2: BmsIndex<WavTag> = "02".try_into().unwrap();
         assert_eq!(
             bms.audio.wav_files.get(&id1).map(String::as_str),
             Some("a.wav")
@@ -160,12 +160,12 @@ mod tests {
 
     #[test]
     fn message_storage() {
+        use bms_tokenizer::Base62;
         use bms_tokenizer::ChannelTag;
-        use bms_tokenizer::Hex;
 
         let tokens = parse_tokens("#00101:1122");
         let bms = Bms::from_flat_tokens(tokens);
-        let ch: BmsChannelId<ChannelTag, Hex> = "01".try_into().unwrap();
+        let ch: BmsIndex<ChannelTag, Base62> = "01".try_into().unwrap();
         let measure_map = bms.messages.raw.get(&1);
         assert!(measure_map.is_some());
         assert_eq!(
@@ -176,12 +176,12 @@ mod tests {
 
     #[test]
     fn message_concat_same_channel() {
+        use bms_tokenizer::Base62;
         use bms_tokenizer::ChannelTag;
-        use bms_tokenizer::Hex;
 
         let tokens = parse_tokens("#00101:1122\n#00101:3344");
         let bms = Bms::from_flat_tokens(tokens);
-        let ch: BmsChannelId<ChannelTag, Hex> = "01".try_into().unwrap();
+        let ch: BmsIndex<ChannelTag, Base62> = "01".try_into().unwrap();
         let measure_map = bms.messages.raw.get(&1);
         assert_eq!(
             measure_map.and_then(|m| m.get(&ch).map(String::as_str)),
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn mixed_headers_and_messages() {
-        use bms_tokenizer::{ChannelTag, Hex, WavTag};
+        use bms_tokenizer::{Base62, ChannelTag, WavTag};
 
         let tokens = parse_tokens(
             "#TITLE My Song\n#ARTIST composer\n#BPM 180\n#WAV01 kick.wav\n#00111:11223344",
@@ -211,12 +211,12 @@ mod tests {
         assert_eq!(bms.metadata.title.as_deref(), Some("My Song"));
         assert_eq!(bms.metadata.artist.as_deref(), Some("composer"));
         assert_eq!(bms.timing.bpm, Some(180.0));
-        let wav_id: BmsChannelId<WavTag> = "01".try_into().unwrap();
+        let wav_id: BmsIndex<WavTag> = "01".try_into().unwrap();
         assert_eq!(
             bms.audio.wav_files.get(&wav_id).map(String::as_str),
             Some("kick.wav")
         );
-        let ch: BmsChannelId<ChannelTag, Hex> = "11".try_into().unwrap();
+        let ch: BmsIndex<ChannelTag, Base62> = "11".try_into().unwrap();
         assert_eq!(
             bms.messages
                 .raw
@@ -233,8 +233,8 @@ mod tests {
         let tokens = parse_tokens("#BPM 120\n#BPM01 180.0\n#EXBPM02 200.0");
         let bms = Bms::from_flat_tokens(tokens);
         assert_eq!(bms.timing.bpm, Some(120.0));
-        let id1: BmsChannelId<BpmTag> = "01".try_into().unwrap();
-        let id2: BmsChannelId<BpmTag> = "02".try_into().unwrap();
+        let id1: BmsIndex<BpmTag> = "01".try_into().unwrap();
+        let id2: BmsIndex<BpmTag> = "02".try_into().unwrap();
         assert_eq!(bms.timing.bpm_defs.get(&id1), Some(&180.0));
         assert_eq!(bms.timing.bpm_defs.get(&id2), Some(&200.0));
     }
@@ -307,7 +307,7 @@ mod tests {
     fn ex_bmp_stored() {
         let tokens = parse_tokens("#EXBMP01 255,0,128,64 overlay.png");
         let bms = Bms::from_flat_tokens(tokens);
-        let id: BmsChannelId<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
+        let id: BmsIndex<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
         let entry = bms.visual.ex_bmp_defs.get(&id);
         assert!(entry.is_some());
         let params = entry.unwrap();
@@ -320,7 +320,7 @@ mod tests {
     fn bga_def_stored() {
         let tokens = parse_tokens("#BGA01 02 0 0 100 100 10 20");
         let bms = Bms::from_flat_tokens(tokens);
-        let id: BmsChannelId<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
+        let id: BmsIndex<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
         assert!(bms.visual.crop_defs.contains_key(&id));
     }
 
@@ -328,7 +328,7 @@ mod tests {
     fn at_bga_stored() {
         let tokens = parse_tokens("#@BGA01 03 5 10 200 150 0 0");
         let bms = Bms::from_flat_tokens(tokens);
-        let id: BmsChannelId<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
+        let id: BmsIndex<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
         assert!(bms.visual.alt_crop_defs.contains_key(&id));
     }
 
@@ -336,7 +336,7 @@ mod tests {
     fn sw_bga_stored() {
         let tokens = parse_tokens("#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp");
         let bms = Bms::from_flat_tokens(tokens);
-        let id: BmsChannelId<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
+        let id: BmsIndex<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
         assert!(bms.visual.sw_bga_defs.contains_key(&id));
     }
 
@@ -344,7 +344,7 @@ mod tests {
     fn argb_stored() {
         let tokens = parse_tokens("#ARGB01 128,255,0,64");
         let bms = Bms::from_flat_tokens(tokens);
-        let id: BmsChannelId<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
+        let id: BmsIndex<bms_tokenizer::BmpTag> = "01".try_into().unwrap();
         assert!(bms.visual.argb_defs.contains_key(&id));
     }
 

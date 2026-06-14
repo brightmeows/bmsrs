@@ -5,7 +5,7 @@
 
 use bms_parser::*;
 use bms_tokenizer::{
-    BmpTag, BmsBaseMode, BmsChannelId, BmsTokenizer, BpmTag, ChannelTag, Hex, LnMode, LnType,
+    Base62, BmpTag, BmsBaseMode, BmsIndex, BmsTokenizer, BpmTag, ChannelTag, LnMode, LnType,
     PlayerMode, Rank, StopTag, WavTag,
 };
 
@@ -227,7 +227,7 @@ fn dropped_visual_headers_stored() {
 ",
     );
 
-    let id01: BmsChannelId<BmpTag> = "01".try_into().unwrap();
+    let id01: BmsIndex<BmpTag> = "01".try_into().unwrap();
 
     // BMP is stored
     assert_eq!(
@@ -413,7 +413,7 @@ fn measure_length_parsed() {
 #[test]
 fn same_channel_concat() {
     let bms = parse("#00101:AABB\n#00101:CCDD");
-    let ch: BmsChannelId<ChannelTag, Hex> = "01".try_into().unwrap();
+    let ch: BmsIndex<ChannelTag, Base62> = "01".try_into().unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&"AABBCCDD".to_owned())
@@ -459,7 +459,7 @@ fn unknown_channel_stays_raw() {
     // Channel FF is unknown — only in raw, no events
     assert!(bms.messages.bgm_events.is_empty());
     assert!(bms.messages.note_events.is_empty());
-    let ch: BmsChannelId<ChannelTag, Hex> = "FF".try_into().unwrap();
+    let ch: BmsIndex<ChannelTag, Base62> = "FF".try_into().unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&"1122".to_owned())
@@ -471,7 +471,7 @@ fn empty_message_values() {
     let bms = parse("#00111:");
     // Values empty — no events, but raw has empty string
     assert!(bms.messages.note_events.is_empty());
-    let ch: BmsChannelId<ChannelTag, Hex> = "11".try_into().unwrap();
+    let ch: BmsIndex<ChannelTag, Base62> = "11".try_into().unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&"".to_owned())
@@ -514,11 +514,11 @@ fn mixed_headers_and_messages() {
 #[test]
 fn wav_and_bpm_defs() {
     let bms = parse("#WAV01 a.wav\n#WAV02 b.wav\n#BPM01 180.0\n#EXBPM02 200.0\n#STOP01 192\n");
-    let wav1: BmsChannelId<WavTag> = "01".parse().unwrap();
-    let wav2: BmsChannelId<WavTag> = "02".parse().unwrap();
-    let bpm1: BmsChannelId<BpmTag> = "01".parse().unwrap();
-    let bpm2: BmsChannelId<BpmTag> = "02".parse().unwrap();
-    let stp1: BmsChannelId<StopTag> = "01".parse().unwrap();
+    let wav1: BmsIndex<WavTag> = "01".parse().unwrap();
+    let wav2: BmsIndex<WavTag> = "02".parse().unwrap();
+    let bpm1: BmsIndex<BpmTag> = "01".parse().unwrap();
+    let bpm2: BmsIndex<BpmTag> = "02".parse().unwrap();
+    let stp1: BmsIndex<StopTag> = "01".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav1).map(String::as_str),

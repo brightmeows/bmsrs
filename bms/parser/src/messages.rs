@@ -15,7 +15,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmpTag, BmsChannelId, BpmTag, ChannelTag, Hex, ScrollTag, StopTag, WavTag};
+use bms_tokenizer::{Base62, BmpTag, BmsIndex, BpmTag, ChannelTag, ScrollTag, StopTag, WavTag};
 
 // Position
 
@@ -65,7 +65,7 @@ pub struct BgmEvent {
     /// Position within the measure.
     pub position: Position,
     /// Reference into the `#WAV` table.
-    pub wav_id: BmsChannelId<WavTag>,
+    pub wav_id: BmsIndex<WavTag>,
 }
 
 // Playable notes
@@ -91,7 +91,7 @@ pub struct NoteEvent {
     /// Whether the note is visible or invisible.
     pub key_type: KeyType,
     /// Reference into the `#WAV` table.
-    pub wav_id: BmsChannelId<WavTag>,
+    pub wav_id: BmsIndex<WavTag>,
 }
 
 // Long notes
@@ -110,7 +110,7 @@ pub struct LongNoteEvent {
     /// Lane / key number (1–9).
     pub lane: u8,
     /// Reference into the `#WAV` table.
-    pub wav_id: BmsChannelId<WavTag>,
+    pub wav_id: BmsIndex<WavTag>,
 }
 
 // Mines
@@ -134,7 +134,7 @@ pub enum BpmValue {
     /// Absolute BPM value (channel `03`).
     Absolute(f64),
     /// Reference to a `#BPMxx` definition (channel `08`).
-    Reference(BmsChannelId<BpmTag>),
+    Reference(BmsIndex<BpmTag>),
 }
 
 /// A BPM change event (channels `03`, `08`).
@@ -154,7 +154,7 @@ pub struct StopEvent {
     /// Position within the measure.
     pub position: Position,
     /// Reference into the `#STOP` table.
-    pub stop_id: BmsChannelId<StopTag>,
+    pub stop_id: BmsIndex<StopTag>,
 }
 
 // Scroll
@@ -167,7 +167,7 @@ pub struct ScrollEvent {
     /// Position within the measure.
     pub position: Position,
     /// Reference into the `#SCROLL` table.
-    pub scroll_id: BmsChannelId<ScrollTag>,
+    pub scroll_id: BmsIndex<ScrollTag>,
 }
 
 // BGA events
@@ -191,7 +191,7 @@ pub struct BgaEvent {
     /// Which BGA layer this event targets.
     pub layer: BgaLayer,
     /// Reference into the `#BMP` table.
-    pub bmp_id: BmsChannelId<BmpTag>,
+    pub bmp_id: BmsIndex<BmpTag>,
 }
 
 // Measure length
@@ -229,7 +229,7 @@ pub struct Messages {
     ///
     /// Multiple lines for the same `(measure, channel)` are **concatenated**
     /// in file order — unlike the old last-wins behaviour.
-    pub raw: BTreeMap<u16, BTreeMap<BmsChannelId<ChannelTag, Hex>, String>>,
+    pub raw: BTreeMap<u16, BTreeMap<BmsIndex<ChannelTag, Base62>, String>>,
 
     /// BGM events parsed from channel `01`.
     pub bgm_events: Vec<BgmEvent>,
@@ -262,57 +262,59 @@ impl Messages {
     pub fn concat_and_parse(&mut self, msg: &bms_tokenizer::BmsMessage<'_>) {
         // Step 1: append value to raw storage
         self.raw
-            .entry(msg.measure)
+            .entry(msg.track)
             .or_default()
             .entry(msg.channel)
-            .and_modify(|existing| existing.push_str(msg.values))
-            .or_insert_with(|| msg.values.to_owned());
+            .and_modify(|existing| existing.push_str(msg.body))
+            .or_insert_with(|| msg.body.to_owned());
 
         // Step 2: parse into typed events
         let Some(ch) = msg.channel.as_u8_hex() else {
             return;
         };
-        let measure = msg.measure;
-        let values = msg.values;
+        let track = msg.track;
+        let body = msg.body;
 
-        // Early exit for empty values
-        if values.is_empty() {
+        // Early exit for empty body
+        if body.is_empty() {
             return;
         }
 
+        // Parse events using the pre-split objects from the tokenizer,
+        // falling back to body string splitting for backward compatibility.
         match ch {
             // BGM
-            0x01 => self.push_bgm(values, measure),
+            0x01 => self.push_bgm(body, track),
             // Measure length
-            0x02 => self.push_measure_length(values, measure),
+            0x02 => self.push_measure_length(body, track),
             // BPM absolute (hex)
-            0x03 => self.push_bpm_absolute(values, measure),
+            0x03 => self.push_bpm_absolute(body, track),
             // BGA events
-            0x04 => self.push_bga(values, measure, BgaLayer::Base),
-            0x05 | 0x06 => self.push_bga(values, measure, BgaLayer::Poor),
-            0x07 => self.push_bga(values, measure, BgaLayer::Layer),
+            0x04 => self.push_bga(body, track, BgaLayer::Base),
+            0x05 | 0x06 => self.push_bga(body, track, BgaLayer::Poor),
+            0x07 => self.push_bga(body, track, BgaLayer::Layer),
             // BPM reference
-            0x08 => self.push_bpm_reference(values, measure),
+            0x08 => self.push_bpm_reference(body, track),
             // Stop
-            0x09 => self.push_stop(values, measure),
+            0x09 => self.push_stop(body, track),
             // Scroll
-            0x0A => self.push_scroll(values, measure),
+            0x0A => self.push_scroll(body, track),
             // 1P visible notes
-            0x11..=0x19 => self.push_playable(values, measure, 1, ch - 0x10, KeyType::Visible),
+            0x11..=0x19 => self.push_playable(body, track, 1, ch - 0x10, KeyType::Visible),
             // 2P visible notes
-            0x21..=0x29 => self.push_playable(values, measure, 2, ch - 0x20, KeyType::Visible),
+            0x21..=0x29 => self.push_playable(body, track, 2, ch - 0x20, KeyType::Visible),
             // 1P invisible notes
-            0x31..=0x39 => self.push_playable(values, measure, 1, ch - 0x30, KeyType::Invisible),
+            0x31..=0x39 => self.push_playable(body, track, 1, ch - 0x30, KeyType::Invisible),
             // 2P invisible notes
-            0x41..=0x49 => self.push_playable(values, measure, 2, ch - 0x40, KeyType::Invisible),
+            0x41..=0x49 => self.push_playable(body, track, 2, ch - 0x40, KeyType::Invisible),
             // 1P long notes
-            0x51..=0x59 => self.push_long_note(values, measure, 1, ch - 0x50),
+            0x51..=0x59 => self.push_long_note(body, track, 1, ch - 0x50),
             // 2P long notes
-            0x61..=0x69 => self.push_long_note(values, measure, 2, ch - 0x60),
+            0x61..=0x69 => self.push_long_note(body, track, 2, ch - 0x60),
             // 1P mines
-            0xD1..=0xD9 => self.push_mine(values, measure, 1, ch - 0xD0),
+            0xD1..=0xD9 => self.push_mine(body, track, 1, ch - 0xD0),
             // 2P mines
-            0xE1..=0xE9 => self.push_mine(values, measure, 2, ch - 0xE0),
+            0xE1..=0xE9 => self.push_mine(body, track, 2, ch - 0xE0),
             _ => { /* unknown channel — kept only in raw */ }
         }
     }
@@ -339,7 +341,7 @@ impl Messages {
         let parts = split_2char_values(values);
         let count = parts.len() as u32;
         for (i, val) in parts.into_iter().enumerate() {
-            let Ok(wav_id) = BmsChannelId::try_from(val) else {
+            let Ok(wav_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.bgm_events.push(BgmEvent {
@@ -381,7 +383,7 @@ impl Messages {
         let parts = split_2char_values(values);
         let count = parts.len() as u32;
         for (i, val) in parts.into_iter().enumerate() {
-            let Ok(bpm_id) = BmsChannelId::try_from(val) else {
+            let Ok(bpm_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.bpm_changes.push(BpmChange {
@@ -396,7 +398,7 @@ impl Messages {
         let parts = split_2char_values(values);
         let count = parts.len() as u32;
         for (i, val) in parts.into_iter().enumerate() {
-            let Ok(stop_id) = BmsChannelId::try_from(val) else {
+            let Ok(stop_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.stop_events.push(StopEvent {
@@ -411,7 +413,7 @@ impl Messages {
         let parts = split_2char_values(values);
         let count = parts.len() as u32;
         for (i, val) in parts.into_iter().enumerate() {
-            let Ok(scroll_id) = BmsChannelId::try_from(val) else {
+            let Ok(scroll_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.scroll_events.push(ScrollEvent {
@@ -426,7 +428,7 @@ impl Messages {
         let parts = split_2char_values(values);
         let count = parts.len() as u32;
         for (i, val) in parts.into_iter().enumerate() {
-            let Ok(bmp_id) = BmsChannelId::try_from(val) else {
+            let Ok(bmp_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.bga_events.push(BgaEvent {
@@ -449,7 +451,7 @@ impl Messages {
         let parts = split_2char_values(values);
         let count = parts.len() as u32;
         for (i, val) in parts.into_iter().enumerate() {
-            let Ok(wav_id) = BmsChannelId::try_from(val) else {
+            let Ok(wav_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.note_events.push(NoteEvent {
@@ -467,7 +469,7 @@ impl Messages {
         let parts = split_2char_values(values);
         let count = parts.len() as u32;
         for (i, val) in parts.into_iter().enumerate() {
-            let Ok(wav_id) = BmsChannelId::try_from(val) else {
+            let Ok(wav_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.long_note_events.push(LongNoteEvent {
@@ -499,7 +501,7 @@ impl Messages {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bms_tokenizer::BmsMessage;
+    use bms_tokenizer::{BmsMessage, BmsObjectId};
 
     #[test]
     fn position_new_and_fraction() {
@@ -532,7 +534,7 @@ mod tests {
     #[test]
     fn bgm_event_fields() {
         let pos = Position::new(1, 0, 1);
-        let id: BmsChannelId<WavTag> = "01".try_into().unwrap();
+        let id: BmsIndex<WavTag> = "01".try_into().unwrap();
         let ev = BgmEvent {
             position: pos,
             wav_id: id,
@@ -544,7 +546,7 @@ mod tests {
     #[test]
     fn note_event_visible() {
         let pos = Position::new(1, 0, 1);
-        let id: BmsChannelId<WavTag> = "AA".try_into().unwrap();
+        let id: BmsIndex<WavTag> = "AA".try_into().unwrap();
         let ev = NoteEvent {
             position: pos,
             player: 1,
@@ -577,7 +579,7 @@ mod tests {
     #[test]
     fn bpm_change_reference() {
         let pos = Position::new(0, 0, 1);
-        let id: BmsChannelId<BpmTag> = "05".try_into().unwrap();
+        let id: BmsIndex<BpmTag> = "05".try_into().unwrap();
         let ev = BpmChange {
             position: pos,
             value: BpmValue::Reference(id),
@@ -634,18 +636,42 @@ mod tests {
 
     // Event parsing integration tests
 
-    /// Helper: create a channel ID from a hex string.
-    fn ch(hex: &str) -> BmsChannelId<ChannelTag, Hex> {
-        hex.try_into().unwrap()
+    /// Helper: create a channel ID from a Base62 string.
+    fn ch(s: &str) -> BmsIndex<ChannelTag, Base62> {
+        s.try_into().unwrap()
     }
 
-    /// Helper: parse a single message line via Messages.
+    /// Helper: parse a single standard message line (`#xxxYY:body`) via Messages.
     fn parse_one(line: &str) -> Messages {
         let mut msgs = Messages::default();
+        let content = line.strip_prefix('#').unwrap_or(line);
+        let colon_pos = content.find(':').unwrap_or(content.len());
+        let addr = &content[..colon_pos];
+        let body = &content[colon_pos.saturating_add(1)..];
+
+        // For standard test lines like #00101:AABB, addr is "00101".
+        // Channel = last 2 chars, track = chars before that.
+        let channel_str = &addr[addr.len().saturating_sub(2)..];
+        let channel: BmsIndex<ChannelTag, Base62> = channel_str.try_into().unwrap();
+        let track: u16 = addr[..addr.len().saturating_sub(2)]
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .fold(0u16, |acc, c| {
+                acc.saturating_mul(10)
+                    .saturating_add(u16::from(c as u8 - b'0'))
+            });
+        let objects: Vec<BmsObjectId> = body
+            .as_bytes()
+            .chunks(2)
+            .filter(|c| c.len() == 2)
+            .filter_map(|c| std::str::from_utf8(c).ok().and_then(|s| s.try_into().ok()))
+            .collect();
         let msg = BmsMessage {
-            measure: 1,
-            channel: ch(&line[4..6]),
-            values: line.split_once(':').map(|(_, v)| v).unwrap_or(""),
+            addr,
+            body,
+            track,
+            channel,
+            objects,
         };
         msgs.concat_and_parse(&msg);
         msgs
@@ -765,7 +791,7 @@ mod tests {
         let msgs = parse_one("#0010F:AA");
         assert_eq!(msgs.bgm_events.len(), 0);
         assert_eq!(msgs.note_events.len(), 0);
-        let ch: BmsChannelId<ChannelTag, Hex> = "0F".try_into().unwrap();
+        let ch: BmsIndex<ChannelTag, Base62> = "0F".try_into().unwrap();
         assert_eq!(
             msgs.raw
                 .get(&1)

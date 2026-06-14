@@ -3,7 +3,7 @@
 //! `#CHARSET`, `%URL`, `%EMAIL`.
 
 use crate::BmsTokenAttr;
-use crate::id::{BmsChannelId, TextTag};
+use crate::index::{BmsIndex, TextTag};
 use crate::{BmsHeader, BmsTryFromError};
 
 /// Song/chart metadata headers.
@@ -70,7 +70,7 @@ pub enum BmsHeaderMetadata<'a> {
     #[bms_token("#SONG{id} {value}")]
     Text {
         /// The 2-character index (e.g., `"00"`, `"aa"`).
-        id: BmsChannelId<TextTag>,
+        id: BmsIndex<TextTag>,
         /// The text content.
         value: &'a str,
     },

@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsChannelId, BmsHeaderMetadata, TextTag};
+use bms_tokenizer::{BmsHeaderMetadata, BmsIndex, TextTag};
 
 /// Song / chart identification metadata.
 ///
@@ -32,7 +32,7 @@ pub struct Metadata {
     /// Author's email address (`%EMAIL`).
     pub email: Option<String>,
     /// Timed on-screen text definitions (`#TEXTxx`, `#SONGxx`).
-    pub text_defs: BTreeMap<BmsChannelId<TextTag>, String>,
+    pub text_defs: BTreeMap<BmsIndex<TextTag>, String>,
 }
 
 impl Metadata {
