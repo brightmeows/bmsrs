@@ -114,6 +114,9 @@ version = "0.1.0"
 [[package]]
 name = "bmsrs-player"
 version = "0.1.0"
+dependencies = [
+ "bmsrs-chart",
+]
 
 [[package]]
 name = "cc"
