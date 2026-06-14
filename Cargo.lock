@@ -103,8 +103,12 @@ version = "0.1.0"
 dependencies = [
  "bms-control-flow",
  "bms-parser",
+ "bms-processor",
  "bms-tokenizer",
  "bmson-def",
+ "bmson-processor",
+ "bmsrs-chart",
+ "bmsrs-player",
 ]
 
 [[package]]

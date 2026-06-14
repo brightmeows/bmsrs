@@ -18,7 +18,11 @@ workspace = true
 bms-tokenizer.workspace = true
 bms-control-flow.workspace = true
 bms-parser.workspace = true
+bms-processor.workspace = true
 bmson-def.workspace = true
+bmson-processor.workspace = true
+bmsrs-chart.workspace = true
+bmsrs-player.workspace = true
 
 [workspace]
 resolver = "3"

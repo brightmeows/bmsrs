@@ -20,6 +20,11 @@ pub mod bms {
     pub mod parser {
         pub use bms_parser::*;
     }
+
+    /// BMS processor — converts `Bms` into a format-agnostic `Chart`.
+    pub mod processor {
+        pub use bms_processor::*;
+    }
 }
 
 /// BMSON format type definitions and converters.
@@ -30,4 +35,19 @@ pub mod bmson {
         pub use bmson_def::v1;
         pub use bmson_def::*;
     }
+
+    /// BMSON processor — converts bmson data into a format-agnostic `Chart`.
+    pub mod processor {
+        pub use bmson_processor::*;
+    }
+}
+
+/// Format-agnostic chart data model.
+pub mod chart {
+    pub use bmsrs_chart::*;
+}
+
+/// Pure simulation / playback layer.
+pub mod player {
+    pub use bmsrs_player::*;
 }
