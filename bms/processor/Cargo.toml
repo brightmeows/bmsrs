@@ -12,6 +12,10 @@ categories.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bms-parser.workspace = true
+bms-tokenizer.workspace = true
+bmsrs-chart.workspace = true
+thiserror.workspace = true
 
 [lib]
 

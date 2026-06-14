@@ -44,6 +44,12 @@ dependencies = [
 [[package]]
 name = "bms-processor"
 version = "0.1.0"
+dependencies = [
+ "bms-parser",
+ "bms-tokenizer",
+ "bmsrs-chart",
+ "thiserror",
+]
 
 [[package]]
 name = "bms-tokenizer"
