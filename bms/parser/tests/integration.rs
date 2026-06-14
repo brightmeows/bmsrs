@@ -418,8 +418,19 @@ fn same_channel_concat() {
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&"AABBCCDD".to_owned())
     );
-    // Events are parsed from the final concatenated values
+    // Events are parsed from per-line values with correct offsets:
+    // First line AABB → events at (0/2, 1/2), second line CCDD → (2/4, 3/4)
     assert_eq!(bms.messages.bgm_events.len(), 4);
+    // First line: known only 2 objects at this point
+    assert_eq!(bms.messages.bgm_events[0].position.numer, 0);
+    assert_eq!(bms.messages.bgm_events[0].position.denom, 2);
+    assert_eq!(bms.messages.bgm_events[1].position.numer, 1);
+    assert_eq!(bms.messages.bgm_events[1].position.denom, 2);
+    // Second line: knows total is 4 (concatenated), offset is 2
+    assert_eq!(bms.messages.bgm_events[2].position.numer, 2);
+    assert_eq!(bms.messages.bgm_events[2].position.denom, 4);
+    assert_eq!(bms.messages.bgm_events[3].position.numer, 3);
+    assert_eq!(bms.messages.bgm_events[3].position.denom, 4);
 }
 
 #[test]

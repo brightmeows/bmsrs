@@ -268,53 +268,102 @@ impl Messages {
             .and_modify(|existing| existing.push_str(msg.body))
             .or_insert_with(|| msg.body.to_owned());
 
-        // Step 2: parse into typed events
+        // Step 2: read back the concatenated value for event parsing.
+        // This ensures multi-line concat produces correct position numer/denom.
         let Some(ch) = msg.channel.as_u8_hex() else {
             return;
         };
         let track = msg.track;
-        let body = msg.body;
 
-        // Early exit for empty body
-        if body.is_empty() {
+        // Clone to release the borrow on self.raw before calling push_* methods.
+        let Some(concat_values) = self
+            .raw
+            .get(&track)
+            .and_then(|m| m.get(&msg.channel))
+            .cloned()
+        else {
+            return;
+        };
+
+        // Early exit for empty values
+        if concat_values.is_empty() {
             return;
         }
 
-        // Parse events using the pre-split objects from the tokenizer,
-        // falling back to body string splitting for backward compatibility.
+        // Compute object offset and total count for correct position numer/denom.
+        // We parse the current line's body (msg.body) but use the concatenated
+        // total count so that multi-line channel data produces non-overlapping
+        // positions.  E.g. two lines "AABB" + "CCDD" produce positions
+        // (0/4, 1/4) and (2/4, 3/4) rather than (0/2, 1/2) and (0/2, 1/2).
+        let current_count = split_2char_values_lenient(msg.body).len() as u32;
+        let total_count = split_2char_values_lenient(&concat_values).len() as u32;
+        let offset = total_count - current_count;
+
         match ch {
             // BGM
-            0x01 => self.push_bgm(body, track),
+            0x01 => self.push_bgm(msg.body, track, offset, total_count),
             // Measure length
-            0x02 => self.push_measure_length(body, track),
+            0x02 => self.push_measure_length(msg.body, track),
             // BPM absolute (hex)
-            0x03 => self.push_bpm_absolute(body, track),
+            0x03 => self.push_bpm_absolute(msg.body, track, offset, total_count),
             // BGA events
-            0x04 => self.push_bga(body, track, BgaLayer::Base),
-            0x05 | 0x06 => self.push_bga(body, track, BgaLayer::Poor),
-            0x07 => self.push_bga(body, track, BgaLayer::Layer),
+            0x04 => self.push_bga(msg.body, track, BgaLayer::Base, offset, total_count),
+            0x05 | 0x06 => self.push_bga(msg.body, track, BgaLayer::Poor, offset, total_count),
+            0x07 => self.push_bga(msg.body, track, BgaLayer::Layer, offset, total_count),
             // BPM reference
-            0x08 => self.push_bpm_reference(body, track),
+            0x08 => self.push_bpm_reference(msg.body, track, offset, total_count),
             // Stop
-            0x09 => self.push_stop(body, track),
+            0x09 => self.push_stop(msg.body, track, offset, total_count),
             // Scroll
-            0x0A => self.push_scroll(body, track),
+            0x0A => self.push_scroll(msg.body, track, offset, total_count),
             // 1P visible notes
-            0x11..=0x19 => self.push_playable(body, track, 1, ch - 0x10, KeyType::Visible),
+            0x11..=0x19 => self.push_playable(
+                msg.body,
+                track,
+                1,
+                ch - 0x10,
+                KeyType::Visible,
+                offset,
+                total_count,
+            ),
             // 2P visible notes
-            0x21..=0x29 => self.push_playable(body, track, 2, ch - 0x20, KeyType::Visible),
+            0x21..=0x29 => self.push_playable(
+                msg.body,
+                track,
+                2,
+                ch - 0x20,
+                KeyType::Visible,
+                offset,
+                total_count,
+            ),
             // 1P invisible notes
-            0x31..=0x39 => self.push_playable(body, track, 1, ch - 0x30, KeyType::Invisible),
+            0x31..=0x39 => self.push_playable(
+                msg.body,
+                track,
+                1,
+                ch - 0x30,
+                KeyType::Invisible,
+                offset,
+                total_count,
+            ),
             // 2P invisible notes
-            0x41..=0x49 => self.push_playable(body, track, 2, ch - 0x40, KeyType::Invisible),
+            0x41..=0x49 => self.push_playable(
+                msg.body,
+                track,
+                2,
+                ch - 0x40,
+                KeyType::Invisible,
+                offset,
+                total_count,
+            ),
             // 1P long notes
-            0x51..=0x59 => self.push_long_note(body, track, 1, ch - 0x50),
+            0x51..=0x59 => self.push_long_note(msg.body, track, 1, ch - 0x50, offset, total_count),
             // 2P long notes
-            0x61..=0x69 => self.push_long_note(body, track, 2, ch - 0x60),
+            0x61..=0x69 => self.push_long_note(msg.body, track, 2, ch - 0x60, offset, total_count),
             // 1P mines
-            0xD1..=0xD9 => self.push_mine(body, track, 1, ch - 0xD0),
+            0xD1..=0xD9 => self.push_mine(msg.body, track, 1, ch - 0xD0, offset, total_count),
             // 2P mines
-            0xE1..=0xE9 => self.push_mine(body, track, 2, ch - 0xE0),
+            0xE1..=0xE9 => self.push_mine(msg.body, track, 2, ch - 0xE0, offset, total_count),
             _ => { /* unknown channel — kept only in raw */ }
         }
     }
@@ -322,30 +371,50 @@ impl Messages {
 
 // Internal parsing helpers
 
-/// Split a BMS message value string into 2-character chunks.
+/// Check if a byte is a valid Base62 character (0-9, A-Z, a-z).
+fn is_base62(b: u8) -> bool {
+    matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
+}
+
+/// Split a BMS message value string into 2-character chunks with lenient
+/// parsing: invalid characters are silently skipped, and every 2 consecutive
+/// valid Base62 characters form a chunk.  A trailing single valid character
+/// is discarded.
 ///
-/// Each 2-char segment is an object index.  A trailing odd character
-/// is silently discarded.
-fn split_2char_values(values: &str) -> Vec<&str> {
-    values
-        .as_bytes()
-        .chunks(2)
-        .filter(|c| c.len() == 2)
-        .map(|c| unsafe { std::str::from_utf8_unchecked(c) })
-        .collect()
+/// This matches the behaviour of the tokenizer's `parse_body_objects`, so
+/// event positions are consistent regardless of whether the split happens
+/// at the tokenizer or parser level.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "while-loop guard ensures i < len and i+1 < len before indexing"
+)]
+fn split_2char_values_lenient(values: &str) -> Vec<&str> {
+    let bytes = values.as_bytes();
+    let mut result = Vec::new();
+    let mut i = 0;
+    let len = bytes.len();
+    while i < len {
+        if is_base62(bytes[i]) && i + 1 < len && is_base62(bytes[i + 1]) {
+            // SAFETY: two valid Base62 chars are always valid ASCII.
+            let chunk = unsafe { std::str::from_utf8_unchecked(&bytes[i..i + 2]) };
+            result.push(chunk);
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    result
 }
 
 impl Messages {
     /// Parse BGM events (ch 01) from raw values.
-    fn push_bgm(&mut self, values: &str, measure: u16) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+    fn push_bgm(&mut self, values: &str, measure: u16, object_offset: u32, total_objects: u32) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(wav_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.bgm_events.push(BgmEvent {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 wav_id,
             });
         }
@@ -363,76 +432,85 @@ impl Messages {
     }
 
     /// Parse absolute BPM changes (ch 03) from hex values.
-    fn push_bpm_absolute(&mut self, values: &str, measure: u16) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+    fn push_bpm_absolute(
+        &mut self,
+        values: &str,
+        measure: u16,
+        object_offset: u32,
+        total_objects: u32,
+    ) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             // Channel 03 values are hex integers (00-FF)
             let Ok(bpm_val) = u8::from_str_radix(val, 16) else {
                 continue;
             };
             self.bpm_changes.push(BpmChange {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 value: BpmValue::Absolute(f64::from(bpm_val)),
             });
         }
     }
 
     /// Parse BPM reference changes (ch 08) from raw values.
-    fn push_bpm_reference(&mut self, values: &str, measure: u16) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+    fn push_bpm_reference(
+        &mut self,
+        values: &str,
+        measure: u16,
+        object_offset: u32,
+        total_objects: u32,
+    ) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(bpm_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.bpm_changes.push(BpmChange {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 value: BpmValue::Reference(bpm_id),
             });
         }
     }
 
     /// Parse stop events (ch 09) from raw values.
-    fn push_stop(&mut self, values: &str, measure: u16) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+    fn push_stop(&mut self, values: &str, measure: u16, object_offset: u32, total_objects: u32) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(stop_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.stop_events.push(StopEvent {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 stop_id,
             });
         }
     }
 
     /// Parse scroll events (ch 0A) from raw values.
-    fn push_scroll(&mut self, values: &str, measure: u16) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+    fn push_scroll(&mut self, values: &str, measure: u16, object_offset: u32, total_objects: u32) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(scroll_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.scroll_events.push(ScrollEvent {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 scroll_id,
             });
         }
     }
 
     /// Parse BGA display events (ch 04–07) from raw values.
-    fn push_bga(&mut self, values: &str, measure: u16, layer: BgaLayer) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+    fn push_bga(
+        &mut self,
+        values: &str,
+        measure: u16,
+        layer: BgaLayer,
+        object_offset: u32,
+        total_objects: u32,
+    ) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(bmp_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.bga_events.push(BgaEvent {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 layer,
                 bmp_id,
             });
@@ -440,6 +518,7 @@ impl Messages {
     }
 
     /// Parse playable note events (ch 11–49) from raw values.
+    #[expect(clippy::too_many_arguments, reason = "BMS event fields")]
     fn push_playable(
         &mut self,
         values: &str,
@@ -447,15 +526,15 @@ impl Messages {
         player: u8,
         lane: u8,
         key_type: KeyType,
+        object_offset: u32,
+        total_objects: u32,
     ) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(wav_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.note_events.push(NoteEvent {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 player,
                 lane,
                 key_type,
@@ -465,15 +544,21 @@ impl Messages {
     }
 
     /// Parse long-note events (ch 51–69) from raw values.
-    fn push_long_note(&mut self, values: &str, measure: u16, player: u8, lane: u8) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, val) in parts.into_iter().enumerate() {
+    fn push_long_note(
+        &mut self,
+        values: &str,
+        measure: u16,
+        player: u8,
+        lane: u8,
+        object_offset: u32,
+        total_objects: u32,
+    ) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(wav_id) = BmsIndex::try_from(val) else {
                 continue;
             };
             self.long_note_events.push(LongNoteEvent {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 player,
                 lane,
                 wav_id,
@@ -482,13 +567,19 @@ impl Messages {
     }
 
     /// Parse mine events (ch D1–E9) from raw values.
-    fn push_mine(&mut self, values: &str, measure: u16, player: u8, lane: u8) {
-        let parts = split_2char_values(values);
-        let count = parts.len() as u32;
-        for (i, _val) in parts.into_iter().enumerate() {
+    fn push_mine(
+        &mut self,
+        values: &str,
+        measure: u16,
+        player: u8,
+        lane: u8,
+        object_offset: u32,
+        total_objects: u32,
+    ) {
+        for (i, _val) in split_2char_values_lenient(values).into_iter().enumerate() {
             // For mines, the value is the damage amount (not stored as WAV ref here)
             self.mine_events.push(MineEvent {
-                position: Position::new(measure, i as u32, count),
+                position: Position::new(measure, object_offset + i as u32, total_objects),
                 player,
                 lane,
             });
