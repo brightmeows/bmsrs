@@ -1,0 +1,422 @@
+//! Timing track for tick ↔ seconds conversion.
+//!
+//! [`TimingTrack`] holds the initial BPM, BPM change events, and stop events.
+//! It provides [`TimingTrack::tick_to_seconds`] and [`TimingTrack::seconds_to_tick`]
+//! for converting between chart positions (ticks) and wall-clock time (seconds).
+
+/// Timing information for converting tick positions to wall-clock seconds.
+///
+/// All events are at absolute tick positions. The processor is responsible
+/// for converting format-specific positions (BMSON pulses, BMS measures) to ticks.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimingTrack {
+    /// Initial BPM at tick 0.
+    pub init_bpm: f64,
+    /// BPM change events, sorted by tick ascending.
+    pub bpm_changes: Vec<BpmChange>,
+    /// Stop (pause) events, sorted by tick ascending.
+    pub stops: Vec<StopEvent>,
+}
+
+/// A BPM change event.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BpmChange {
+    /// Tick position where the BPM changes.
+    pub tick: u64,
+    /// New BPM (beats per minute).
+    pub bpm: f64,
+}
+
+/// A stop (pause) event.
+///
+/// When the playback reaches `tick`, the scroll halts for `duration` ticks
+/// worth of time (at the current BPM). Multiple stops at the same tick
+/// accumulate.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StopEvent {
+    /// Tick where the stop begins.
+    pub tick: u64,
+    /// Duration in ticks.
+    pub duration: u64,
+}
+
+/// Internal event representation for the merged timeline.
+#[derive(Clone, Copy)]
+enum TimingEvent {
+    /// BPM change — `is_stop = false` ensures BPM sorts before Stop at the same tick.
+    Bpm(f64),
+    /// Stop with duration in ticks.
+    Stop(u64),
+}
+
+impl TimingEvent {
+    /// Returns `true` if this is a [`TimingEvent::Stop`].
+    fn is_stop(self) -> bool {
+        matches!(self, Self::Stop(_))
+    }
+}
+
+impl TimingTrack {
+    /// Build a sorted event list from `bpm_changes` and stops.
+    ///
+    /// At the same tick, BPM changes sort before stops (per BMSON spec:
+    /// "speed will first change, then the music pauses").
+    fn build_events(&self) -> Vec<(u64, TimingEvent)> {
+        let mut events: Vec<(u64, TimingEvent)> = Vec::new();
+        for bc in &self.bpm_changes {
+            events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
+        }
+        for st in &self.stops {
+            events.push((st.tick, TimingEvent::Stop(st.duration)));
+        }
+        // Sort by tick, then BPM (false) before Stop (true).
+        events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
+        events
+    }
+
+    /// Convert a tick position to wall-clock seconds.
+    ///
+    /// At a tick with a stop event, the returned time is **before** the pause
+    /// (notes at that tick are activated before the pause, per BMSON spec).
+    /// Stops at ticks strictly before the target contribute their full pause time.
+    ///
+    /// # Panics (debug only)
+    ///
+    /// In debug builds, asserts `resolution > 0` and `init_bpm > 0`.
+    #[must_use]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "tick values fit in f64 mantissa for practical chart lengths"
+    )]
+    pub fn tick_to_seconds(&self, tick: u64, resolution: u64) -> f64 {
+        debug_assert!(resolution > 0, "resolution must be > 0");
+        debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
+
+        let res = resolution as f64;
+        let events = self.build_events();
+
+        let mut seconds = 0.0_f64;
+        let mut current_tick = 0_u64;
+        let mut current_bpm = self.init_bpm;
+
+        for (event_tick, event) in &events {
+            if *event_tick > tick {
+                break;
+            }
+            // Advance playback to event_tick.
+            if *event_tick > current_tick {
+                let delta = (*event_tick - current_tick) as f64;
+                seconds += delta / res * 60.0 / current_bpm;
+                current_tick = *event_tick;
+            }
+            match event {
+                TimingEvent::Bpm(bpm) => {
+                    current_bpm = *bpm;
+                }
+                TimingEvent::Stop(duration) => {
+                    // Stop time is only counted when the stop is strictly before
+                    // the target tick. At the target tick itself, the time is
+                    // before the pause (per spec).
+                    if *event_tick < tick {
+                        seconds += *duration as f64 / res * 60.0 / current_bpm;
+                    }
+                }
+            }
+        }
+
+        // Remaining time from the last event to the target tick.
+        if tick > current_tick {
+            let delta = (tick - current_tick) as f64;
+            seconds += delta / res * 60.0 / current_bpm;
+        }
+
+        seconds
+    }
+
+    /// Convert wall-clock seconds to the nearest tick position.
+    ///
+    /// This is the inverse of [`tick_to_seconds`](Self::tick_to_seconds).
+    /// Time spent in stops does not advance the tick.
+    ///
+    /// # Panics (debug only)
+    ///
+    /// In debug builds, asserts `resolution > 0` and `init_bpm > 0`.
+    #[must_use]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "tick values fit in f64 mantissa for practical chart lengths"
+    )]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "rounded result is within u64 range"
+    )]
+    #[expect(clippy::cast_sign_loss, reason = "remaining time is non-negative")]
+    pub fn seconds_to_tick(&self, seconds: f64, resolution: u64) -> u64 {
+        debug_assert!(resolution > 0, "resolution must be > 0");
+        debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
+
+        if seconds <= 0.0 {
+            return 0;
+        }
+
+        let res = resolution as f64;
+        let events = self.build_events();
+
+        let mut remaining = seconds;
+        let mut current_tick = 0_u64;
+        let mut current_bpm = self.init_bpm;
+
+        for (event_tick, event) in &events {
+            // Advance playback to event_tick.
+            if *event_tick > current_tick {
+                let delta_ticks = *event_tick - current_tick;
+                let delta_seconds = delta_ticks as f64 / res * 60.0 / current_bpm;
+                if delta_seconds >= remaining {
+                    return current_tick + (remaining * res * current_bpm / 60.0).round() as u64;
+                }
+                remaining -= delta_seconds;
+                current_tick = *event_tick;
+            }
+
+            match event {
+                TimingEvent::Bpm(bpm) => {
+                    current_bpm = *bpm;
+                }
+                TimingEvent::Stop(duration) => {
+                    let stop_seconds = *duration as f64 / res * 60.0 / current_bpm;
+                    if stop_seconds >= remaining {
+                        // Target is within the stop — tick doesn't advance.
+                        return current_tick;
+                    }
+                    remaining -= stop_seconds;
+                }
+            }
+        }
+
+        // Target is beyond all events.
+        current_tick + (remaining * res * current_bpm / 60.0).round() as u64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const RES: u64 = 240;
+
+    #[test]
+    fn constant_bpm_tick_zero_is_zero_seconds() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![],
+        };
+        let result = timing.tick_to_seconds(0, RES);
+        assert!(result.abs() < 1e-9);
+    }
+
+    #[test]
+    fn constant_bpm_120_one_beat_is_half_second() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![],
+        };
+        // 240 ticks = 1 beat at resolution 240.
+        // At 120 BPM: 1 beat = 0.5s
+        let result = timing.tick_to_seconds(240, RES);
+        assert!((result - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn constant_bpm_120_two_beats_is_one_second() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![],
+        };
+        let result = timing.tick_to_seconds(480, RES);
+        assert!((result - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bpm_change_at_tick_240() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![BpmChange {
+                tick: 240,
+                bpm: 60.0,
+            }],
+            stops: vec![],
+        };
+        // 0-240 at 120 BPM = 0.5s
+        // 240-480 at 60 BPM = 1.0s
+        // total = 1.5s
+        let result = timing.tick_to_seconds(480, RES);
+        assert!((result - 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bpm_change_at_target_tick_uses_old_bpm() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![BpmChange {
+                tick: 240,
+                bpm: 60.0,
+            }],
+            stops: vec![],
+        };
+        // At tick 240 exactly, the BPM has changed but the time
+        // to reach tick 240 used the old BPM (120).
+        let result = timing.tick_to_seconds(240, RES);
+        assert!((result - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn stop_before_target_adds_pause_time() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![StopEvent {
+                tick: 240,
+                duration: 240,
+            }],
+        };
+        // 0-240 at 120 BPM = 0.5s
+        // Stop at 240: 240/240 * 60/120 = 0.5s
+        // 240-241 at 120 BPM = 1/240 * 60/120 = 1/480 s
+        let result = timing.tick_to_seconds(241, RES);
+        assert!((result - 1.0 - 1.0 / 480.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn stop_at_target_tick_excludes_pause() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![StopEvent {
+                tick: 240,
+                duration: 240,
+            }],
+        };
+        // At tick 240, the stop hasn't been applied yet.
+        let result = timing.tick_to_seconds(240, RES);
+        assert!((result - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn multiple_stops_same_tick_accumulate() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![
+                StopEvent {
+                    tick: 240,
+                    duration: 240,
+                },
+                StopEvent {
+                    tick: 240,
+                    duration: 960,
+                },
+            ],
+        };
+        // Stop total = 1200 ticks at 120 BPM = 1200/240 * 0.5 = 2.5s
+        // Tick 241 = 0.5 + 2.5 + 1/480 ≈ 3.00208
+        let result = timing.tick_to_seconds(241, RES);
+        let expected = 0.5 + 2.5 + 1.0 / 480.0;
+        assert!((result - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bpm_before_stop_at_same_tick() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![BpmChange {
+                tick: 240,
+                bpm: 60.0,
+            }],
+            stops: vec![StopEvent {
+                tick: 240,
+                duration: 240,
+            }],
+        };
+        // BPM changes to 60 before stop is applied.
+        // Stop at tick 240 uses 60 BPM: 240/240 * 60/60 = 1.0s
+        let result = timing.tick_to_seconds(241, RES);
+        // 0-240 at 120 = 0.5s
+        // Stop at 240 (60 BPM): 1.0s
+        // 240-241 at 60 BPM: 1/240 * 1.0 ≈ 0.00417
+        let expected = 0.5 + 1.0 + 1.0 / 240.0;
+        assert!((result - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn seconds_to_tick_constant_bpm() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![],
+        };
+        assert_eq!(timing.seconds_to_tick(0.0, RES), 0);
+        assert_eq!(timing.seconds_to_tick(0.5, RES), 240);
+        assert_eq!(timing.seconds_to_tick(1.0, RES), 480);
+    }
+
+    #[test]
+    fn seconds_to_tick_bpm_change() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![BpmChange {
+                tick: 240,
+                bpm: 60.0,
+            }],
+            stops: vec![],
+        };
+        // 1.5s → tick 480 (0.5s at 120 + 1.0s at 60)
+        assert_eq!(timing.seconds_to_tick(1.5, RES), 480);
+    }
+
+    #[test]
+    fn seconds_to_tick_within_stop_returns_stop_tick() {
+        let timing = TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![StopEvent {
+                tick: 240,
+                duration: 240,
+            }],
+        };
+        // 0.5s = tick 240 (just reached stop)
+        // 0.6s = within stop → still tick 240
+        assert_eq!(timing.seconds_to_tick(0.6, RES), 240);
+    }
+
+    #[test]
+    fn roundtrip_tick_to_seconds_and_back() {
+        let timing = TimingTrack {
+            init_bpm: 150.0,
+            bpm_changes: vec![
+                BpmChange {
+                    tick: 480,
+                    bpm: 200.0,
+                },
+                BpmChange {
+                    tick: 1200,
+                    bpm: 100.0,
+                },
+            ],
+            stops: vec![StopEvent {
+                tick: 960,
+                duration: 480,
+            }],
+        };
+        for tick in [0u64, 100, 240, 479, 480, 960, 961, 1200, 2400] {
+            let secs = timing.tick_to_seconds(tick, RES);
+            let back = timing.seconds_to_tick(secs, RES);
+            assert_eq!(
+                back, tick,
+                "roundtrip failed at tick {tick}: secs={secs}, back={back}"
+            );
+        }
+    }
+}
