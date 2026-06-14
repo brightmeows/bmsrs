@@ -84,6 +84,12 @@ dependencies = [
 [[package]]
 name = "bmson-processor"
 version = "0.1.0"
+dependencies = [
+ "bmson-def",
+ "bmsrs-chart",
+ "serde_json",
+ "thiserror",
+]
 
 [[package]]
 name = "bmsrs"

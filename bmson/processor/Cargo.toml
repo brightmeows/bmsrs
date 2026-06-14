@@ -12,6 +12,12 @@ categories.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bmson-def.workspace = true
+bmsrs-chart.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lib]
 
