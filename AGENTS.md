@@ -94,3 +94,10 @@ bare struct with methods is sufficient when there is no state to configure.
 - Test naming: `<scenario>_<expectation>`.
 - One assertion per test. Prefer testing edge cases through public types
   over internal `Wrap` structs.
+
+### Test placement
+
+| Tests for | Location |
+|---|---|
+| Public API | `tests/*.rs` (integration) |
+| `pub(crate)` / private | `src/*.rs` `#[cfg(test)] mod` (inline) |

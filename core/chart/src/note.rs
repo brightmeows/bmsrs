@@ -79,29 +79,3 @@ pub struct Note<T: NoteData = DefaultNoteData> {
     /// Format-specific note data (lane, kind, extensions).
     pub data: T,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_note_data_lane_and_kind() {
-        let data = DefaultNoteData {
-            lane: 5,
-            kind: NoteKind::Long { duration: 480 },
-        };
-        assert_eq!(data.lane(), 5);
-        assert_eq!(data.kind(), NoteKind::Long { duration: 480 });
-    }
-
-    #[test]
-    fn note_kind_default_is_normal() {
-        assert_eq!(NoteKind::default(), NoteKind::Normal);
-    }
-
-    #[test]
-    fn note_kind_clone_equal() {
-        let kind = NoteKind::Mine { damage: 12.5 };
-        assert_eq!(kind.clone(), kind);
-    }
-}

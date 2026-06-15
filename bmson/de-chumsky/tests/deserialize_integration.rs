@@ -1,12 +1,12 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-mod common;
+mod helper;
 
 use bmson_de_chumsky::{BmsonDeError, from_str};
 
 #[test]
 fn v2_roundtrip_parses_successfully() {
-    let bmson = from_str(common::minimal_v2_json()).unwrap();
+    let bmson = from_str(helper::minimal_v2_json()).unwrap();
     assert_eq!(bmson.song_info.title, "T");
     assert_eq!(bmson.song_info.artist, "A");
     assert_eq!(bmson.song_info.genre, "G");
@@ -15,7 +15,7 @@ fn v2_roundtrip_parses_successfully() {
 
 #[test]
 fn v1_is_converted_to_v2() {
-    let bmson = from_str(common::minimal_v1_json()).unwrap();
+    let bmson = from_str(helper::minimal_v1_json()).unwrap();
     assert_eq!(bmson.song_info.title, "T");
     assert_eq!(bmson.song_info.artist, "A");
     assert_eq!(bmson.chart_info.level, 1);
@@ -23,7 +23,7 @@ fn v1_is_converted_to_v2() {
 
 #[test]
 fn v0_is_converted_to_v2() {
-    let bmson = from_str(common::minimal_v0_json()).unwrap();
+    let bmson = from_str(helper::minimal_v0_json()).unwrap();
     assert_eq!(bmson.song_info.title, "T");
     assert_eq!(bmson.song_info.artist, "A");
     assert_eq!(bmson.chart_info.level, 1);
