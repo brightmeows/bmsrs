@@ -20,6 +20,7 @@
 mod slice;
 
 use std::collections::BTreeSet;
+use std::time::Duration;
 
 use bmson_def::{BGAEvent, BpmEvent, ModeHint, NoteEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
@@ -250,7 +251,7 @@ fn process_mine_channels<L: BmsonMapping>(
         let mine_audio_idx = audio_assets.len() as u32;
         audio_assets.push(AudioAsset {
             path: mc.name.to_path_buf(),
-            start: 0.0,
+            start: Duration::ZERO,
             duration: None,
         });
 
@@ -282,7 +283,7 @@ fn process_key_channels<L: BmsonMapping>(
         let key_audio_idx = audio_assets.len() as u32;
         audio_assets.push(AudioAsset {
             path: kc.name.to_path_buf(),
-            start: 0.0,
+            start: Duration::ZERO,
             duration: None,
         });
 

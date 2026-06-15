@@ -7,6 +7,7 @@
 //! # Usage
 //!
 //! ```
+//! use std::time::Duration;
 //! use bmsrs_chart::{
 //!     Chart, ChartMetadata, DefaultNoteData, Note, NoteKind, TimingTrack, Bga,
 //! };
@@ -40,11 +41,13 @@
 //!
 //! let mut player = Player::new(chart);
 //! assert_eq!(player.current_tick(), 0);
-//! player.advance(1.0);
-//! assert!((player.current_time() - 1.0).abs() < 1e-9);
+//! player.advance(Duration::from_secs(1));
+//! assert_eq!(player.current_time(), Duration::from_secs(1));
 //! ```
 
 mod timing;
+
+use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, BarLine, BgaTimelineEvent, BgmEvent, Chart, Note, NoteData, NoteKind,
@@ -56,7 +59,7 @@ use crate::timing::TimingCache;
 ///
 /// The player maintains a current tick position and provides queries for
 /// notes, BGM, and visual events within ranges. All time advances are in
-/// wall-clock seconds; tick positions are derived via an internal
+/// wall-clock [`Duration`]; tick positions are derived via an internal
 /// pre-computed timing cache.
 ///
 /// The player is a pure simulation layer: no audio playback, rendering,
@@ -85,28 +88,24 @@ impl<T: NoteData> Player<T> {
 
     // Time control
 
-    /// Advance playback by `delta_seconds` of wall-clock time.
+    /// Advance playback by `delta` of wall-clock time.
     ///
     /// The player's tick position is updated to the tick corresponding to
-    /// `current_time + delta_seconds`. Time spent in stops does not advance
-    /// the tick.
-    pub fn advance(&mut self, delta_seconds: f64) {
-        let new_time = self.current_time() + delta_seconds;
+    /// `current_time + delta`. Time spent in stops does not advance the tick.
+    pub fn advance(&mut self, delta: Duration) {
+        let new_time = self.current_time() + delta;
         self.current_tick = self
             .chart
             .timing
-            .seconds_to_tick(new_time, self.chart.resolution);
+            .duration_to_tick(new_time, self.chart.resolution);
     }
 
     /// Seek to an absolute wall-clock time.
-    ///
-    /// `target_seconds` is clamped to `[0, chart_duration]`.
-    pub fn seek(&mut self, target_seconds: f64) {
-        let target = target_seconds.max(0.0);
+    pub fn seek(&mut self, target: Duration) {
         self.current_tick = self
             .chart
             .timing
-            .seconds_to_tick(target, self.chart.resolution);
+            .duration_to_tick(target, self.chart.resolution);
     }
 
     /// Reset playback to tick 0.
@@ -122,38 +121,38 @@ impl<T: NoteData> Player<T> {
         self.current_tick
     }
 
-    /// Current playback position in wall-clock seconds.
+    /// Current playback position as wall-clock [`Duration`].
     #[must_use]
-    pub fn current_time(&self) -> f64 {
-        self.cache.tick_to_seconds(self.current_tick)
+    pub fn current_time(&self) -> Duration {
+        self.cache.tick_to_duration(self.current_tick)
     }
 
-    /// Convert a tick position to wall-clock seconds using the cached
+    /// Convert a tick position to wall-clock [`Duration`] using the cached
     /// timing data.
     ///
     /// This is faster than calling
-    /// [`TimingTrack::tick_to_seconds`](bmsrs_chart::TimingTrack::tick_to_seconds)
+    /// [`TimingTrack::tick_to_duration`](bmsrs_chart::TimingTrack::tick_to_duration)
     /// directly, using O(log n) binary search instead of O(n) iteration.
     #[must_use]
-    pub fn tick_to_seconds(&self, tick: u64) -> f64 {
-        self.cache.tick_to_seconds(tick)
+    pub fn tick_to_duration(&self, tick: u64) -> Duration {
+        self.cache.tick_to_duration(tick)
     }
 
-    /// Convert wall-clock seconds to the nearest tick position.
+    /// Convert wall-clock [`Duration`] to the nearest tick position.
     ///
     /// Delegates to
-    /// [`TimingTrack::seconds_to_tick`](bmsrs_chart::TimingTrack::seconds_to_tick).
+    /// [`TimingTrack::duration_to_tick`](bmsrs_chart::TimingTrack::duration_to_tick).
     #[must_use]
-    pub fn seconds_to_tick(&self, seconds: f64) -> u64 {
+    pub fn duration_to_tick(&self, duration: Duration) -> u64 {
         self.chart
             .timing
-            .seconds_to_tick(seconds, self.chart.resolution)
+            .duration_to_tick(duration, self.chart.resolution)
     }
 
-    /// Total chart duration in seconds.
+    /// Total chart duration.
     #[must_use]
-    pub fn duration(&self) -> f64 {
-        self.chart.duration_seconds()
+    pub fn duration(&self) -> Duration {
+        self.chart.duration()
     }
 
     /// Current BPM at the playback position.
@@ -348,42 +347,42 @@ mod tests {
     fn new_player_starts_at_tick_zero() {
         let player = Player::new(make_chart(vec![]));
         assert_eq!(player.current_tick(), 0);
-        assert!(player.current_time().abs() < 1e-9);
+        assert_eq!(player.current_time(), Duration::ZERO);
     }
 
     #[test]
     fn advance_one_second_updates_position() {
         let mut player = Player::new(make_chart(vec![]));
-        player.advance(1.0);
-        assert!((player.current_time() - 1.0).abs() < 1e-9);
+        player.advance(Duration::from_secs(1));
+        assert_eq!(player.current_time(), Duration::from_secs(1));
     }
 
     #[test]
     fn advance_multiple_increments_accumulate() {
         let mut player = Player::new(make_chart(vec![]));
-        player.advance(0.5);
-        player.advance(0.5);
-        assert!((player.current_time() - 1.0).abs() < 1e-9);
+        player.advance(Duration::from_millis(500));
+        player.advance(Duration::from_millis(500));
+        assert_eq!(player.current_time(), Duration::from_secs(1));
     }
 
     #[test]
     fn seek_sets_absolute_position() {
         let mut player = Player::new(make_chart(vec![]));
-        player.advance(2.0);
-        player.seek(0.5);
-        assert!((player.current_time() - 0.5).abs() < 1e-9);
+        player.advance(Duration::from_secs(2));
+        player.seek(Duration::from_millis(500));
+        assert_eq!(player.current_time(), Duration::from_millis(500));
     }
 
     #[test]
     fn reset_returns_to_zero() {
         let mut player = Player::new(make_chart(vec![]));
-        player.advance(2.0);
+        player.advance(Duration::from_secs(2));
         player.reset();
         assert_eq!(player.current_tick(), 0);
     }
 
     #[test]
-    fn tick_to_seconds_matches_timing_track() {
+    fn tick_to_duration_matches_timing_track() {
         let chart = make_chart(vec![]);
         let player = Player::new(chart);
 
@@ -393,9 +392,9 @@ mod tests {
                 bpm_changes: vec![],
                 stops: vec![],
             }
-            .tick_to_seconds(tick, 240);
-            let actual = player.tick_to_seconds(tick);
-            assert!((actual - expected).abs() < 1e-9, "mismatch at tick {tick}");
+            .tick_to_duration(tick, 240);
+            let actual = player.tick_to_duration(tick);
+            assert_eq!(actual, expected, "mismatch at tick {tick}");
         }
     }
 
@@ -580,7 +579,7 @@ mod tests {
         let mut player = Player::new(chart);
 
         assert!((player.current_bpm() - 120.0).abs() < 1e-9);
-        player.advance(10.0);
+        player.advance(Duration::from_secs(10));
         assert!((player.current_bpm() - 200.0).abs() < 1e-9);
     }
 

@@ -22,6 +22,7 @@ mod long_note;
 mod position;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Duration;
 
 use bms_parser::{BgaLayer, Bms, BpmValue, KeyType};
 use bms_tokenizer::{BmpTag, BmsIndex, PlayerMode, WavTag};
@@ -246,7 +247,7 @@ fn build_audio_assets(
         let idx = audio_assets.len() as u32;
         audio_assets.push(AudioAsset {
             path: path.clone().into(),
-            start: 0.0,
+            start: Duration::ZERO,
             duration: None,
         });
         wav_map.insert(wav_id, idx);

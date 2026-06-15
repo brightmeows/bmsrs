@@ -9,13 +9,14 @@
 //!
 //! 1. Collect unique pulse (`y`) positions from all note events.
 //! 2. Sort ascending.
-//! 3. Convert each pulse to wall-clock seconds via [`TimingTrack`].
+//! 3. Convert each pulse to a [`Duration`] via [`TimingTrack`].
 //! 4. For each pulse *P<sub>i</sub>* create an [`AudioAsset`] whose
-//!    `start` is the seconds value at *P<sub>i</sub>* and whose
+//!    `start` is the [`Duration`] at *P<sub>i</sub>* and whose
 //!    `duration` is the difference to the next pulse (or `None` for
 //!    the final slice).
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use bmson_def::SoundChannel;
 use bmsrs_chart::{AudioAsset, TimingTrack};
@@ -50,20 +51,20 @@ pub(crate) fn slice_channel(
 
     pulses.sort_unstable();
 
-    // Convert each pulse to seconds.
-    let pulse_secs: Vec<(u64, f64)> = pulses
+    // Convert each pulse to a Duration.
+    let pulse_durations: Vec<(u64, Duration)> = pulses
         .iter()
-        .map(|&p| (p, timing.tick_to_seconds(p, resolution)))
+        .map(|&p| (p, timing.tick_to_duration(p, resolution)))
         .collect();
 
     // Build AudioAssets.
-    let mut assets = Vec::with_capacity(pulse_secs.len());
+    let mut assets = Vec::with_capacity(pulse_durations.len());
     let mut pulse_to_index = BTreeMap::new();
 
-    for (i, &(pulse, start)) in pulse_secs.iter().enumerate() {
-        let duration = pulse_secs
+    for (i, &(pulse, start)) in pulse_durations.iter().enumerate() {
+        let duration = pulse_durations
             .get(i + 1)
-            .map(|&(_, next_start)| next_start - start);
+            .map(|&(_, next_start)| next_start.saturating_sub(start));
         let asset = AudioAsset {
             path: channel.name.to_path_buf(),
             start,
@@ -209,7 +210,7 @@ mod tests {
 
         let result = slice_channel(&channel, &timing_120(), RES);
 
-        assert!(result.assets[0].start.abs() < 1e-9);
+        assert!(result.assets[0].start.is_zero());
         assert!(result.assets[0].duration.is_none());
     }
 
@@ -249,10 +250,10 @@ mod tests {
 
         let result = slice_channel(&channel, &timing_120(), RES);
 
-        // At 120 BPM, resolution 240: pulse 0→0.0s, pulse 240→0.5s
-        assert!((result.assets[0].start - 0.0).abs() < 1e-9);
+        // At 120 BPM, resolution 240: pulse 0→0s, pulse 240→0.5s
+        assert!(result.assets[0].start.is_zero());
         let d0 = result.assets[0].duration.expect("first slice has duration");
-        assert!((d0 - 0.5).abs() < 1e-9);
+        assert_eq!(d0, Duration::from_millis(500));
     }
 
     #[test]

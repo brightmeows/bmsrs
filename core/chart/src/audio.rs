@@ -1,10 +1,11 @@
 //! Audio asset and BGM event types.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// An audio asset — a segment of an audio file.
 ///
-/// For BMS charts, each asset is a complete WAV file (`start: 0.0`,
+/// For BMS charts, each asset is a complete WAV file (`start: Duration::ZERO`,
 /// `duration: None`).
 ///
 /// For BMSON charts, the processor pre-computes slices using the
@@ -14,12 +15,12 @@ use std::path::PathBuf;
 pub struct AudioAsset {
     /// File path relative to the chart file's directory.
     pub path: PathBuf,
-    /// Slice start offset in seconds from the beginning of the file.
-    /// For BMS (no slicing) this is always `0.0`.
-    pub start: f64,
-    /// Slice duration in seconds.
+    /// Slice start offset from the beginning of the file.
+    /// For BMS (no slicing) this is always [`Duration::ZERO`].
+    pub start: Duration,
+    /// Slice duration.
     /// `None` means play to the end of the file.
-    pub duration: Option<f64>,
+    pub duration: Option<Duration>,
 }
 
 /// A BGM (background music) event — an audio-only trigger with no
@@ -40,11 +41,11 @@ mod tests {
     fn audio_asset_bms_style() {
         let asset = AudioAsset {
             path: PathBuf::from("kick.wav"),
-            start: 0.0,
+            start: Duration::ZERO,
             duration: None,
         };
         assert_eq!(asset.path, PathBuf::from("kick.wav"));
-        assert!(asset.start.abs() < 1e-9);
+        assert_eq!(asset.start, Duration::ZERO);
         assert!(asset.duration.is_none());
     }
 
@@ -52,11 +53,11 @@ mod tests {
     fn audio_asset_bmson_slice_style() {
         let asset = AudioAsset {
             path: PathBuf::from("vox.wav"),
-            start: 0.25,
-            duration: Some(0.75),
+            start: Duration::from_millis(250),
+            duration: Some(Duration::from_millis(750)),
         };
-        assert!((asset.start - 0.25).abs() < f64::EPSILON);
-        assert_eq!(asset.duration, Some(0.75));
+        assert_eq!(asset.start, Duration::from_millis(250));
+        assert_eq!(asset.duration, Some(Duration::from_millis(750)));
     }
 
     #[test]

@@ -8,8 +8,8 @@
 //!
 //! All event positions are absolute [`u64`] ticks. The global
 //! [`resolution`][Chart::resolution] defines ticks per quarter note
-//! (default 240). Wall-clock seconds are derived via
-//! [`TimingTrack::tick_to_seconds`][timing::TimingTrack::tick_to_seconds].
+//! (default 240). Wall-clock time is derived via
+//! [`TimingTrack::tick_to_duration`][timing::TimingTrack::tick_to_duration].
 //!
 //! # Generic note data
 //!
@@ -170,11 +170,11 @@ impl<T: NoteData> Chart<T> {
             .max(scroll_last)
     }
 
-    /// Returns the total duration of the chart in seconds.
+    /// Returns the total duration of the chart.
     #[must_use]
-    pub fn duration_seconds(&self) -> f64 {
+    pub fn duration(&self) -> std::time::Duration {
         self.timing
-            .tick_to_seconds(self.last_tick(), self.resolution)
+            .tick_to_duration(self.last_tick(), self.resolution)
     }
 }
 
@@ -245,7 +245,7 @@ mod tests {
     }
 
     #[test]
-    fn duration_seconds_constant_bpm() {
+    fn duration_constant_bpm() {
         let chart = make_test_chart(
             vec![Note {
                 tick: 480,
@@ -258,6 +258,6 @@ mod tests {
             vec![],
         );
         // 480 ticks at 120 BPM, resolution 240: 480/240 * 0.5 = 1.0s
-        assert!((chart.duration_seconds() - 1.0).abs() < 1e-9);
+        assert_eq!(chart.duration(), std::time::Duration::from_secs(1));
     }
 }

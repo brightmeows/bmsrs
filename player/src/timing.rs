@@ -1,7 +1,10 @@
-//! Pre-computed timing cache for O(log n) tick-to-seconds conversion.
+//! Pre-computed timing cache for O(log n) tick-to-Duration conversion.
 //!
 //! [`TimingCache`] is constructed from a [`TimingTrack`] at Player creation
-//! time and avoids rebuilding the event list on every query.
+//! time and avoids rebuilding the event list on every query. Internal
+//! computation uses `f64`; the public API returns [`Duration`].
+
+use std::time::Duration;
 
 use bmsrs_chart::TimingTrack;
 
@@ -15,7 +18,7 @@ struct BpmSegment {
     bpm: f64,
 }
 
-/// Pre-computed timing data for fast tick-to-seconds conversion.
+/// Pre-computed timing data for fast tick-to-Duration conversion.
 ///
 /// The conversion is split into two parts:
 ///
@@ -85,16 +88,16 @@ impl TimingCache {
         }
     }
 
-    /// Convert a tick position to wall-clock seconds.
+    /// Convert a tick position to wall-clock [`Duration`].
     ///
     /// Stops at the target tick itself are NOT counted (matching
-    /// [`TimingTrack::tick_to_seconds`] semantics).
+    /// [`TimingTrack::tick_to_duration`] semantics).
     #[expect(clippy::cast_precision_loss, reason = "tick fits in f64")]
     #[expect(
         clippy::indexing_slicing,
         reason = "idx from saturating_sub on partition_point, always valid"
     )]
-    pub(crate) fn tick_to_seconds(&self, tick: u64) -> f64 {
+    pub(crate) fn tick_to_duration(&self, tick: u64) -> Duration {
         let res = self.resolution as f64;
 
         // Base time from BPM segments.
@@ -113,7 +116,7 @@ impl TimingCache {
             0.0
         };
 
-        base + stop_pause
+        Duration::from_secs_f64(base + stop_pause)
     }
 
     /// Return the BPM active at `tick`.
@@ -150,8 +153,8 @@ mod tests {
         };
         let cache = TimingCache::new(&timing, RES);
 
-        let result = cache.tick_to_seconds(0);
-        assert!(result.abs() < 1e-9);
+        let result = cache.tick_to_duration(0);
+        assert_eq!(result, Duration::ZERO);
     }
 
     #[test]
@@ -163,8 +166,8 @@ mod tests {
         };
         let cache = TimingCache::new(&timing, RES);
 
-        let result = cache.tick_to_seconds(240);
-        assert!((result - 0.5).abs() < 1e-9);
+        let result = cache.tick_to_duration(240);
+        assert_eq!(result, Duration::from_millis(500));
     }
 
     #[test]
@@ -180,8 +183,8 @@ mod tests {
         let cache = TimingCache::new(&timing, RES);
 
         // 0-240 at 120 BPM = 0.5s, 240-480 at 60 BPM = 1.0s.
-        let result = cache.tick_to_seconds(480);
-        assert!((result - 1.5).abs() < 1e-9);
+        let result = cache.tick_to_duration(480);
+        assert_eq!(result, Duration::from_millis(1500));
     }
 
     #[test]
@@ -197,9 +200,9 @@ mod tests {
         let cache = TimingCache::new(&timing, RES);
 
         // Stop at 240 is strictly before 241, so pause is included.
-        let result = cache.tick_to_seconds(241);
+        let result = cache.tick_to_duration(241);
         let expected = 0.5 + 0.5 + 1.0 / 480.0;
-        assert!((result - expected).abs() < 1e-9);
+        assert!((result.as_secs_f64() - expected).abs() < 1e-9);
     }
 
     #[test]
@@ -214,9 +217,8 @@ mod tests {
         };
         let cache = TimingCache::new(&timing, RES);
 
-        // Stop at 240 is NOT strictly before 240, so no pause.
-        let result = cache.tick_to_seconds(240);
-        assert!((result - 0.5).abs() < 1e-9);
+        let result = cache.tick_to_duration(240);
+        assert_eq!(result, Duration::from_millis(500));
     }
 
     #[test]
@@ -229,9 +231,9 @@ mod tests {
         let cache = TimingCache::new(&timing, RES);
 
         for tick in [0u64, 100, 240, 480, 960, 1920] {
-            let expected = timing.tick_to_seconds(tick, RES);
-            let actual = cache.tick_to_seconds(tick);
-            assert!((actual - expected).abs() < 1e-9, "mismatch at tick {tick}");
+            let expected = timing.tick_to_duration(tick, RES);
+            let actual = cache.tick_to_duration(tick);
+            assert_eq!(actual, expected, "mismatch at tick {tick}");
         }
     }
 
@@ -257,9 +259,9 @@ mod tests {
         let cache = TimingCache::new(&timing, RES);
 
         for tick in [0u64, 100, 240, 479, 480, 959, 960, 961, 1200, 2400] {
-            let expected = timing.tick_to_seconds(tick, RES);
-            let actual = cache.tick_to_seconds(tick);
-            assert!((actual - expected).abs() < 1e-9, "mismatch at tick {tick}");
+            let expected = timing.tick_to_duration(tick, RES);
+            let actual = cache.tick_to_duration(tick);
+            assert_eq!(actual, expected, "mismatch at tick {tick}");
         }
     }
 

@@ -1,10 +1,18 @@
-//! Timing track for tick ↔ seconds conversion.
+//! Timing track for tick ↔ Duration conversion.
 //!
 //! [`TimingTrack`] holds the initial BPM, BPM change events, and stop events.
-//! It provides [`TimingTrack::tick_to_seconds`] and [`TimingTrack::seconds_to_tick`]
-//! for converting between chart positions (ticks) and wall-clock time (seconds).
+//! It provides [`TimingTrack::tick_to_duration`] and [`TimingTrack::duration_to_tick`]
+//! for converting between chart positions (ticks) and wall-clock time
+//! ([`Duration`]).
+//!
+//! Internal computation uses `f64` arithmetic (BPM values are inherently
+//! floating-point). The `f64` ↔ [`Duration`] conversion happens only at the
+//! public API boundary via [`Duration::from_secs_f64`] and
+//! [`Duration::as_secs_f64`].
 
-/// Timing information for converting tick positions to wall-clock seconds.
+use std::time::Duration;
+
+/// Timing information for converting tick positions to wall-clock time.
 ///
 /// All events are at absolute tick positions. The processor is responsible
 /// for converting format-specific positions (BMSON pulses, BMS measures) to ticks.
@@ -74,7 +82,7 @@ impl TimingTrack {
         events
     }
 
-    /// Convert a tick position to wall-clock seconds.
+    /// Convert a tick position to wall-clock [`Duration`].
     ///
     /// At a tick with a stop event, the returned time is **before** the pause
     /// (notes at that tick are activated before the pause, per BMSON spec).
@@ -88,7 +96,7 @@ impl TimingTrack {
         clippy::cast_precision_loss,
         reason = "tick values fit in f64 mantissa for practical chart lengths"
     )]
-    pub fn tick_to_seconds(&self, tick: u64, resolution: u64) -> f64 {
+    pub fn tick_to_duration(&self, tick: u64, resolution: u64) -> Duration {
         debug_assert!(resolution > 0, "resolution must be > 0");
         debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
 
@@ -130,12 +138,12 @@ impl TimingTrack {
             seconds += delta / res * 60.0 / current_bpm;
         }
 
-        seconds
+        Duration::from_secs_f64(seconds)
     }
 
-    /// Convert wall-clock seconds to the nearest tick position.
+    /// Convert wall-clock [`Duration`] to the nearest tick position.
     ///
-    /// This is the inverse of [`tick_to_seconds`](Self::tick_to_seconds).
+    /// This is the inverse of [`tick_to_duration`](Self::tick_to_duration).
     /// Time spent in stops does not advance the tick.
     ///
     /// # Panics (debug only)
@@ -151,9 +159,11 @@ impl TimingTrack {
         reason = "rounded result is within u64 range"
     )]
     #[expect(clippy::cast_sign_loss, reason = "remaining time is non-negative")]
-    pub fn seconds_to_tick(&self, seconds: f64, resolution: u64) -> u64 {
+    pub fn duration_to_tick(&self, duration: Duration, resolution: u64) -> u64 {
         debug_assert!(resolution > 0, "resolution must be > 0");
         debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
+
+        let seconds = duration.as_secs_f64();
 
         if seconds <= 0.0 {
             return 0;
@@ -205,14 +215,14 @@ mod tests {
     const RES: u64 = 240;
 
     #[test]
-    fn constant_bpm_tick_zero_is_zero_seconds() {
+    fn constant_bpm_tick_zero_is_zero() {
         let timing = TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],
             stops: vec![],
         };
-        let result = timing.tick_to_seconds(0, RES);
-        assert!(result.abs() < 1e-9);
+        let result = timing.tick_to_duration(0, RES);
+        assert_eq!(result, Duration::ZERO);
     }
 
     #[test]
@@ -224,8 +234,8 @@ mod tests {
         };
         // 240 ticks = 1 beat at resolution 240.
         // At 120 BPM: 1 beat = 0.5s
-        let result = timing.tick_to_seconds(240, RES);
-        assert!((result - 0.5).abs() < 1e-9);
+        let result = timing.tick_to_duration(240, RES);
+        assert_eq!(result, Duration::from_millis(500));
     }
 
     #[test]
@@ -235,8 +245,8 @@ mod tests {
             bpm_changes: vec![],
             stops: vec![],
         };
-        let result = timing.tick_to_seconds(480, RES);
-        assert!((result - 1.0).abs() < 1e-9);
+        let result = timing.tick_to_duration(480, RES);
+        assert_eq!(result, Duration::from_secs(1));
     }
 
     #[test]
@@ -249,11 +259,9 @@ mod tests {
             }],
             stops: vec![],
         };
-        // 0-240 at 120 BPM = 0.5s
-        // 240-480 at 60 BPM = 1.0s
-        // total = 1.5s
-        let result = timing.tick_to_seconds(480, RES);
-        assert!((result - 1.5).abs() < 1e-9);
+        // 0-240 at 120 BPM = 0.5s, 240-480 at 60 BPM = 1.0s, total = 1.5s
+        let result = timing.tick_to_duration(480, RES);
+        assert_eq!(result, Duration::from_millis(1500));
     }
 
     #[test]
@@ -266,10 +274,8 @@ mod tests {
             }],
             stops: vec![],
         };
-        // At tick 240 exactly, the BPM has changed but the time
-        // to reach tick 240 used the old BPM (120).
-        let result = timing.tick_to_seconds(240, RES);
-        assert!((result - 0.5).abs() < 1e-9);
+        let result = timing.tick_to_duration(240, RES);
+        assert_eq!(result, Duration::from_millis(500));
     }
 
     #[test]
@@ -284,9 +290,10 @@ mod tests {
         };
         // 0-240 at 120 BPM = 0.5s
         // Stop at 240: 240/240 * 60/120 = 0.5s
-        // 240-241 at 120 BPM = 1/240 * 60/120 = 1/480 s
-        let result = timing.tick_to_seconds(241, RES);
-        assert!((result - 1.0 - 1.0 / 480.0).abs() < 1e-9);
+        // 240-241 at 120 BPM = 1/480 s
+        let result = timing.tick_to_duration(241, RES);
+        let expected = 0.5 + 0.5 + 1.0 / 480.0;
+        assert!((result.as_secs_f64() - expected).abs() < 1e-9);
     }
 
     #[test]
@@ -299,9 +306,8 @@ mod tests {
                 duration: 240,
             }],
         };
-        // At tick 240, the stop hasn't been applied yet.
-        let result = timing.tick_to_seconds(240, RES);
-        assert!((result - 0.5).abs() < 1e-9);
+        let result = timing.tick_to_duration(240, RES);
+        assert_eq!(result, Duration::from_millis(500));
     }
 
     #[test]
@@ -320,11 +326,11 @@ mod tests {
                 },
             ],
         };
-        // Stop total = 1200 ticks at 120 BPM = 1200/240 * 0.5 = 2.5s
-        // Tick 241 = 0.5 + 2.5 + 1/480 ≈ 3.00208
-        let result = timing.tick_to_seconds(241, RES);
+        // Stop total = 1200 ticks at 120 BPM = 2.5s
+        // Tick 241 = 0.5 + 2.5 + 1/480
+        let result = timing.tick_to_duration(241, RES);
         let expected = 0.5 + 2.5 + 1.0 / 480.0;
-        assert!((result - expected).abs() < 1e-9);
+        assert!((result.as_secs_f64() - expected).abs() < 1e-9);
     }
 
     #[test]
@@ -340,30 +346,28 @@ mod tests {
                 duration: 240,
             }],
         };
-        // BPM changes to 60 before stop is applied.
-        // Stop at tick 240 uses 60 BPM: 240/240 * 60/60 = 1.0s
-        let result = timing.tick_to_seconds(241, RES);
-        // 0-240 at 120 = 0.5s
-        // Stop at 240 (60 BPM): 1.0s
-        // 240-241 at 60 BPM: 1/240 * 1.0 ≈ 0.00417
+        let result = timing.tick_to_duration(241, RES);
         let expected = 0.5 + 1.0 + 1.0 / 240.0;
-        assert!((result - expected).abs() < 1e-9);
+        assert!((result.as_secs_f64() - expected).abs() < 1e-9);
     }
 
     #[test]
-    fn seconds_to_tick_constant_bpm() {
+    fn duration_to_tick_constant_bpm() {
         let timing = TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],
             stops: vec![],
         };
-        assert_eq!(timing.seconds_to_tick(0.0, RES), 0);
-        assert_eq!(timing.seconds_to_tick(0.5, RES), 240);
-        assert_eq!(timing.seconds_to_tick(1.0, RES), 480);
+        assert_eq!(timing.duration_to_tick(Duration::ZERO, RES), 0);
+        assert_eq!(
+            timing.duration_to_tick(Duration::from_millis(500), RES),
+            240
+        );
+        assert_eq!(timing.duration_to_tick(Duration::from_secs(1), RES), 480);
     }
 
     #[test]
-    fn seconds_to_tick_bpm_change() {
+    fn duration_to_tick_bpm_change() {
         let timing = TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![BpmChange {
@@ -373,11 +377,14 @@ mod tests {
             stops: vec![],
         };
         // 1.5s → tick 480 (0.5s at 120 + 1.0s at 60)
-        assert_eq!(timing.seconds_to_tick(1.5, RES), 480);
+        assert_eq!(
+            timing.duration_to_tick(Duration::from_millis(1500), RES),
+            480
+        );
     }
 
     #[test]
-    fn seconds_to_tick_within_stop_returns_stop_tick() {
+    fn duration_to_tick_within_stop_returns_stop_tick() {
         let timing = TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],
@@ -388,11 +395,14 @@ mod tests {
         };
         // 0.5s = tick 240 (just reached stop)
         // 0.6s = within stop → still tick 240
-        assert_eq!(timing.seconds_to_tick(0.6, RES), 240);
+        assert_eq!(
+            timing.duration_to_tick(Duration::from_millis(600), RES),
+            240
+        );
     }
 
     #[test]
-    fn roundtrip_tick_to_seconds_and_back() {
+    fn roundtrip_tick_to_duration_and_back() {
         let timing = TimingTrack {
             init_bpm: 150.0,
             bpm_changes: vec![
@@ -411,11 +421,11 @@ mod tests {
             }],
         };
         for tick in [0u64, 100, 240, 479, 480, 960, 961, 1200, 2400] {
-            let secs = timing.tick_to_seconds(tick, RES);
-            let back = timing.seconds_to_tick(secs, RES);
+            let dur = timing.tick_to_duration(tick, RES);
+            let back = timing.duration_to_tick(dur, RES);
             assert_eq!(
                 back, tick,
-                "roundtrip failed at tick {tick}: secs={secs}, back={back}"
+                "roundtrip failed at tick {tick}: dur={dur:?}, back={back}"
             );
         }
     }
