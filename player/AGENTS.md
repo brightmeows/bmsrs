@@ -17,6 +17,11 @@ Pre-computes BPM segments and stop-duration cumulative sums for O(log n)
 binary-search lookup. `tick_to_duration` / `duration_to_tick` on `Player`
 delegate to the cache.
 
+`TimingCache` and `TimingTrack` (from `bmsrs-chart`) produce identical
+results — verified by tests. The cache is an O(log n) optimisation over
+`TimingTrack`'s O(n) linear scan. They are intentionally separate: do not
+merge them.
+
 ## Queries
 
 - `active_notes` / `upcoming_notes` — note visibility by tick window.

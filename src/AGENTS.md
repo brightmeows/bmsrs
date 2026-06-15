@@ -2,6 +2,17 @@
 
 Re-export facade. No new logic.
 
-## Adding new modules
+## Module hierarchy
 
-Only add a `pub mod` path when the sub-crate has public API. Placeholder crates are excluded.
+The `pub mod` tree mirrors the workspace directory structure:
+
+```
+bms::{tokenizer, control_flow, parser, processor}
+bmson::{def, processor}
+chart
+player
+```
+
+When adding a new crate to the workspace, add a corresponding `pub mod`
+with `pub use new_crate::*;` here. Placeholder crates are excluded — only
+re-export crates with public API.

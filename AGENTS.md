@@ -35,6 +35,23 @@ cargo deny check
 
 All dependencies (local and external) use `workspace = true` — see `[workspace.dependencies]` in root `Cargo.toml`.
 
+## Pipeline
+
+```mermaid
+flowchart LR
+    BMS[".bms file"] --> Tok[bms-tokenizer]
+    Tok --> CF[bms-control-flow]
+    CF --> Par[bms-parser]
+    Par --> BProc[bms-processor]
+
+    BMSON[".bmson file"] --> BDef[bmson-def]
+    BDef --> BMProc[bmson-processor]
+
+    BProc --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
+    BMProc --> Chart
+    Chart --> Player[bmsrs-player]
+```
+
 ## Commit format
 
 Conventional Commits matching `release-plz.toml` changelog groups:
@@ -49,6 +66,11 @@ Conventional Commits matching `release-plz.toml` changelog groups:
 - Use doc comments (`///` for items, `//!` for modules) for all API
   documentation — clippy enforces docs on all items.
 
+## Lint convention
+
+Workspace enforces `allow_attributes = "deny"`. Use
+`#[expect(clippy::lint, reason = "...")]` to suppress — never `#[allow]`.
+
 ## API convention
 
 Expose public operations through associated functions on a relevant type
@@ -57,9 +79,10 @@ as public API — namespacing on a type is mandatory for consistency.
 Prefer a `*Builder` only when the API has configurable parameters; a
 bare struct with methods is sufficient when there is no state to configure.
 
-## MSRV
+## MSRV & edition
 
 - Minimum Rust version: **1.85**.
+- Edition: **2024** (`resolver = "3"`).
 
 ## Testing
 
