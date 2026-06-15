@@ -61,6 +61,11 @@ Conventional Commits matching `release-plz.toml` changelog groups:
 - Use `()` for scope, e.g. `feat(bms-parser):`.
 - Use `!` for BREAKING CHANGE, e.g. `feat!:` or `feat(scope)!:`.
 
+## Release
+
+Versions, CHANGELOG.md, and git tags are managed by release-plz CI —
+do not manually bump versions, create changelogs, or tag releases.
+
 ## Comment style
 
 - Use doc comments (`///` for items, `//!` for modules) for all API
