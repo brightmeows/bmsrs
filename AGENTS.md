@@ -5,10 +5,10 @@
 ### Pre-commit (auto on commit)
 
 ```bash
-pre-commit run --all-files --quiet    # manually trigger all hooks at once
+pre-commit run --all-files            # manually trigger all hooks at once
 ```
 
-Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --quiet`, `cargo doc --workspace --no-deps --quiet`.
+Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`.
 
 ### CI / manual only
 
@@ -26,12 +26,12 @@ cargo deny check
 | `bms-tokenizer-derive` | `bms/tokenizer-derive` | Proc-macro for `#[derive(BmsTokenAttr)]` |
 | `bms-control-flow` | `bms/control-flow` | Flow document tree, branch selection, roundtrip |
 | `bms-parser` | `bms/parser` | Structured `Bms` model from flat token stream |
-| `bms-processor` | `bms/processor` | |
+| `bms-processor` | `bms/processor` | `Bms` → `Chart` conversion processor |
 | `bmson-def` | `bmson/def` | bmson format type definitions (v0/v1/v2) |
-| `bmson-de-chumsky` | `bmson/de-chumsky` | |
-| `bmson-processor` | `bmson/processor` | |
-| `bmsrs-chart` | `core/chart` | |
-| `bmsrs-player` | `player` | |
+| `bmson-de-chumsky` | `bmson/de-chumsky` | bmson JSON deserializer (chumsky) |
+| `bmson-processor` | `bmson/processor` | `Bmson` → `Chart` conversion processor |
+| `bmsrs-chart` | `core/chart` | Format-agnostic chart data model |
+| `bmsrs-player` | `player` | Pure simulation layer for `Chart<T>` |
 
 All dependencies (local and external) use `workspace = true` — see `[workspace.dependencies]` in root `Cargo.toml`.
 
