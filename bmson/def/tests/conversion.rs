@@ -71,7 +71,7 @@ fn root_to_v1_round_trip() {
 
     assert_eq!(back.version, v1.version);
     assert_eq!(back.info.title, v1.info.title);
-    assert_eq!(back.info.init_bpm, v1.info.init_bpm);
+    assert!((back.info.init_bpm - v1.info.init_bpm).abs() < 1e-10);
     assert_eq!(back.info.level, v1.info.level);
     assert_eq!(back.lines, v1.lines);
 }
@@ -101,7 +101,7 @@ fn v0_to_root_camel_case() {
     let root: Bmson = v0.try_into().unwrap();
 
     assert_eq!(root.song_info.title, "Legacy");
-    assert_eq!(root.chart_data.init_bpm, 150.0);
+    assert!((root.chart_data.init_bpm - 150.0).abs() < 1e-10);
     assert!((root.chart_data.judge_multiplier - 0.90).abs() < 1e-10);
     assert!((root.chart_data.life_multiplier - 1.50).abs() < 1e-10);
     assert_eq!(root.chart_data.lines, Some(vec![BarLine { y: 960 }]));

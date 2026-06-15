@@ -249,10 +249,10 @@ fn life_deltas_serde() {
     let d: LifeDeltas =
         serde_json::from_str(r#"{"perfect": 2.0, "great": 1.0, "good": 0.0, "miss": -4.0}"#)
             .unwrap();
-    assert_eq!(d.perfect, 2.0);
-    assert_eq!(d.great, 1.0);
-    assert_eq!(d.good, 0.0);
-    assert_eq!(d.miss, -4.0);
+    assert!((d.perfect - 2.0).abs() < 1e-10);
+    assert!((d.great - 1.0).abs() < 1e-10);
+    assert!((d.good - 0.0).abs() < 1e-10);
+    assert!((d.miss - -4.0).abs() < 1e-10);
 }
 
 #[test]
@@ -264,7 +264,7 @@ fn chart_data_judge_life_deltas() {
     }"#;
     let cd: ChartData = serde_json::from_str(json).unwrap();
     assert_eq!(cd.judge_deltas.unwrap().perfect, 5);
-    assert_eq!(cd.life_deltas.unwrap().miss, -5.0);
+    assert!((cd.life_deltas.unwrap().miss - -5.0).abs() < 1e-10);
 }
 
 #[test]
@@ -282,8 +282,8 @@ fn bmson_scroll_events() {
     }"#;
     let root: bmson_def::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(root.scroll_events.len(), 3);
-    assert_eq!(root.scroll_events[1].rate, 2.5);
-    assert_eq!(root.scroll_events[2].rate, -1.0);
+    assert!((root.scroll_events[1].rate - 2.5).abs() < 1e-10);
+    assert!((root.scroll_events[2].rate - -1.0).abs() < 1e-10);
 }
 
 #[test]
@@ -304,7 +304,7 @@ fn bmson_mine_channels() {
     let root: bmson_def::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(root.mine_channels.len(), 1);
     assert_eq!(root.mine_channels[0].name, Path::new("mine.wav"));
-    assert_eq!(root.mine_channels[0].notes[0].damage, 10.5);
+    assert!((root.mine_channels[0].notes[0].damage - 10.5).abs() < 1e-10);
 }
 
 #[test]

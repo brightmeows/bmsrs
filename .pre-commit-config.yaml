@@ -23,8 +23,9 @@ repos:
     hooks:
       - id: cargo-clippy
         name: cargo clippy
-        # --workspace: check all crates; -- -D warnings: treat all warnings as errors
-        entry: cargo clippy --workspace -- -D warnings
+        # --workspace --all-targets: check all crates including tests/benches/examples
+        # -- -D warnings: treat all warnings as errors
+        entry: cargo clippy --workspace --all-targets -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false

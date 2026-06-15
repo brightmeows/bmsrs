@@ -413,13 +413,13 @@ mod tests {
     #[test]
     fn as_bytes_two_char() {
         let id = BmsIndex::<WavTag>::try_from("2A").unwrap();
-        assert_eq!(id.as_bytes(), &[b'2', b'A']);
+        assert_eq!(id.as_bytes(), b"2A");
     }
 
     #[test]
     fn as_bytes_one_char() {
         let id = BmsIndex::<WavTag>::try_from("A").unwrap();
-        assert_eq!(id.as_bytes(), &[b'A']);
+        assert_eq!(id.as_bytes(), b"A");
     }
 
     #[test]

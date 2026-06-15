@@ -316,7 +316,7 @@ fn bms_tokenizer_debug_and_clone() {
 
 #[test]
 fn bms_tokenizer_default() {
-    let t: BmsTokenizer = Default::default();
+    let t = BmsTokenizer::default();
     assert!(t.tokenize::<Vec<_>>("").is_empty());
 }
 

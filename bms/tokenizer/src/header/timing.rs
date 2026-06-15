@@ -218,7 +218,7 @@ mod tests {
         let p = StpParams::parse("001.128 500").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 128);
-        assert_eq!(p.duration_ms, 500.0);
+        assert!((p.duration_ms - 500.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -234,7 +234,7 @@ mod tests {
         let p = StpParams::parse("001.999 500").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 999);
-        assert_eq!(p.duration_ms, 500.0);
+        assert!((p.duration_ms - 500.0).abs() < f64::EPSILON);
     }
 
     #[test]

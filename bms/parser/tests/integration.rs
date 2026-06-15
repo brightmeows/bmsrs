@@ -46,12 +46,12 @@ fn event_types_accessible() {
         lane: 5,
         wav_id: "ZZ".parse().unwrap(),
     };
-    let _mine = MineEvent {
+    let _ = MineEvent {
         position: pos,
         player: 2,
         lane: 7,
     };
-    let _bpm = BpmChange {
+    let _ = BpmChange {
         position: pos,
         value: BpmValue::Absolute(180.0),
     };
@@ -68,11 +68,11 @@ fn event_types_accessible() {
         layer: BgaLayer::Base,
         bmp_id: "03".parse().unwrap(),
     };
-    let _ml = MeasureLength {
+    let _ = MeasureLength {
         measure: 1,
         length_percent: 200,
     };
-    let _stp = StpEvent {
+    let _ = StpEvent {
         position: pos,
         duration_ms: 500.0,
     };
@@ -485,7 +485,7 @@ fn empty_message_values() {
     let ch: BmsIndex<ChannelTag, Base62> = "11".try_into().unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
-        Some(&"".to_owned())
+        Some(&String::new())
     );
 }
 

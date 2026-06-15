@@ -606,13 +606,13 @@ mod tests {
     #[test]
     fn position_denom_zero_returns_zero() {
         let pos = Position::new(0, 5, 0);
-        assert_eq!(pos.fraction(), 0.0);
+        assert!(pos.fraction().abs() < f64::EPSILON);
     }
 
     #[test]
     fn position_at_measure_start() {
         let pos = Position::new(2, 0, 3);
-        assert_eq!(pos.fraction(), 0.0);
+        assert!(pos.fraction().abs() < f64::EPSILON);
     }
 
     #[test]
@@ -660,7 +660,7 @@ mod tests {
         assert!(
             (match ev.value {
                 BpmValue::Absolute(v) => v,
-                _ => 0.0,
+                BpmValue::Reference(_) => 0.0,
             } - 180.0)
                 .abs()
                 < f64::EPSILON
@@ -746,7 +746,7 @@ mod tests {
         let channel: BmsIndex<ChannelTag, Base62> = channel_str.try_into().unwrap();
         let track: u16 = addr[..addr.len().saturating_sub(2)]
             .chars()
-            .filter(|c| c.is_ascii_digit())
+            .filter(char::is_ascii_digit)
             .fold(0u16, |acc, c| {
                 acc.saturating_mul(10)
                     .saturating_add(u16::from(c as u8 - b'0'))

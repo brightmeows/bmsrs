@@ -621,6 +621,10 @@ impl SequenceRng {
 
 impl BranchRng for SequenceRng {
     fn gen_range(&mut self, _max: u64) -> u64 {
+        #[expect(
+            clippy::indexing_slicing,
+            reason = "panics intentionally when values exhausted"
+        )]
         let val = self.values[self.pos];
         self.pos += 1;
         val
