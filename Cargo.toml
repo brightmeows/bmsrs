@@ -35,8 +35,8 @@ members = [
     "bmson/def",
     "bmson/de-chumsky",
     "bmson/processor",
-    "core/chart",
-    "player",
+    "common/chart",
+    "common/player",
 ]
 
 [workspace.package]
@@ -67,10 +67,10 @@ bms-tokenizer = { path = "bms/tokenizer" }
 bms-control-flow = { path = "bms/control-flow" }
 bms-parser = { path = "bms/parser" }
 bms-tokenizer-derive = { path = "bms/tokenizer-derive" }
-bmsrs-chart = { path = "core/chart" }
+bmsrs-chart = { path = "common/chart" }
 bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }
-bmsrs-player = { path = "player" }
+bmsrs-player = { path = "common/player" }
 
 [workspace.lints.rust]
 dead_code = "deny"

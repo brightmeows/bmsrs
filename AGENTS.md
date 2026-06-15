@@ -30,8 +30,8 @@ cargo deny check
 | `bmson-def` | `bmson/def` | bmson format type definitions (v0/v1/v2) |
 | `bmson-de-chumsky` | `bmson/de-chumsky` | bmson JSON deserializer (chumsky) |
 | `bmson-processor` | `bmson/processor` | `Bmson` → `Chart` conversion processor |
-| `bmsrs-chart` | `core/chart` | Format-agnostic chart data model |
-| `bmsrs-player` | `player` | Pure simulation layer for `Chart<T>` |
+| `bmsrs-chart` | `common/chart` | Format-agnostic chart data model |
+| `bmsrs-player` | `common/player` | Pure simulation layer for `Chart<T>` |
 
 All dependencies (local and external) use `workspace = true` — see `[workspace.dependencies]` in root `Cargo.toml`.
 
