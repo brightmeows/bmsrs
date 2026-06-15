@@ -59,7 +59,7 @@ use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#ADDR:body`).
 ///
-/// See the [module-level documentation](self) for the format description.
+/// See the module-level documentation for the format description.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BmsMessage<'a> {
     /// Raw address string (before `:`).

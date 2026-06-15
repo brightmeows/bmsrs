@@ -23,8 +23,8 @@ repos:
     hooks:
       - id: cargo-clippy
         name: cargo clippy
-        # --workspace: check all crates; --quiet: suppress per-file output
-        entry: cargo clippy --workspace --quiet
+        # --workspace: check all crates; -- -D warnings: treat all warnings as errors
+        entry: cargo clippy --workspace -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false
@@ -34,7 +34,8 @@ repos:
       - id: cargo-doc
         name: cargo doc
         # --no-deps: only document workspace crates (not their deps)
-        entry: cargo doc --workspace --no-deps --quiet
+        # RUSTDOCFLAGS="-D warnings": treat rustdoc warnings as errors
+        entry: bash -c 'RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --quiet'
         language: system
         types: [rust]
         pass_filenames: false
