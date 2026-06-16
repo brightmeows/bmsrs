@@ -1,5 +1,6 @@
 //! Build a control-flow tree from a flat token stream.
 
+use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsToken};
@@ -10,7 +11,7 @@ use crate::{
 };
 
 /// Internal state for building a `RandomBlock`.
-struct RandomState<'a> {
+struct RandomState<'a, C: Clone + PartialEq + 'a> {
     /// Line number of the opening `#RANDOM` / `#SETRANDOM`.
     open_line: NonZeroUsize,
     /// How the branch value is determined.
@@ -18,29 +19,29 @@ struct RandomState<'a> {
     /// Whether `#ENDRANDOM` was seen.
     has_end_random: bool,
     /// Completed branches.
-    branches: Vec<RandomBranch<'a>>,
+    branches: Vec<RandomBranch<'a, C>>,
     /// Branch currently being built.
-    current_branch: Option<RandomBranch<'a>>,
+    current_branch: Option<RandomBranch<'a, C>>,
 }
 
 /// Internal state for building a `SwitchBlock`.
-struct SwitchState<'a> {
+struct SwitchState<'a, C: Clone + PartialEq + 'a> {
     /// Line number of the opening `#SWITCH` / `#SETSWITCH`.
     open_line: NonZeroUsize,
     /// How the branch value is determined.
     value: BranchValue,
     /// Completed cases.
-    cases: Vec<SwitchCase<'a>>,
+    cases: Vec<SwitchCase<'a, C>>,
     /// Case currently being built.
-    current_case: Option<SwitchCase<'a>>,
+    current_case: Option<SwitchCase<'a, C>>,
 }
 
 /// Stack entry for nested block construction.
-enum StackEntry<'a> {
+enum StackEntry<'a, C: Clone + PartialEq + 'a> {
     /// Currently building a `#RANDOM` block.
-    Random(RandomState<'a>),
+    Random(RandomState<'a, C>),
     /// Currently building a `#SWITCH` block.
-    Switch(SwitchState<'a>),
+    Switch(SwitchState<'a, C>),
 }
 
 impl FlowDocumentBuilder {
@@ -54,11 +55,11 @@ impl FlowDocumentBuilder {
     ///
     /// Returns [`ControlFlowError`] when control-flow commands are mis-nested
     /// (e.g., `#IF` without `#RANDOM`, `#ENDRANDOM` without matching open).
-    pub fn from_tokens<'a>(
-        tokens: impl IntoIterator<Item = (NonZeroUsize, BmsToken<'a>)>,
-    ) -> Result<Vec<FlowItem<'a>>, ControlFlowError> {
-        let mut top_level: Vec<FlowItem<'a>> = Vec::new();
-        let mut stack: Vec<StackEntry<'a>> = Vec::new();
+    pub fn from_tokens<'a, C: Clone + PartialEq + 'a>(
+        tokens: impl IntoIterator<Item = (NonZeroUsize, BmsToken<'a, C>)>,
+    ) -> Result<Vec<FlowItem<'a, C>>, ControlFlowError> {
+        let mut top_level: Vec<FlowItem<'a, C>> = Vec::new();
+        let mut stack: Vec<StackEntry<'a, C>> = Vec::new();
 
         for (line, token) in tokens {
             match token {
@@ -76,18 +77,20 @@ impl FlowDocumentBuilder {
 }
 
 /// Push a non-control-flow token to the current scope.
-fn push_to_scope<'a>(
-    top_level: &mut Vec<FlowItem<'a>>,
-    stack: &mut [StackEntry<'a>],
+fn push_to_scope<'a, C: Clone + PartialEq + 'a>(
+    top_level: &mut Vec<FlowItem<'a, C>>,
+    stack: &mut [StackEntry<'a, C>],
     line: NonZeroUsize,
-    token: BmsToken<'a>,
+    token: BmsToken<'a, C>,
 ) {
     let item = FlowItem {
         line,
         content: match token {
             BmsToken::Header(h) => FlowContent::Header(h),
             BmsToken::Message(m) => FlowContent::Message(m),
+            BmsToken::_Phantom(_) => unreachable!(),
         },
+        _phantom: PhantomData,
     };
 
     match stack.last_mut() {
@@ -108,9 +111,9 @@ fn push_to_scope<'a>(
 }
 
 /// Handle a control-flow header.
-fn handle_control_flow<'a>(
-    top_level: &mut Vec<FlowItem<'a>>,
-    stack: &mut Vec<StackEntry<'a>>,
+fn handle_control_flow<'a, C: Clone + PartialEq + 'a>(
+    top_level: &mut Vec<FlowItem<'a, C>>,
+    stack: &mut Vec<StackEntry<'a, C>>,
     line: NonZeroUsize,
     cf: &BmsHeaderControlFlow,
 ) -> Result<(), ControlFlowError> {
@@ -195,21 +198,21 @@ fn handle_control_flow<'a>(
 }
 
 /// Find the index of the nearest `Random` entry searching from stack top.
-fn find_random(stack: &[StackEntry<'_>]) -> Option<usize> {
+fn find_random<C: Clone + PartialEq>(stack: &[StackEntry<'_, C>]) -> Option<usize> {
     stack
         .iter()
         .rposition(|e| matches!(e, StackEntry::Random(_)))
 }
 
 /// Find the index of the nearest `Switch` entry searching from stack top.
-fn find_switch(stack: &[StackEntry<'_>]) -> Option<usize> {
+fn find_switch<C: Clone + PartialEq>(stack: &[StackEntry<'_, C>]) -> Option<usize> {
     stack
         .iter()
         .rposition(|e| matches!(e, StackEntry::Switch(_)))
 }
 
 /// Finalize the current branch of the `Random` at `idx`.
-fn finalize_random_branch_at(stack: &mut [StackEntry<'_>], idx: usize) {
+fn finalize_random_branch_at<C: Clone + PartialEq>(stack: &mut [StackEntry<'_, C>], idx: usize) {
     if let Some(StackEntry::Random(state)) = stack.get_mut(idx) {
         if let Some(branch) = state.current_branch.take() {
             state.branches.push(branch);
@@ -218,7 +221,7 @@ fn finalize_random_branch_at(stack: &mut [StackEntry<'_>], idx: usize) {
 }
 
 /// Finalize the current case of the `Switch` at `idx`.
-fn finalize_switch_case_at(stack: &mut [StackEntry<'_>], idx: usize) {
+fn finalize_switch_case_at<C: Clone + PartialEq>(stack: &mut [StackEntry<'_, C>], idx: usize) {
     if let Some(StackEntry::Switch(state)) = stack.get_mut(idx) {
         if let Some(case) = state.current_case.take() {
             state.cases.push(case);
@@ -230,8 +233,8 @@ fn finalize_switch_case_at(stack: &mut [StackEntry<'_>], idx: usize) {
 ///
 /// Finalizes any open branch first, then sets `current_branch` to a new
 /// empty branch with the given `kind`.
-fn start_new_branch(
-    stack: &mut [StackEntry<'_>],
+fn start_new_branch<C: Clone + PartialEq>(
+    stack: &mut [StackEntry<'_, C>],
     line: NonZeroUsize,
     kind: RandomBranchKind,
 ) -> Result<(), ControlFlowError> {
@@ -251,8 +254,8 @@ fn start_new_branch(
 ///
 /// Finalizes any open case first, then sets `current_case` to a new
 /// empty case with the given `kind`.
-fn start_new_case(
-    stack: &mut [StackEntry<'_>],
+fn start_new_case<C: Clone + PartialEq>(
+    stack: &mut [StackEntry<'_, C>],
     line: NonZeroUsize,
     kind: SwitchCaseKind,
 ) -> Result<(), ControlFlowError> {
@@ -273,12 +276,12 @@ fn start_new_case(
 ///
 /// Each popped entry is converted to a `FlowBlock` and added to its parent
 /// scope (the new stack top, or top-level if the stack is empty after popping).
-fn pop_and_build<'a>(
-    top_level: &mut Vec<FlowItem<'a>>,
-    stack: &mut Vec<StackEntry<'a>>,
+fn pop_and_build<'a, C: Clone + PartialEq + 'a>(
+    top_level: &mut Vec<FlowItem<'a, C>>,
+    stack: &mut Vec<StackEntry<'a, C>>,
     idx: usize,
 ) {
-    let removed: Vec<StackEntry<'a>> = stack.drain(idx..).collect();
+    let removed: Vec<StackEntry<'a, C>> = stack.drain(idx..).collect();
 
     for entry in removed {
         let item = match entry {
@@ -289,6 +292,7 @@ fn pop_and_build<'a>(
                     has_end_random: state.has_end_random,
                     branches: state.branches,
                 })),
+                _phantom: PhantomData,
             },
             StackEntry::Switch(state) => FlowItem {
                 line: state.open_line,
@@ -296,6 +300,7 @@ fn pop_and_build<'a>(
                     value: state.value,
                     cases: state.cases,
                 })),
+                _phantom: PhantomData,
             },
         };
 

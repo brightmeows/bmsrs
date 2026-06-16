@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    BmsBaseMode, BmsHeaderGameplay, BmsIndex, ChangeOptionTag, ExRankTag, LnMode, LnObjTag, LnType,
-    PlayerMode, Rank,
+    BmsBaseMode, BmsHeaderGameplay, BmsIndex, BmsStr, ChangeOptionTag, ExRankTag, LnMode, LnObjTag,
+    LnType, PlayerMode, Rank,
 };
 
 /// Gameplay behaviour settings.
@@ -45,7 +45,7 @@ pub struct Gameplay {
 
 impl Gameplay {
     /// Apply a gameplay header to this struct.
-    pub fn apply(&mut self, header: &BmsHeaderGameplay<'_>) {
+    pub fn apply<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeaderGameplay<'a, C>) {
         match header {
             BmsHeaderGameplay::Player(m) => self.player = Some(*m),
             BmsHeaderGameplay::Rank(r) => self.rank = Some(*r),
@@ -60,10 +60,12 @@ impl Gameplay {
             BmsHeaderGameplay::LnMode(m) => self.ln_mode = Some(*m),
             BmsHeaderGameplay::Base(m) => self.base = Some(*m),
             BmsHeaderGameplay::OctFp => self.oct_fp = Some(true),
-            BmsHeaderGameplay::Option(s) => self.option = Some((*s).to_owned()),
+            BmsHeaderGameplay::Option(s) => self.option = Some(s.as_ref().to_owned()),
             BmsHeaderGameplay::ChangeOption { id, value } => {
-                self.change_option_defs.insert(*id, (*value).to_owned());
+                self.change_option_defs
+                    .insert(*id, value.as_ref().to_owned());
             }
+            BmsHeaderGameplay::_Phantom(_) => unreachable!(),
         }
     }
 }

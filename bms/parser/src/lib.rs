@@ -5,7 +5,7 @@
 //! structured [`Bms`] object with typed metadata, resource definitions,
 //! timing, and channel messages.
 
-use bms_tokenizer::{BmsHeader, BmsHeaderTiming, BmsMessage, BmsToken};
+use bms_tokenizer::{BmsHeader, BmsHeaderTiming, BmsMessage, BmsStr, BmsToken};
 
 mod audio;
 mod display;
@@ -61,13 +61,16 @@ impl Bms {
     ///
     /// Iterates over tokens and populates fields.  Headers use last-wins
     /// semantics; messages are concatenated per (measure, channel).
-    pub fn from_flat_tokens<'a>(tokens: impl IntoIterator<Item = BmsToken<'a>>) -> Self {
+    pub fn from_flat_tokens<'a, C: BmsStr<'a>>(
+        tokens: impl IntoIterator<Item = BmsToken<'a, C>>,
+    ) -> Self {
         let mut bms = Self::default();
 
         for token in tokens {
             match token {
                 BmsToken::Header(header) => bms.process_header(&header),
                 BmsToken::Message(msg) => bms.process_message(&msg),
+                BmsToken::_Phantom(_) => unreachable!(),
             }
         }
 
@@ -82,7 +85,7 @@ impl Bms {
     /// `#STP` is the sole exception: it lives in the Timing group
     /// but is stored in `Messages` (same position model as channel
     /// events).
-    fn process_header(&mut self, header: &BmsHeader<'_>) {
+    fn process_header<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeader<'a, C>) {
         match header {
             BmsHeader::Metadata(m) => self.metadata.apply(m),
             BmsHeader::Gameplay(g) => self.gameplay.apply(g),
@@ -106,14 +109,15 @@ impl Bms {
             BmsHeader::ControlFlow(_) => { /* skipped — not stored in Bms */ }
             BmsHeader::Fallback(f) => self
                 .fallback_headers
-                .push((f.command.to_owned(), f.value.to_owned())),
+                .push((f.command.as_ref().to_owned(), f.value.as_ref().to_owned())),
+            BmsHeader::_Phantom(_) => unreachable!(),
         }
     }
 
     // Messages
 
     /// Insert a channel message into the messages container.
-    fn process_message(&mut self, m: &BmsMessage<'_>) {
+    fn process_message<'a, C: BmsStr<'a>>(&mut self, m: &BmsMessage<'a, C>) {
         self.messages.concat_and_parse(m);
     }
 }
@@ -127,7 +131,7 @@ mod tests {
 
     fn parse_tokens(input: &str) -> Vec<BmsToken<'_>> {
         BmsTokenizer::new()
-            .tokenize::<Vec<_>>(input)
+            .tokenize::<Vec<_>, &str>(input)
             .into_iter()
             .filter_map(|(_, res)| res.ok())
             .collect()

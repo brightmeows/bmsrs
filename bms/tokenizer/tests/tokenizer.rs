@@ -8,25 +8,26 @@ use bms_tokenizer::{
 
 #[test]
 fn tokenize_empty_input() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize("");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("");
     assert!(tokens.is_empty());
 }
 
 #[test]
 fn tokenize_whitespace_only() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize("  \n  \n  ");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("  \n  \n  ");
     assert!(tokens.is_empty());
 }
 
 #[test]
 fn tokenize_comment_only() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize("// just a comment\n// another one");
+    let tokens: Vec<_> =
+        BmsTokenizer::new().tokenize::<_, &str>("// just a comment\n// another one");
     assert!(tokens.is_empty());
 }
 
 #[test]
 fn tokenize_single_header() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize("#TITLE My Song");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#TITLE My Song");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].0.get(), 1);
     assert!(matches!(
@@ -39,7 +40,7 @@ fn tokenize_single_header() {
 
 #[test]
 fn tokenize_single_message() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize("#00111:11223344");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#00111:11223344");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].0.get(), 1);
     match &tokens[0].1 {
@@ -62,7 +63,7 @@ fn tokenize_mixed_content() {
 #00111:11223344
 #00201:AABB
 ";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 6);
 
     assert!(matches!(
@@ -88,7 +89,7 @@ fn tokenize_mixed_content() {
 #[test]
 fn tokenize_crlf_line_endings() {
     let bms = "#TITLE Test\r\n#ARTIST Artist\r\n";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 2);
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 2);
@@ -97,7 +98,7 @@ fn tokenize_crlf_line_endings() {
 #[test]
 fn tokenize_cr_line_endings() {
     let bms = "#TITLE Test\r#ARTIST Artist\r";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 2);
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 2);
@@ -106,7 +107,7 @@ fn tokenize_cr_line_endings() {
 #[test]
 fn tokenize_mixed_line_endings() {
     let bms = "#TITLE Test\n#ARTIST Artist\r\n#GENRE Piano\r#BPM 180\n";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 4);
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 2);
@@ -116,7 +117,7 @@ fn tokenize_mixed_line_endings() {
 
 #[test]
 fn tokenize_with_unknown_header() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize("#UNKNOWN value");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#UNKNOWN value");
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
@@ -132,7 +133,7 @@ fn tokenize_interleaved_headers_and_messages() {
 #ARTIST Me
 #00201:22
 ";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 4);
     assert!(matches!(tokens[0].1, Ok(BmsToken::Header(_))));
     assert!(matches!(tokens[1].1, Ok(BmsToken::Message(_))));
@@ -149,7 +150,7 @@ fn collect_all_returns_all_results() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::CollectAll)
-        .tokenize(bms);
+        .tokenize::<_, &str>(bms);
     // comment line is skipped; 2 tokens expected
     assert_eq!(tokens.len(), 2);
     // Line numbers reflect original input (comment skipped)
@@ -167,7 +168,7 @@ fn collect_all_continues_past_errors() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::CollectAll)
-        .tokenize(bms);
+        .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 3);
     // First line: OK
     assert!(tokens[0].1.is_ok());
@@ -186,7 +187,7 @@ fn fail_fast_stops_at_first_error() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
-        .tokenize(bms);
+        .tokenize::<_, &str>(bms);
     // FailFast stops at the error line (line 2), including it
     assert_eq!(tokens.len(), 2);
     assert!(tokens[0].1.is_ok());
@@ -204,7 +205,7 @@ fn fail_fast_no_error_returns_all() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
-        .tokenize(bms);
+        .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 2);
     assert!(tokens[0].1.is_ok());
     assert!(tokens[1].1.is_ok());
@@ -219,7 +220,7 @@ fn line_number_gaps_with_skipped_lines() {
 
 #00101:11
 ";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 3);
     assert_eq!(tokens[0].0.get(), 1); // #TITLE
     assert_eq!(tokens[1].0.get(), 3); // #BPM (line 2 is blank)
@@ -231,7 +232,7 @@ fn default_strategy_is_collect_all() {
     let tokenizer = BmsTokenizer::new();
     // Tokenize with default should be CollectAll
     let bms = "#00101:11\n#001..:FF\n#00201:22";
-    let tokens: Vec<_> = tokenizer.tokenize(bms);
+    let tokens: Vec<_> = tokenizer.tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 3);
     assert!(tokens[0].1.is_ok());
     assert!(tokens[1].1.is_err());
@@ -287,7 +288,7 @@ fn tokenize_into_hashmap() {
 #BPM 180
 #00101:1122
 ";
-    let map: HashMap<_, _> = BmsTokenizer::new().tokenize(bms);
+    let map: HashMap<_, _> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(map.len(), 3);
     assert!(map.contains_key(&std::num::NonZeroUsize::MIN));
     assert!(map.contains_key(&std::num::NonZeroUsize::new(2).unwrap()));
@@ -299,7 +300,7 @@ fn fail_fast_error_line_included_in_results() {
     let bms = "#00101:11\n#001..:FF";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
-        .tokenize(bms);
+        .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 2);
     // The error line itself is included (not dropped)
     assert!(tokens[1].1.is_err());
@@ -309,22 +310,24 @@ fn fail_fast_error_line_included_in_results() {
 fn bms_tokenizer_debug_and_clone() {
     let t1 = BmsTokenizer::new().error_strategy(ErrorStrategy::FailFast);
     let t2 = t1.clone();
-    let r1: Vec<_> = t1.tokenize("#TITLE A");
-    let r2: Vec<_> = t2.tokenize("#TITLE A");
+    let r1: Vec<_> = t1.tokenize::<_, &str>("#TITLE A");
+    let r2: Vec<_> = t2.tokenize::<_, &str>("#TITLE A");
     assert_eq!(r1.len(), r2.len());
 }
 
 #[test]
 fn bms_tokenizer_default() {
     let t = BmsTokenizer::default();
-    assert!(t.tokenize::<Vec<_>>("").is_empty());
+    assert!(t.tokenize::<Vec<_>, &str>("").is_empty());
 }
 
 #[test]
 fn custom_prefix_filters_percent() {
     // With only `#` prefix, `%URL` lines should be skipped.
     let bms = "#TITLE Song\n%URL https://example.com";
-    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&['#']).tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new()
+        .header_prefixes(&['#'])
+        .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
@@ -338,7 +341,9 @@ fn custom_prefix_filters_percent() {
 fn custom_prefix_accepts_percent_only() {
     // With only `%` prefix, `#TITLE` is skipped but `%URL` is parsed.
     let bms = "#TITLE Song\n%URL https://example.com";
-    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&['%']).tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new()
+        .header_prefixes(&['%'])
+        .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
@@ -351,7 +356,9 @@ fn custom_prefix_accepts_percent_only() {
 #[test]
 fn empty_prefixes_skips_all() {
     let bms = "#TITLE Song\n#BPM 180\n#00101:11";
-    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&[]).tokenize(bms);
+    let tokens: Vec<_> = BmsTokenizer::new()
+        .header_prefixes(&[])
+        .tokenize::<_, &str>(bms);
     // Only the channel message line remains (no `#` lines are headers)
     assert_eq!(tokens.len(), 1);
     assert!(matches!(tokens[0].1, Ok(BmsToken::Message(_))));
@@ -362,7 +369,7 @@ fn custom_prefix_single_char() {
     let bms = "#TITLE A\n@CUSTOM value";
     let tokens: Vec<_> = BmsTokenizer::new()
         .header_prefixes(&['#', '@'])
-        .tokenize(bms);
+        .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 2);
     // `@CUSTOM` is not a known header, so it falls through to Fallback
     assert!(matches!(
@@ -376,8 +383,8 @@ fn header_prefixes_default() {
     let default = BmsTokenizer::new();
     let explicit = BmsTokenizer::new().header_prefixes(&['#', '%']);
     let bms = "#TITLE A\n%URL b\n";
-    let r1: Vec<_> = default.tokenize(bms);
-    let r2: Vec<_> = explicit.tokenize(bms);
+    let r1: Vec<_> = default.tokenize::<_, &str>(bms);
+    let r2: Vec<_> = explicit.tokenize::<_, &str>(bms);
     assert_eq!(r1.len(), r2.len());
     assert_eq!(r1, r2);
 }

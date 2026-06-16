@@ -8,6 +8,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::index::{BmsIndex, ChangeOptionTag, ExRankTag, LnObjTag};
 use crate::{BmsHeader, BmsTryFromError};
@@ -199,7 +200,7 @@ pub enum BmsBaseMode {
 /// gauge (life-bar) behaviour, long-note interpretation, and chart
 /// options.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderGameplay<'a> {
+pub enum BmsHeaderGameplay<'a, C = &'a str> {
     /// `#PLAYER` — game mode (Single / Couple / Double / Battle).
     ///
     /// Largely ignored by modern players, which infer mode from channels.
@@ -289,7 +290,7 @@ pub enum BmsHeaderGameplay<'a> {
     /// Multiple `#OPTION` lines can coexist; same-category options use
     /// the line closest to EOF.
     #[bms_token("#OPTION {}")]
-    Option(&'a str),
+    Option(C),
     /// `#CHANGEOPTION{id}` — dynamically change options mid-play (nanasi).
     ///
     /// Referenced by channel `#xxxA6`.  Not all options support dynamic
@@ -299,7 +300,7 @@ pub enum BmsHeaderGameplay<'a> {
         /// The 2-character index.
         id: BmsIndex<ChangeOptionTag>,
         /// The option string (e.g., `"774:HIDDEN_STEALTH"`).
-        value: &'a str,
+        value: C,
     },
     /// `#BASE` — declare the numbering base for indexed commands.
     ///
@@ -309,22 +310,25 @@ pub enum BmsHeaderGameplay<'a> {
     #[bms_token("#BASE {}")]
     #[bms_fallback]
     Base(BmsBaseMode),
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    #[doc(hidden)]
+    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a> From<BmsHeaderGameplay<'a>> for BmsHeader<'a> {
+impl<'a, C: BmsStr<'a>> From<BmsHeaderGameplay<'a, C>> for BmsHeader<'a, C> {
     #[inline]
-    fn from(gameplay: BmsHeaderGameplay<'a>) -> Self {
+    fn from(gameplay: BmsHeaderGameplay<'a, C>) -> Self {
         BmsHeader::Gameplay(gameplay)
     }
 }
 
-impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderGameplay<'a> {
+impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderGameplay<'a, C> {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Gameplay(g) => Ok(g),
             _ => Err(BmsTryFromError::WrongHeaderType),

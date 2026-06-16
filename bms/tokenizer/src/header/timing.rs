@@ -3,6 +3,7 @@
 
 use std::fmt;
 
+use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::BmsValue;
 use crate::index::{BmsIndex, BpmTag, ScrollTag, SpeedTag, StopTag};
@@ -51,7 +52,7 @@ impl fmt::Display for StpParams {
     }
 }
 
-impl<'a> BmsValue<'a> for StpParams {
+impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C> for StpParams {
     fn parse(s: &'a str) -> Option<Self> {
         let (pos_part, dur_part) = s.split_once(' ')?;
         let dur_ms: f64 = dur_part.trim().parse().ok()?;
@@ -190,18 +191,18 @@ pub enum BmsHeaderTiming {
 
 // From / TryFrom conversions
 
-impl From<BmsHeaderTiming> for BmsHeader<'_> {
+impl<'a, C: BmsStr<'a>> From<BmsHeaderTiming> for BmsHeader<'a, C> {
     #[inline]
     fn from(timing: BmsHeaderTiming) -> Self {
         BmsHeader::Timing(timing)
     }
 }
 
-impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderTiming {
+impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderTiming {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Timing(t) => Ok(t),
             _ => Err(BmsTryFromError::WrongHeaderType),
@@ -215,7 +216,7 @@ mod tests {
 
     #[test]
     fn stp_params_with_position() {
-        let p = StpParams::parse("001.128 500").unwrap();
+        let p = <StpParams as BmsValue<'_, &str>>::parse("001.128 500").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 128);
         assert!((p.duration_ms - 500.0).abs() < f64::EPSILON);
@@ -223,7 +224,7 @@ mod tests {
 
     #[test]
     fn stp_params_without_position() {
-        let p = StpParams::parse("001 500.5").unwrap();
+        let p = <StpParams as BmsValue<'_, &str>>::parse("001 500.5").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 0);
         assert!((p.duration_ms - 500.5).abs() < f64::EPSILON);
@@ -231,7 +232,7 @@ mod tests {
 
     #[test]
     fn stp_params_position_999_accepted() {
-        let p = StpParams::parse("001.999 500").unwrap();
+        let p = <StpParams as BmsValue<'_, &str>>::parse("001.999 500").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 999);
         assert!((p.duration_ms - 500.0).abs() < f64::EPSILON);
@@ -239,13 +240,13 @@ mod tests {
 
     #[test]
     fn stp_params_position_over_999_rejected() {
-        assert!(StpParams::parse("001.1000 500").is_none());
+        assert!(<StpParams as BmsValue<'_, &str>>::parse("001.1000 500").is_none());
     }
 
     #[test]
     fn stp_params_invalid_format_rejected() {
-        assert!(StpParams::parse("invalid").is_none());
-        assert!(StpParams::parse("").is_none());
+        assert!(<StpParams as BmsValue<'_, &str>>::parse("invalid").is_none());
+        assert!(<StpParams as BmsValue<'_, &str>>::parse("").is_none());
     }
 
     #[test]

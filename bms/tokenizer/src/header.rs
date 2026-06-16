@@ -18,6 +18,9 @@ pub use res_def_visual::{
 };
 pub use timing::{BmsHeaderTiming, StpParams};
 
+use std::fmt;
+
+use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::BmsTokenizeError;
 use crate::BmsTryFromError;
@@ -28,24 +31,27 @@ use crate::BmsTryFromError;
 /// Variants annotated with `#[bms_fallback]` are excluded from dispatch
 /// and instead catch anything that didn't match a concrete variant.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeader<'a> {
+pub enum BmsHeader<'a, C = &'a str> {
     /// Audio resource definitions (`#WAV`, `#EXWAV`, `#WAVCMD`, etc.).
-    ResDefAudio(BmsHeaderResDefAudio<'a>),
+    ResDefAudio(BmsHeaderResDefAudio<'a, C>),
     /// Timing definitions (`#BPM`, `#STOP`, `#SCROLL`, `#SPEED`, etc.).
     Timing(BmsHeaderTiming),
     /// Visual resource definitions (`#BMP`, `#BGA`, `#ARGB`, etc.).
-    ResDefVisual(BmsHeaderResDefVisual<'a>),
+    ResDefVisual(BmsHeaderResDefVisual<'a, C>),
     /// Control-flow commands (`#RANDOM`, `#SWITCH`, `#IF`, etc.).
     ControlFlow(BmsHeaderControlFlow),
     /// Gameplay behaviour (`#PLAYER`, `#RANK`, `#TOTAL`, `#LNTYPE`, etc.).
-    Gameplay(BmsHeaderGameplay<'a>),
+    Gameplay(BmsHeaderGameplay<'a, C>),
     /// Display and difficulty markers (`#STAGEFILE`, `#DIFFICULTY`, etc.).
-    Display(BmsHeaderDisplay<'a>),
+    Display(BmsHeaderDisplay<'a, C>),
     /// Song/chart identification (`#TITLE`, `#ARTIST`, `#GENRE`, etc.).
-    Metadata(BmsHeaderMetadata<'a>),
+    Metadata(BmsHeaderMetadata<'a, C>),
     /// An unrecognised or engine-specific header command.
     #[bms_fallback]
-    Fallback(BmsHeaderFallback<'a>),
+    Fallback(BmsHeaderFallback<'a, C>),
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    #[doc(hidden)]
+    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 /// Catch-all for unrecognised header commands.
@@ -54,27 +60,29 @@ pub enum BmsHeader<'a> {
 /// (parsers, tools) can handle engine-specific extensions that the
 /// tokenizer doesn't know about.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BmsHeaderFallback<'a> {
+pub struct BmsHeaderFallback<'a, C = &'a str> {
     /// The raw command name as it appears in the file (e.g., `"MYEXT"`).
-    pub command: &'a str,
+    pub command: C,
     /// The value after the space separator.
-    pub value: &'a str,
+    pub value: C,
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    pub _phantom: std::marker::PhantomData<&'a C>,
 }
 
 // From / TryFrom conversions
 
-impl<'a> From<BmsHeaderFallback<'a>> for BmsHeader<'a> {
+impl<'a, C: BmsStr<'a>> From<BmsHeaderFallback<'a, C>> for BmsHeader<'a, C> {
     #[inline]
-    fn from(fallback: BmsHeaderFallback<'a>) -> Self {
+    fn from(fallback: BmsHeaderFallback<'a, C>) -> Self {
         BmsHeader::Fallback(fallback)
     }
 }
 
-impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderFallback<'a> {
+impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderFallback<'a, C> {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Fallback(f) => Ok(f),
             _ => Err(BmsTryFromError::WrongHeaderType),
@@ -94,10 +102,12 @@ impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderFallback<'a> {
 ///
 /// Returns `Err(BmsTokenizeError)` if a header command is recognised but its
 /// value cannot be parsed into the expected type.
-pub(crate) fn parse_header_line<'a>(
+/// Parse with explicit supertraits for C (avoid `E0283` with `BmsStr` blanket impl).
+/// In tests, use the non-generic `parse_header_line_default` wrapper.
+pub(crate) fn parse_header_line<'a, C: Clone + AsRef<str> + fmt::Display + From<&'a str> + 'a>(
     line: &'a str,
     prefixes: &[char],
-) -> Result<Option<BmsHeader<'a>>, BmsTokenizeError<'a>> {
+) -> Result<Option<BmsHeader<'a, C>>, BmsTokenizeError<'a>> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() {
@@ -149,8 +159,9 @@ pub(crate) fn parse_header_line<'a>(
         && !command.eq_ignore_ascii_case("EMAIL")
     {
         return Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
-            command,
-            value,
+            command: C::from(command),
+            value: C::from(value),
+            _phantom: std::marker::PhantomData,
         })));
     }
 
@@ -163,8 +174,9 @@ pub(crate) fn parse_header_line<'a>(
 
     // Nothing matched → Fallback.
     Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
-        command,
-        value,
+        command: C::from(command),
+        value: C::from(value),
+        _phantom: std::marker::PhantomData,
     })))
 }
 
@@ -173,8 +185,8 @@ pub(crate) fn parse_header_line<'a>(
 #[cfg(test)]
 pub(crate) fn parse_header_line_default(
     line: &str,
-) -> Result<Option<BmsHeader<'_>>, BmsTokenizeError<'_>> {
-    parse_header_line(line, &['#', '%'])
+) -> Result<Option<BmsHeader<'_, &str>>, BmsTokenizeError<'_>> {
+    parse_header_line::<&str>(line, &['#', '%'])
 }
 
 #[cfg(test)]
@@ -1027,7 +1039,8 @@ mod tests {
             result,
             BmsHeader::Fallback(BmsHeaderFallback {
                 command: "MYEXT",
-                value: "abc123"
+                value: "abc123",
+                _phantom: std::marker::PhantomData,
             })
         );
     }
@@ -1039,7 +1052,8 @@ mod tests {
             result,
             BmsHeader::Fallback(BmsHeaderFallback {
                 command: "CUSTOM",
-                value: "x"
+                value: "x",
+                _phantom: std::marker::PhantomData,
             })
         );
     }

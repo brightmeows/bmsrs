@@ -13,7 +13,7 @@ type TestResult = std::result::Result<(), ControlFlowError>;
 /// Helper: tokenize BMS text and filter to successful tokens only.
 fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<'_>)> {
     BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
+        .tokenize::<Vec<_>, &str>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect()

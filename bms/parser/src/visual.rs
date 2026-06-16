@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    ArgbParams, AtBgaParams, BgaParams, BmpTag, BmsHeaderResDefVisual, BmsIndex, ExBmpParams,
-    PoorBgaMode, SeekTag, SwBgaParams,
+    ArgbParams, AtBgaParams, BgaParams, BmpTag, BmsHeaderResDefVisual, BmsIndex, BmsStr,
+    ExBmpParams, PoorBgaMode, SeekTag, SwBgaParams,
 };
 
 // Owned parameter types
@@ -29,14 +29,14 @@ pub struct OwnedExBmpParams {
     pub filename: String,
 }
 
-impl From<&ExBmpParams<'_>> for OwnedExBmpParams {
-    fn from(p: &ExBmpParams<'_>) -> Self {
+impl<'a, C: BmsStr<'a>> From<&ExBmpParams<'a, C>> for OwnedExBmpParams {
+    fn from(p: &ExBmpParams<'a, C>) -> Self {
         Self {
             a: p.a,
             r: p.r,
             g: p.g,
             b: p.b,
-            filename: p.filename.to_owned(),
+            filename: p.filename.as_ref().to_owned(),
         }
     }
 }
@@ -64,8 +64,8 @@ pub struct OwnedSwBgaParams {
     pub pattern: String,
 }
 
-impl From<&SwBgaParams<'_>> for OwnedSwBgaParams {
-    fn from(p: &SwBgaParams<'_>) -> Self {
+impl<'a, C: BmsStr<'a>> From<&SwBgaParams<'a, C>> for OwnedSwBgaParams {
+    fn from(p: &SwBgaParams<'a, C>) -> Self {
         Self {
             fr: p.fr,
             time: p.time,
@@ -75,7 +75,7 @@ impl From<&SwBgaParams<'_>> for OwnedSwBgaParams {
             r: p.r,
             g: p.g,
             b: p.b,
-            pattern: p.pattern.to_owned(),
+            pattern: p.pattern.as_ref().to_owned(),
         }
     }
 }
@@ -120,10 +120,10 @@ pub struct Visual {
 
 impl Visual {
     /// Apply a visual resource header to this struct.
-    pub fn apply(&mut self, header: &BmsHeaderResDefVisual<'_>) {
+    pub fn apply<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeaderResDefVisual<'a, C>) {
         match header {
             BmsHeaderResDefVisual::Bmp { id, filename } => {
-                self.bmp_files.insert(*id, (*filename).to_owned());
+                self.bmp_files.insert(*id, filename.as_ref().to_owned());
             }
             BmsHeaderResDefVisual::Seek { id, value } => {
                 self.seek_defs.insert(*id, *value);
@@ -143,13 +143,14 @@ impl Visual {
             BmsHeaderResDefVisual::Argb { id, params } => {
                 self.argb_defs.insert(*id, params.clone());
             }
-            BmsHeaderResDefVisual::VideoFile(s) => self.video_file = Some((*s).to_owned()),
-            BmsHeaderResDefVisual::Movie(s) => self.movie = Some((*s).to_owned()),
-            BmsHeaderResDefVisual::ExtChr(s) => self.ext_chr = Some((*s).to_owned()),
+            BmsHeaderResDefVisual::VideoFile(s) => self.video_file = Some(s.as_ref().to_owned()),
+            BmsHeaderResDefVisual::Movie(s) => self.movie = Some(s.as_ref().to_owned()),
+            BmsHeaderResDefVisual::ExtChr(s) => self.ext_chr = Some(s.as_ref().to_owned()),
             BmsHeaderResDefVisual::VideoFps(v) => self.video_fps = Some(*v),
             BmsHeaderResDefVisual::VideoColors(c) => self.video_colors = Some(*c),
             BmsHeaderResDefVisual::VideoDly(d) => self.video_dly = Some(*d),
             BmsHeaderResDefVisual::PoorBga(m) => self.poor_bga_mode = Some(*m),
+            BmsHeaderResDefVisual::_Phantom(_) => unreachable!(),
         }
     }
 }

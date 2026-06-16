@@ -6,10 +6,22 @@ use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizer};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize and build a `Vec<FlowItem>`.
+/// Helper: tokenize and build a `Vec<FlowItem>` with `C = &str`.
 fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<'_>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
+        .tokenize::<Vec<_>, &str>(input)
+        .into_iter()
+        .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
+        .collect();
+    FlowDocumentBuilder::from_tokens(tokens)
+}
+
+/// Helper: tokenize and build with `C = String` for polymorphism coverage.
+fn build_doc_string(
+    input: &str,
+) -> std::result::Result<Vec<FlowItem<'_, String>>, ControlFlowError> {
+    let tokens: Vec<_> = BmsTokenizer::new()
+        .tokenize::<Vec<_>, String>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
@@ -356,5 +368,42 @@ fn random_empty_block_roundtrip() -> TestResult {
     let cfs = cf_debug(&tokens);
 
     assert_eq!(cfs, vec!["Random(2)".to_string(), "EndRandom".to_string()]);
+    Ok(())
+}
+
+/// Verify control-flow roundtrip works with `C = String`.
+#[test]
+fn random_block_roundtrip_with_string_container() -> TestResult {
+    let items = build_doc_string(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #00101:22\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    let tokens: Vec<BmsToken<'_, String>> = FlowDocumentBuilder::to_tokens(&items);
+    let cfs: Vec<String> = tokens
+        .iter()
+        .filter_map(|t| match t {
+            BmsToken::Header(BmsHeader::ControlFlow(cf)) => Some(format!("{cf:?}")),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(
+        cfs,
+        vec![
+            "Random(2)".to_string(),
+            "If(1)".to_string(),
+            "EndIf".to_string(),
+            "If(2)".to_string(),
+            "EndIf".to_string(),
+            "EndRandom".to_string(),
+        ]
+    );
     Ok(())
 }

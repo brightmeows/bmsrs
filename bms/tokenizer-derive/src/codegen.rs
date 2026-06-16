@@ -8,6 +8,15 @@ use syn::spanned::Spanned;
 
 use crate::parse::{BmsTokenTemplate, Placeholder};
 
+/// `true` if the attribute is `#[doc(hidden)]`.
+fn is_doc_hidden(attr: &syn::Attribute) -> bool {
+    attr.path().is_ident("doc")
+        && attr
+            .meta
+            .require_list()
+            .is_ok_and(|list| list.tokens.to_string().contains("hidden"))
+}
+
 /// Generate the `BmsToken` impl block for a header sub-enum.
 pub fn generate_impl(
     enum_name: &syn::Ident,
@@ -18,15 +27,66 @@ pub fn generate_impl(
 ) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let first_lifetime = generics.lifetimes().next();
-    let header_bound = first_lifetime.map(|lt| {
-        let lifetime = &lt.lifetime;
-        quote! { where 'header: #lifetime }
-    });
-    let header_where = header_bound.unwrap_or_default();
+    let first_lifetime_param = generics.lifetimes().next();
+    let first_lifetime = first_lifetime_param.map(|lt| &lt.lifetime);
+    let type_param = generics.type_params().next();
+    let type_param_ident = type_param.map(|tp| &tp.ident);
 
-    let try_match_body = generate_try_match_body(data_enum, templates, fallbacks);
+    // Build the where clause for try_match_header:
+    // C needs Display + AsRef<str> + Clone + From<&'a str> (from the BmsValue
+    // trait).  We do NOT use 'header in the From bound — instead the value is
+    // coerced from &'header str to &'a str via the 'header: 'a bound.
+    let header_where = match (first_lifetime_param, &type_param) {
+        (Some(lt), Some(tp)) => {
+            let lifetime = &lt.lifetime;
+            let tp_ident = &tp.ident;
+            quote! {
+                where #tp_ident: ::std::fmt::Display
+                    + ::std::convert::AsRef<str>
+                    + ::std::clone::Clone
+                    + ::std::convert::From<&#lifetime str>,
+                      'header: #lifetime
+            }
+        }
+        (Some(lt), None) => {
+            let lifetime = &lt.lifetime;
+            quote! { where 'header: #lifetime }
+        }
+        (None, Some(tp)) => {
+            let tp_ident = &tp.ident;
+            quote! {
+                where #tp_ident: ::std::fmt::Display
+                    + ::std::convert::AsRef<str>
+                    + ::std::clone::Clone
+                    + ::std::convert::From<&'header str>
+            }
+        }
+        (None, None) => TokenStream::new(),
+    };
+
+    let header_lifetime = syn::Lifetime::new("'header", proc_macro2::Span::call_site());
+    let try_match_body = generate_try_match_body(
+        data_enum,
+        templates,
+        fallbacks,
+        type_param_ident,
+        first_lifetime,
+        &header_lifetime,
+    );
     let format_body = generate_format_body(data_enum, templates);
+
+    // Build the format_header where clause: C must implement Display + AsRef<str> + Clone.
+    let format_where: TokenStream = match (first_lifetime_param, &type_param) {
+        (Some(_lt), Some(tp)) => {
+            let tp_ident = &tp.ident;
+            quote! {
+                where #tp_ident: ::std::fmt::Display
+                    + ::std::convert::AsRef<str>
+                    + ::std::clone::Clone
+            }
+        }
+        _ => TokenStream::new(),
+    };
 
     quote! {
         impl #impl_generics #enum_name #ty_generics #where_clause {
@@ -46,7 +106,9 @@ pub fn generate_impl(
             /// Format this variant back to a `(command_token, value)` pair.
             #[doc(hidden)]
             #[must_use]
-            pub fn format_header(&self) -> (String, String) {
+            pub fn format_header(&self) -> (String, String)
+            #format_where
+            {
                 match self {
                     #format_body
                 }
@@ -68,11 +130,18 @@ fn generate_try_match_body(
     data_enum: &syn::DataEnum,
     templates: &[Vec<BmsTokenTemplate>],
     fallbacks: &[bool],
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> TokenStream {
     let mut exact_branches: Vec<ExactBranch> = Vec::new();
     let mut indexed_checks = TokenStream::new();
 
     for (variant_idx, variant) in data_enum.variants.iter().enumerate() {
+        // Skip #[doc(hidden)] variants (e.g., _Phantom from PhantomData).
+        if variant.attrs.iter().any(is_doc_hidden) {
+            continue;
+        }
         let Some(variant_templates) = templates.get(variant_idx) else {
             continue;
         };
@@ -85,10 +154,24 @@ fn generate_try_match_body(
             }
 
             if tmpl.is_indexed() {
-                let check = generate_indexed_match(variant, tmpl, is_fallback);
+                let check = generate_indexed_match(
+                    variant,
+                    tmpl,
+                    is_fallback,
+                    type_param_ident,
+                    first_lifetime,
+                    header_lifetime,
+                );
                 indexed_checks.extend(check);
             } else {
-                let branches = generate_exact_branches(variant, tmpl, is_fallback);
+                let branches = generate_exact_branches(
+                    variant,
+                    tmpl,
+                    is_fallback,
+                    type_param_ident,
+                    first_lifetime,
+                    header_lifetime,
+                );
                 exact_branches.extend(branches);
             }
         }
@@ -129,6 +212,9 @@ fn generate_exact_branches(
     variant: &syn::Variant,
     tmpl: &BmsTokenTemplate,
     is_fallback: bool,
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> Vec<ExactBranch> {
     let cmd_str = &tmpl.command;
     let context_str = format!("{}{}", tmpl.prefix, tmpl.command);
@@ -158,6 +244,9 @@ fn generate_exact_branches(
                 &context_str,
                 is_fallback,
                 variant,
+                type_param_ident,
+                first_lifetime,
+                header_lifetime,
             )
         }
         syn::Fields::Named(fields_named) => {
@@ -179,6 +268,9 @@ fn generate_exact_branches(
                 &context_str,
                 is_fallback,
                 variant,
+                type_param_ident,
+                first_lifetime,
+                header_lifetime,
             )
         }
         _ => {
@@ -193,6 +285,10 @@ fn generate_exact_branches(
 }
 
 /// Generate a branch for a tuple variant with exactly one field.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "derive codegen needs many parameters"
+)]
 fn exact_unnamed_branch(
     command_ident: &syn::Ident,
     field_ty: &syn::Type,
@@ -200,6 +296,9 @@ fn exact_unnamed_branch(
     context_str: &str,
     is_fallback: bool,
     _variant: &syn::Variant,
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> (TokenStream, TokenStream) {
     let cond = quote! { command.eq_ignore_ascii_case(#cmd_str) };
     let __value = format_ident!("__value");
@@ -209,6 +308,9 @@ fn exact_unnamed_branch(
         &quote!(value),
         context_str,
         is_fallback,
+        type_param_ident,
+        first_lifetime,
+        header_lifetime,
     );
     let body = quote! {
         #init
@@ -218,6 +320,10 @@ fn exact_unnamed_branch(
 }
 
 /// Generate a branch for a struct variant, parsing the value field.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "derive codegen needs many parameters"
+)]
 fn exact_named_field_branch(
     command_ident: &syn::Ident,
     field: &syn::Field,
@@ -225,6 +331,9 @@ fn exact_named_field_branch(
     context_str: &str,
     is_fallback: bool,
     _variant: &syn::Variant,
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> (TokenStream, TokenStream) {
     let field_ty = &field.ty;
     let field_ident = &field.ident;
@@ -235,6 +344,9 @@ fn exact_named_field_branch(
         &quote!(value),
         context_str,
         is_fallback,
+        type_param_ident,
+        first_lifetime,
+        header_lifetime,
     );
     let body = quote! {
         #init
@@ -251,6 +363,9 @@ fn generate_indexed_match(
     variant: &syn::Variant,
     tmpl: &BmsTokenTemplate,
     is_fallback: bool,
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> TokenStream {
     let context_str = format!("{}{}", tmpl.prefix, tmpl.command);
     let base_len = tmpl.command.len();
@@ -260,10 +375,25 @@ fn generate_indexed_match(
 
     let variant_construction = if tmpl.is_unnamed_id() && tmpl.is_unnamed_value() {
         // Tuple variant with unnamed id + unnamed value.
-        build_indexed_tuple_body(variant, &context_str, is_fallback)
+        build_indexed_tuple_body(
+            variant,
+            &context_str,
+            is_fallback,
+            type_param_ident,
+            first_lifetime,
+            header_lifetime,
+        )
     } else {
         let id_field_name = tmpl.id_field_name();
-        build_indexed_variant_body(variant, id_field_name, &context_str, is_fallback)
+        build_indexed_variant_body(
+            variant,
+            id_field_name,
+            &context_str,
+            is_fallback,
+            type_param_ident,
+            first_lifetime,
+            header_lifetime,
+        )
     };
 
     quote! {
@@ -280,6 +410,9 @@ fn build_indexed_variant_body(
     id_field_name: &str,
     context_str: &str,
     is_fallback: bool,
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> TokenStream {
     let command_ident = &variant.ident;
 
@@ -308,6 +441,9 @@ fn build_indexed_variant_body(
             &value_src,
             context_str,
             fb,
+            type_param_ident,
+            first_lifetime,
+            header_lifetime,
         ));
     }
 
@@ -327,8 +463,13 @@ fn generate_format_body(
     templates: &[Vec<BmsTokenTemplate>],
 ) -> TokenStream {
     let mut arms = TokenStream::new();
+    let mut has_doc_hidden = false;
 
     for (variant_idx, variant) in data_enum.variants.iter().enumerate() {
+        if variant.attrs.iter().any(is_doc_hidden) {
+            has_doc_hidden = true;
+            continue;
+        }
         let Some(variant_templates) = templates.get(variant_idx) else {
             continue;
         };
@@ -363,6 +504,9 @@ fn generate_format_body(
 
     // Fallback arms for variants WITHOUT any #[bms_token] attrs.
     for (variant_idx, variant) in data_enum.variants.iter().enumerate() {
+        if variant.attrs.iter().any(is_doc_hidden) {
+            continue;
+        }
         let Some(variant_templates) = templates.get(variant_idx) else {
             continue;
         };
@@ -375,6 +519,11 @@ fn generate_format_body(
         arms.extend(quote! {
             #pattern => (#name_lit.to_owned(), String::new()),
         });
+    }
+
+    // Catch-all for #[doc(hidden)] variants (e.g., _Phantom from PhantomData).
+    if has_doc_hidden {
+        arms.extend(quote! { _ => unreachable!(), });
     }
 
     arms
@@ -448,35 +597,78 @@ fn variant_to_wildcard_pattern(variant: &syn::Variant) -> TokenStream {
     }
 }
 
-/// `true` if the type is a (possibly lifetime-qualified) `&str`.
+/// `true` if the field type is the given type parameter ident.
+///
+/// Checks whether the type path's final segment equals `type_param_ident`.
+/// This is used to detect string-container fields (`C`) vs regular fields.
+fn is_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
+    let syn::Type::Path(type_path) = ty else {
+        return false;
+    };
+    type_path
+        .path
+        .get_ident()
+        .is_some_and(|id| id == type_param_ident)
+}
+
+/// `true` if the field type is `&str` (with any lifetime).
 fn is_str_ref(ty: &syn::Type) -> bool {
-    let syn::Type::Reference(ty_ref) = ty else {
+    let syn::Type::Reference(type_ref) = ty else {
         return false;
     };
-    let syn::Type::Path(type_path) = &*ty_ref.elem else {
-        return false;
-    };
-    type_path.path.is_ident("str")
+    matches!(&*type_ref.elem, syn::Type::Path(p) if p.path.is_ident("str"))
 }
 
 /// Generate a `let` binding that initializes a field from a string source.
 ///
-/// Three cases:
-/// - `&str` fields: `let #ident = #value_src;`
+/// Four cases:
+/// - Field type matches `type_param_ident` (C): `let #ident = From::from(#value_src);`
+///   (uses `From::from` not `BmsStr::from_borrowed` because `BmsStr` bounds
+///   cause E0283 via its blanket impl; `From::from` is the supertrait-bound
+///   equivalent)
 /// - Fallback fields: `let Some(#ident) = <T as BmsValue>::parse(#value_src) else { return Ok(None); };`
 /// - Other fields: `let #ident: T = #value_src.parse()...?;` (via `IntoTokensError`)
+#[expect(
+    clippy::too_many_arguments,
+    reason = "derive codegen needs many parameters"
+)]
 fn gen_field_parse(
     ident: &TokenStream,
     field_ty: &syn::Type,
     value_src: &TokenStream,
     context_str: &str,
     is_fallback: bool,
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> TokenStream {
+    // Case 1: Field type matches the C type parameter → From::from with the
+    // enum's lifetime 'a (the value is coerced from &'header str to &'a str).
+    if let Some(tp_ident) = type_param_ident {
+        if is_type_param(field_ty, tp_ident) {
+            return quote! {
+                let #ident = ::std::convert::From::from(#value_src);
+            };
+        }
+    }
+
+    // Case 2: &str field (literal &str, not C type param) → direct assignment.
     if is_str_ref(field_ty) {
-        quote! { let #ident = #value_src; }
-    } else if is_fallback {
+        return quote! { let #ident = #value_src; };
+    }
+
+    // Case 3/4: Fallback (BmsValue) or FromStr.
+    if is_fallback {
+        // Use explicit C param on BmsValue when available so that manual impls
+        // resolve correctly (e.g., ExWavParams<'a, C> implements BmsValue<'a, C>).
+        let bms_value_path = match (first_lifetime, type_param_ident) {
+            (Some(life), Some(tp)) => quote! { crate::BmsValue<#life, #tp> },
+            (Some(life), None) => quote! { crate::BmsValue<#life> },
+            (None, Some(tp)) => quote! { crate::BmsValue<#header_lifetime, #tp> },
+            (None, None) => quote! { crate::BmsValue<#header_lifetime> },
+        };
         quote! {
-            let Some(#ident) = <#field_ty as crate::BmsValue>::parse(#value_src) else {
+            let Some(#ident) = <#field_ty as #bms_value_path>::parse(#value_src) else {
                 return Ok(None);
             };
         }
@@ -521,6 +713,9 @@ fn build_indexed_tuple_body(
     variant: &syn::Variant,
     context_str: &str,
     is_fallback: bool,
+    type_param_ident: Option<&syn::Ident>,
+    first_lifetime: Option<&syn::Lifetime>,
+    header_lifetime: &syn::Lifetime,
 ) -> TokenStream {
     let command_ident = &variant.ident;
 
@@ -546,6 +741,9 @@ fn build_indexed_tuple_body(
             &value_src,
             context_str,
             fb,
+            type_param_ident,
+            first_lifetime,
+            header_lifetime,
         ));
         field_exprs.push(quote!(#bind));
     }
@@ -569,19 +767,44 @@ pub fn generate_header_dispatch(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let first_lifetime = generics.lifetimes().next();
-    let header_bound = first_lifetime.map(|lt| {
-        let lifetime = &lt.lifetime;
-        quote! { where 'header: #lifetime }
-    });
-    let header_where = header_bound.unwrap_or_default();
+    let type_param_ident = generics.type_params().next();
+
+    let header_where = match (first_lifetime, &type_param_ident) {
+        (Some(lt), Some(tp)) => {
+            let lifetime = &lt.lifetime;
+            let tp_ident = &tp.ident;
+            quote! {
+                where #tp_ident: ::std::fmt::Display
+                    + ::std::convert::AsRef<str>
+                    + ::std::clone::Clone
+                    + ::std::convert::From<&#lifetime str>,
+                      'header: #lifetime
+            }
+        }
+        (Some(lt), None) => {
+            let lifetime = &lt.lifetime;
+            quote! { where 'header: #lifetime }
+        }
+        (None, Some(tp)) => {
+            let tp_ident = &tp.ident;
+            quote! {
+                where #tp_ident: ::std::fmt::Display
+                    + ::std::convert::AsRef<str>
+                    + ::std::clone::Clone
+                    + ::std::convert::From<&'header str>
+            }
+        }
+        (None, None) => TokenStream::new(),
+    };
 
     let mut dispatch_arms = TokenStream::new();
 
     for variant in &data_enum.variants {
+        // Skip #[doc(hidden)] variants (e.g., PhantomData) and #[bms_fallback].
         if variant
             .attrs
             .iter()
-            .any(|a| a.path().is_ident("bms_fallback"))
+            .any(|a| a.path().is_ident("bms_fallback") || is_doc_hidden(a))
         {
             continue;
         }

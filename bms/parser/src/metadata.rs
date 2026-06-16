@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsHeaderMetadata, BmsIndex, TextTag};
+use bms_tokenizer::{BmsHeaderMetadata, BmsIndex, BmsStr, TextTag};
 
 /// Song / chart identification metadata.
 ///
@@ -37,21 +37,22 @@ pub struct Metadata {
 
 impl Metadata {
     /// Apply a metadata header to this struct.
-    pub fn apply(&mut self, header: &BmsHeaderMetadata<'_>) {
+    pub fn apply<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeaderMetadata<'a, C>) {
         match header {
-            BmsHeaderMetadata::Title(s) => self.title = Some((*s).to_owned()),
-            BmsHeaderMetadata::Subtitle(s) => self.subtitle = Some((*s).to_owned()),
-            BmsHeaderMetadata::Artist(s) => self.artist = Some((*s).to_owned()),
-            BmsHeaderMetadata::SubArtist(s) => self.sub_artist = Some((*s).to_owned()),
-            BmsHeaderMetadata::Genre(s) => self.genre = Some((*s).to_owned()),
-            BmsHeaderMetadata::Maker(s) => self.maker = Some((*s).to_owned()),
-            BmsHeaderMetadata::Comment(s) => self.comment = Some((*s).to_owned()),
-            BmsHeaderMetadata::Charset(s) => self.charset = Some((*s).to_owned()),
-            BmsHeaderMetadata::Url(s) => self.url = Some((*s).to_owned()),
-            BmsHeaderMetadata::Email(s) => self.email = Some((*s).to_owned()),
+            BmsHeaderMetadata::Title(s) => self.title = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Subtitle(s) => self.subtitle = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Artist(s) => self.artist = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::SubArtist(s) => self.sub_artist = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Genre(s) => self.genre = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Maker(s) => self.maker = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Comment(s) => self.comment = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Charset(s) => self.charset = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Url(s) => self.url = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Email(s) => self.email = Some(s.as_ref().to_owned()),
             BmsHeaderMetadata::Text { id, value } => {
-                self.text_defs.insert(*id, (*value).to_owned());
+                self.text_defs.insert(*id, value.as_ref().to_owned());
             }
+            BmsHeaderMetadata::_Phantom(_) => unreachable!(),
         }
     }
 }

@@ -9,10 +9,20 @@ use bms_tokenizer::{
     PlayerMode, Rank, StopTag, WavTag,
 };
 
-/// Helper: parse a BMS string into a `Bms`.
+/// Helper: parse a BMS string into a `Bms` (default C = &str).
 fn parse(input: &str) -> Bms {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
+        .tokenize::<Vec<_>, &str>(input)
+        .into_iter()
+        .filter_map(|(_, res)| res.ok())
+        .collect();
+    Bms::from_flat_tokens(tokens)
+}
+
+/// Helper: parse with `C = String` to verify owned-string pipeline works.
+fn parse_string(input: &str) -> Bms {
+    let tokens: Vec<_> = BmsTokenizer::new()
+        .tokenize::<Vec<_>, String>(input)
         .into_iter()
         .filter_map(|(_, res)| res.ok())
         .collect();
@@ -553,4 +563,27 @@ fn default_bms_is_empty() {
     assert!(bms.audio.wav_files.is_empty());
     assert!(bms.messages.raw.is_empty());
     assert!(bms.fallback_headers.is_empty());
+}
+
+/// Verify parser converges correctly with `C = String`.
+#[test]
+fn parse_with_string_container() {
+    let bms = parse_string(
+        "\
+#TITLE My Song
+#ARTIST composer
+#WAV01 kick.wav
+#00111:1122
+#MYEXT abc123
+",
+    );
+    assert_eq!(bms.metadata.title.as_deref(), Some("My Song"));
+    assert_eq!(bms.metadata.artist.as_deref(), Some("composer"));
+    let wav_id: BmsIndex<WavTag> = "01".try_into().unwrap();
+    assert_eq!(
+        bms.audio.wav_files.get(&wav_id).map(String::as_str),
+        Some("kick.wav")
+    );
+    assert_eq!(bms.fallback_headers.len(), 1);
+    assert_eq!(bms.fallback_headers[0], ("MYEXT".into(), "abc123".into()));
 }

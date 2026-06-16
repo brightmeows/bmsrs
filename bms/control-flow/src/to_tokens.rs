@@ -14,7 +14,9 @@ impl FlowDocumentBuilder {
     /// etc.) around the structured branches, producing a sequence that can
     /// be re-tokenized to produce an equivalent document.
     #[must_use]
-    pub fn to_tokens<'a>(items: &[FlowItem<'a>]) -> Vec<BmsToken<'a>> {
+    pub fn to_tokens<'a, C: Clone + PartialEq + 'a>(
+        items: &[FlowItem<'a, C>],
+    ) -> Vec<BmsToken<'a, C>> {
         let mut output = Vec::new();
         for item in items {
             push_item_tokens(item, &mut output);
@@ -24,7 +26,10 @@ impl FlowDocumentBuilder {
 }
 
 /// Push tokens for a single [`FlowItem`].
-fn push_item_tokens<'a>(item: &FlowItem<'a>, output: &mut Vec<BmsToken<'a>>) {
+fn push_item_tokens<'a, C: Clone + PartialEq + 'a>(
+    item: &FlowItem<'a, C>,
+    output: &mut Vec<BmsToken<'a, C>>,
+) {
     match &item.content {
         FlowContent::Header(h) => {
             output.push(BmsToken::Header(h.clone()));
@@ -39,7 +44,10 @@ fn push_item_tokens<'a>(item: &FlowItem<'a>, output: &mut Vec<BmsToken<'a>>) {
 }
 
 /// Push tokens for a [`FlowBlock`], including all control-flow headers.
-fn push_block_tokens<'a>(block: &FlowBlock<'a>, output: &mut Vec<BmsToken<'a>>) {
+fn push_block_tokens<'a, C: Clone + PartialEq + 'a>(
+    block: &FlowBlock<'a, C>,
+    output: &mut Vec<BmsToken<'a, C>>,
+) {
     match block {
         FlowBlock::Random(r) => {
             let open = match r.value {

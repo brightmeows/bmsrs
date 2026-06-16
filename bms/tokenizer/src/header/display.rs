@@ -9,6 +9,7 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
+use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::IntoTokensError;
 use crate::{BmsHeader, BmsTryFromError};
@@ -99,31 +100,31 @@ pub enum PoorBgaMode {
 /// These commands control *what the player sees* outside of actual
 /// gameplay notes — loading screens, banners, difficulty labels, etc.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderDisplay<'a> {
+pub enum BmsHeaderDisplay<'a, C = &'a str> {
     /// `#STAGEFILE` — splash-screen image shown during loading (typically 640×480).
     ///
     /// Optional.  When omitted, players show their default loading screen.
     #[bms_token("#STAGEFILE {}")]
-    StageFile(&'a str),
+    StageFile(C),
     /// `#BANNER` — banner image for song-selection and result screens (300×80).
     ///
     /// Optional.  Supports relative paths (descendant only).  Path length
     /// is limited to 260 bytes.
     #[bms_token("#BANNER {}")]
-    Banner(&'a str),
+    Banner(C),
     /// `#BACKBMP` — background image for the play screen (typically 640×480).
     ///
     /// Original spec: the image fills the play-area background.  In some
     /// LR2 skins, it is repurposed as a title card.  Size and behaviour
     /// are skin-dependent.
     #[bms_token("#BACKBMP {}")]
-    BackBmp(&'a str),
+    BackBmp(C),
     /// `#CHARFILE` — pop'n music-style character file (pomu2 extension).
     ///
     /// A `.chp` file that defines an animated character shown during play.
     /// Only supported by pomu2 and PMChr-V.
     #[bms_token("#CHARFILE {}")]
-    CharFile(&'a str),
+    CharFile(C),
     /// `#PLAYLEVEL` — difficulty number shown in the song-selection list.
     ///
     /// Display format varies by player (stars, bar graph, integer).
@@ -144,23 +145,26 @@ pub enum BmsHeaderDisplay<'a> {
     /// When omitted, beatoraja auto-discovers `preview*.wav` /
     /// `preview*.ogg` in the chart folder.
     #[bms_token("#PREVIEW {}")]
-    Preview(&'a str),
+    Preview(C),
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    #[doc(hidden)]
+    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a> From<BmsHeaderDisplay<'a>> for BmsHeader<'a> {
+impl<'a, C: BmsStr<'a>> From<BmsHeaderDisplay<'a, C>> for BmsHeader<'a, C> {
     #[inline]
-    fn from(display: BmsHeaderDisplay<'a>) -> Self {
+    fn from(display: BmsHeaderDisplay<'a, C>) -> Self {
         BmsHeader::Display(display)
     }
 }
 
-impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderDisplay<'a> {
+impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderDisplay<'a, C> {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Display(d) => Ok(d),
             _ => Err(BmsTryFromError::WrongHeaderType),

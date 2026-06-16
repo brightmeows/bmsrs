@@ -31,6 +31,13 @@ Proc-macro crate for `#[derive(BmsTokenAttr)]` — handles all
 - `#[bms_token("...")]` — command pattern or literal value
 - `#[bms_fallback]` — in command mode: parse failure → `Ok(None)`;
   in dispatch mode: skip this variant
+- `#[doc(hidden)]` — skip variant in codegen (used for `_Phantom(PhantomData<&'a C>)`)
+
+## `C` field detection
+
+First type param on enum = string container.  Fields matching that ident are
+parsed via `<C as From<&str>>::from(value)` instead of `FromStr`/`BmsValue`.
+`#[doc(hidden)]` variants are always skipped.
 
 ## Error mapping
 
@@ -44,4 +51,5 @@ header variant.
 ## Testing
 
 Tested indirectly via `bms-tokenizer`'s roundtrip tests (`bms_token.rs`).
+Polymorphism tests live in `bms/tokenizer/tests/generic.rs`.
 Proc-macro unit tests live in `parse.rs` (use `proc_macro2` types).

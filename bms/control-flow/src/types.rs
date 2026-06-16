@@ -1,5 +1,6 @@
 //! Core types for the BMS control-flow tree model.
 
+use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 use bms_tokenizer::{BmsHeader, BmsMessage};
@@ -23,51 +24,53 @@ pub struct FlowDocumentBuilder;
 
 /// A single entry in a control-flow tree, carrying its original line number.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FlowItem<'a> {
+pub struct FlowItem<'a, C: Clone + PartialEq + 'a = &'a str> {
     /// 1-based line number from the original BMS source.
     pub line: NonZeroUsize,
     /// The content of this entry.
-    pub content: FlowContent<'a>,
+    pub content: FlowContent<'a, C>,
+    #[doc(hidden)]
+    pub _phantom: PhantomData<&'a C>,
 }
 
 /// The content of a [`FlowItem`].
 #[derive(Debug, Clone, PartialEq)]
-pub enum FlowContent<'a> {
+pub enum FlowContent<'a, C: Clone + PartialEq + 'a = &'a str> {
     /// A header command (metadata, resource definition, etc.).
-    Header(BmsHeader<'a>),
+    Header(BmsHeader<'a, C>),
     /// A channel data line (`#xxxYY:values`).
-    Message(BmsMessage<'a>),
+    Message(BmsMessage<'a, C>),
     /// A control-flow block (`#RANDOM` or `#SWITCH`).
-    Block(FlowBlock<'a>),
+    Block(FlowBlock<'a, C>),
 }
 
 /// A control-flow block.
 #[derive(Debug, Clone, PartialEq)]
-pub enum FlowBlock<'a> {
+pub enum FlowBlock<'a, C: Clone + PartialEq + 'a = &'a str> {
     /// A `#RANDOM` / `#SETRANDOM` block containing conditional branches.
-    Random(RandomBlock<'a>),
+    Random(RandomBlock<'a, C>),
     /// A `#SWITCH` / `#SETSWITCH` block containing case branches.
-    Switch(SwitchBlock<'a>),
+    Switch(SwitchBlock<'a, C>),
 }
 
 /// A `#RANDOM` / `#SETRANDOM` block with its conditional branches.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RandomBlock<'a> {
+pub struct RandomBlock<'a, C: Clone + PartialEq + 'a = &'a str> {
     /// How the branch value is determined (random range or fixed).
     pub value: BranchValue,
     /// Whether the closing `#ENDRANDOM` was present.
     pub has_end_random: bool,
     /// Conditional branches inside this block.
-    pub branches: Vec<RandomBranch<'a>>,
+    pub branches: Vec<RandomBranch<'a, C>>,
 }
 
 /// A single conditional branch inside a [`RandomBlock`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct RandomBranch<'a> {
+pub struct RandomBranch<'a, C: Clone + PartialEq + 'a = &'a str> {
     /// The kind of branch condition.
     pub kind: RandomBranchKind,
     /// Items belonging to this branch.
-    pub body: Vec<FlowItem<'a>>,
+    pub body: Vec<FlowItem<'a, C>>,
 }
 
 /// The kind of condition for a [`RandomBranch`].
@@ -83,20 +86,20 @@ pub enum RandomBranchKind {
 
 /// A `#SWITCH` / `#SETSWITCH` block with its case branches.
 #[derive(Debug, Clone, PartialEq)]
-pub struct SwitchBlock<'a> {
+pub struct SwitchBlock<'a, C: Clone + PartialEq + 'a = &'a str> {
     /// How the branch value is determined (random range or fixed).
     pub value: BranchValue,
     /// Cases inside this switch block.
-    pub cases: Vec<SwitchCase<'a>>,
+    pub cases: Vec<SwitchCase<'a, C>>,
 }
 
 /// A single case inside a [`SwitchBlock`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct SwitchCase<'a> {
+pub struct SwitchCase<'a, C: Clone + PartialEq + 'a = &'a str> {
     /// The kind of case condition.
     pub kind: SwitchCaseKind,
     /// Items belonging to this case.
-    pub body: Vec<FlowItem<'a>>,
+    pub body: Vec<FlowItem<'a, C>>,
     /// Whether a `#SKIP` directive was present at the end of this case.
     pub has_skip: bool,
 }

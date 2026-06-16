@@ -2,7 +2,9 @@
 //! `#CDDA`, `#MIDIFILE`, `#PATH_WAV`.
 
 use std::fmt;
+use std::marker::PhantomData;
 
+use crate::BmsStr;
 use crate::index::{BmsIndex, WavTag};
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
@@ -30,18 +32,20 @@ use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 ///
 /// The `#EXWAV` index shares the same namespace as `#WAV`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExWavParams<'a> {
+pub struct ExWavParams<'a, C = &'a str> {
     /// Flag characters (e.g., `"pvf"`).
-    pub flags: &'a str,
+    pub flags: C,
     /// Parsed numeric values, one per flag character.
     pub values: Vec<f64>,
     /// Path or name of the resource file.
-    pub filename: &'a str,
+    pub filename: C,
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    pub _phantom: PhantomData<&'a C>,
 }
 
-impl fmt::Display for ExWavParams<'_> {
+impl<C: AsRef<str> + fmt::Display> fmt::Display for ExWavParams<'_, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.flags.is_empty() {
+        if self.flags.as_ref().is_empty() {
             write!(f, "{}", self.filename)
         } else {
             write!(f, "{}", self.flags)?;
@@ -53,7 +57,9 @@ impl fmt::Display for ExWavParams<'_> {
     }
 }
 
-impl<'a> BmsValue<'a> for ExWavParams<'a> {
+impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
+    for ExWavParams<'a, C>
+{
     fn parse(s: &'a str) -> Option<Self> {
         let mut parts = s.split_whitespace();
         let first = parts.next()?;
@@ -72,15 +78,17 @@ impl<'a> BmsValue<'a> for ExWavParams<'a> {
             }
             let filename = nth_whitespace_field_rest(s, flag_count + 1);
             Some(Self {
-                flags: first,
+                flags: C::from(first),
                 values,
-                filename,
+                filename: C::from(filename),
+                _phantom: PhantomData,
             })
         } else {
             Some(Self {
-                flags: "",
+                flags: C::from(""),
                 values: Vec::new(),
-                filename: s.trim(),
+                filename: C::from(s.trim()),
+                _phantom: PhantomData,
             })
         }
     }
@@ -116,7 +124,7 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
 /// are the most widely supported formats; MP3 introduces audible latency
 /// in most players and is generally avoided.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderResDefAudio<'a> {
+pub enum BmsHeaderResDefAudio<'a, C = &'a str> {
     /// `#WAV{id}` — sound effect or BGM file definition.
     ///
     /// Referenced by channels `#xxx01` (BGM), `#xxx11-19` / `#xxx21-29`
@@ -135,7 +143,7 @@ pub enum BmsHeaderResDefAudio<'a> {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
         id: BmsIndex<WavTag>,
         /// Path or name of the resource file.
-        filename: &'a str,
+        filename: C,
     },
     /// `#EXWAV{id}` — extended WAV with pan/volume/frequency (nanasi).
     ///
@@ -147,7 +155,7 @@ pub enum BmsHeaderResDefAudio<'a> {
         /// The 2-character index.
         id: BmsIndex<WavTag>,
         /// Parsed EXWAV parameters.
-        params: ExWavParams<'a>,
+        params: ExWavParams<'a, C>,
     },
     /// `#WAVCMD` — pitch/volume/duration overrides (`MacBeat` extension).
     ///
@@ -155,41 +163,44 @@ pub enum BmsHeaderResDefAudio<'a> {
     /// `01` = volume, `02` = duration.  Only `MacBeat` processes these;
     /// Sonorous parses but ignores them.
     #[bms_token("#WAVCMD {}")]
-    WavCmd(&'a str),
+    WavCmd(C),
     /// `#CDDA` — CD-DA track as BGM (DDR only).
     ///
     /// Specifies a CD track number to play as background music.
     #[bms_token("#CDDA {}")]
-    Cdda(&'a str),
+    Cdda(C),
     /// `#MIDIFILE` — MIDI file as BGM (BM98 origin).
     ///
     /// Hardware-dependent with audible latency.  Not recommended for
     /// new charts.  Supported by BM98, DDR, `IIDXv`, HDX, Sonorous.
     #[bms_token("#MIDIFILE {}")]
-    Midifile(&'a str),
+    Midifile(C),
     /// `#PATH_WAV` — directory prefix for audio file lookup (BMEV origin).
     ///
     /// When present, `#WAV` filenames are resolved relative to this
     /// directory.  **Should be commented out before distribution** to
     /// avoid path issues on other systems.
     #[bms_token("#PATH_WAV {}")]
-    PathWav(&'a str),
+    PathWav(C),
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    #[doc(hidden)]
+    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a> From<BmsHeaderResDefAudio<'a>> for BmsHeader<'a> {
+impl<'a, C: BmsStr<'a>> From<BmsHeaderResDefAudio<'a, C>> for BmsHeader<'a, C> {
     #[inline]
-    fn from(audio: BmsHeaderResDefAudio<'a>) -> Self {
+    fn from(audio: BmsHeaderResDefAudio<'a, C>) -> Self {
         BmsHeader::ResDefAudio(audio)
     }
 }
 
-impl<'a> TryFrom<BmsHeader<'a>> for BmsHeaderResDefAudio<'a> {
+impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderResDefAudio<'a, C> {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::ResDefAudio(a) => Ok(a),
             _ => Err(BmsTryFromError::WrongHeaderType),

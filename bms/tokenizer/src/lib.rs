@@ -47,6 +47,27 @@ pub use index::{
 };
 pub use message::BmsMessage;
 
+/// Trait alias for string container types used in `BmsToken` / `BmsHeader`.
+///
+/// Represents the bound `AsRef<str> + Display + Clone + From<&'a str> + Sized + 'a`.
+/// Blanket-implemented for all standard types that satisfy these bounds
+/// (`&'a str`, `Cow<'a, str>`, `String`, `Arc<str>`, `Box<str>`, `Rc<str>`).
+///
+/// The [`from_borrowed`](BmsStr::from_borrowed) method is the primary construction
+/// point during tokenization — it converts an input borrow into the chosen container.
+pub trait BmsStr<'a>: AsRef<str> + fmt::Display + Clone + From<&'a str> + Sized + 'a {
+    /// Create a string container by borrowing from the input.
+    ///
+    /// The default implementation delegates to `From<&'a str>`, which is correct
+    /// for all standard containers.
+    #[must_use]
+    fn from_borrowed(s: &'a str) -> Self {
+        Self::from(s)
+    }
+}
+
+impl<'a, T> BmsStr<'a> for T where T: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a {}
+
 /// Unified trait for BMS header values.
 ///
 /// Combines parsing (from an input string) and formatting (back to a BMS value
@@ -60,13 +81,22 @@ pub use message::BmsMessage;
 /// without allocating (e.g., `ExBmpParams<'a>`).  Owned-only types can safely
 /// implement the trait with any `'a`.
 ///
+/// # Type parameters
+///
+/// `C` is the string container type used by types in this crate.  It defaults
+/// to `&'a str` for zero-copy tokenization.  The parameter exists so that
+/// downstream consumers can switch to `Cow<'a, str>`, `String`, `Arc<str>`,
+/// etc.
+///
 /// # Formatting
 ///
 /// This trait uses [`std::fmt::Display`] as a supertrait instead of providing its own
 /// format method.  Callers use `.to_string()` to obtain the BMS
 /// representation; this keeps the trait compatible with the standard library's
 /// formatting infrastructure.
-pub trait BmsValue<'a>: fmt::Display + Sized {
+pub trait BmsValue<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a = &'a str>:
+    fmt::Display + Sized
+{
     /// Parse `s` into `Self`.
     ///
     /// Return `None` to signal that parsing failed — the caller may allow the
@@ -79,8 +109,9 @@ pub trait BmsValue<'a>: fmt::Display + Sized {
 // Covers primitives (f64, u8, i32), BmsIndex, PoorBgaMode, DifficultyLevel,
 // and any other type that already implements FromStr + Display.
 
-impl<'a, T> BmsValue<'a> for T
+impl<'a, C, T> BmsValue<'a, C> for T
 where
+    C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a,
     T: std::str::FromStr + fmt::Display,
 {
     #[inline]
@@ -91,31 +122,33 @@ where
 
 // From / TryFrom conversions
 
-impl<'a> From<BmsHeader<'a>> for BmsToken<'a> {
+impl<'a, C: BmsStr<'a>> From<BmsHeader<'a, C>> for BmsToken<'a, C> {
     #[inline]
-    fn from(header: BmsHeader<'a>) -> Self {
+    fn from(header: BmsHeader<'a, C>) -> Self {
         BmsToken::Header(header)
     }
 }
 
-impl<'a> TryFrom<BmsToken<'a>> for BmsHeader<'a> {
+impl<'a, C: BmsStr<'a>> TryFrom<BmsToken<'a, C>> for BmsHeader<'a, C> {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
-    fn try_from(token: BmsToken<'a>) -> Result<Self, Self::Error> {
+    fn try_from(token: BmsToken<'a, C>) -> Result<Self, Self::Error> {
         match token {
             BmsToken::Header(h) => Ok(h),
-            BmsToken::Message(_) => Err(BmsTryFromError::NotAHeader),
+            _ => Err(BmsTryFromError::NotAHeader),
         }
     }
 }
 
-impl<'a> TryFrom<(NonZeroUsize, Result<BmsToken<'a>, BmsTokenizeError<'a>>)> for BmsToken<'a> {
+impl<'a, C: BmsStr<'a>> TryFrom<(NonZeroUsize, Result<BmsToken<'a, C>, BmsTokenizeError<'a>>)>
+    for BmsToken<'a, C>
+{
     type Error = BmsTryFromError<'a>;
 
     #[inline]
     fn try_from(
-        pair: (NonZeroUsize, Result<BmsToken<'a>, BmsTokenizeError<'a>>),
+        pair: (NonZeroUsize, Result<BmsToken<'a, C>, BmsTokenizeError<'a>>),
     ) -> Result<Self, Self::Error> {
         let (line, result) = pair;
         result.map_err(|error| BmsTryFromError::TokenizationError { line, error })
@@ -127,11 +160,14 @@ use message::parse_message_line;
 
 /// A single token produced by tokenizing a BMS file.
 #[derive(Debug, Clone, PartialEq)]
-pub enum BmsToken<'a> {
+pub enum BmsToken<'a, C = &'a str> {
     /// A header command (metadata, gameplay, timing, resources, etc.).
-    Header(BmsHeader<'a>),
+    Header(BmsHeader<'a, C>),
     /// A channel data line (`#xxxYY:values`).
-    Message(BmsMessage<'a>),
+    Message(BmsMessage<'a, C>),
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    #[doc(hidden)]
+    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 /// Error strategy for BMS tokenization.
@@ -157,7 +193,7 @@ pub enum ErrorStrategy {
 /// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy};
 /// let tokens: Vec<_> = BmsTokenizer::new()
 ///     .error_strategy(ErrorStrategy::CollectAll)
-///     .tokenize("#TITLE My Song\n#00101:11");
+///     .tokenize::<_, &str>("#TITLE My Song\n#00101:11");
 /// ```
 #[derive(Debug, Clone)]
 pub struct BmsTokenizer {
@@ -209,8 +245,11 @@ impl BmsTokenizer {
     /// Supports LF (`\n`), CRLF (`\r\n`), and standalone CR (`\r`) line
     /// endings.
     ///
-    /// The output collection type `C` is generic — use `Vec`, `Box<[_]>`,
-    /// or any container that implements [`FromIterator`].
+    /// # Type parameters
+    ///
+    /// - `Out` — the output collection type (e.g., `Vec`, `Box<[_]>`).
+    /// - `C` — the string container type.  Defaults to `&'a str` for
+    ///   zero-copy tokenization.
     ///
     /// # Error strategy
     ///
@@ -219,9 +258,10 @@ impl BmsTokenizer {
     /// - [`ErrorStrategy::FailFast`]: stops at the first error. The
     ///   collection contains results up to (and including) the error line.
     #[must_use]
-    pub fn tokenize<'a, C>(&self, input: &'a str) -> C
+    pub fn tokenize<'a, Out, C>(&self, input: &'a str) -> Out
     where
-        C: FromIterator<(NonZeroUsize, Result<BmsToken<'a>, BmsTokenizeError<'a>>)>,
+        Out: FromIterator<(NonZeroUsize, Result<BmsToken<'a, C>, BmsTokenizeError<'a>>)>,
+        C: Clone + AsRef<str> + fmt::Display + From<&'a str> + 'a,
     {
         let mut results = Vec::new();
         let mut line_number: usize = 0;
@@ -239,10 +279,10 @@ impl BmsTokenizer {
                 // before first use); the fallback is unreachable.
                 let nz_line = NonZeroUsize::new(line_number).unwrap_or(NonZeroUsize::MAX);
 
-                let result: Result<BmsToken<'_>, BmsTokenizeError<'_>> =
-                    match parse_message_line(trimmed) {
+                let result: Result<BmsToken<'_, C>, BmsTokenizeError<'_>> =
+                    match parse_message_line::<C>(trimmed) {
                         Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
-                        Ok(None) => match parse_header_line(trimmed, &self.header_prefixes) {
+                        Ok(None) => match parse_header_line::<C>(trimmed, &self.header_prefixes) {
                             Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
                             Ok(None) => continue,
                             Err(e) => Err(e),

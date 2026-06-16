@@ -13,7 +13,7 @@
 //! use std::num::NonZeroUsize;
 //!
 //! let tokens: Vec<_> = BmsTokenizer::new()
-//!     .tokenize::<Vec<_>>("#RANDOM 2\n#IF 1\n#00101:11\n#ENDIF\n#ENDRANDOM")
+//!     .tokenize::<Vec<_>, &str>("#RANDOM 2\n#IF 1\n#00101:11\n#ENDIF\n#ENDRANDOM")
 //!     .into_iter()
 //!     .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
 //!     .collect();

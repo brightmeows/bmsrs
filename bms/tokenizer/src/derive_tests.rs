@@ -2,6 +2,8 @@
 //! so that `crate::` paths in generated code resolve correctly.
 //! Covers all three modes: command, literal, dispatch.
 
+use std::fmt;
+
 use crate::{BmsIndex, BmsTokenAttr, BmsValue, WavTag};
 
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
@@ -168,13 +170,13 @@ struct TestStp {
     duration_ms: f64,
 }
 
-impl std::fmt::Display for TestStp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for TestStp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:03} {}", self.measure, self.duration_ms)
     }
 }
 
-impl<'a> BmsValue<'a> for TestStp {
+impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C> for TestStp {
     fn parse(s: &'a str) -> Option<Self> {
         let (pos, dur) = s.split_once(' ')?;
         Some(Self {

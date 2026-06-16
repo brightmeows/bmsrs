@@ -54,18 +54,20 @@
 //!                    track=0, channel="SC", objects=[]
 //! ```
 
+use std::fmt;
+
 use crate::index::{Base62, BmsCharset, BmsIndex, BmsObjectId, ChannelTag};
-use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
+use crate::{BmsStr, BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#ADDR:body`).
 ///
 /// See the module-level documentation for the format description.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BmsMessage<'a> {
+pub struct BmsMessage<'a, C = &'a str> {
     /// Raw address string (before `:`).
-    pub addr: &'a str,
+    pub addr: C,
     /// Raw body string (after `:`).
-    pub body: &'a str,
+    pub body: C,
 
     /// 0-indexed track number, extracted from the numeric digits in [`addr`](BmsMessage::addr)
     /// that precede the channel suffix.
@@ -76,23 +78,25 @@ pub struct BmsMessage<'a> {
     /// Leniently parsed 2-character object indices from [`body`](BmsMessage::body).
     /// Invalid characters are silently skipped.
     pub objects: Vec<BmsObjectId>,
+    /// Phantom data to satisfy E0392 (unused lifetime parameter).
+    pub _phantom: std::marker::PhantomData<&'a C>,
 }
 
-impl<'a> From<BmsMessage<'a>> for BmsToken<'a> {
+impl<'a, C: BmsStr<'a>> From<BmsMessage<'a, C>> for BmsToken<'a, C> {
     #[inline]
-    fn from(msg: BmsMessage<'a>) -> Self {
+    fn from(msg: BmsMessage<'a, C>) -> Self {
         BmsToken::Message(msg)
     }
 }
 
-impl<'a> TryFrom<BmsToken<'a>> for BmsMessage<'a> {
+impl<'a, C: BmsStr<'a>> TryFrom<BmsToken<'a, C>> for BmsMessage<'a, C> {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
-    fn try_from(token: BmsToken<'a>) -> Result<Self, Self::Error> {
+    fn try_from(token: BmsToken<'a, C>) -> Result<Self, Self::Error> {
         match token {
             BmsToken::Message(m) => Ok(m),
-            BmsToken::Header(_) => Err(BmsTryFromError::NotAMessage),
+            _ => Err(BmsTryFromError::NotAMessage),
         }
     }
 }
@@ -103,9 +107,9 @@ impl<'a> TryFrom<BmsToken<'a>> for BmsMessage<'a> {
 /// (e.g., it is a header, a comment, or empty).
 /// Returns `Err(...)` if the line looks like a channel message but has
 /// no valid channel suffix.
-pub(crate) fn parse_message_line(
-    line: &str,
-) -> Result<Option<BmsMessage<'_>>, BmsTokenizeError<'_>> {
+pub(crate) fn parse_message_line<'a, C: Clone + AsRef<str> + fmt::Display + From<&'a str> + 'a>(
+    line: &'a str,
+) -> Result<Option<BmsMessage<'a, C>>, BmsTokenizeError<'a>> {
     if line.is_empty() || !line.starts_with('#') {
         return Ok(None);
     }
@@ -172,11 +176,12 @@ pub(crate) fn parse_message_line(
     let objects = parse_body_objects(body);
 
     Ok(Some(BmsMessage {
-        addr,
-        body,
+        addr: C::from(addr),
+        body: C::from(body),
         track,
         channel,
         objects,
+        _phantom: std::marker::PhantomData,
     }))
 }
 
@@ -218,6 +223,11 @@ fn parse_body_objects(body: &str) -> Vec<BmsObjectId> {
 mod tests {
     use super::*;
 
+    /// Helper to avoid turbofish in test calls.
+    fn parse_msg(s: &str) -> Result<Option<BmsMessage<'_, &str>>, BmsTokenizeError<'_>> {
+        crate::message::parse_message_line(s)
+    }
+
     fn ch(s: &str) -> BmsIndex<ChannelTag, Base62> {
         s.try_into().unwrap()
     }
@@ -230,7 +240,7 @@ mod tests {
 
     #[test]
     fn parse_basic_message() {
-        let result = parse_message_line("#00111:11223344").unwrap();
+        let result = parse_msg("#00111:11223344").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.addr, "00111");
         assert_eq!(msg.body, "11223344");
@@ -244,7 +254,7 @@ mod tests {
 
     #[test]
     fn parse_high_track() {
-        let result = parse_message_line("#99908:FF").unwrap();
+        let result = parse_msg("#99908:FF").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 999);
         assert_eq!(msg.channel, ch("08"));
@@ -254,7 +264,7 @@ mod tests {
 
     #[test]
     fn parse_zero_track() {
-        let result = parse_message_line("#00051:A0B0").unwrap();
+        let result = parse_msg("#00051:A0B0").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0);
         assert_eq!(msg.channel, ch("51"));
@@ -263,7 +273,7 @@ mod tests {
 
     #[test]
     fn parse_channel_0a() {
-        let result = parse_message_line("#0010A:01").unwrap();
+        let result = parse_msg("#0010A:01").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 1);
         assert_eq!(msg.channel, ch("0A"));
@@ -273,7 +283,7 @@ mod tests {
 
     #[test]
     fn parse_channel_d1() {
-        let result = parse_message_line("#001D1:01").unwrap();
+        let result = parse_msg("#001D1:01").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.channel, ch("D1"));
         assert_eq!(msg.channel.as_u8_hex(), Some(209));
@@ -281,14 +291,14 @@ mod tests {
 
     #[test]
     fn parse_channel_e9() {
-        let result = parse_message_line("#000E9:AA").unwrap();
+        let result = parse_msg("#000E9:AA").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.channel, ch("E9"));
     }
 
     #[test]
     fn parse_channel_ff() {
-        let result = parse_message_line("#000FF:01").unwrap();
+        let result = parse_msg("#000FF:01").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.channel, ch("FF"));
         assert_eq!(msg.channel.as_u8_hex(), Some(255));
@@ -296,7 +306,7 @@ mod tests {
 
     #[test]
     fn parse_extended_channel_sc() {
-        let result = parse_message_line("#000SC:1122").unwrap();
+        let result = parse_msg("#000SC:1122").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0);
         assert_eq!(msg.channel, ch("SC"));
@@ -307,7 +317,7 @@ mod tests {
 
     #[test]
     fn parse_extended_channel_sp() {
-        let result = parse_message_line("#001SP:AA").unwrap();
+        let result = parse_msg("#001SP:AA").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 1);
         assert_eq!(msg.channel, ch("SP"));
@@ -318,14 +328,14 @@ mod tests {
 
     #[test]
     fn body_skips_invalid_chars() {
-        let result = parse_message_line("#00101:11.22.33").unwrap();
+        let result = parse_msg("#00101:11.22.33").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.objects, vec![obj("11"), obj("22"), obj("33")]);
     }
 
     #[test]
     fn body_handles_empty() {
-        let result = parse_message_line("#00101:").unwrap();
+        let result = parse_msg("#00101:").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.objects, vec![]);
         assert_eq!(msg.body, "");
@@ -333,14 +343,14 @@ mod tests {
 
     #[test]
     fn body_discards_trailing_single_char() {
-        let result = parse_message_line("#00101:1122A").unwrap();
+        let result = parse_msg("#00101:1122A").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.objects, vec![obj("11"), obj("22")]);
     }
 
     #[test]
     fn body_all_invalid_returns_empty() {
-        let result = parse_message_line("#00101:....").unwrap();
+        let result = parse_msg("#00101:....").unwrap();
         let msg = result.expect("should parse");
         assert!(msg.objects.is_empty());
     }
@@ -349,7 +359,7 @@ mod tests {
 
     #[test]
     fn track_empty_prefix_is_zero() {
-        let result = parse_message_line("#01:1122").unwrap();
+        let result = parse_msg("#01:1122").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0); // no prefix before channel "01"
         assert_eq!(msg.channel, ch("01"));
@@ -357,7 +367,7 @@ mod tests {
 
     #[test]
     fn track_single_char_addr() {
-        let result = parse_message_line("#1:1122").unwrap();
+        let result = parse_msg("#1:1122").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0); // prefix empty
         assert_eq!(msg.channel, ch("1"));
@@ -365,7 +375,7 @@ mod tests {
 
     #[test]
     fn track_uses_only_digits_from_prefix() {
-        let result = parse_message_line("#0A01:1122").unwrap();
+        let result = parse_msg("#0A01:1122").unwrap();
         let msg = result.expect("should parse");
         // addr="0A01", last 2="01"=channel, prefix="0A" → digits="0" → 0
         assert_eq!(msg.track, 0);
@@ -376,38 +386,38 @@ mod tests {
 
     #[test]
     fn empty_line_returns_none() {
-        assert_eq!(parse_message_line("").unwrap(), None);
+        assert_eq!(parse_msg("").unwrap(), None);
     }
 
     #[test]
     fn no_hash_returns_none() {
-        assert_eq!(parse_message_line("hello world").unwrap(), None);
+        assert_eq!(parse_msg("hello world").unwrap(), None);
     }
 
     #[test]
     fn header_line_returns_none() {
-        assert_eq!(parse_message_line("#TITLE test").unwrap(), None);
+        assert_eq!(parse_msg("#TITLE test").unwrap(), None);
     }
 
     #[test]
     fn comment_line_returns_none() {
-        assert_eq!(parse_message_line("// comment").unwrap(), None);
+        assert_eq!(parse_msg("// comment").unwrap(), None);
     }
 
     #[test]
     fn too_short_line_returns_none() {
-        assert_eq!(parse_message_line("#a").unwrap(), None);
-        assert_eq!(parse_message_line("#:").unwrap(), None);
+        assert_eq!(parse_msg("#a").unwrap(), None);
+        assert_eq!(parse_msg("#:").unwrap(), None);
     }
 
     #[test]
     fn addr_empty_returns_none() {
-        assert_eq!(parse_message_line("#:1122").unwrap(), None);
+        assert_eq!(parse_msg("#:1122").unwrap(), None);
     }
 
     #[test]
     fn no_colon_returns_none() {
-        assert_eq!(parse_message_line("#00101").unwrap(), None);
+        assert_eq!(parse_msg("#00101").unwrap(), None);
     }
 
     // Error cases
@@ -415,13 +425,13 @@ mod tests {
     #[test]
     fn non_base62_last_char_returns_err() {
         // addr="001.." — last char '.' is not valid Base62
-        let result = parse_message_line("#001..:1122");
+        let result = parse_msg("#001..:1122");
         assert!(result.is_err());
     }
 
     #[test]
     fn invalid_channel_at_end_returns_err() {
-        let result = parse_message_line("#001!!:1122");
+        let result = parse_msg("#001!!:1122");
         assert!(result.is_err());
     }
 

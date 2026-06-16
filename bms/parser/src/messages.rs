@@ -15,7 +15,9 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{Base62, BmpTag, BmsIndex, BpmTag, ChannelTag, ScrollTag, StopTag, WavTag};
+use bms_tokenizer::{
+    Base62, BmpTag, BmsIndex, BmsStr, BpmTag, ChannelTag, ScrollTag, StopTag, WavTag,
+};
 
 // Position
 
@@ -259,14 +261,14 @@ impl Messages {
     ///
     /// Unlike the old last-wins semantics, values from consecutive lines
     /// with the same `(measure, channel)` are **appended**.
-    pub fn concat_and_parse(&mut self, msg: &bms_tokenizer::BmsMessage<'_>) {
+    pub fn concat_and_parse<'a, C: BmsStr<'a>>(&mut self, msg: &bms_tokenizer::BmsMessage<'a, C>) {
         // Step 1: append value to raw storage
         self.raw
             .entry(msg.track)
             .or_default()
             .entry(msg.channel)
-            .and_modify(|existing| existing.push_str(msg.body))
-            .or_insert_with(|| msg.body.to_owned());
+            .and_modify(|existing| existing.push_str(msg.body.as_ref()))
+            .or_insert_with(|| msg.body.as_ref().to_owned());
 
         // Step 2: read back the concatenated value for event parsing.
         // This ensures multi-line concat produces correct position numer/denom.
@@ -291,34 +293,35 @@ impl Messages {
         }
 
         // Compute object offset and total count for correct position numer/denom.
-        // We parse the current line's body (msg.body) but use the concatenated
+        // We parse the current line's body but use the concatenated
         // total count so that multi-line channel data produces non-overlapping
         // positions.  E.g. two lines "AABB" + "CCDD" produce positions
         // (0/4, 1/4) and (2/4, 3/4) rather than (0/2, 1/2) and (0/2, 1/2).
-        let current_count = split_2char_values_lenient(msg.body).len() as u32;
+        let body: &str = msg.body.as_ref();
+        let current_count = split_2char_values_lenient(body).len() as u32;
         let total_count = split_2char_values_lenient(&concat_values).len() as u32;
         let offset = total_count - current_count;
 
         match ch {
             // BGM
-            0x01 => self.push_bgm(msg.body, track, offset, total_count),
+            0x01 => self.push_bgm(body, track, offset, total_count),
             // Measure length
-            0x02 => self.push_measure_length(msg.body, track),
+            0x02 => self.push_measure_length(body, track),
             // BPM absolute (hex)
-            0x03 => self.push_bpm_absolute(msg.body, track, offset, total_count),
+            0x03 => self.push_bpm_absolute(body, track, offset, total_count),
             // BGA events
-            0x04 => self.push_bga(msg.body, track, BgaLayer::Base, offset, total_count),
-            0x05 | 0x06 => self.push_bga(msg.body, track, BgaLayer::Poor, offset, total_count),
-            0x07 => self.push_bga(msg.body, track, BgaLayer::Layer, offset, total_count),
+            0x04 => self.push_bga(body, track, BgaLayer::Base, offset, total_count),
+            0x05 | 0x06 => self.push_bga(body, track, BgaLayer::Poor, offset, total_count),
+            0x07 => self.push_bga(body, track, BgaLayer::Layer, offset, total_count),
             // BPM reference
-            0x08 => self.push_bpm_reference(msg.body, track, offset, total_count),
+            0x08 => self.push_bpm_reference(body, track, offset, total_count),
             // Stop
-            0x09 => self.push_stop(msg.body, track, offset, total_count),
+            0x09 => self.push_stop(body, track, offset, total_count),
             // Scroll
-            0x0A => self.push_scroll(msg.body, track, offset, total_count),
+            0x0A => self.push_scroll(body, track, offset, total_count),
             // 1P visible notes
             0x11..=0x19 => self.push_playable(
-                msg.body,
+                body,
                 track,
                 1,
                 ch - 0x10,
@@ -328,7 +331,7 @@ impl Messages {
             ),
             // 2P visible notes
             0x21..=0x29 => self.push_playable(
-                msg.body,
+                body,
                 track,
                 2,
                 ch - 0x20,
@@ -338,7 +341,7 @@ impl Messages {
             ),
             // 1P invisible notes
             0x31..=0x39 => self.push_playable(
-                msg.body,
+                body,
                 track,
                 1,
                 ch - 0x30,
@@ -348,7 +351,7 @@ impl Messages {
             ),
             // 2P invisible notes
             0x41..=0x49 => self.push_playable(
-                msg.body,
+                body,
                 track,
                 2,
                 ch - 0x40,
@@ -357,13 +360,13 @@ impl Messages {
                 total_count,
             ),
             // 1P long notes
-            0x51..=0x59 => self.push_long_note(msg.body, track, 1, ch - 0x50, offset, total_count),
+            0x51..=0x59 => self.push_long_note(body, track, 1, ch - 0x50, offset, total_count),
             // 2P long notes
-            0x61..=0x69 => self.push_long_note(msg.body, track, 2, ch - 0x60, offset, total_count),
+            0x61..=0x69 => self.push_long_note(body, track, 2, ch - 0x60, offset, total_count),
             // 1P mines
-            0xD1..=0xD9 => self.push_mine(msg.body, track, 1, ch - 0xD0, offset, total_count),
+            0xD1..=0xD9 => self.push_mine(body, track, 1, ch - 0xD0, offset, total_count),
             // 2P mines
-            0xE1..=0xE9 => self.push_mine(msg.body, track, 2, ch - 0xE0, offset, total_count),
+            0xE1..=0xE9 => self.push_mine(body, track, 2, ch - 0xE0, offset, total_count),
             _ => { /* unknown channel — kept only in raw */ }
         }
     }
@@ -763,6 +766,7 @@ mod tests {
             track,
             channel,
             objects,
+            _phantom: std::marker::PhantomData,
         };
         msgs.concat_and_parse(&msg);
         msgs

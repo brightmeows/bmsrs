@@ -12,7 +12,7 @@ fn build_doc(
     input: &str,
 ) -> std::result::Result<Vec<bms_control_flow::FlowItem<'_>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
+        .tokenize::<Vec<_>, &str>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
