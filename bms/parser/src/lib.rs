@@ -165,12 +165,9 @@ mod tests {
 
     #[test]
     fn message_storage() {
-        use bms_tokenizer::Base62;
-        use bms_tokenizer::ChannelTag;
-
         let tokens = parse_tokens("#00101:1122");
         let bms = Bms::from_flat_tokens(tokens);
-        let ch: BmsIndex<ChannelTag, Base62> = "01".try_into().unwrap();
+        let ch = bms_tokenizer::BmsChannel::from_raw("01").unwrap();
         let measure_map = bms.messages.raw.get(&1);
         assert!(measure_map.is_some());
         assert_eq!(
@@ -181,12 +178,9 @@ mod tests {
 
     #[test]
     fn message_concat_same_channel() {
-        use bms_tokenizer::Base62;
-        use bms_tokenizer::ChannelTag;
-
         let tokens = parse_tokens("#00101:1122\n#00101:3344");
         let bms = Bms::from_flat_tokens(tokens);
-        let ch: BmsIndex<ChannelTag, Base62> = "01".try_into().unwrap();
+        let ch = bms_tokenizer::BmsChannel::from_raw("01").unwrap();
         let measure_map = bms.messages.raw.get(&1);
         assert_eq!(
             measure_map.and_then(|m| m.get(&ch).map(String::as_str)),
@@ -207,7 +201,7 @@ mod tests {
 
     #[test]
     fn mixed_headers_and_messages() {
-        use bms_tokenizer::{Base62, ChannelTag, WavTag};
+        use bms_tokenizer::WavTag;
 
         let tokens = parse_tokens(
             "#TITLE My Song\n#ARTIST composer\n#BPM 180\n#WAV01 kick.wav\n#00111:11223344",
@@ -221,7 +215,7 @@ mod tests {
             bms.audio.wav_files.get(&wav_id).map(String::as_str),
             Some("kick.wav")
         );
-        let ch: BmsIndex<ChannelTag, Base62> = "11".try_into().unwrap();
+        let ch = bms_tokenizer::BmsChannel::from_raw("11").unwrap();
         assert_eq!(
             bms.messages
                 .raw

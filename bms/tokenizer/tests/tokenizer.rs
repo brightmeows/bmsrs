@@ -46,7 +46,7 @@ fn tokenize_single_message() {
     match &tokens[0].1 {
         Ok(BmsToken::Message(msg)) => {
             assert_eq!(msg.track, 1);
-            assert_eq!(msg.channel.as_str(), "11");
+            assert_eq!(msg.channel.to_string(), "11");
             assert_eq!(msg.body, "11223344");
         }
         _ => panic!("expected Message token"),
@@ -282,7 +282,7 @@ fn tokenizer_error_partial_eq() {
 }
 
 #[test]
-fn tokenize_into_hashmap() {
+fn tokenize_into_btreemap() {
     let bms = "\
 #TITLE Song
 #BPM 180

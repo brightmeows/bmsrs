@@ -52,7 +52,8 @@
 
 use std::fmt;
 
-use crate::index::{Base62, BmsCharset, BmsIndex, ChannelTag};
+use crate::channel::{BmsChannel, classify_channel};
+use crate::index::{Base36, Base62, BmsCharset, BmsIndex, ChannelTag};
 use crate::{BmsStr, BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#ADDR:body`).
@@ -69,8 +70,8 @@ pub struct BmsMessage<'a, C = &'a str> {
     /// that precede the channel suffix.
     pub track: u16,
     /// Channel number — the last 1–2 valid [`Base62`](crate::Base62) characters
-    /// from [`addr`](BmsMessage::addr).
-    pub channel: BmsIndex<ChannelTag, Base62>,
+    /// from [`addr`](BmsMessage::addr), categorised into a [`BmsChannel`] enum.
+    pub channel: BmsChannel,
     /// Phantom data to satisfy E0392 (unused lifetime parameter).
     pub _phantom: std::marker::PhantomData<&'a C>,
 }
@@ -151,9 +152,14 @@ pub(crate) fn parse_message_line<'a, C: Clone + AsRef<str> + fmt::Display + From
         }
     };
 
-    let channel: BmsIndex<ChannelTag, Base62> = channel_str
+    // Normalise to uppercase; channel IDs are case-insensitive and stored
+    // as Base36 (uppercase alphanumeric).
+    let channel_upper = channel_str.to_ascii_uppercase();
+    let channel_idx: BmsIndex<ChannelTag, Base36> = channel_upper
+        .as_str()
         .try_into()
         .map_err(|_| BmsTokenizeError::InvalidChannel { value: addr })?;
+    let channel: BmsChannel = classify_channel(channel_idx);
 
     // Track: extract all ASCII digit characters from prefix, build u16.
     // 0-indexed; empty prefix → track = 0.
@@ -183,8 +189,9 @@ mod tests {
         crate::message::parse_message_line(s)
     }
 
-    fn ch(s: &str) -> BmsIndex<ChannelTag, Base62> {
-        s.try_into().unwrap()
+    fn idx(s: &str) -> BmsIndex<ChannelTag, Base36> {
+        let upper = s.to_ascii_uppercase();
+        upper.as_str().try_into().unwrap()
     }
 
     // Basic parsing
@@ -196,7 +203,7 @@ mod tests {
         assert_eq!(msg.addr, "00111");
         assert_eq!(msg.body, "11223344");
         assert_eq!(msg.track, 1);
-        assert_eq!(msg.channel, ch("11"));
+        assert_eq!(msg.channel, BmsChannel::Note(idx("11")));
     }
 
     #[test]
@@ -204,7 +211,7 @@ mod tests {
         let result = parse_msg("#99908:FF").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 999);
-        assert_eq!(msg.channel, ch("08"));
+        assert_eq!(msg.channel, BmsChannel::ExtendedBpm);
         assert_eq!(msg.body, "FF");
     }
 
@@ -213,7 +220,7 @@ mod tests {
         let result = parse_msg("#00051:A0B0").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0);
-        assert_eq!(msg.channel, ch("51"));
+        assert_eq!(msg.channel, BmsChannel::Note(idx("51")));
     }
 
     #[test]
@@ -221,7 +228,7 @@ mod tests {
         let result = parse_msg("#0010A:01").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 1);
-        assert_eq!(msg.channel, ch("0A"));
+        assert_eq!(msg.channel, BmsChannel::BgaLayer2);
         assert_eq!(msg.channel.as_u8_hex(), Some(10));
     }
 
@@ -229,7 +236,7 @@ mod tests {
     fn parse_channel_d1() {
         let result = parse_msg("#001D1:01").unwrap();
         let msg = result.expect("should parse");
-        assert_eq!(msg.channel, ch("D1"));
+        assert_eq!(msg.channel, BmsChannel::Note(idx("D1")));
         assert_eq!(msg.channel.as_u8_hex(), Some(209));
     }
 
@@ -237,14 +244,14 @@ mod tests {
     fn parse_channel_e9() {
         let result = parse_msg("#000E9:AA").unwrap();
         let msg = result.expect("should parse");
-        assert_eq!(msg.channel, ch("E9"));
+        assert_eq!(msg.channel, BmsChannel::Note(idx("E9")));
     }
 
     #[test]
     fn parse_channel_ff() {
         let result = parse_msg("#000FF:01").unwrap();
         let msg = result.expect("should parse");
-        assert_eq!(msg.channel, ch("FF"));
+        assert_eq!(msg.channel, BmsChannel::Unknown(idx("FF")));
         assert_eq!(msg.channel.as_u8_hex(), Some(255));
     }
 
@@ -253,7 +260,7 @@ mod tests {
         let result = parse_msg("#000SC:1122").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0);
-        assert_eq!(msg.channel, ch("SC"));
+        assert_eq!(msg.channel, BmsChannel::Scroll);
         // SC is not hex → as_u8_hex returns None
         assert_eq!(msg.channel.as_u8_hex(), None);
     }
@@ -263,7 +270,7 @@ mod tests {
         let result = parse_msg("#001SP:AA").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 1);
-        assert_eq!(msg.channel, ch("SP"));
+        assert_eq!(msg.channel, BmsChannel::Speed);
         assert_eq!(msg.channel.as_u8_hex(), None);
     }
 
@@ -274,7 +281,7 @@ mod tests {
         let result = parse_msg("#01:1122").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0); // no prefix before channel "01"
-        assert_eq!(msg.channel, ch("01"));
+        assert_eq!(msg.channel, BmsChannel::Bgm);
     }
 
     #[test]
@@ -282,7 +289,7 @@ mod tests {
         let result = parse_msg("#1:1122").unwrap();
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0); // prefix empty
-        assert_eq!(msg.channel, ch("1"));
+        assert_eq!(msg.channel, BmsChannel::Bgm);
     }
 
     #[test]
@@ -291,7 +298,7 @@ mod tests {
         let msg = result.expect("should parse");
         // addr="0A01", last 2="01"=channel, prefix="0A" → digits="0" → 0
         assert_eq!(msg.track, 0);
-        assert_eq!(msg.channel, ch("01"));
+        assert_eq!(msg.channel, BmsChannel::Bgm);
     }
 
     // Return-Ok(None) cases

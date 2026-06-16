@@ -5,8 +5,8 @@
 
 use bms_parser::*;
 use bms_tokenizer::{
-    Base62, BmpTag, BmsBaseMode, BmsIndex, BmsTokenizer, BpmTag, ChannelTag, LnMode, LnType,
-    PlayerMode, Rank, StopTag, WavTag,
+    BmpTag, BmsBaseMode, BmsChannel, BmsIndex, BmsTokenizer, BpmTag, LnMode, LnType, PlayerMode,
+    Rank, StopTag, WavTag,
 };
 
 /// Helper: parse a BMS string into a `Bms` (default C = &str).
@@ -423,7 +423,7 @@ fn measure_length_parsed() {
 #[test]
 fn same_channel_concat() {
     let bms = parse("#00101:AABB\n#00101:CCDD");
-    let ch: BmsIndex<ChannelTag, Base62> = "01".try_into().unwrap();
+    let ch = BmsChannel::from_raw("01").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&"AABBCCDD".to_owned())
@@ -505,7 +505,7 @@ fn unknown_channel_stays_raw() {
     // Channel FF is unknown — only in raw, no events
     assert!(bms.messages.bgm_events.is_empty());
     assert!(bms.messages.note_events.is_empty());
-    let ch: BmsIndex<ChannelTag, Base62> = "FF".try_into().unwrap();
+    let ch = BmsChannel::from_raw("FF").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&"1122".to_owned())
@@ -517,7 +517,7 @@ fn empty_message_values() {
     let bms = parse("#00111:");
     // Values empty — no events, but raw has empty string
     assert!(bms.messages.note_events.is_empty());
-    let ch: BmsIndex<ChannelTag, Base62> = "11".try_into().unwrap();
+    let ch = BmsChannel::from_raw("11").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&String::new())

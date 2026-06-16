@@ -22,6 +22,7 @@
 use std::fmt;
 use std::num::NonZeroUsize;
 
+mod channel;
 mod error;
 mod header;
 mod index;
@@ -31,6 +32,7 @@ mod message;
 mod derive_tests;
 
 pub use bms_tokenizer_derive::BmsTokenAttr;
+pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::{
     ArgbParams, AtBgaParams, BgaParams, BmsBaseMode, DifficultyLevel, ExBmpParams, ExWavParams,

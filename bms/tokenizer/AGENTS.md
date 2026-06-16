@@ -4,12 +4,15 @@ First stage of `tokenizer → parser → processor`.
 
 ## Scope
 
-The tokenizer is a syntactic pass. Every token exists solely for:
+The tokenizer is a syntactic pass, with one semantic exception:
+**channel classification** (e.g. `Bgm` vs `Note` vs `Unknown`) is resolved
+at tokenizer level. The raw index is preserved in `Note`/`Unknown` for
+downstream interpretation — value-level semantics (WAV/BMP references,
+player/key extraction) remain downstream.
+
+Every token exists solely for:
 1. **Roundtrip fidelity** — `format_header` reproduces the original line.
 2. **Syntax validation** — verifies well-formedness.
-
-All semantic interpretation is the responsibility of downstream stages
-(parser/processor).
 
 ## Generic string container `C`
 

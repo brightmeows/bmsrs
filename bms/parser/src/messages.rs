@@ -15,7 +15,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{Base62, BmpTag, BmsIndex, BpmTag, ChannelTag, ScrollTag, StopTag, WavTag};
+use bms_tokenizer::{BmpTag, BmsChannel, BmsIndex, BpmTag, ScrollTag, StopTag, WavTag};
 
 // Position
 
@@ -229,7 +229,7 @@ pub struct Messages {
     ///
     /// Multiple lines for the same `(measure, channel)` are **concatenated**
     /// in file order — unlike the old last-wins behaviour.
-    pub raw: BTreeMap<u16, BTreeMap<BmsIndex<ChannelTag, Base62>, String>>,
+    pub raw: BTreeMap<u16, BTreeMap<BmsChannel, String>>,
 
     /// BGM events parsed from channel `01`.
     pub bgm_events: Vec<BgmEvent>,
@@ -296,69 +296,60 @@ impl Messages {
 
         for (&measure, channels) in &raw {
             for (&channel, values) in channels {
-                let Some(ch) = channel.as_u8_hex() else {
-                    continue;
-                };
                 let objects = split_2char_values_lenient(values);
                 let total_objects = objects.len() as u32;
 
-                match ch {
-                    0x01 => self.push_bgm_full(values, measure, total_objects),
-                    0x02 => self.push_measure_length(values, measure),
-                    0x03 => self.push_bpm_absolute_full(values, measure, total_objects),
-                    0x04 => self.push_bga_full(values, measure, BgaLayer::Base, total_objects),
-                    0x05 | 0x06 => {
+                match channel {
+                    BmsChannel::Bgm => {
+                        self.push_bgm_full(values, measure, total_objects);
+                    }
+                    BmsChannel::MeasureLength => {
+                        self.push_measure_length(values, measure);
+                    }
+                    BmsChannel::BpmChange => {
+                        self.push_bpm_absolute_full(values, measure, total_objects);
+                    }
+                    BmsChannel::BgaBase => {
+                        self.push_bga_full(values, measure, BgaLayer::Base, total_objects);
+                    }
+                    BmsChannel::Seek | BmsChannel::BgaPoor => {
                         self.push_bga_full(values, measure, BgaLayer::Poor, total_objects);
                     }
-                    0x07 => self.push_bga_full(values, measure, BgaLayer::Layer, total_objects),
-                    0x08 => self.push_bpm_reference_full(values, measure, total_objects),
-                    0x09 => self.push_stop_full(values, measure, total_objects),
-                    0x0A => self.push_scroll_full(values, measure, total_objects),
-                    0x11..=0x19 => self.push_playable_full(
-                        values,
-                        measure,
-                        1,
-                        ch - 0x10,
-                        KeyType::Visible,
-                        total_objects,
-                    ),
-                    0x21..=0x29 => self.push_playable_full(
-                        values,
-                        measure,
-                        2,
-                        ch - 0x20,
-                        KeyType::Visible,
-                        total_objects,
-                    ),
-                    0x31..=0x39 => self.push_playable_full(
-                        values,
-                        measure,
-                        1,
-                        ch - 0x30,
-                        KeyType::Invisible,
-                        total_objects,
-                    ),
-                    0x41..=0x49 => self.push_playable_full(
-                        values,
-                        measure,
-                        2,
-                        ch - 0x40,
-                        KeyType::Invisible,
-                        total_objects,
-                    ),
-                    0x51..=0x59 => {
-                        self.push_long_note_full(values, measure, 1, ch - 0x50, total_objects);
+                    BmsChannel::BgaLayer => {
+                        self.push_bga_full(values, measure, BgaLayer::Layer, total_objects);
                     }
-                    0x61..=0x69 => {
-                        self.push_long_note_full(values, measure, 2, ch - 0x60, total_objects);
+                    BmsChannel::ExtendedBpm => {
+                        self.push_bpm_reference_full(values, measure, total_objects);
                     }
-                    0xD1..=0xD9 => {
-                        self.push_mine_full(values, measure, 1, ch - 0xD0, total_objects);
+                    BmsChannel::Stop => {
+                        self.push_stop_full(values, measure, total_objects);
                     }
-                    0xE1..=0xE9 => {
-                        self.push_mine_full(values, measure, 2, ch - 0xE0, total_objects);
+                    BmsChannel::BgaLayer2 => {
+                        self.push_scroll_full(values, measure, total_objects);
                     }
-                    _ => { /* unknown channel — kept only in raw */ }
+                    BmsChannel::Note(raw) => {
+                        if let Some(ch) = raw.as_u8_hex() {
+                            self.dispatch_note_channel(values, measure, ch, total_objects);
+                        }
+                    }
+                    // Known non-note channels without event parsing:
+                    BmsChannel::BgaBaseOpacity
+                    | BmsChannel::BgaLayerOpacity
+                    | BmsChannel::BgaLayer2Opacity
+                    | BmsChannel::BgaPoorOpacity
+                    | BmsChannel::BgmVolume
+                    | BmsChannel::KeyVolume
+                    | BmsChannel::Text
+                    | BmsChannel::Judge
+                    | BmsChannel::BgaArgbBase
+                    | BmsChannel::BgaArgbLayer
+                    | BmsChannel::BgaArgbLayer2
+                    | BmsChannel::BgaArgbPoor
+                    | BmsChannel::BgaKeyBound
+                    | BmsChannel::Option
+                    | BmsChannel::Scroll
+                    | BmsChannel::Speed
+                    | BmsChannel::Unknown(_) => { /* kept only in raw storage */ }
                 }
             }
         }
@@ -560,6 +551,68 @@ impl Messages {
             });
         }
     }
+
+    /// Dispatch a note channel's raw hex value to the appropriate handler.
+    ///
+    /// Called from [`finalize`](Self::finalize) when a [`BmsChannel::Note`]
+    /// variant has a decodable hex channel value.
+    fn dispatch_note_channel(&mut self, values: &str, measure: u16, ch: u8, total_objects: u32) {
+        match ch {
+            0x11..=0x19 => {
+                self.push_playable_full(
+                    values,
+                    measure,
+                    1,
+                    ch - 0x10,
+                    KeyType::Visible,
+                    total_objects,
+                );
+            }
+            0x21..=0x29 => {
+                self.push_playable_full(
+                    values,
+                    measure,
+                    2,
+                    ch - 0x20,
+                    KeyType::Visible,
+                    total_objects,
+                );
+            }
+            0x31..=0x39 => {
+                self.push_playable_full(
+                    values,
+                    measure,
+                    1,
+                    ch - 0x30,
+                    KeyType::Invisible,
+                    total_objects,
+                );
+            }
+            0x41..=0x49 => {
+                self.push_playable_full(
+                    values,
+                    measure,
+                    2,
+                    ch - 0x40,
+                    KeyType::Invisible,
+                    total_objects,
+                );
+            }
+            0x51..=0x59 => {
+                self.push_long_note_full(values, measure, 1, ch - 0x50, total_objects);
+            }
+            0x61..=0x69 => {
+                self.push_long_note_full(values, measure, 2, ch - 0x60, total_objects);
+            }
+            0xD1..=0xD9 => {
+                self.push_mine_full(values, measure, 1, ch - 0xD0, total_objects);
+            }
+            0xE1..=0xE9 => {
+                self.push_mine_full(values, measure, 2, ch - 0xE0, total_objects);
+            }
+            _ => { /* non-note hex in Note variant — kept in raw */ }
+        }
+    }
 }
 
 // Tests
@@ -567,7 +620,8 @@ impl Messages {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bms_tokenizer::BmsMessage;
+    use bms_tokenizer::BmsToken;
+    use bms_tokenizer::BmsTokenizer;
 
     #[test]
     fn position_new_and_fraction() {
@@ -702,38 +756,24 @@ mod tests {
 
     // Event parsing integration tests
 
-    /// Helper: create a channel ID from a Base62 string.
-    fn ch(s: &str) -> BmsIndex<ChannelTag, Base62> {
-        s.try_into().unwrap()
+    /// Helper: create a `BmsChannel` from a raw string.
+    fn ch(s: &str) -> BmsChannel {
+        BmsChannel::from_raw(s).unwrap()
     }
 
     /// Helper: parse a single standard message line (`#xxxYY:body`) via Messages.
     fn parse_one(line: &str) -> Messages {
+        let tokens: Vec<_> = BmsTokenizer::new()
+            .tokenize::<Vec<_>, &str>(line)
+            .into_iter()
+            .filter_map(|(_, res)| res.ok())
+            .collect();
         let mut msgs = Messages::default();
-        let content = line.strip_prefix('#').unwrap_or(line);
-        let colon_pos = content.find(':').unwrap_or(content.len());
-        let addr = &content[..colon_pos];
-        let body = &content[colon_pos.saturating_add(1)..];
-
-        // For standard test lines like #00101:AABB, addr is "00101".
-        // Channel = last 2 chars, track = chars before that.
-        let channel_str = &addr[addr.len().saturating_sub(2)..];
-        let channel: BmsIndex<ChannelTag, Base62> = channel_str.try_into().unwrap();
-        let track: u16 = addr[..addr.len().saturating_sub(2)]
-            .chars()
-            .filter(char::is_ascii_digit)
-            .fold(0u16, |acc, c| {
-                acc.saturating_mul(10)
-                    .saturating_add(u16::from(c as u8 - b'0'))
-            });
-        let msg = BmsMessage {
-            addr,
-            body,
-            track,
-            channel,
-            _phantom: std::marker::PhantomData,
-        };
-        msgs.concat_raw(&msg);
+        for token in &tokens {
+            if let BmsToken::Message(msg) = token {
+                msgs.concat_raw(msg);
+            }
+        }
         msgs.finalize();
         msgs
     }
@@ -852,7 +892,7 @@ mod tests {
         let msgs = parse_one("#0010F:AA");
         assert_eq!(msgs.bgm_events.len(), 0);
         assert_eq!(msgs.note_events.len(), 0);
-        let ch: BmsIndex<ChannelTag, Base62> = "0F".try_into().unwrap();
+        let ch = BmsChannel::from_raw("0F").unwrap();
         assert_eq!(
             msgs.raw
                 .get(&1)
