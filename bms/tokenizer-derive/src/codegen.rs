@@ -3,7 +3,7 @@
 #![expect(clippy::indexing_slicing, reason = "bounded by checked iteration")]
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::spanned::Spanned;
 
 use crate::parse::{BmsTokenTemplate, Placeholder};
@@ -66,6 +66,11 @@ pub fn generate_impl(
     };
 
     let header_lifetime = syn::Lifetime::new("'header", proc_macro2::Span::call_site());
+    let error_type = if let Some(tp) = &type_param {
+        quote! { crate::BmsTokenizeError<#tp> }
+    } else {
+        quote! { crate::BmsTokenizeError<&'header str> }
+    };
     let try_match_body = generate_try_match_body(
         data_enum,
         templates,
@@ -96,7 +101,7 @@ pub fn generate_impl(
             pub fn try_match_header<'header>(
                 command: &'header str,
                 value: &'header str,
-            ) -> Result<Option<Self>, crate::BmsTokenizeError<'header>>
+            ) -> Result<Option<Self>, #error_type>
             #header_where
             {
                 #try_match_body
@@ -610,6 +615,22 @@ fn is_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
         .is_some_and(|id| id == type_param_ident)
 }
 
+/// `true` if the type path contains the given type parameter ident.
+///
+/// Checks whether the path has generic arguments that include `type_param_ident`.
+fn has_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
+    let syn::Type::Path(type_path) = ty else {
+        return false;
+    };
+    type_path.path.segments.iter().any(|seg| {
+        seg.arguments
+            .clone()
+            .to_token_stream()
+            .to_string()
+            .contains(&type_param_ident.to_string())
+    })
+}
+
 /// `true` if the field type is `&str` (with any lifetime).
 fn is_str_ref(ty: &syn::Type) -> bool {
     let syn::Type::Reference(type_ref) = ty else {
@@ -672,10 +693,20 @@ fn gen_field_parse(
             };
         }
     } else {
+        let (into_tokens_path, value_arg) = match type_param_ident {
+            Some(_tp) => (
+                quote! { crate::IntoTokensError<#_tp> },
+                quote! { ::std::convert::From::from(#value_src) },
+            ),
+            None => (
+                quote! { crate::IntoTokensError<&'header str> },
+                quote! { #value_src },
+            ),
+        };
         quote! {
             let #ident: #field_ty = #value_src.parse().map_err(|e|
-                <<#field_ty as ::std::str::FromStr>::Err as crate::IntoTokensError>::into_error(
-                    e, #context_str, #value_src,
+                <<#field_ty as ::std::str::FromStr>::Err as #into_tokens_path>::into_error(
+                    e, #context_str, #value_arg,
                 )
             )?;
         }
@@ -797,6 +828,11 @@ pub fn generate_header_dispatch(
         (None, None) => TokenStream::new(),
     };
 
+    let error_type = if let Some(tp) = &type_param_ident {
+        quote! { crate::BmsTokenizeError<#tp> }
+    } else {
+        quote! { crate::BmsTokenizeError<&'header str> }
+    };
     let mut dispatch_arms = TokenStream::new();
 
     for variant in &data_enum.variants {
@@ -818,11 +854,25 @@ pub fn generate_header_dispatch(
         let variant_ident = &variant.ident;
         let inner_type = &fields.unnamed[0].ty;
 
-        dispatch_arms.extend(quote! {
-            if let Some(v) = <#inner_type>::try_match_header(command, value)? {
-                return Ok(Some(Self::#variant_ident(v)));
-            }
-        });
+        // If the inner type has the parent's type parameter (e.g., C),
+        // its error type matches the parent's. Otherwise, convert via
+        // BmsTokenizeError::from_ref.
+        let has_c = type_param_ident.is_some_and(|tp| has_type_param(inner_type, &tp.ident));
+        if has_c {
+            dispatch_arms.extend(quote! {
+                if let Some(v) = <#inner_type>::try_match_header(command, value)? {
+                    return Ok(Some(Self::#variant_ident(v)));
+                }
+            });
+        } else {
+            dispatch_arms.extend(quote! {
+                if let Some(v) = <#inner_type>::try_match_header(command, value)
+                    .map_err(crate::BmsTokenizeError::from_ref)?
+                {
+                    return Ok(Some(Self::#variant_ident(v)));
+                }
+            });
+        }
     }
 
     quote! {
@@ -835,7 +885,7 @@ pub fn generate_header_dispatch(
             pub fn try_match_header<'header>(
                 command: &'header str,
                 value: &'header str,
-            ) -> Result<Option<Self>, crate::BmsTokenizeError<'header>>
+            ) -> Result<Option<Self>, #error_type>
             #header_where
             {
                 #dispatch_arms

@@ -9,33 +9,29 @@ use thiserror::Error;
 
 /// Errors that can occur during BMS tokenization.
 ///
-/// Every variant carries the original input `value` so callers can inspect or
-/// display the raw text that caused the failure.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum BmsTokenizeError<'a> {
+/// Every variant carries the original input `value` (as the string container
+/// `C`) so callers can inspect or display the raw text that caused the failure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BmsTokenizeError<C> {
     /// The measure number in a channel line is not a valid 3-digit value.
-    #[error("invalid measure number: \"{value}\"")]
     InvalidMeasure {
         /// The raw measure string that failed validation.
-        value: &'a str,
+        value: C,
     },
     /// The channel number in a channel line is not a valid 2-digit value.
-    #[error("invalid channel number: \"{value}\"")]
     InvalidChannel {
         /// The raw channel string that failed validation.
-        value: &'a str,
+        value: C,
     },
     /// An integer field could not be parsed.
-    #[error("invalid integer: \"{value}\"")]
     InvalidInteger {
         /// The raw input that could not be parsed as an integer.
-        value: &'a str,
+        value: C,
     },
     /// A float field could not be parsed.
-    #[error("invalid float: \"{value}\"")]
     InvalidFloat {
         /// The raw input that could not be parsed as a float.
-        value: &'a str,
+        value: C,
     },
     /// The input is not a recognised value for its context.
     ///
@@ -43,17 +39,75 @@ pub enum BmsTokenizeError<'a> {
     /// falls outside valid bounds) and "unrecognised" (the value does not
     /// match any known option for a literal enum).  When no specific valid
     /// set is available, `expected` is the empty string.
-    #[error("value out of range: \"{value}\" for {context} (expected {expected})")]
     OutOfRange {
         /// The header command name (e.g., `"#DIFFICULTY"`).
         context: &'static str,
         /// The raw input that is out of range or unrecognised.
-        value: &'a str,
+        value: C,
         /// A description of the valid range (e.g., `"1-5"`, `"1 or 2"`), or
         /// the empty string when no specific hint is available.
         expected: &'static str,
     },
 }
+
+impl<C> BmsTokenizeError<C> {
+    /// Convert a borrowed `BmsTokenizeError<&str>` into this container type.
+    #[must_use]
+    #[expect(clippy::needless_pass_by_value, reason = "consumed to move values out")]
+    pub(crate) fn from_ref<'a>(err: BmsTokenizeError<&'a str>) -> Self
+    where
+        C: From<&'a str>,
+    {
+        match err {
+            BmsTokenizeError::InvalidMeasure { value } => Self::InvalidMeasure {
+                value: C::from(value),
+            },
+            BmsTokenizeError::InvalidChannel { value } => Self::InvalidChannel {
+                value: C::from(value),
+            },
+            BmsTokenizeError::InvalidInteger { value } => Self::InvalidInteger {
+                value: C::from(value),
+            },
+            BmsTokenizeError::InvalidFloat { value } => Self::InvalidFloat {
+                value: C::from(value),
+            },
+            BmsTokenizeError::OutOfRange {
+                context,
+                value,
+                expected,
+            } => Self::OutOfRange {
+                context,
+                value: C::from(value),
+                expected,
+            },
+        }
+    }
+}
+
+impl<C: fmt::Display> fmt::Display for BmsTokenizeError<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidMeasure { value } => {
+                write!(f, "invalid measure number: \"{value}\"")
+            }
+            Self::InvalidChannel { value } => {
+                write!(f, "invalid channel number: \"{value}\"")
+            }
+            Self::InvalidInteger { value } => write!(f, "invalid integer: \"{value}\""),
+            Self::InvalidFloat { value } => write!(f, "invalid float: \"{value}\""),
+            Self::OutOfRange {
+                context,
+                value,
+                expected,
+            } => write!(
+                f,
+                "value out of range: \"{value}\" for {context} (expected {expected})"
+            ),
+        }
+    }
+}
+
+impl<C: fmt::Debug + fmt::Display> std::error::Error for BmsTokenizeError<C> {}
 
 /// Conversion from a `FromStr::Err` into a [`BmsTokenizeError`].
 ///
@@ -62,16 +116,16 @@ pub enum BmsTokenizeError<'a> {
 /// Implementations are provided for [`ParseIntError`], [`ParseFloatError`],
 /// [`ParseBmsValueError`], and — for custom `FromStr` impls that already
 /// produce a `BmsTokenizeError` — [`BmsTokenizeError`] itself (identity).
-pub trait IntoTokensError<'a> {
+pub trait IntoTokensError<C> {
     /// Convert this error into a `BmsTokenizeError`.
     ///
     /// * `context` — the header command name (e.g. `"#PLAYER"`).
     /// * `value` — the raw input string that failed to parse.
-    fn into_error(self, context: &'static str, value: &'a str) -> BmsTokenizeError<'a>;
+    fn into_error(self, context: &'static str, value: C) -> BmsTokenizeError<C>;
 }
 
-impl<'a> IntoTokensError<'a> for BmsTokenizeError<'a> {
-    fn into_error(self, context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+impl<C> IntoTokensError<C> for BmsTokenizeError<C> {
+    fn into_error(self, context: &'static str, value: C) -> BmsTokenizeError<C> {
         match self {
             BmsTokenizeError::OutOfRange {
                 context: "",
@@ -87,20 +141,20 @@ impl<'a> IntoTokensError<'a> for BmsTokenizeError<'a> {
     }
 }
 
-impl<'a> IntoTokensError<'a> for ParseIntError {
-    fn into_error(self, _context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+impl<C> IntoTokensError<C> for ParseIntError {
+    fn into_error(self, _context: &'static str, value: C) -> BmsTokenizeError<C> {
         BmsTokenizeError::InvalidInteger { value }
     }
 }
 
-impl<'a> IntoTokensError<'a> for ParseFloatError {
-    fn into_error(self, _context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+impl<C> IntoTokensError<C> for ParseFloatError {
+    fn into_error(self, _context: &'static str, value: C) -> BmsTokenizeError<C> {
         BmsTokenizeError::InvalidFloat { value }
     }
 }
 
-impl<'a> IntoTokensError<'a> for ParseBmsValueError {
-    fn into_error(self, context: &'static str, value: &'a str) -> BmsTokenizeError<'a> {
+impl<C> IntoTokensError<C> for ParseBmsValueError {
+    fn into_error(self, context: &'static str, value: C) -> BmsTokenizeError<C> {
         BmsTokenizeError::OutOfRange {
             context,
             value,
@@ -137,14 +191,14 @@ impl std::error::Error for ParseBmsValueError {}
 /// [`BmsToken`](crate::BmsToken), [`BmsHeader`](crate::BmsHeader), or
 /// `(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)` pair.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum BmsTryFromError<'a> {
+pub enum BmsTryFromError<C> {
     /// The source `(NonZeroUsize, Result<BmsToken, …>)` contained an `Err`.
     #[error("tokenization error on line {line}: {error}")]
     TokenizationError {
         /// The 1-based line number where the error occurred.
         line: NonZeroUsize,
         /// The underlying tokenization error.
-        error: BmsTokenizeError<'a>,
+        error: BmsTokenizeError<C>,
     },
     /// The `BmsToken` is a `Message`, not a `Header`.
     #[error("expected a header, but the token is a channel message")]

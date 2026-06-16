@@ -198,7 +198,7 @@ impl<C> From<BmsHeaderTiming> for BmsHeader<C> {
 }
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderTiming {
-    type Error = BmsTryFromError<'static>;
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {

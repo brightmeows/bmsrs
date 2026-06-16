@@ -82,7 +82,7 @@ impl<C> From<BmsMessage<C>> for BmsToken<C> {
 }
 
 impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
-    type Error = BmsTryFromError<'static>;
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(token: BmsToken<C>) -> Result<Self, Self::Error> {
@@ -101,7 +101,7 @@ impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
 /// no valid channel suffix.
 pub(crate) fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
     line: &'a str,
-) -> Result<Option<BmsMessage<C>>, BmsTokenizeError<'a>> {
+) -> Result<Option<BmsMessage<C>>, BmsTokenizeError<C>> {
     if line.is_empty() || !line.starts_with('#') {
         return Ok(None);
     }
@@ -136,7 +136,9 @@ pub(crate) fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From
         let len = bytes.len();
         let last = bytes[len - 1];
         if !Base62::is_valid(last) {
-            return Err(BmsTokenizeError::InvalidChannel { value: addr });
+            return Err(BmsTokenizeError::InvalidChannel {
+                value: C::from(addr),
+            });
         }
         if len >= 2 {
             let second_last = bytes[len - 2];
@@ -153,10 +155,13 @@ pub(crate) fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From
     // Normalise to uppercase; channel IDs are case-insensitive and stored
     // as Base36 (uppercase alphanumeric).
     let channel_upper = channel_str.to_ascii_uppercase();
-    let channel_idx: BmsIndex<ChannelTag, Base36> = channel_upper
-        .as_str()
-        .try_into()
-        .map_err(|_| BmsTokenizeError::InvalidChannel { value: addr })?;
+    let channel_idx: BmsIndex<ChannelTag, Base36> =
+        channel_upper
+            .as_str()
+            .try_into()
+            .map_err(|_| BmsTokenizeError::InvalidChannel {
+                value: C::from(addr),
+            })?;
     let channel: BmsChannel = classify_channel(channel_idx);
 
     // Track: extract all ASCII digit characters from prefix, build u16.
@@ -182,7 +187,7 @@ mod tests {
     use super::*;
 
     /// Helper to avoid turbofish in test calls.
-    fn parse_msg(s: &str) -> Result<Option<BmsMessage<&str>>, BmsTokenizeError<'_>> {
+    fn parse_msg(s: &str) -> Result<Option<BmsMessage<&str>>, BmsTokenizeError<&str>> {
         crate::message::parse_message_line(s)
     }
 

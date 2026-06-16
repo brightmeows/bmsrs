@@ -101,7 +101,7 @@ impl<C> From<BmsHeaderControlFlow> for BmsHeader<C> {
 }
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderControlFlow {
-    type Error = BmsTryFromError<'static>;
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {

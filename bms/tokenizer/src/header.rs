@@ -73,7 +73,7 @@ impl<C> From<BmsHeaderFallback<C>> for BmsHeader<C> {
 }
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderFallback<C> {
-    type Error = BmsTryFromError<'static>;
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
@@ -101,7 +101,7 @@ impl<C> TryFrom<BmsHeader<C>> for BmsHeaderFallback<C> {
 pub(crate) fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
     line: &'a str,
     prefixes: &[char],
-) -> Result<Option<BmsHeader<C>>, BmsTokenizeError<'a>> {
+) -> Result<Option<BmsHeader<C>>, BmsTokenizeError<C>> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() {
@@ -177,7 +177,7 @@ pub(crate) fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<
 #[cfg(test)]
 pub(crate) fn parse_header_line_default(
     line: &str,
-) -> Result<Option<BmsHeader<&str>>, BmsTokenizeError<'_>> {
+) -> Result<Option<BmsHeader<&str>>, BmsTokenizeError<&str>> {
     parse_header_line::<&str>(line, &['#', '%'])
 }
 

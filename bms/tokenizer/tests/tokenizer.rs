@@ -261,7 +261,7 @@ fn tokenizer_error_display_invalid_channel() {
 #[test]
 fn tokenizer_error_trait_is_implemented() {
     fn assert_error<T: std::error::Error>() {}
-    assert_error::<BmsTokenizeError>();
+    assert_error::<BmsTokenizeError<&'static str>>();
 }
 
 #[test]

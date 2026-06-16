@@ -44,8 +44,8 @@ impl DifficultyLevel {
 #[error("invalid #DIFFICULTY value: {0} (expected 1-5)")]
 pub struct ParseDifficultyError(pub String);
 
-impl<'a> IntoTokensError<'a> for ParseDifficultyError {
-    fn into_error(self, context: &'static str, value: &'a str) -> crate::BmsTokenizeError<'a> {
+impl<C> IntoTokensError<C> for ParseDifficultyError {
+    fn into_error(self, context: &'static str, value: C) -> crate::BmsTokenizeError<C> {
         crate::BmsTokenizeError::OutOfRange {
             context,
             value,
@@ -157,7 +157,7 @@ impl<C> From<BmsHeaderDisplay<C>> for BmsHeader<C> {
 }
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderDisplay<C> {
-    type Error = BmsTryFromError<'static>;
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {

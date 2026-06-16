@@ -10,7 +10,7 @@ use bms_tokenizer::{
 };
 
 /// `Vec<(line, result)>` with explicit C type.
-type TokenVec<'a, C> = Vec<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>)>;
+type TokenVec<C> = Vec<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>)>;
 
 /// Tokenize with `&str` and `String` — verify same line numbers and Ok status.
 #[test]

@@ -103,7 +103,7 @@ impl<C> From<BmsHeaderMetadata<C>> for BmsHeader<C> {
 }
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderMetadata<C> {
-    type Error = BmsTryFromError<'static>;
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {

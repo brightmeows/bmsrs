@@ -111,7 +111,7 @@ impl<C> From<BmsHeader<C>> for BmsToken<C> {
 }
 
 impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
-    type Error = BmsTryFromError<'static>;
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(token: BmsToken<C>) -> Result<Self, Self::Error> {
@@ -122,12 +122,12 @@ impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
     }
 }
 
-impl<'a, C> TryFrom<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>)> for BmsToken<C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>)> for BmsToken<C> {
+    type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(
-        pair: (NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>),
+        pair: (NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>),
     ) -> Result<Self, Self::Error> {
         let (line, result) = pair;
         result.map_err(|error| BmsTryFromError::TokenizationError { line, error })
@@ -236,7 +236,7 @@ impl BmsTokenizer {
     #[must_use]
     pub fn tokenize<'a, Out, C>(&self, input: &'a str) -> Out
     where
-        Out: FromIterator<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>)>,
+        Out: FromIterator<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>)>,
         C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a,
     {
         let mut results = Vec::new();
@@ -255,7 +255,7 @@ impl BmsTokenizer {
                 // before first use); the fallback is unreachable.
                 let nz_line = NonZeroUsize::new(line_number).unwrap_or(NonZeroUsize::MAX);
 
-                let result: Result<BmsToken<C>, BmsTokenizeError<'_>> =
+                let result: Result<BmsToken<C>, BmsTokenizeError<C>> =
                     match parse_message_line::<C>(trimmed) {
                         Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
                         Ok(None) => match parse_header_line::<C>(trimmed, &self.header_prefixes) {
