@@ -31,7 +31,7 @@ Proc-macro crate for `#[derive(BmsTokenAttr)]` — handles all
 - `#[bms_token("...")]` — command pattern or literal value
 - `#[bms_fallback]` — in command mode: parse failure → `Ok(None)`;
   in dispatch mode: skip this variant
-- `#[doc(hidden)]` — skip variant in codegen (used for `_Phantom(PhantomData<&'a C>)`)
+- `#[doc(hidden)]` — skip variant in codegen (used for phantom variants)
 
 ## `C` field detection
 

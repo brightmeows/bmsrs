@@ -16,14 +16,15 @@ Every token exists solely for:
 
 ## Generic string container `C`
 
-`BmsToken<'a, C>` / `BmsHeader<'a, C>` / `BmsMessage<'a, C>` — `C` defaults
-to `&'a str` (zero-copy).  Downstream reads via `.as_ref()`.  Chosen at
-`tokenize` call site, propagates through the pipeline.
+`BmsToken<C>` / `BmsHeader<C>` / `BmsMessage<C>` — no separate lifetime;
+the string container type `C` carries it (`&str` = borrow, `String` = owned).
+Downstream reads via `.as_ref()`.  Chosen at `tokenize` call site, propagates
+through the pipeline.
 
 ```rust
-// default C = &str
+// C = &str (zero-copy, borrows from input)
 let tokens: Vec<(_, _)> = BmsTokenizer::new().tokenize(input);
-// explicit C = String
+// C = String (owned)
 let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 ```
 
@@ -60,8 +61,8 @@ mode (no `#[bms_token]`, single-tuple variants). Variants with
 All `BmsHeaderXXX` and `BmsMessage` get `From<T>` → parent, `TryFrom<Parent> → T`.
 Chain via `?.try_into()?`. Error type: [`crate::BmsTryFromError`].
 
-New sub-enum: add `From<NewEnum<'a, C>> for BmsHeader<'a, C>` +
-`TryFrom<BmsHeader<'a, C>> for NewEnum<'a, C>` in its file.
+New sub-enum: add `From<NewEnum<C>> for BmsHeader<C>` +
+`TryFrom<BmsHeader<C>> for NewEnum<C>` in its file.
 
 ## `#BASE`
 
