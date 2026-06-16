@@ -74,6 +74,7 @@ impl Bms {
             }
         }
 
+        bms.messages.finalize();
         bms
     }
 
@@ -118,7 +119,7 @@ impl Bms {
 
     /// Insert a channel message into the messages container.
     fn process_message<'a, C: BmsStr<'a>>(&mut self, m: &BmsMessage<'a, C>) {
-        self.messages.concat_and_parse(m);
+        self.messages.concat_raw(m);
     }
 }
 

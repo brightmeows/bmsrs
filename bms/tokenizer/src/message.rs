@@ -8,14 +8,10 @@
 //!   followed by a **channel** (the last 1–2 valid [`Base62`](crate::Base62)
 //!   characters).  For example, in `#00111:...`, the address `00111` has
 //!   track `001` and channel `11`.
-//! - `body` is the raw value string — a sequence of 2-character object indices
-//!   that is leniently parsed into a [`Vec<BmsObjectId>`](crate::BmsObjectId).
-//!
-//! Parsing is lenient (see [`parse_message_line`]): invalid characters in the
-//! body are silently skipped, and every 2 consecutive valid Base62 characters
-//! form an object ID.  Unknown or extended channels (e.g., `SC`, `SP`, `1G`)
-//! are preserved in the [`channel`](BmsMessage::channel) field and in raw
-//! storage — downstream determines which channels produce typed events.
+//! - `body` is the raw value string — 2-character object indices are parsed
+//!   by downstream (parser) from concatenated raw storage.
+//!   Unknown or extended channels (e.g., `SC`, `SP`, `1G`) are preserved in
+//!   the [`channel`](BmsMessage::channel) field and in raw storage.
 //!
 //! # Channel semantics (selected)
 //!
@@ -47,16 +43,16 @@
 //!
 //! ```text
 //! #00111:11223344 → addr="00111", body="11223344"
-//!                    track=1, channel="11", objects=["11","22","33","44"]
+//!                    track=1, channel="11"
 //! #0010A:01       → addr="0010A", body="01"
-//!                    track=1, channel="0A", objects=["01"]
+//!                    track=1, channel="0A"
 //! #000SC:         → addr="000SC", body=""
-//!                    track=0, channel="SC", objects=[]
+//!                    track=0, channel="SC"
 //! ```
 
 use std::fmt;
 
-use crate::index::{Base62, BmsCharset, BmsIndex, BmsObjectId, ChannelTag};
+use crate::index::{Base62, BmsCharset, BmsIndex, ChannelTag};
 use crate::{BmsStr, BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#ADDR:body`).
@@ -75,9 +71,6 @@ pub struct BmsMessage<'a, C = &'a str> {
     /// Channel number — the last 1–2 valid [`Base62`](crate::Base62) characters
     /// from [`addr`](BmsMessage::addr).
     pub channel: BmsIndex<ChannelTag, Base62>,
-    /// Leniently parsed 2-character object indices from [`body`](BmsMessage::body).
-    /// Invalid characters are silently skipped.
-    pub objects: Vec<BmsObjectId>,
     /// Phantom data to satisfy E0392 (unused lifetime parameter).
     pub _phantom: std::marker::PhantomData<&'a C>,
 }
@@ -172,51 +165,13 @@ pub(crate) fn parse_message_line<'a, C: Clone + AsRef<str> + fmt::Display + From
                 .saturating_add(u16::from(c as u8 - b'0'))
         });
 
-    // Body: lenient parse into 2-char object IDs
-    let objects = parse_body_objects(body);
-
     Ok(Some(BmsMessage {
         addr: C::from(addr),
         body: C::from(body),
         track,
         channel,
-        objects,
         _phantom: std::marker::PhantomData,
     }))
-}
-
-/// Leniently parse a body string into 2-character object IDs.
-///
-/// Scans left to right: every 2 consecutive valid [`Base62`](crate::Base62)
-/// characters form a [`BmsObjectId`].  Invalid characters are skipped.
-/// A trailing single valid character is discarded.
-fn parse_body_objects(body: &str) -> Vec<BmsObjectId> {
-    let mut objects = Vec::new();
-    let bytes = body.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let Some(&b) = bytes.get(i) else {
-            break;
-        };
-        if Base62::is_valid(b) {
-            if let Some(&next) = bytes.get(i + 1) {
-                if Base62::is_valid(next) {
-                    // Two consecutive valid chars — push as object ID
-                    if let Ok(id) = BmsObjectId::try_from(&body[i..i + 2]) {
-                        objects.push(id);
-                    }
-                    i += 2;
-                    continue;
-                }
-            }
-            // Single valid char or end of input — discard (can't form a pair)
-            i += 1;
-        } else {
-            // Invalid char — skip
-            i += 1;
-        }
-    }
-    objects
 }
 
 #[cfg(test)]
@@ -232,10 +187,6 @@ mod tests {
         s.try_into().unwrap()
     }
 
-    fn obj(s: &str) -> BmsObjectId {
-        s.try_into().unwrap()
-    }
-
     // Basic parsing
 
     #[test]
@@ -246,10 +197,6 @@ mod tests {
         assert_eq!(msg.body, "11223344");
         assert_eq!(msg.track, 1);
         assert_eq!(msg.channel, ch("11"));
-        assert_eq!(
-            msg.objects,
-            vec![obj("11"), obj("22"), obj("33"), obj("44")]
-        );
     }
 
     #[test]
@@ -259,7 +206,6 @@ mod tests {
         assert_eq!(msg.track, 999);
         assert_eq!(msg.channel, ch("08"));
         assert_eq!(msg.body, "FF");
-        assert_eq!(msg.objects, vec![obj("FF")]);
     }
 
     #[test]
@@ -268,7 +214,6 @@ mod tests {
         let msg = result.expect("should parse");
         assert_eq!(msg.track, 0);
         assert_eq!(msg.channel, ch("51"));
-        assert_eq!(msg.objects, vec![obj("A0"), obj("B0")]);
     }
 
     #[test]
@@ -278,7 +223,6 @@ mod tests {
         assert_eq!(msg.track, 1);
         assert_eq!(msg.channel, ch("0A"));
         assert_eq!(msg.channel.as_u8_hex(), Some(10));
-        assert_eq!(msg.objects, vec![obj("01")]);
     }
 
     #[test]
@@ -312,7 +256,6 @@ mod tests {
         assert_eq!(msg.channel, ch("SC"));
         // SC is not hex → as_u8_hex returns None
         assert_eq!(msg.channel.as_u8_hex(), None);
-        assert_eq!(msg.objects, vec![obj("11"), obj("22")]);
     }
 
     #[test]
@@ -324,38 +267,7 @@ mod tests {
         assert_eq!(msg.channel.as_u8_hex(), None);
     }
 
-    // Body lenient parsing
-
-    #[test]
-    fn body_skips_invalid_chars() {
-        let result = parse_msg("#00101:11.22.33").unwrap();
-        let msg = result.expect("should parse");
-        assert_eq!(msg.objects, vec![obj("11"), obj("22"), obj("33")]);
-    }
-
-    #[test]
-    fn body_handles_empty() {
-        let result = parse_msg("#00101:").unwrap();
-        let msg = result.expect("should parse");
-        assert_eq!(msg.objects, vec![]);
-        assert_eq!(msg.body, "");
-    }
-
-    #[test]
-    fn body_discards_trailing_single_char() {
-        let result = parse_msg("#00101:1122A").unwrap();
-        let msg = result.expect("should parse");
-        assert_eq!(msg.objects, vec![obj("11"), obj("22")]);
-    }
-
-    #[test]
-    fn body_all_invalid_returns_empty() {
-        let result = parse_msg("#00101:....").unwrap();
-        let msg = result.expect("should parse");
-        assert!(msg.objects.is_empty());
-    }
-
-    // Track edge cases
+    // Body & Track edge cases
 
     #[test]
     fn track_empty_prefix_is_zero() {
@@ -433,57 +345,5 @@ mod tests {
     fn invalid_channel_at_end_returns_err() {
         let result = parse_msg("#001!!:1122");
         assert!(result.is_err());
-    }
-
-    // Objects via parse_body_objects
-
-    #[test]
-    fn parse_body_objects_standard() {
-        assert_eq!(
-            parse_body_objects("11223344"),
-            vec![obj("11"), obj("22"), obj("33"), obj("44")]
-        );
-    }
-
-    #[test]
-    fn parse_body_objects_with_dots() {
-        assert_eq!(
-            parse_body_objects("11.22.33"),
-            vec![obj("11"), obj("22"), obj("33")]
-        );
-    }
-
-    #[test]
-    fn parse_body_objects_mixed_case() {
-        assert_eq!(
-            parse_body_objects("aAbBcC"),
-            vec![obj("aA"), obj("bB"), obj("cC")]
-        );
-    }
-
-    #[test]
-    fn parse_body_objects_trailing_garbage() {
-        assert_eq!(
-            parse_body_objects("11AA22ZZ33!"),
-            vec![obj("11"), obj("AA"), obj("22"), obj("ZZ"), obj("33")]
-        );
-    }
-
-    #[test]
-    fn parse_body_objects_empty() {
-        assert!(parse_body_objects("").is_empty());
-    }
-
-    #[test]
-    fn parse_body_objects_only_invalid() {
-        assert!(parse_body_objects("!@#$%").is_empty());
-    }
-
-    #[test]
-    fn parse_body_objects_trailing_single_discarded() {
-        assert_eq!(
-            parse_body_objects("11AA22ZZ3!"),
-            vec![obj("11"), obj("AA"), obj("22"), obj("ZZ")]
-        );
     }
 }

@@ -3,6 +3,15 @@
 Third stage: tokenizer → control-flow → **parser**.
 Builds owned `Bms` struct from flat tokens (no control-flow commands).
 
+## Lifecycle
+
+`Messages` uses a two-phase design: `concat_raw` collects data, `finalize`
+parses events.  `Bms::from_flat_tokens` calls `finalize` automatically at the
+end — manual callers must call it explicitly.
+
+Calling `finalize` while events are already populated will clear and
+re-parse them.  Idempotent only when called once per load cycle.
+
 ## Design goals
 
 1. **Semantic parse + info preservation** — Domain-typed `Bms`, not raw commands.
@@ -20,14 +29,20 @@ flowchart LR
 
 ## Header dispatch
 
-Last-wins for `Option` fields; `BTreeMap` for resource defs and messages.
-Messages also last-wins per `(measure, channel)`.
+- `Option` fields use last-wins semantics.
+- `BTreeMap` fields (resource defs, messages) index by ID/key.
+- Channel messages use a **two-phase** flow:
+  1. `concat_raw` appends body strings per `(measure, channel)`.
+  2. `finalize` iterates all raw pairs once, parses events with correct
+     `(numer, denom)` based on the **final** total object count per channel.
+
+All recognized header groups are stored. Only `ControlFlow` headers
+(handled by `bms-control-flow`) are skipped.
 
 | Status | Variants |
 |--------|----------|
-| Stored | Metadata, Gameplay, Timing, Display, Resource defs, `Fallback` |
-| Skipped | `ControlFlow` |
-| Silently dropped | `WavCmd`, `Cdda`, `Midifile`, `ExBmp`, `Bga`, `AtBga`, `SwBga`, `Argb`, `ExtChr`, `VideoFps`, `VideoColors`, `VideoDly`, `OctFp`, `Option`, `Stp` |
+| Stored | Metadata, Gameplay, Timing, Display, Audio, Visual, `Fallback` |
+| Skipped | `ControlFlow` (domain of `bms-control-flow`) |
 
 ## Tests
 

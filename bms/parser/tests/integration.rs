@@ -428,15 +428,13 @@ fn same_channel_concat() {
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&"AABBCCDD".to_owned())
     );
-    // Events are parsed from per-line values with correct offsets:
-    // First line AABB → events at (0/2, 1/2), second line CCDD → (2/4, 3/4)
+    // Events are parsed from concatenated values with correct positions:
+    // AABBCCDD → events at (0/4, 1/4, 2/4, 3/4)
     assert_eq!(bms.messages.bgm_events.len(), 4);
-    // First line: known only 2 objects at this point
     assert_eq!(bms.messages.bgm_events[0].position.numer, 0);
-    assert_eq!(bms.messages.bgm_events[0].position.denom, 2);
+    assert_eq!(bms.messages.bgm_events[0].position.denom, 4);
     assert_eq!(bms.messages.bgm_events[1].position.numer, 1);
-    assert_eq!(bms.messages.bgm_events[1].position.denom, 2);
-    // Second line: knows total is 4 (concatenated), offset is 2
+    assert_eq!(bms.messages.bgm_events[1].position.denom, 4);
     assert_eq!(bms.messages.bgm_events[2].position.numer, 2);
     assert_eq!(bms.messages.bgm_events[2].position.denom, 4);
     assert_eq!(bms.messages.bgm_events[3].position.numer, 3);
@@ -451,6 +449,33 @@ fn different_channels_independent() {
 }
 
 // Edge cases
+
+#[test]
+fn same_channel_concat_positions_correct() {
+    // Multi-line concatenation must produce positions relative to the
+    // final total object count, not incremental totals.
+    let bms = parse("#00101:AABB\n#00101:CCDD");
+    assert_eq!(bms.messages.bgm_events.len(), 4);
+    // All four events use denom=4, not (2 then 4):
+    #[expect(clippy::cast_possible_truncation, reason = "test data fits in u32")]
+    for (i, ev) in bms.messages.bgm_events.iter().enumerate() {
+        assert_eq!(
+            ev.position.numer, i as u32,
+            "bgm_events[{i}] numer should be {i}"
+        );
+        assert_eq!(ev.position.denom, 4, "bgm_events[{i}] denom should be 4");
+    }
+}
+
+#[test]
+fn same_channel_three_lines_positions_correct() {
+    let bms = parse("#00101:AA\n#00101:BB\n#00101:CC");
+    assert_eq!(bms.messages.bgm_events.len(), 3);
+    assert_eq!(bms.messages.bgm_events[0].position.denom, 3);
+    assert_eq!(bms.messages.bgm_events[1].position.denom, 3);
+    assert_eq!(bms.messages.bgm_events[2].position.denom, 3);
+    assert_eq!(bms.messages.bgm_events[2].position.numer, 2);
+}
 
 #[test]
 fn empty_input() {
