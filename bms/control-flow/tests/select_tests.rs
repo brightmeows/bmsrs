@@ -1,22 +1,20 @@
 //! Integration tests for `FlowDocument::select_branches` (Task 3).
 
-use bms_control_flow::{BranchRng, ControlFlowError, DeterministicRng, FlowDocumentBuilder};
+use bms_control_flow::{BranchRng, ControlFlowError, DeterministicRng, FlowTree, TokenPayload};
 use bms_tokenizer::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderResDefAudio, BmsToken, BmsTokenizer,
 };
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize BMS text and build a `Vec<FlowItem>`.
-fn build_doc(
-    input: &str,
-) -> std::result::Result<Vec<bms_control_flow::FlowItem<&str>>, ControlFlowError> {
+/// Helper: tokenize BMS text and build a `FlowTree<TokenPayload<&str>>`.
+fn build_doc(input: &str) -> std::result::Result<FlowTree<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
-    FlowDocumentBuilder::from_tokens(tokens)
+    FlowTree::from_tokens(tokens)
 }
 
 /// Helper: find a seed that makes `DeterministicRng` produce `target` on first
@@ -71,7 +69,7 @@ fn random_selects_matching_branch() -> TestResult {
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     assert_eq!(selection.decisions.len(), 1);
     let decision = selection.decisions.first().ok_or("no decision")?;
@@ -101,7 +99,7 @@ fn random_else_fallback_selected_when_no_match() -> TestResult {
 
     let seed = find_seed(3, 3).ok_or("no seed found for value 3")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
     assert_eq!(decision.value, 3);
@@ -125,7 +123,7 @@ fn switch_selects_matching_case() -> TestResult {
 
     let seed = find_seed(2, 2).ok_or("no seed found for value 2")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
     assert_eq!(decision.value, 2);
@@ -149,7 +147,7 @@ fn switch_fall_through_continues_to_next_case() -> TestResult {
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
     assert_eq!(decision.value, 1);
@@ -174,7 +172,7 @@ fn switch_stops_at_skip() -> TestResult {
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
     assert_eq!(decision.value, 1);
@@ -198,7 +196,7 @@ fn set_random_uses_fixed_value() -> TestResult {
     )?;
 
     let mut rng = DeterministicRng::new(999);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
     assert_eq!(decision.value, 1);
@@ -221,7 +219,7 @@ fn set_switch_uses_fixed_value() -> TestResult {
     )?;
 
     let mut rng = DeterministicRng::new(999);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
     assert_eq!(decision.value, 2);
@@ -251,7 +249,7 @@ fn nested_block_selection_both_blocks_decided() -> TestResult {
     )?;
 
     let mut rng = DeterministicRng::new(0);
-    let (_, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (_, selection) = items.select_branches(&mut rng);
 
     assert_eq!(selection.decisions.len(), 2);
     Ok(())
@@ -261,7 +259,7 @@ fn nested_block_selection_both_blocks_decided() -> TestResult {
 fn no_control_flow_preserves_all_tokens() -> TestResult {
     let items = build_doc("#TITLE Test\n#BPM 120\n#00101:1122")?;
     let mut rng = DeterministicRng::new(0);
-    let (tokens, selection) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, selection) = items.select_branches(&mut rng);
 
     assert!(selection.decisions.is_empty());
     assert_eq!(tokens.len(), 3);
@@ -280,7 +278,7 @@ fn cf_headers_not_in_selected_output() -> TestResult {
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, _) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, _) = items.select_branches(&mut rng);
 
     let cfs = cf_headers(&tokens);
     assert!(
@@ -337,7 +335,7 @@ fn random_selects_second_branch() -> TestResult {
 
     let seed = find_seed(2, 2).ok_or("no seed found for value 2")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(decisions.decisions[0].value, 2);
@@ -372,7 +370,7 @@ fn multiple_sequential_random_blocks_select() -> TestResult {
     let seed1 = find_seed(2, 2).ok_or("no seed found")?;
     let seed2 = find_seed(1, 2).ok_or("no seed found")?;
     let mut rng = TwoStepRng::new(seed1, seed2);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(decisions.decisions[0].value, 2);
@@ -403,7 +401,7 @@ fn elseif_first_match_wins() -> TestResult {
 
     let seed = find_seed(2, 5).ok_or("no seed found for value 2")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].value, 2);
     assert_eq!(decisions.decisions[0].selected_index, 1); // #ELSEIF 2
@@ -433,7 +431,7 @@ fn elseif_no_match_falls_to_else() -> TestResult {
 
     let seed = find_seed(4, 5).ok_or("no seed found for value 4")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].selected_index, 3); // #ELSE
     assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
@@ -459,7 +457,7 @@ fn switch_def_fallback() -> TestResult {
 
     let seed = find_seed(3, 3).ok_or("no seed found for value 3")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].selected_index, 2); // #DEF
     assert_eq!(wav_filenames(&tokens), vec!["c.wav"]);
@@ -479,7 +477,7 @@ fn random_no_branch_matches_yields_no_output() -> TestResult {
 
     let seed = find_seed(2, 2).ok_or("no seed found for value 2")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert!(wav_filenames(&tokens).is_empty());
     assert_eq!(decisions.decisions[0].selected_index, 1); // no match (branches.len())
@@ -501,7 +499,7 @@ fn switch_only_def_selected_when_no_case() -> TestResult {
 
     let seed = find_seed(3, 3).ok_or("no seed found for value 3")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].selected_index, 0);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav"]);
@@ -513,7 +511,7 @@ fn switch_only_def_selected_when_no_case() -> TestResult {
 fn empty_random_block_select_yields_nothing() -> TestResult {
     let items = build_doc("#RANDOM 2\n#ENDRANDOM")?;
     let mut rng = DeterministicRng::new(0);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert!(tokens.is_empty());
     assert_eq!(decisions.decisions[0].selected_index, 0);
@@ -533,7 +531,7 @@ fn random_single_branch_selected() -> TestResult {
 
     let seed = find_seed(1, 1).ok_or("no seed found for value 1")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(wav_filenames(&tokens), vec!["a.wav"]);
     assert_eq!(decisions.decisions[0].selected_index, 0);
@@ -571,7 +569,7 @@ fn nested_three_levels_selection() -> TestResult {
     // Inner → 1 (innermost.wav)
     // DeterministicRng seed 3 produces sequence [2, 2, 1]
     let mut rng = DeterministicRng::new(3);
-    let (tokens, decisions) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions.len(), 3);
     assert!(wav_filenames(&tokens).contains(&"innermost.wav"));
@@ -596,7 +594,7 @@ fn headers_around_control_flow_preserved_in_selection() -> TestResult {
 
     let seed = find_seed(1, 2).ok_or("no seed found")?;
     let mut rng = DeterministicRng::new(seed);
-    let (tokens, _) = FlowDocumentBuilder::select_branches(&items, &mut rng);
+    let (tokens, _) = items.select_branches(&mut rng);
 
     assert_eq!(tokens.len(), 3);
     Ok(())
@@ -655,20 +653,17 @@ fn switch_in_switch_select() -> TestResult {
     )?;
 
     // RNG [1, 1]: outer→1 (CASE 1), inner→1 (CASE 1) → a.wav, b.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 1]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: outer→1, inner→2 (CASE 2) → a.wav, c.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: outer→2 (CASE 2) → d.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
     Ok(())
@@ -698,20 +693,17 @@ fn nested_random_in_switch_select() -> TestResult {
     )?;
 
     // RNG [1, 1]: SWITCH→1, RANDOM→1 (IF 1) → a.wav, b.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 1]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: SWITCH→1, RANDOM→2 (ELSEIF 2) → a.wav, c.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: SWITCH→2 (CASE 2) → d.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
     Ok(())
@@ -740,20 +732,17 @@ fn nested_switch_in_random_select() -> TestResult {
     )?;
 
     // RNG [1, 1]: RANDOM→1 (IF 1), SWITCH→1 (CASE 1) → a.wav, b.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 1]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: RANDOM→1, SWITCH→2 (CASE 2) → a.wav, c.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: RANDOM→2 (ELSE) → d.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
     Ok(())
@@ -793,38 +782,32 @@ fn switch_insane_multi_level_select() -> TestResult {
     )?;
 
     // RNG [1, 1]: SWITCH→1 (CASE 1), RANDOM→1 (IF 1) → a.wav, b.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 1]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: SWITCH→1, RANDOM→2 (ELSE) → a.wav, c.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[1, 2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: SWITCH→2 (CASE 2) → d.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
 
     // RNG [3, 1]: SWITCH→3 (CASE 3), inner SWITCH→1 → e.wav, f.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[3, 1]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[3, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["e.wav", "f.wav"]);
 
     // RNG [3, 2]: SWITCH→3, inner SWITCH→2 → e.wav, g.wav
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[3, 2]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[3, 2]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["e.wav", "g.wav"]);
 
     // RNG [4]: SWITCH→4 (no CASE 4, nothing selected) → empty
-    let (tokens, decisions) =
-        FlowDocumentBuilder::select_branches(&items, &mut SequenceRng::new(&[4]));
+    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[4]));
     assert_eq!(decisions.decisions.len(), 1);
     assert!(wav_filenames(&tokens).is_empty());
     Ok(())

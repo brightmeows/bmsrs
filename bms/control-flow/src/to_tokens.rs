@@ -3,43 +3,45 @@
 use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsToken};
 
 use crate::{
-    BranchValue, FlowBlock, FlowContent, FlowDocumentBuilder, FlowItem, RandomBranchKind,
-    SwitchCaseKind,
+    BranchValue, FlowBlock, FlowNode, FlowTree, RandomBranchKind, SwitchCaseKind, TokenPayload,
 };
 
-impl FlowDocumentBuilder {
-    /// Convert a sequence of [`FlowItem`]s back to a flat token stream.
+impl<C: Clone + PartialEq> FlowTree<TokenPayload<C>> {
+    /// Convert the tree back to a flat token stream.
     ///
-    /// This reconstructs the control-flow header commands (`#RANDOM`, `#IF`,
-    /// etc.) around the structured branches, producing a sequence that can
-    /// be re-tokenized to produce an equivalent document.
+    /// Reconstructs the control-flow header commands (`#RANDOM`, `#IF`, etc.)
+    /// around the structured branches and unpacks each payload span, producing
+    /// a sequence that can be re-tokenized to an equivalent document.
     #[must_use]
-    pub fn to_tokens<C: Clone + PartialEq>(items: &[FlowItem<C>]) -> Vec<BmsToken<C>> {
+    pub fn to_tokens(&self) -> Vec<BmsToken<C>> {
         let mut output = Vec::new();
-        for item in items {
-            push_item_tokens(item, &mut output);
+        for node in &self.root {
+            push_node_tokens(node, &mut output);
         }
         output
     }
 }
 
-/// Push tokens for a single [`FlowItem`].
-fn push_item_tokens<C: Clone + PartialEq>(item: &FlowItem<C>, output: &mut Vec<BmsToken<C>>) {
-    match &item.content {
-        FlowContent::Header(h) => {
-            output.push(BmsToken::Header(h.clone()));
+/// Push tokens for a single [`FlowNode`].
+fn push_node_tokens<C: Clone + PartialEq>(
+    node: &FlowNode<TokenPayload<C>>,
+    output: &mut Vec<BmsToken<C>>,
+) {
+    match node {
+        FlowNode::Payload(payload) => {
+            for (_, token) in &payload.tokens {
+                output.push(token.clone());
+            }
         }
-        FlowContent::Message(m) => {
-            output.push(BmsToken::Message(m.clone()));
-        }
-        FlowContent::Block(block) => {
-            push_block_tokens(block, output);
-        }
+        FlowNode::Block(block) => push_block_tokens(block, output),
     }
 }
 
 /// Push tokens for a [`FlowBlock`], including all control-flow headers.
-fn push_block_tokens<C: Clone + PartialEq>(block: &FlowBlock<C>, output: &mut Vec<BmsToken<C>>) {
+fn push_block_tokens<C: Clone + PartialEq>(
+    block: &FlowBlock<TokenPayload<C>>,
+    output: &mut Vec<BmsToken<C>>,
+) {
     match block {
         FlowBlock::Random(r) => {
             let open = match r.value {
@@ -56,8 +58,8 @@ fn push_block_tokens<C: Clone + PartialEq>(block: &FlowBlock<C>, output: &mut Ve
                 };
                 output.push(BmsToken::Header(BmsHeader::ControlFlow(branch_header)));
 
-                for item in &branch.body {
-                    push_item_tokens(item, output);
+                for node in &branch.body {
+                    push_node_tokens(node, output);
                 }
 
                 output.push(BmsToken::Header(BmsHeader::ControlFlow(
@@ -85,8 +87,8 @@ fn push_block_tokens<C: Clone + PartialEq>(block: &FlowBlock<C>, output: &mut Ve
                 };
                 output.push(BmsToken::Header(BmsHeader::ControlFlow(case_header)));
 
-                for item in &case.body {
-                    push_item_tokens(item, output);
+                for node in &case.body {
+                    push_node_tokens(node, output);
                 }
 
                 if case.has_skip {

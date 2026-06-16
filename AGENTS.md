@@ -24,7 +24,7 @@ cargo deny check
 | `bmsrs` | `./src` | Re-export facade |
 | `bms-tokenizer` | `bms/tokenizer` | First stage of `tokenizer → control-flow → parser` |
 | `bms-tokenizer-derive` | `bms/tokenizer-derive` | Proc-macro for `#[derive(BmsTokenAttr)]` |
-| `bms-control-flow` | `bms/control-flow` | Flow document tree, branch selection, roundtrip |
+| `bms-control-flow` | `bms/control-flow` | Generic `FlowTree<P>` control-flow tree, branch selection, roundtrip, payload mapping |
 | `bms-parser` | `bms/parser` | Structured `Bms` model from flat token stream |
 | `bms-processor` | `bms/processor` | `Bms` → `Chart` conversion processor |
 | `bmson-def` | `bmson/def` | bmson format type definitions (v0/v1/v2) |

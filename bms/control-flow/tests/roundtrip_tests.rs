@@ -1,29 +1,31 @@
-//! Integration tests for `FlowDocumentBuilder::to_tokens` roundtrip.
+//! Integration tests for `FlowTree::to_tokens` roundtrip.
 
 use bms_control_flow::ControlFlowError;
-use bms_control_flow::{FlowDocumentBuilder, FlowItem};
+use bms_control_flow::{FlowTree, TokenPayload};
 use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizer};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize and build a `Vec<FlowItem>` with `C = &str`.
-fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<&str>>, ControlFlowError> {
+/// Helper: tokenize and build a `FlowTree<TokenPayload<&str>>`.
+fn build_doc(input: &str) -> std::result::Result<FlowTree<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
-    FlowDocumentBuilder::from_tokens(tokens)
+    FlowTree::from_tokens(tokens)
 }
 
 /// Helper: tokenize and build with `C = String` for polymorphism coverage.
-fn build_doc_string(input: &str) -> std::result::Result<Vec<FlowItem<String>>, ControlFlowError> {
+fn build_doc_string(
+    input: &str,
+) -> std::result::Result<FlowTree<TokenPayload<String>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, String>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
-    FlowDocumentBuilder::from_tokens(tokens)
+    FlowTree::from_tokens(tokens)
 }
 
 /// Extract control-flow headers from a token list as debug strings.
@@ -40,7 +42,7 @@ fn cf_debug(tokens: &[BmsToken<&str>]) -> Vec<String> {
 #[test]
 fn plain_tokens_roundtrip_no_control_flow() -> TestResult {
     let items = build_doc("#TITLE Test\n#BPM 120\n#00101:1122")?;
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
 
     assert_eq!(tokens.len(), 3);
     assert!(matches!(tokens.first(), Some(BmsToken::Header(_))));
@@ -62,7 +64,7 @@ fn random_block_roundtrip_preserves_structure() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -90,7 +92,7 @@ fn switch_block_roundtrip_preserves_structure() -> TestResult {
          #ENDSW",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -123,7 +125,7 @@ fn nested_blocks_roundtrip_preserves_structure() -> TestResult {
          #ENDSW",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -153,7 +155,7 @@ fn setrandom_preserved_as_setrandom() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -176,7 +178,7 @@ fn no_endrandom_block_not_in_top_level() -> TestResult {
          #ENDIF",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     assert!(tokens.is_empty());
     Ok(())
 }
@@ -194,7 +196,7 @@ fn elseif_and_else_roundtrip() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -225,7 +227,7 @@ fn skip_preserved_in_switch() -> TestResult {
          #ENDSW",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -250,7 +252,7 @@ fn setswitch_preserved_as_setswitch() -> TestResult {
          #ENDSW",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -277,7 +279,7 @@ fn switch_def_with_skip_roundtrip() -> TestResult {
          #ENDSW",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -304,7 +306,7 @@ fn switch_only_def_roundtrip() -> TestResult {
          #ENDSW",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -338,7 +340,7 @@ fn elseif_with_content_roundtrip() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(
@@ -362,7 +364,7 @@ fn elseif_with_content_roundtrip() -> TestResult {
 #[test]
 fn random_empty_block_roundtrip() -> TestResult {
     let items = build_doc("#RANDOM 2\n#ENDRANDOM")?;
-    let tokens = FlowDocumentBuilder::to_tokens(&items);
+    let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
     assert_eq!(cfs, vec!["Random(2)".to_string(), "EndRandom".to_string()]);
@@ -383,7 +385,7 @@ fn random_block_roundtrip_with_string_container() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let tokens: Vec<BmsToken<String>> = FlowDocumentBuilder::to_tokens(&items);
+    let tokens: Vec<BmsToken<String>> = items.to_tokens();
     let cfs: Vec<String> = tokens
         .iter()
         .filter_map(|t| match t {

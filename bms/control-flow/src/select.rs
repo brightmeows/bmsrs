@@ -1,14 +1,14 @@
-//! RNG-based branch selection for [`FlowDocument`].
+//! RNG-based branch selection for [`FlowTree`].
 
 use bms_tokenizer::BmsToken;
 
 use crate::rng::BranchRng;
 use crate::{
-    BlockDecision, BranchSelection, BranchValue, FlowBlock, FlowContent, FlowDocumentBuilder,
-    FlowItem, RandomBranchKind, SwitchCaseKind,
+    BlockDecision, BranchSelection, BranchValue, FlowBlock, FlowNode, FlowTree, RandomBranchKind,
+    SwitchCaseKind, TokenPayload,
 };
 
-impl FlowDocumentBuilder {
+impl<C: Clone + PartialEq> FlowTree<TokenPayload<C>> {
     /// Select one branch per control-flow block using `rng`.
     ///
     /// Returns a flat token stream with only the chosen branches, plus a
@@ -21,44 +21,38 @@ impl FlowDocumentBuilder {
     /// - `#SWITCH` blocks: the first `#CASE` matching the value is selected,
     ///   with fall-through to subsequent cases until `#SKIP` is hit.
     #[must_use]
-    pub fn select_branches<C: Clone + PartialEq>(
-        items: &[FlowItem<C>],
-        rng: &mut impl BranchRng,
-    ) -> (Vec<BmsToken<C>>, BranchSelection) {
+    pub fn select_branches(&self, rng: &mut impl BranchRng) -> (Vec<BmsToken<C>>, BranchSelection) {
         let mut output = Vec::new();
         let mut decisions = Vec::new();
 
-        for item in items {
-            select_item(item, rng, &mut output, &mut decisions);
+        for node in &self.root {
+            select_node(node, rng, &mut output, &mut decisions);
         }
 
         (output, BranchSelection { decisions })
     }
 }
 
-/// Process a single [`FlowItem`], appending tokens to `output`.
-fn select_item<C: Clone + PartialEq>(
-    item: &FlowItem<C>,
+/// Process a single [`FlowNode`], appending tokens to `output`.
+fn select_node<C: Clone + PartialEq>(
+    node: &FlowNode<TokenPayload<C>>,
     rng: &mut impl BranchRng,
     output: &mut Vec<BmsToken<C>>,
     decisions: &mut Vec<BlockDecision>,
 ) {
-    match &item.content {
-        FlowContent::Header(h) => {
-            output.push(BmsToken::Header(h.clone()));
+    match node {
+        FlowNode::Payload(payload) => {
+            for (_, token) in &payload.tokens {
+                output.push(token.clone());
+            }
         }
-        FlowContent::Message(m) => {
-            output.push(BmsToken::Message(m.clone()));
-        }
-        FlowContent::Block(block) => {
-            select_block(block, rng, output, decisions);
-        }
+        FlowNode::Block(block) => select_block(block, rng, output, decisions),
     }
 }
 
 /// Select branches within a [`FlowBlock`].
 fn select_block<C: Clone + PartialEq>(
-    block: &FlowBlock<C>,
+    block: &FlowBlock<TokenPayload<C>>,
     rng: &mut impl BranchRng,
     output: &mut Vec<BmsToken<C>>,
     decisions: &mut Vec<BlockDecision>,
@@ -79,8 +73,8 @@ fn select_block<C: Clone + PartialEq>(
                 .unwrap_or(r.branches.len());
 
             if let Some(branch) = r.branches.get(selected_index) {
-                for item in &branch.body {
-                    select_item(item, rng, output, decisions);
+                for node in &branch.body {
+                    select_node(node, rng, output, decisions);
                 }
             }
 
@@ -116,8 +110,8 @@ fn select_block<C: Clone + PartialEq>(
                 }
 
                 if found_match {
-                    for item in &case.body {
-                        select_item(item, rng, output, decisions);
+                    for node in &case.body {
+                        select_node(node, rng, output, decisions);
                     }
                     if case.has_skip {
                         stopped = true;

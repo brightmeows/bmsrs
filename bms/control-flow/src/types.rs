@@ -2,7 +2,7 @@
 
 use std::num::NonZeroUsize;
 
-use bms_tokenizer::{BmsHeader, BmsMessage};
+use bms_tokenizer::BmsToken;
 
 /// How a control-flow block's active value is determined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,61 +13,59 @@ pub enum BranchValue {
     Set(u64),
 }
 
-/// Builder for constructing and processing control-flow trees.
+/// A control-flow tree carrying payload type `P` at each content span.
 ///
-/// All methods are associated functions on this zero-sized struct.
-/// Use `FlowDocumentBuilder::from_tokens(...)` to build, then
-/// `FlowDocumentBuilder::select_branches(&items, rng)` or
-/// `FlowDocumentBuilder::to_tokens(&items)`.
-pub struct FlowDocumentBuilder;
-
-/// A single entry in a control-flow tree, carrying its original line number.
+/// Consecutive non-control-flow tokens are packed into a single payload
+/// node ([`FlowNode::Payload`]); control-flow commands become structured
+/// [`FlowBlock`] nodes. Build with [`FlowTree::from_tokens`], then use
+/// [`FlowTree::select_branches`], [`FlowTree::to_tokens`], or
+/// [`FlowTree::map_payload`] to derive other views.
+///
+/// `FlowTree<TokenPayload<C>>` is the token-level source of truth (editable,
+/// roundtrippable). `FlowTree<Bms>` (obtained via `map_payload` downstream) is
+/// a read-only view showing each span's parsed aggregate.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FlowItem<C> {
-    /// 1-based line number from the original BMS source.
-    pub line: NonZeroUsize,
-    /// The content of this entry.
-    pub content: FlowContent<C>,
+pub struct FlowTree<P> {
+    /// Top-level nodes (payload spans and control-flow blocks).
+    pub root: Vec<FlowNode<P>>,
 }
 
-/// The content of a [`FlowItem`].
+/// A single entry in a [`FlowTree`]: either a payload span or a control-flow block.
 #[derive(Debug, Clone, PartialEq)]
-pub enum FlowContent<C> {
-    /// A header command (metadata, resource definition, etc.).
-    Header(BmsHeader<C>),
-    /// A channel data line (`#xxxYY:values`).
-    Message(BmsMessage<C>),
+pub enum FlowNode<P> {
+    /// A span of consecutive non-control-flow tokens, packed into payload `P`.
+    Payload(P),
     /// A control-flow block (`#RANDOM` or `#SWITCH`).
-    Block(FlowBlock<C>),
+    Block(FlowBlock<P>),
 }
 
 /// A control-flow block.
 #[derive(Debug, Clone, PartialEq)]
-pub enum FlowBlock<C> {
+pub enum FlowBlock<P> {
     /// A `#RANDOM` / `#SETRANDOM` block containing conditional branches.
-    Random(RandomBlock<C>),
+    Random(RandomBlock<P>),
     /// A `#SWITCH` / `#SETSWITCH` block containing case branches.
-    Switch(SwitchBlock<C>),
+    Switch(SwitchBlock<P>),
 }
 
 /// A `#RANDOM` / `#SETRANDOM` block with its conditional branches.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RandomBlock<C> {
+pub struct RandomBlock<P> {
     /// How the branch value is determined (random range or fixed).
     pub value: BranchValue,
     /// Whether the closing `#ENDRANDOM` was present.
     pub has_end_random: bool,
     /// Conditional branches inside this block.
-    pub branches: Vec<RandomBranch<C>>,
+    pub branches: Vec<RandomBranch<P>>,
 }
 
 /// A single conditional branch inside a [`RandomBlock`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct RandomBranch<C> {
+pub struct RandomBranch<P> {
     /// The kind of branch condition.
     pub kind: RandomBranchKind,
-    /// Items belonging to this branch.
-    pub body: Vec<FlowItem<C>>,
+    /// Nodes belonging to this branch.
+    pub body: Vec<FlowNode<P>>,
 }
 
 /// The kind of condition for a [`RandomBranch`].
@@ -83,20 +81,20 @@ pub enum RandomBranchKind {
 
 /// A `#SWITCH` / `#SETSWITCH` block with its case branches.
 #[derive(Debug, Clone, PartialEq)]
-pub struct SwitchBlock<C> {
+pub struct SwitchBlock<P> {
     /// How the branch value is determined (random range or fixed).
     pub value: BranchValue,
     /// Cases inside this switch block.
-    pub cases: Vec<SwitchCase<C>>,
+    pub cases: Vec<SwitchCase<P>>,
 }
 
 /// A single case inside a [`SwitchBlock`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct SwitchCase<C> {
+pub struct SwitchCase<P> {
     /// The kind of case condition.
     pub kind: SwitchCaseKind,
-    /// Items belonging to this case.
-    pub body: Vec<FlowItem<C>>,
+    /// Nodes belonging to this case.
+    pub body: Vec<FlowNode<P>>,
     /// Whether a `#SKIP` directive was present at the end of this case.
     pub has_skip: bool,
 }
@@ -108,6 +106,17 @@ pub enum SwitchCaseKind {
     Case(u64),
     /// `#DEF` — default case, matches when no `#CASE` matched.
     Def,
+}
+
+/// Token-level payload: preserves each token of a span with its original line.
+///
+/// This is the source-of-truth payload produced by [`FlowTree::from_tokens`].
+/// Roundtrip ([`FlowTree::to_tokens`]) and branch selection
+/// ([`FlowTree::select_branches`]) operate on this payload kind.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TokenPayload<C> {
+    /// The consecutive `(line, token)` pairs in this span.
+    pub tokens: Vec<(NonZeroUsize, BmsToken<C>)>,
 }
 
 /// Record of branch-selection decisions made during `select_branches`.
