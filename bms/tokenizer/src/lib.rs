@@ -12,10 +12,11 @@
 //!
 //! Submodules are private; all public types are re-exported from the crate root.
 //!
-//! # Zero-copy
+//! # String storage
 //!
-//! String data (paths, display text) borrows from the input. Typed values
-//! (numeric conversions, parsed enums) are owned.
+//! String data uses the type parameter `C` (defaults to `&str` for zero-copy,
+//! or `String` for owned). Typed values (numeric conversions, parsed enums)
+//! are always owned.
 //! [`ErrorStrategy::FailFast`] stops at the first error — useful for
 //! interactive validation where immediate feedback is preferred.
 
@@ -49,27 +50,6 @@ pub use index::{
 };
 pub use message::BmsMessage;
 
-/// Trait alias for string container types used in `BmsToken` / `BmsHeader`.
-///
-/// Represents the bound `AsRef<str> + Display + Clone + From<&'a str> + Sized + 'a`.
-/// Blanket-implemented for all standard types that satisfy these bounds
-/// (`&'a str`, `Cow<'a, str>`, `String`, `Arc<str>`, `Box<str>`, `Rc<str>`).
-///
-/// The [`from_borrowed`](BmsStr::from_borrowed) method is the primary construction
-/// point during tokenization — it converts an input borrow into the chosen container.
-pub trait BmsStr<'a>: AsRef<str> + fmt::Display + Clone + From<&'a str> + Sized + 'a {
-    /// Create a string container by borrowing from the input.
-    ///
-    /// The default implementation delegates to `From<&'a str>`, which is correct
-    /// for all standard containers.
-    #[must_use]
-    fn from_borrowed(s: &'a str) -> Self {
-        Self::from(s)
-    }
-}
-
-impl<'a, T> BmsStr<'a> for T where T: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a {}
-
 /// Unified trait for BMS header values.
 ///
 /// Combines parsing (from an input string) and formatting (back to a BMS value
@@ -79,16 +59,15 @@ impl<'a, T> BmsStr<'a> for T where T: AsRef<str> + fmt::Display + Clone + From<&
 ///
 /// # Lifetimes
 ///
-/// The `'a` lifetime allows implementations to borrow from the input string
-/// without allocating (e.g., `ExBmpParams<'a>`).  Owned-only types can safely
-/// implement the trait with any `'a`.
+/// The `'a` lifetime is the input string's lifetime — implementations may
+/// borrow from it without allocating (e.g., `ExBmpParams<'a>`).  Owned-only
+/// types can safely implement the trait with any `'a`.
 ///
 /// # Type parameters
 ///
-/// `C` is the string container type used by types in this crate.  It defaults
-/// to `&'a str` for zero-copy tokenization.  The parameter exists so that
-/// downstream consumers can switch to `Cow<'a, str>`, `String`, `Arc<str>`,
-/// etc.
+/// `C` is the string container type used downstream (e.g., `&str`, `String`,
+/// `Cow<'_, str>`).  The parameter exists so that consumers can choose between
+/// zero-copy and owned storage.
 ///
 /// # Formatting
 ///
@@ -124,33 +103,31 @@ where
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeader<'a, C>> for BmsToken<'a, C> {
+impl<C> From<BmsHeader<C>> for BmsToken<C> {
     #[inline]
-    fn from(header: BmsHeader<'a, C>) -> Self {
+    fn from(header: BmsHeader<C>) -> Self {
         BmsToken::Header(header)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsToken<'a, C>> for BmsHeader<'a, C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(token: BmsToken<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(token: BmsToken<C>) -> Result<Self, Self::Error> {
         match token {
             BmsToken::Header(h) => Ok(h),
-            _ => Err(BmsTryFromError::NotAHeader),
+            BmsToken::Message(_) => Err(BmsTryFromError::NotAHeader),
         }
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<(NonZeroUsize, Result<BmsToken<'a, C>, BmsTokenizeError<'a>>)>
-    for BmsToken<'a, C>
-{
+impl<'a, C> TryFrom<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>)> for BmsToken<C> {
     type Error = BmsTryFromError<'a>;
 
     #[inline]
     fn try_from(
-        pair: (NonZeroUsize, Result<BmsToken<'a, C>, BmsTokenizeError<'a>>),
+        pair: (NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>),
     ) -> Result<Self, Self::Error> {
         let (line, result) = pair;
         result.map_err(|error| BmsTryFromError::TokenizationError { line, error })
@@ -162,14 +139,11 @@ use message::parse_message_line;
 
 /// A single token produced by tokenizing a BMS file.
 #[derive(Debug, Clone, PartialEq)]
-pub enum BmsToken<'a, C = &'a str> {
+pub enum BmsToken<C> {
     /// A header command (metadata, gameplay, timing, resources, etc.).
-    Header(BmsHeader<'a, C>),
+    Header(BmsHeader<C>),
     /// A channel data line (`#xxxYY:values`).
-    Message(BmsMessage<'a, C>),
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    #[doc(hidden)]
-    _Phantom(std::marker::PhantomData<&'a C>),
+    Message(BmsMessage<C>),
 }
 
 /// Error strategy for BMS tokenization.
@@ -262,8 +236,8 @@ impl BmsTokenizer {
     #[must_use]
     pub fn tokenize<'a, Out, C>(&self, input: &'a str) -> Out
     where
-        Out: FromIterator<(NonZeroUsize, Result<BmsToken<'a, C>, BmsTokenizeError<'a>>)>,
-        C: Clone + AsRef<str> + fmt::Display + From<&'a str> + 'a,
+        Out: FromIterator<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>)>,
+        C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a,
     {
         let mut results = Vec::new();
         let mut line_number: usize = 0;
@@ -281,7 +255,7 @@ impl BmsTokenizer {
                 // before first use); the fallback is unreachable.
                 let nz_line = NonZeroUsize::new(line_number).unwrap_or(NonZeroUsize::MAX);
 
-                let result: Result<BmsToken<'_, C>, BmsTokenizeError<'_>> =
+                let result: Result<BmsToken<C>, BmsTokenizeError<'_>> =
                     match parse_message_line::<C>(trimmed) {
                         Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
                         Ok(None) => match parse_header_line::<C>(trimmed, &self.header_prefixes) {

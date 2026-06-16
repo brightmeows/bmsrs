@@ -7,7 +7,7 @@ use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizer};
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
 /// Helper: tokenize and build a `Vec<FlowItem>` with `C = &str`.
-fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<'_>>, ControlFlowError> {
+fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
@@ -17,9 +17,7 @@ fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<'_>>, ControlFlowE
 }
 
 /// Helper: tokenize and build with `C = String` for polymorphism coverage.
-fn build_doc_string(
-    input: &str,
-) -> std::result::Result<Vec<FlowItem<'_, String>>, ControlFlowError> {
+fn build_doc_string(input: &str) -> std::result::Result<Vec<FlowItem<String>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, String>(input)
         .into_iter()
@@ -29,7 +27,7 @@ fn build_doc_string(
 }
 
 /// Extract control-flow headers from a token list as debug strings.
-fn cf_debug(tokens: &[BmsToken<'_>]) -> Vec<String> {
+fn cf_debug(tokens: &[BmsToken<&str>]) -> Vec<String> {
     tokens
         .iter()
         .filter_map(|t| match t {
@@ -385,7 +383,7 @@ fn random_block_roundtrip_with_string_container() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let tokens: Vec<BmsToken<'_, String>> = FlowDocumentBuilder::to_tokens(&items);
+    let tokens: Vec<BmsToken<String>> = FlowDocumentBuilder::to_tokens(&items);
     let cfs: Vec<String> = tokens
         .iter()
         .filter_map(|t| match t {

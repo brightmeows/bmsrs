@@ -11,7 +11,7 @@ use bms_tokenizer::{BmsToken, BmsTokenizer};
 type TestResult = std::result::Result<(), ControlFlowError>;
 
 /// Helper: tokenize BMS text and filter to successful tokens only.
-fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<'_>)> {
+fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<&str>)> {
     BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
@@ -20,13 +20,13 @@ fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<'_>)> {
 }
 
 /// Helper: tokenize and build a `Vec<FlowItem>`.
-fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<'_>>, ControlFlowError> {
+fn build_doc(input: &str) -> std::result::Result<Vec<FlowItem<&str>>, ControlFlowError> {
     let tokens = tokenize(input);
     FlowDocumentBuilder::from_tokens(tokens)
 }
 
 /// Extract the first item as a `Random` block reference, or panic.
-fn as_random<'a>(items: &'a [FlowItem<'a>]) -> &'a bms_control_flow::RandomBlock<'a> {
+fn as_random<'a>(items: &'a [FlowItem<&'a str>]) -> &'a bms_control_flow::RandomBlock<&'a str> {
     let Some(FlowContent::Block(FlowBlock::Random(r))) = items.first().map(|i| &i.content) else {
         panic!("expected Random block");
     };
@@ -34,7 +34,7 @@ fn as_random<'a>(items: &'a [FlowItem<'a>]) -> &'a bms_control_flow::RandomBlock
 }
 
 /// Extract the first item as a `Switch` block reference, or panic.
-fn as_switch<'a>(items: &'a [FlowItem<'a>]) -> &'a bms_control_flow::SwitchBlock<'a> {
+fn as_switch<'a>(items: &'a [FlowItem<&'a str>]) -> &'a bms_control_flow::SwitchBlock<&'a str> {
     let Some(FlowContent::Block(FlowBlock::Switch(s))) = items.first().map(|i| &i.content) else {
         panic!("expected Switch block");
     };

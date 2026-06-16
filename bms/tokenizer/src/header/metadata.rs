@@ -2,7 +2,6 @@
 //! `#SUBARTIST`, `#GENRE`, `#MAKER`, `#COMMENT`, `#TEXT`/`#SONG`,
 //! `#CHARSET`, `%URL`, `%EMAIL`.
 
-use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::index::{BmsIndex, TextTag};
 use crate::{BmsHeader, BmsTryFromError};
@@ -12,7 +11,7 @@ use crate::{BmsHeader, BmsTryFromError};
 /// These commands identify the chart and its authors.  They carry no
 /// gameplay effect — they are purely informational.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderMetadata<'a, C = &'a str> {
+pub enum BmsHeaderMetadata<C> {
     /// `#TITLE` — song title.
     ///
     /// **Should not be omitted** — some players crash when it is absent
@@ -92,25 +91,22 @@ pub enum BmsHeaderMetadata<'a, C = &'a str> {
     /// **Caveat**: BMSE and iBMSC delete `%EMAIL` on save.
     #[bms_token("%EMAIL {}")]
     Email(C),
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    #[doc(hidden)]
-    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeaderMetadata<'a, C>> for BmsHeader<'a, C> {
+impl<C> From<BmsHeaderMetadata<C>> for BmsHeader<C> {
     #[inline]
-    fn from(meta: BmsHeaderMetadata<'a, C>) -> Self {
+    fn from(meta: BmsHeaderMetadata<C>) -> Self {
         BmsHeader::Metadata(meta)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderMetadata<'a, C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsHeader<C>> for BmsHeaderMetadata<C> {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Metadata(m) => Ok(m),
             _ => Err(BmsTryFromError::WrongHeaderType),

@@ -3,9 +3,7 @@
 //! `#SEEK`, `#ExtChr`.
 
 use std::fmt;
-use std::marker::PhantomData;
 
-use crate::BmsStr;
 use crate::header::display::PoorBgaMode;
 use crate::index::{BmpTag, BmsIndex, SeekTag};
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
@@ -119,7 +117,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// instead of the default pure-black (`RGB:00:00:00`).  The index
 /// shares the `#BMP` namespace.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExBmpParams<'a, C = &'a str> {
+pub struct ExBmpParams<C> {
     /// Alpha component (0–255).
     pub a: u8,
     /// Red component (0–255).
@@ -130,11 +128,9 @@ pub struct ExBmpParams<'a, C = &'a str> {
     pub b: u8,
     /// Path or name of the resource file.
     pub filename: C,
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    pub _phantom: PhantomData<&'a C>,
 }
 
-impl<C: AsRef<str> + fmt::Display> fmt::Display for ExBmpParams<'_, C> {
+impl<C: AsRef<str> + fmt::Display> fmt::Display for ExBmpParams<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -145,7 +141,7 @@ impl<C: AsRef<str> + fmt::Display> fmt::Display for ExBmpParams<'_, C> {
 }
 
 impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for ExBmpParams<'a, C>
+    for ExBmpParams<C>
 {
     fn parse(s: &'a str) -> Option<Self> {
         let (argb_part, rest) = s.split_once(' ')?;
@@ -156,7 +152,6 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
             g: green,
             b: blue,
             filename: C::from(rest.trim()),
-            _phantom: PhantomData,
         })
     }
 }
@@ -170,7 +165,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// index.  Unlike normal BMS messages, `00` here **shows** `#BMP00`
 /// rather than being a rest.
 #[derive(Debug, Clone, PartialEq)]
-pub struct SwBgaParams<'a, C = &'a str> {
+pub struct SwBgaParams<C> {
     /// Frame rate.
     pub fr: u32,
     /// Transition time in frames.
@@ -189,11 +184,9 @@ pub struct SwBgaParams<'a, C = &'a str> {
     pub b: u8,
     /// Transition pattern name or path.
     pub pattern: C,
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    pub _phantom: PhantomData<&'a C>,
 }
 
-impl<C: AsRef<str> + fmt::Display> fmt::Display for SwBgaParams<'_, C> {
+impl<C: AsRef<str> + fmt::Display> fmt::Display for SwBgaParams<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let loop_val = if self.r#loop { "1" } else { "0" };
         write!(
@@ -205,7 +198,7 @@ impl<C: AsRef<str> + fmt::Display> fmt::Display for SwBgaParams<'_, C> {
 }
 
 impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for SwBgaParams<'a, C>
+    for SwBgaParams<C>
 {
     #[expect(clippy::many_single_char_names, reason = "ARGB component names")]
     fn parse(s: &'a str) -> Option<Self> {
@@ -229,7 +222,6 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
             g,
             b,
             pattern: C::from(pattern.trim()),
-            _phantom: PhantomData,
         })
     }
 }
@@ -305,7 +297,7 @@ fn parse_argb(s: &str) -> Option<(u8, u8, u8, u8)> {
 /// These commands define the images, videos, and BGA (background
 /// animation) layers used by the chart.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderResDefVisual<'a, C = &'a str> {
+pub enum BmsHeaderResDefVisual<C> {
     /// `#BMP{id}` — image file definition.
     ///
     /// Referenced by BGA channels `#xxx04` (BASE), `#xxx06` (POOR),
@@ -335,7 +327,7 @@ pub enum BmsHeaderResDefVisual<'a, C = &'a str> {
         /// The 2-character index.
         id: BmsIndex<BmpTag>,
         /// Parsed parameters.
-        params: ExBmpParams<'a, C>,
+        params: ExBmpParams<C>,
     },
     /// `#BGA{id}` — image crop-and-place definition.
     #[bms_token("#BGA{id} {params}")]
@@ -366,7 +358,7 @@ pub enum BmsHeaderResDefVisual<'a, C = &'a str> {
         /// The 2-character index.
         id: BmsIndex<BmpTag>,
         /// Parsed transition parameters.
-        params: SwBgaParams<'a, C>,
+        params: SwBgaParams<C>,
     },
     /// `#ARGB{id}` — per-layer ARGB colour/alpha overlay (nanasi).
     #[bms_token("#ARGB{id} {params}")]
@@ -432,25 +424,22 @@ pub enum BmsHeaderResDefVisual<'a, C = &'a str> {
     /// Default: `0` (start from the beginning).
     #[bms_token("#VIDEODLY {}")]
     VideoDly(f64),
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    #[doc(hidden)]
-    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeaderResDefVisual<'a, C>> for BmsHeader<'a, C> {
+impl<C> From<BmsHeaderResDefVisual<C>> for BmsHeader<C> {
     #[inline]
-    fn from(visual: BmsHeaderResDefVisual<'a, C>) -> Self {
+    fn from(visual: BmsHeaderResDefVisual<C>) -> Self {
         BmsHeader::ResDefVisual(visual)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderResDefVisual<'a, C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefVisual<C> {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::ResDefVisual(v) => Ok(v),
             _ => Err(BmsTryFromError::WrongHeaderType),

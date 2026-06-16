@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    ArgbParams, AtBgaParams, BgaParams, BmpTag, BmsHeaderResDefVisual, BmsIndex, BmsStr,
-    ExBmpParams, PoorBgaMode, SeekTag, SwBgaParams,
+    ArgbParams, AtBgaParams, BgaParams, BmpTag, BmsHeaderResDefVisual, BmsIndex, ExBmpParams,
+    PoorBgaMode, SeekTag, SwBgaParams,
 };
 
 // Owned parameter types
@@ -29,8 +29,8 @@ pub struct OwnedExBmpParams {
     pub filename: String,
 }
 
-impl<'a, C: BmsStr<'a>> From<&ExBmpParams<'a, C>> for OwnedExBmpParams {
-    fn from(p: &ExBmpParams<'a, C>) -> Self {
+impl<C: AsRef<str>> From<&ExBmpParams<C>> for OwnedExBmpParams {
+    fn from(p: &ExBmpParams<C>) -> Self {
         Self {
             a: p.a,
             r: p.r,
@@ -64,8 +64,8 @@ pub struct OwnedSwBgaParams {
     pub pattern: String,
 }
 
-impl<'a, C: BmsStr<'a>> From<&SwBgaParams<'a, C>> for OwnedSwBgaParams {
-    fn from(p: &SwBgaParams<'a, C>) -> Self {
+impl<C: AsRef<str>> From<&SwBgaParams<C>> for OwnedSwBgaParams {
+    fn from(p: &SwBgaParams<C>) -> Self {
         Self {
             fr: p.fr,
             time: p.time,
@@ -120,7 +120,7 @@ pub struct Visual {
 
 impl Visual {
     /// Apply a visual resource header to this struct.
-    pub fn apply<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeaderResDefVisual<'a, C>) {
+    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefVisual<C>) {
         match header {
             BmsHeaderResDefVisual::Bmp { id, filename } => {
                 self.bmp_files.insert(*id, filename.as_ref().to_owned());
@@ -150,7 +150,6 @@ impl Visual {
             BmsHeaderResDefVisual::VideoColors(c) => self.video_colors = Some(*c),
             BmsHeaderResDefVisual::VideoDly(d) => self.video_dly = Some(*d),
             BmsHeaderResDefVisual::PoorBga(m) => self.poor_bga_mode = Some(*m),
-            BmsHeaderResDefVisual::_Phantom(_) => unreachable!(),
         }
     }
 }

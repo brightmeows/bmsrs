@@ -10,15 +10,15 @@ use bms_tokenizer::{
 };
 
 /// `Vec<(line, result)>` with explicit C type.
-type TokenVec<'a, C> = Vec<(NonZeroUsize, Result<BmsToken<'a, C>, BmsTokenizeError<'a>>)>;
+type TokenVec<'a, C> = Vec<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<'a>>)>;
 
 /// Tokenize with `&str` and `String` — verify same line numbers and Ok status.
 #[test]
 fn different_c_containers_same_content() {
     let input = "#TITLE My Song\n#ARTIST Composer\n#WAV01 kick.wav\n#00101:1122";
 
-    let tokens_ref: TokenVec<'_, &str> = BmsTokenizer::new().tokenize(input);
-    let tokens_string: TokenVec<'_, String> = BmsTokenizer::new().tokenize(input);
+    let tokens_ref: TokenVec<&str> = BmsTokenizer::new().tokenize(input);
+    let tokens_string: TokenVec<String> = BmsTokenizer::new().tokenize(input);
 
     assert_eq!(tokens_ref.len(), tokens_string.len());
 
@@ -33,7 +33,7 @@ fn different_c_containers_same_content() {
 #[test]
 fn string_container_owned_values() {
     let input = "#TITLE My Song";
-    let tokens: TokenVec<'_, String> = BmsTokenizer::new().tokenize(input);
+    let tokens: TokenVec<String> = BmsTokenizer::new().tokenize(input);
     if let BmsToken::Header(BmsHeader::Metadata(BmsHeaderMetadata::Title(s))) =
         &tokens[0].1.as_ref().unwrap()
     {
@@ -47,7 +47,7 @@ fn string_container_owned_values() {
 #[test]
 fn c_fields_parsed_correctly() {
     let input = "#WAV01 kick.wav";
-    let tokens: TokenVec<'_, &str> = BmsTokenizer::new().tokenize(input);
+    let tokens: TokenVec<&str> = BmsTokenizer::new().tokenize(input);
     let token = &tokens[0];
     let unwrapped = token.1.as_ref().unwrap();
     assert!(matches!(

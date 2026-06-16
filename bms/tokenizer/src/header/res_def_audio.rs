@@ -2,9 +2,7 @@
 //! `#CDDA`, `#MIDIFILE`, `#PATH_WAV`.
 
 use std::fmt;
-use std::marker::PhantomData;
 
-use crate::BmsStr;
 use crate::index::{BmsIndex, WavTag};
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
@@ -32,18 +30,16 @@ use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 ///
 /// The `#EXWAV` index shares the same namespace as `#WAV`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExWavParams<'a, C = &'a str> {
+pub struct ExWavParams<C> {
     /// Flag characters (e.g., `"pvf"`).
     pub flags: C,
     /// Parsed numeric values, one per flag character.
     pub values: Vec<f64>,
     /// Path or name of the resource file.
     pub filename: C,
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    pub _phantom: PhantomData<&'a C>,
 }
 
-impl<C: AsRef<str> + fmt::Display> fmt::Display for ExWavParams<'_, C> {
+impl<C: AsRef<str> + fmt::Display> fmt::Display for ExWavParams<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.flags.as_ref().is_empty() {
             write!(f, "{}", self.filename)
@@ -58,7 +54,7 @@ impl<C: AsRef<str> + fmt::Display> fmt::Display for ExWavParams<'_, C> {
 }
 
 impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for ExWavParams<'a, C>
+    for ExWavParams<C>
 {
     fn parse(s: &'a str) -> Option<Self> {
         let mut parts = s.split_whitespace();
@@ -81,14 +77,12 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
                 flags: C::from(first),
                 values,
                 filename: C::from(filename),
-                _phantom: PhantomData,
             })
         } else {
             Some(Self {
                 flags: C::from(""),
                 values: Vec::new(),
                 filename: C::from(s.trim()),
-                _phantom: PhantomData,
             })
         }
     }
@@ -124,7 +118,7 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
 /// are the most widely supported formats; MP3 introduces audible latency
 /// in most players and is generally avoided.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderResDefAudio<'a, C = &'a str> {
+pub enum BmsHeaderResDefAudio<C> {
     /// `#WAV{id}` — sound effect or BGM file definition.
     ///
     /// Referenced by channels `#xxx01` (BGM), `#xxx11-19` / `#xxx21-29`
@@ -155,7 +149,7 @@ pub enum BmsHeaderResDefAudio<'a, C = &'a str> {
         /// The 2-character index.
         id: BmsIndex<WavTag>,
         /// Parsed EXWAV parameters.
-        params: ExWavParams<'a, C>,
+        params: ExWavParams<C>,
     },
     /// `#WAVCMD` — pitch/volume/duration overrides (`MacBeat` extension).
     ///
@@ -182,25 +176,22 @@ pub enum BmsHeaderResDefAudio<'a, C = &'a str> {
     /// avoid path issues on other systems.
     #[bms_token("#PATH_WAV {}")]
     PathWav(C),
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    #[doc(hidden)]
-    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeaderResDefAudio<'a, C>> for BmsHeader<'a, C> {
+impl<C> From<BmsHeaderResDefAudio<C>> for BmsHeader<C> {
     #[inline]
-    fn from(audio: BmsHeaderResDefAudio<'a, C>) -> Self {
+    fn from(audio: BmsHeaderResDefAudio<C>) -> Self {
         BmsHeader::ResDefAudio(audio)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderResDefAudio<'a, C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefAudio<C> {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::ResDefAudio(a) => Ok(a),
             _ => Err(BmsTryFromError::WrongHeaderType),

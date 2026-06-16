@@ -3,7 +3,6 @@
 
 use std::fmt;
 
-use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::BmsValue;
 use crate::index::{BmsIndex, BpmTag, ScrollTag, SpeedTag, StopTag};
@@ -191,18 +190,18 @@ pub enum BmsHeaderTiming {
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeaderTiming> for BmsHeader<'a, C> {
+impl<C> From<BmsHeaderTiming> for BmsHeader<C> {
     #[inline]
     fn from(timing: BmsHeaderTiming) -> Self {
         BmsHeader::Timing(timing)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderTiming {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsHeader<C>> for BmsHeaderTiming {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Timing(t) => Ok(t),
             _ => Err(BmsTryFromError::WrongHeaderType),

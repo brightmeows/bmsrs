@@ -5,7 +5,6 @@
 //! which branch to keep is the responsibility of a later pipeline stage
 //! (parser/processor).
 
-use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::{BmsHeader, BmsTryFromError};
 
@@ -94,18 +93,18 @@ pub enum BmsHeaderControlFlow {
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeaderControlFlow> for BmsHeader<'a, C> {
+impl<C> From<BmsHeaderControlFlow> for BmsHeader<C> {
     #[inline]
     fn from(flow: BmsHeaderControlFlow) -> Self {
         BmsHeader::ControlFlow(flow)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderControlFlow {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsHeader<C>> for BmsHeaderControlFlow {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::ControlFlow(f) => Ok(f),
             _ => Err(BmsTryFromError::WrongHeaderType),

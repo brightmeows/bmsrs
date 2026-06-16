@@ -54,13 +54,13 @@ use std::fmt;
 
 use crate::channel::{BmsChannel, classify_channel};
 use crate::index::{Base36, Base62, BmsCharset, BmsIndex, ChannelTag};
-use crate::{BmsStr, BmsToken, BmsTokenizeError, BmsTryFromError};
+use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#ADDR:body`).
 ///
 /// See the module-level documentation for the format description.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BmsMessage<'a, C = &'a str> {
+pub struct BmsMessage<C> {
     /// Raw address string (before `:`).
     pub addr: C,
     /// Raw body string (after `:`).
@@ -72,25 +72,23 @@ pub struct BmsMessage<'a, C = &'a str> {
     /// Channel number — the last 1–2 valid [`Base62`](crate::Base62) characters
     /// from [`addr`](BmsMessage::addr), categorised into a [`BmsChannel`] enum.
     pub channel: BmsChannel,
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    pub _phantom: std::marker::PhantomData<&'a C>,
 }
 
-impl<'a, C: BmsStr<'a>> From<BmsMessage<'a, C>> for BmsToken<'a, C> {
+impl<C> From<BmsMessage<C>> for BmsToken<C> {
     #[inline]
-    fn from(msg: BmsMessage<'a, C>) -> Self {
+    fn from(msg: BmsMessage<C>) -> Self {
         BmsToken::Message(msg)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsToken<'a, C>> for BmsMessage<'a, C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(token: BmsToken<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(token: BmsToken<C>) -> Result<Self, Self::Error> {
         match token {
             BmsToken::Message(m) => Ok(m),
-            _ => Err(BmsTryFromError::NotAMessage),
+            BmsToken::Header(_) => Err(BmsTryFromError::NotAMessage),
         }
     }
 }
@@ -101,9 +99,9 @@ impl<'a, C: BmsStr<'a>> TryFrom<BmsToken<'a, C>> for BmsMessage<'a, C> {
 /// (e.g., it is a header, a comment, or empty).
 /// Returns `Err(...)` if the line looks like a channel message but has
 /// no valid channel suffix.
-pub(crate) fn parse_message_line<'a, C: Clone + AsRef<str> + fmt::Display + From<&'a str> + 'a>(
+pub(crate) fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
     line: &'a str,
-) -> Result<Option<BmsMessage<'a, C>>, BmsTokenizeError<'a>> {
+) -> Result<Option<BmsMessage<C>>, BmsTokenizeError<'a>> {
     if line.is_empty() || !line.starts_with('#') {
         return Ok(None);
     }
@@ -176,7 +174,6 @@ pub(crate) fn parse_message_line<'a, C: Clone + AsRef<str> + fmt::Display + From
         body: C::from(body),
         track,
         channel,
-        _phantom: std::marker::PhantomData,
     }))
 }
 
@@ -185,7 +182,7 @@ mod tests {
     use super::*;
 
     /// Helper to avoid turbofish in test calls.
-    fn parse_msg(s: &str) -> Result<Option<BmsMessage<'_, &str>>, BmsTokenizeError<'_>> {
+    fn parse_msg(s: &str) -> Result<Option<BmsMessage<&str>>, BmsTokenizeError<'_>> {
         crate::message::parse_message_line(s)
     }
 

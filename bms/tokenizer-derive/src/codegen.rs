@@ -59,6 +59,7 @@ pub fn generate_impl(
                     + ::std::convert::AsRef<str>
                     + ::std::clone::Clone
                     + ::std::convert::From<&'header str>
+                    + 'header
             }
         }
         (None, None) => TokenStream::new(),
@@ -75,17 +76,15 @@ pub fn generate_impl(
     );
     let format_body = generate_format_body(data_enum, templates);
 
-    // Build the format_header where clause: C must implement Display + AsRef<str> + Clone.
-    let format_where: TokenStream = match (first_lifetime_param, &type_param) {
-        (Some(_lt), Some(tp)) => {
-            let tp_ident = &tp.ident;
-            quote! {
-                where #tp_ident: ::std::fmt::Display
-                    + ::std::convert::AsRef<str>
-                    + ::std::clone::Clone
-            }
+    // Build the format_header where clause: C must implement Display + AsRef<str>.
+    let format_where: TokenStream = if let Some(tp) = &type_param {
+        let tp_ident = &tp.ident;
+        quote! {
+            where #tp_ident: ::std::fmt::Display
+                + ::std::convert::AsRef<str>
         }
-        _ => TokenStream::new(),
+    } else {
+        TokenStream::new()
     };
 
     quote! {
@@ -792,6 +791,7 @@ pub fn generate_header_dispatch(
                     + ::std::convert::AsRef<str>
                     + ::std::clone::Clone
                     + ::std::convert::From<&'header str>
+                    + 'header
             }
         }
         (None, None) => TokenStream::new(),

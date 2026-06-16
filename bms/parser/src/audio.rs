@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsHeaderResDefAudio, BmsIndex, BmsStr, WavTag};
+use bms_tokenizer::{BmsHeaderResDefAudio, BmsIndex, WavTag};
 
 /// Audio resource definitions.
 ///
@@ -25,7 +25,7 @@ pub struct Audio {
 
 impl Audio {
     /// Apply an audio resource header to this struct.
-    pub fn apply<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeaderResDefAudio<'a, C>) {
+    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefAudio<C>) {
         match header {
             BmsHeaderResDefAudio::Wav { id, filename } => {
                 self.wav_files.insert(*id, filename.as_ref().to_owned());
@@ -38,7 +38,6 @@ impl Audio {
             BmsHeaderResDefAudio::Cdda(s) => self.cdda = Some(s.as_ref().to_owned()),
             BmsHeaderResDefAudio::Midifile(s) => self.midifile = Some(s.as_ref().to_owned()),
             BmsHeaderResDefAudio::PathWav(s) => self.path_wav = Some(s.as_ref().to_owned()),
-            BmsHeaderResDefAudio::_Phantom(_) => unreachable!(),
         }
     }
 }

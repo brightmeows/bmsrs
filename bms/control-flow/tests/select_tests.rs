@@ -10,7 +10,7 @@ type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 /// Helper: tokenize BMS text and build a `Vec<FlowItem>`.
 fn build_doc(
     input: &str,
-) -> std::result::Result<Vec<bms_control_flow::FlowItem<'_>>, ControlFlowError> {
+) -> std::result::Result<Vec<bms_control_flow::FlowItem<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
@@ -32,7 +32,7 @@ fn find_seed(target: u64, max: u64) -> Option<u64> {
 }
 
 /// Extract WAV filenames from tokens.
-fn wav_filenames<'a>(tokens: &'a [BmsToken<'a>]) -> Vec<&'a str> {
+fn wav_filenames<'a>(tokens: &'a [BmsToken<&str>]) -> Vec<&'a str> {
     tokens
         .iter()
         .filter_map(|t| match t {
@@ -46,7 +46,7 @@ fn wav_filenames<'a>(tokens: &'a [BmsToken<'a>]) -> Vec<&'a str> {
 }
 
 /// Extract the control-flow headers from a token list.
-fn cf_headers(tokens: &[BmsToken<'_>]) -> Vec<BmsHeaderControlFlow> {
+fn cf_headers(tokens: &[BmsToken<&str>]) -> Vec<BmsHeaderControlFlow> {
     tokens
         .iter()
         .filter_map(|t| match t {

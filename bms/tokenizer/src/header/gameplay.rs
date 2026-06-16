@@ -8,7 +8,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::index::{BmsIndex, ChangeOptionTag, ExRankTag, LnObjTag};
 use crate::{BmsHeader, BmsTryFromError};
@@ -200,7 +199,7 @@ pub enum BmsBaseMode {
 /// gauge (life-bar) behaviour, long-note interpretation, and chart
 /// options.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderGameplay<'a, C = &'a str> {
+pub enum BmsHeaderGameplay<C> {
     /// `#PLAYER` — game mode (Single / Couple / Double / Battle).
     ///
     /// Largely ignored by modern players, which infer mode from channels.
@@ -310,25 +309,22 @@ pub enum BmsHeaderGameplay<'a, C = &'a str> {
     #[bms_token("#BASE {}")]
     #[bms_fallback]
     Base(BmsBaseMode),
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    #[doc(hidden)]
-    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeaderGameplay<'a, C>> for BmsHeader<'a, C> {
+impl<C> From<BmsHeaderGameplay<C>> for BmsHeader<C> {
     #[inline]
-    fn from(gameplay: BmsHeaderGameplay<'a, C>) -> Self {
+    fn from(gameplay: BmsHeaderGameplay<C>) -> Self {
         BmsHeader::Gameplay(gameplay)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderGameplay<'a, C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsHeader<C>> for BmsHeaderGameplay<C> {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Gameplay(g) => Ok(g),
             _ => Err(BmsTryFromError::WrongHeaderType),

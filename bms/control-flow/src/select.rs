@@ -21,10 +21,10 @@ impl FlowDocumentBuilder {
     /// - `#SWITCH` blocks: the first `#CASE` matching the value is selected,
     ///   with fall-through to subsequent cases until `#SKIP` is hit.
     #[must_use]
-    pub fn select_branches<'a, C: Clone + PartialEq + 'a>(
-        items: &[FlowItem<'a, C>],
+    pub fn select_branches<C: Clone + PartialEq>(
+        items: &[FlowItem<C>],
         rng: &mut impl BranchRng,
-    ) -> (Vec<BmsToken<'a, C>>, BranchSelection) {
+    ) -> (Vec<BmsToken<C>>, BranchSelection) {
         let mut output = Vec::new();
         let mut decisions = Vec::new();
 
@@ -37,10 +37,10 @@ impl FlowDocumentBuilder {
 }
 
 /// Process a single [`FlowItem`], appending tokens to `output`.
-fn select_item<'a, C: Clone + PartialEq + 'a>(
-    item: &FlowItem<'a, C>,
+fn select_item<C: Clone + PartialEq>(
+    item: &FlowItem<C>,
     rng: &mut impl BranchRng,
-    output: &mut Vec<BmsToken<'a, C>>,
+    output: &mut Vec<BmsToken<C>>,
     decisions: &mut Vec<BlockDecision>,
 ) {
     match &item.content {
@@ -57,10 +57,10 @@ fn select_item<'a, C: Clone + PartialEq + 'a>(
 }
 
 /// Select branches within a [`FlowBlock`].
-fn select_block<'a, C: Clone + PartialEq + 'a>(
-    block: &FlowBlock<'a, C>,
+fn select_block<C: Clone + PartialEq>(
+    block: &FlowBlock<C>,
     rng: &mut impl BranchRng,
-    output: &mut Vec<BmsToken<'a, C>>,
+    output: &mut Vec<BmsToken<C>>,
     decisions: &mut Vec<BlockDecision>,
 ) {
     match block {

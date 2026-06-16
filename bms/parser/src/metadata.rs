@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsHeaderMetadata, BmsIndex, BmsStr, TextTag};
+use bms_tokenizer::{BmsHeaderMetadata, BmsIndex, TextTag};
 
 /// Song / chart identification metadata.
 ///
@@ -37,7 +37,7 @@ pub struct Metadata {
 
 impl Metadata {
     /// Apply a metadata header to this struct.
-    pub fn apply<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeaderMetadata<'a, C>) {
+    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderMetadata<C>) {
         match header {
             BmsHeaderMetadata::Title(s) => self.title = Some(s.as_ref().to_owned()),
             BmsHeaderMetadata::Subtitle(s) => self.subtitle = Some(s.as_ref().to_owned()),
@@ -52,7 +52,6 @@ impl Metadata {
             BmsHeaderMetadata::Text { id, value } => {
                 self.text_defs.insert(*id, value.as_ref().to_owned());
             }
-            BmsHeaderMetadata::_Phantom(_) => unreachable!(),
         }
     }
 }

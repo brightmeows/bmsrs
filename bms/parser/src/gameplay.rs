@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    BmsBaseMode, BmsHeaderGameplay, BmsIndex, BmsStr, ChangeOptionTag, ExRankTag, LnMode, LnObjTag,
-    LnType, PlayerMode, Rank,
+    BmsBaseMode, BmsHeaderGameplay, BmsIndex, ChangeOptionTag, ExRankTag, LnMode, LnObjTag, LnType,
+    PlayerMode, Rank,
 };
 
 /// Gameplay behaviour settings.
@@ -45,7 +45,7 @@ pub struct Gameplay {
 
 impl Gameplay {
     /// Apply a gameplay header to this struct.
-    pub fn apply<'a, C: BmsStr<'a>>(&mut self, header: &BmsHeaderGameplay<'a, C>) {
+    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderGameplay<C>) {
         match header {
             BmsHeaderGameplay::Player(m) => self.player = Some(*m),
             BmsHeaderGameplay::Rank(r) => self.rank = Some(*r),
@@ -65,7 +65,6 @@ impl Gameplay {
                 self.change_option_defs
                     .insert(*id, value.as_ref().to_owned());
             }
-            BmsHeaderGameplay::_Phantom(_) => unreachable!(),
         }
     }
 }

@@ -9,7 +9,6 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-use crate::BmsStr;
 use crate::BmsTokenAttr;
 use crate::IntoTokensError;
 use crate::{BmsHeader, BmsTryFromError};
@@ -100,7 +99,7 @@ pub enum PoorBgaMode {
 /// These commands control *what the player sees* outside of actual
 /// gameplay notes — loading screens, banners, difficulty labels, etc.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderDisplay<'a, C = &'a str> {
+pub enum BmsHeaderDisplay<C> {
     /// `#STAGEFILE` — splash-screen image shown during loading (typically 640×480).
     ///
     /// Optional.  When omitted, players show their default loading screen.
@@ -146,25 +145,22 @@ pub enum BmsHeaderDisplay<'a, C = &'a str> {
     /// `preview*.ogg` in the chart folder.
     #[bms_token("#PREVIEW {}")]
     Preview(C),
-    /// Phantom data to satisfy E0392 (unused lifetime parameter).
-    #[doc(hidden)]
-    _Phantom(std::marker::PhantomData<&'a C>),
 }
 
 // From / TryFrom conversions
 
-impl<'a, C: BmsStr<'a>> From<BmsHeaderDisplay<'a, C>> for BmsHeader<'a, C> {
+impl<C> From<BmsHeaderDisplay<C>> for BmsHeader<C> {
     #[inline]
-    fn from(display: BmsHeaderDisplay<'a, C>) -> Self {
+    fn from(display: BmsHeaderDisplay<C>) -> Self {
         BmsHeader::Display(display)
     }
 }
 
-impl<'a, C: BmsStr<'a>> TryFrom<BmsHeader<'a, C>> for BmsHeaderDisplay<'a, C> {
-    type Error = BmsTryFromError<'a>;
+impl<C> TryFrom<BmsHeader<C>> for BmsHeaderDisplay<C> {
+    type Error = BmsTryFromError<'static>;
 
     #[inline]
-    fn try_from(header: BmsHeader<'a, C>) -> Result<Self, Self::Error> {
+    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
         match header {
             BmsHeader::Display(d) => Ok(d),
             _ => Err(BmsTryFromError::WrongHeaderType),

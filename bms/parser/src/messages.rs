@@ -259,10 +259,7 @@ impl Messages {
     /// Values from consecutive lines with the same `(measure, channel)` are
     /// **appended**.  Call [`finalize`](Self::finalize) after all messages
     /// have been received to parse events with correct positions.
-    pub fn concat_raw<'a, C: bms_tokenizer::BmsStr<'a>>(
-        &mut self,
-        msg: &bms_tokenizer::BmsMessage<'a, C>,
-    ) {
+    pub fn concat_raw<C: AsRef<str>>(&mut self, msg: &bms_tokenizer::BmsMessage<C>) {
         self.raw
             .entry(msg.track)
             .or_default()
