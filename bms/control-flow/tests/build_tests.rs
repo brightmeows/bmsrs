@@ -48,8 +48,8 @@ fn as_switch<'a>(
 #[test]
 fn plain_headers_no_control_flow_packs_into_single_payload() -> TestResult {
     let tree = build_doc("#TITLE Test\n#BPM 120\n#00101:1122")?;
-    assert_eq!(tree.root.len(), 1);
-    let Some(FlowNode::Payload(payload)) = tree.root.first() else {
+    assert_eq!(tree.len(), 1);
+    let Some(FlowNode::Payload(payload)) = tree.first() else {
         panic!("expected single payload node");
     };
     assert_eq!(payload.tokens.len(), 3);
@@ -72,8 +72,8 @@ fn simple_random_block_has_two_branches() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    assert_eq!(tree.root.len(), 1);
-    let block = as_random(&tree.root);
+    assert_eq!(tree.len(), 1);
+    let block = as_random(&tree);
     assert_eq!(block.branches.len(), 2);
     assert_eq!(block.value, bms_control_flow::BranchValue::Max(2));
     assert!(block.has_end_random);
@@ -104,7 +104,7 @@ fn random_with_elseif_else_has_three_branches() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let block = as_random(&tree.root);
+    let block = as_random(&tree);
     assert_eq!(block.branches.len(), 3);
     assert_eq!(
         block.branches.first().map(|b| b.kind),
@@ -132,8 +132,8 @@ fn simple_switch_block_has_two_cases() -> TestResult {
          #ENDSW",
     )?;
 
-    assert_eq!(tree.root.len(), 1);
-    let block = as_switch(&tree.root);
+    assert_eq!(tree.len(), 1);
+    let block = as_switch(&tree);
     assert_eq!(block.cases.len(), 2);
     assert_eq!(block.value, bms_control_flow::BranchValue::Max(2));
     assert_eq!(
@@ -159,7 +159,7 @@ fn switch_with_def_and_skip_flags_set() -> TestResult {
          #ENDSW",
     )?;
 
-    let block = as_switch(&tree.root);
+    let block = as_switch(&tree);
     assert_eq!(block.cases.len(), 2);
     assert_eq!(
         block.cases.first().map(|c| c.kind),
@@ -192,8 +192,8 @@ fn nested_random_in_switch_builds_tree() -> TestResult {
          #ENDSW",
     )?;
 
-    assert_eq!(tree.root.len(), 1);
-    let switch = as_switch(&tree.root);
+    assert_eq!(tree.len(), 1);
+    let switch = as_switch(&tree);
     assert_eq!(switch.cases.len(), 2);
 
     // Case 1 body should contain a nested Random block
@@ -221,7 +221,7 @@ fn set_random_sets_value() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let block = as_random(&tree.root);
+    let block = as_random(&tree);
     assert_eq!(block.value, bms_control_flow::BranchValue::Set(5));
     Ok(())
 }
@@ -235,7 +235,7 @@ fn set_switch_sets_value() -> TestResult {
          #ENDSW",
     )?;
 
-    let block = as_switch(&tree.root);
+    let block = as_switch(&tree);
     assert_eq!(block.value, bms_control_flow::BranchValue::Set(3));
     Ok(())
 }
@@ -249,7 +249,7 @@ fn endrandom_present_sets_has_end_random_true() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let block = as_random(&tree.root);
+    let block = as_random(&tree);
     assert!(block.has_end_random);
     Ok(())
 }
@@ -262,7 +262,7 @@ fn no_endrandom_leaves_block_unpopped() -> TestResult {
          #ENDIF",
     )?;
 
-    assert!(tree.root.is_empty());
+    assert!(tree.is_empty());
     Ok(())
 }
 
@@ -327,7 +327,7 @@ fn branch_body_packs_consecutive_tokens_into_payload() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let block = as_random(&tree.root);
+    let block = as_random(&tree);
     // Branch 1 has two consecutive tokens packed into one payload node.
     let branch1 = block.branches.first().expect("branch 1");
     assert_eq!(branch1.body.len(), 1);
@@ -353,7 +353,7 @@ fn switch_case_bodies_pack_consecutive_tokens() -> TestResult {
          #ENDSW",
     )?;
 
-    let block = as_switch(&tree.root);
+    let block = as_switch(&tree);
     // Case 1 has two consecutive tokens packed into one payload node.
     let case1 = block.cases.first().expect("case 1");
     assert_eq!(case1.body.len(), 1);

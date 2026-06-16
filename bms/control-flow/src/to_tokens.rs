@@ -15,7 +15,7 @@ impl<C: Clone + PartialEq> FlowTree<TokenPayload<C>> {
     #[must_use]
     pub fn to_tokens(&self) -> Vec<BmsToken<C>> {
         let mut output = Vec::new();
-        for node in &self.root {
+        for node in self.iter() {
             push_node_tokens(node, &mut output);
         }
         output

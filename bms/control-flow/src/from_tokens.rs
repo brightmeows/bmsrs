@@ -73,9 +73,7 @@ impl<C: Clone + PartialEq> Builder<C> {
     /// Flush any remaining pending tokens and yield the finished tree.
     fn finish(mut self) -> FlowTree<TokenPayload<C>> {
         self.flush();
-        FlowTree {
-            root: self.top_level,
-        }
+        FlowTree(self.top_level)
     }
 
     /// Buffer a non-control-flow token into the current scope's pending list.

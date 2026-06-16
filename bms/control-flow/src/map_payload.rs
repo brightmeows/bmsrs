@@ -38,8 +38,8 @@ impl<P> FlowTree<P> {
         self,
         mut f: impl FnMut(P) -> Result<Q, E>,
     ) -> Result<FlowTree<Q>, E> {
-        let root = map_nodes(self.root, &mut f)?;
-        Ok(FlowTree { root })
+        let root = map_nodes(self.0, &mut f)?;
+        Ok(FlowTree(root))
     }
 }
 

@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. Walk the resulting tree: each span prints its parsed `Bms` summary,
     //    nested under the original control-flow structure.
     println!("FlowTree<Bms> — skeleton with per-span parsed Bms:");
-    walk(&bms_tree.root, 0);
+    walk(&bms_tree, 0);
     Ok(())
 }
 

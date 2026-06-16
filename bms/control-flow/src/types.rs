@@ -24,11 +24,12 @@ pub enum BranchValue {
 /// `FlowTree<TokenPayload<C>>` is the token-level source of truth (editable,
 /// roundtrippable). `FlowTree<Bms>` (obtained via `map_payload` downstream) is
 /// a read-only view showing each span's parsed aggregate.
+///
+/// The inner `Vec<FlowNode<P>>` is accessible via `Deref`/`DerefMut` — slice
+/// and `Vec` methods (`iter`, `len`, `first`, `[index]`, …) work directly on
+/// `FlowTree`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FlowTree<P> {
-    /// Top-level nodes (payload spans and control-flow blocks).
-    pub root: Vec<FlowNode<P>>,
-}
+pub struct FlowTree<P>(pub Vec<FlowNode<P>>);
 
 /// A single entry in a [`FlowTree`]: either a payload span or a control-flow block.
 #[derive(Debug, Clone, PartialEq)]
@@ -133,4 +134,20 @@ pub struct BlockDecision {
     pub value: u64,
     /// The index of the selected branch/case in the block's list.
     pub selected_index: usize,
+}
+
+use std::ops::{Deref, DerefMut};
+
+impl<P> Deref for FlowTree<P> {
+    type Target = [FlowNode<P>];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<P> DerefMut for FlowTree<P> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }

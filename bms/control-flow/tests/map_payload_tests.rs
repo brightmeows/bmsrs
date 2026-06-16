@@ -34,13 +34,13 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
     let counted: FlowTree<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
 
     // Root carries the top-level payload (1 token: #TITLE) then the Random block.
-    assert_eq!(counted.root.len(), 2);
-    let Some(FlowNode::Payload(top_n)) = counted.root.first() else {
+    assert_eq!(counted.len(), 2);
+    let Some(FlowNode::Payload(top_n)) = counted.first() else {
         panic!("expected top-level payload");
     };
     assert_eq!(*top_n, 1);
 
-    let Some(FlowNode::Block(FlowBlock::Random(r))) = counted.root.get(1) else {
+    let Some(FlowNode::Block(FlowBlock::Random(r))) = counted.get(1) else {
         panic!("expected Random block");
     };
     assert_eq!(r.branches.len(), 2);
@@ -78,7 +78,7 @@ fn map_payload_handles_switch_skeleton() -> TestResult {
     // Collect each span's token count.
     let spans: FlowTree<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
 
-    let Some(FlowNode::Block(FlowBlock::Switch(s))) = spans.root.first() else {
+    let Some(FlowNode::Block(FlowBlock::Switch(s))) = spans.first() else {
         panic!("expected Switch block");
     };
     assert_eq!(s.cases.len(), 2);
@@ -134,6 +134,6 @@ fn try_map_payload_succeeds_when_all_spans_ok() -> TestResult {
     let result: Result<FlowTree<usize>, SpanError> =
         tree.try_map_payload(|p: TokenPayload<&str>| Ok(p.tokens.len()));
     let mapped = result.expect("all spans ok");
-    assert_eq!(mapped.root.len(), 1);
+    assert_eq!(mapped.len(), 1);
     Ok(())
 }

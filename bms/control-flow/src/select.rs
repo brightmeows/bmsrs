@@ -25,7 +25,7 @@ impl<C: Clone + PartialEq> FlowTree<TokenPayload<C>> {
         let mut output = Vec::new();
         let mut decisions = Vec::new();
 
-        for node in &self.root {
+        for node in self.iter() {
             select_node(node, rng, &mut output, &mut decisions);
         }
 
