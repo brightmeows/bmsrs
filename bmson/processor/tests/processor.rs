@@ -12,7 +12,7 @@ const TITLE: &str = "Test Song";
 const ARTIST: &str = "Test Artist";
 const GENRE: &str = "Test Genre";
 
-fn make_bmson(sound_channels: Vec<SoundChannel<'_>>) -> Bmson<'_> {
+const fn make_bmson(sound_channels: Vec<SoundChannel<'_>>) -> Bmson<'_> {
     Bmson {
         version: "2.0.0",
         song_info: SongInfo {
@@ -59,7 +59,7 @@ fn make_bmson(sound_channels: Vec<SoundChannel<'_>>) -> Bmson<'_> {
     }
 }
 
-fn ne(x: u64, y: u64, l: u64) -> NoteEvent {
+const fn ne(x: u64, y: u64, l: u64) -> NoteEvent {
     NoteEvent {
         x,
         y,

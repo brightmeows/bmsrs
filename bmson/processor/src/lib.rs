@@ -96,16 +96,13 @@ impl BmsonProcessor {
         let resolution = data.resolution;
         let playable_pulses = collect_playable_pulses(&data.sound_channels);
 
-        let (audio_assets, notes, bgm) = process_sound_channels(
+        let (mut audio_assets, mut notes, bgm) = process_sound_channels(
             &data.sound_channels,
             layout,
             &timing,
             resolution,
             &playable_pulses,
         );
-
-        let mut audio_assets = audio_assets;
-        let mut notes = notes;
 
         process_mine_channels(&bmson.mine_channels, layout, &mut audio_assets, &mut notes);
         process_key_channels(&bmson.key_channels, layout, &mut audio_assets, &mut notes);
@@ -391,7 +388,7 @@ impl_bmson_mapping!(Popn5k, |x| match x {
 });
 
 /// Build [`DefaultNoteData`] from a BMSON note event and lane.
-fn default_note_data(note: &NoteEvent, lane: u16) -> DefaultNoteData {
+const fn default_note_data(note: &NoteEvent, lane: u16) -> DefaultNoteData {
     DefaultNoteData {
         lane,
         kind: if note.l > 0 {
@@ -410,11 +407,7 @@ impl BmsonMapping for GenericLayout {
     )]
     #[inline]
     fn map_x(&self, x: u64) -> Option<u16> {
-        if x >= 1 && x <= u64::from(self.keys) {
-            Some((x - 1) as u16)
-        } else {
-            None
-        }
+        (x >= 1 && x <= u64::from(self.keys)).then(|| (x - 1) as u16)
     }
 
     #[inline]
@@ -440,7 +433,7 @@ impl BmsonMapping for GenericLayout {
 }
 
 /// Build a [`BpmChange`] from a BMSON [`BpmEvent`].
-fn build_bpm_change(e: &BpmEvent) -> BpmChange {
+const fn build_bpm_change(e: &BpmEvent) -> BpmChange {
     BpmChange {
         tick: e.y,
         bpm: e.bpm,
@@ -448,7 +441,7 @@ fn build_bpm_change(e: &BpmEvent) -> BpmChange {
 }
 
 /// Build a [`StopEvent`] from a BMSON stop event.
-fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
+const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
     StopEvent {
         tick: e.y,
         duration: e.duration,
@@ -510,7 +503,7 @@ fn build_bga(bga: &bmson_def::BGA<'_>) -> Bga {
 
 /// Build a [`BgaTimelineEvent`] from a BMSON [`BGAEvent`].
 #[expect(clippy::cast_possible_truncation, reason = "BGA ids fit in u32")]
-fn build_bga_event(e: &BGAEvent) -> BgaTimelineEvent {
+const fn build_bga_event(e: &BGAEvent) -> BgaTimelineEvent {
     BgaTimelineEvent {
         tick: e.y,
         resource_id: e.id as u32,

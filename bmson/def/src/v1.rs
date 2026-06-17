@@ -172,7 +172,7 @@ pub struct BmsonInfo<'a> {
 }
 
 /// Default value 100.0 for `#[serde(default)]` on fields like `resolution`.
-fn default_100() -> f64 {
+const fn default_100() -> f64 {
     100.0
 }
 

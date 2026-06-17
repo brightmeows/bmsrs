@@ -88,19 +88,22 @@ pub fn from_str(json: &str) -> Result<bmson_def::Bmson<'_>, BmsonDeError> {
     let version = bmson_def::detect_version(json)?;
 
     // 4. Deserialize; attach chumsky diagnostics on failure.
-    deserialize_by_version(json, version).map_err(|e| {
+    deserialize_by_version(json, version).map_err(|err| {
         if errors.is_empty() {
-            return e;
+            return err;
         }
-        match e {
-            BmsonDeError::Deserialize { version, message } => {
+        match err {
+            BmsonDeError::Deserialize {
+                version: deser_version,
+                message,
+            } => {
                 let diag = errors
                     .iter()
-                    .map(|e| format!("{e}"))
+                    .map(|diag_err| format!("{diag_err}"))
                     .collect::<Vec<_>>()
                     .join("; ");
                 BmsonDeError::Deserialize {
-                    version,
+                    version: deser_version,
                     message: format!("{message}\n  (parser diagnostics: {diag})"),
                 }
             }

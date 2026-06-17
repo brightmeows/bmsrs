@@ -111,6 +111,7 @@ impl<T, C: BmsCharset> fmt::Display for BmsIndex<T, C> {
 impl<T, C: BmsCharset> BmsIndex<T, C> {
     /// Return the ASCII string representation of this ID (borrows from self).
     #[must_use]
+    #[expect(unsafe_code, reason = "ASCII bytes validated on construction")]
     pub fn as_str(&self) -> &str {
         let len = if self.bytes[1] == 0 { 1 } else { 2 };
         // SAFETY: bytes are validated as ASCII alphanumeric on construction.
@@ -198,7 +199,7 @@ impl<T> BmsIndex<T, Base62> {
 }
 
 /// Decode a single hex ASCII byte to its numeric value (0–15).
-fn hex_digit_value(b: u8) -> Option<u8> {
+const fn hex_digit_value(b: u8) -> Option<u8> {
     match b {
         b'0'..=b'9' => Some(b - b'0'),
         b'A'..=b'F' => Some(b - b'A' + 10),
@@ -456,37 +457,37 @@ mod tests {
     fn as_u8_hex_two_digits() {
         let id = BmsIndex::<ChannelTag, Base16>::try_from("0A").unwrap();
         assert_eq!(id.as_u8_hex(), Some(10));
-        let id = BmsIndex::<ChannelTag, Base16>::try_from("FF").unwrap();
-        assert_eq!(id.as_u8_hex(), Some(255));
-        let id = BmsIndex::<ChannelTag, Base16>::try_from("D1").unwrap();
-        assert_eq!(id.as_u8_hex(), Some(209));
+        let id_ff = BmsIndex::<ChannelTag, Base16>::try_from("FF").unwrap();
+        assert_eq!(id_ff.as_u8_hex(), Some(255));
+        let id_d1 = BmsIndex::<ChannelTag, Base16>::try_from("D1").unwrap();
+        assert_eq!(id_d1.as_u8_hex(), Some(209));
     }
 
     #[test]
     fn as_u8_hex_one_digit() {
         let id = BmsIndex::<ChannelTag, Base16>::try_from("A").unwrap();
         assert_eq!(id.as_u8_hex(), Some(10));
-        let id = BmsIndex::<ChannelTag, Base16>::try_from("f").unwrap();
-        assert_eq!(id.as_u8_hex(), Some(15));
+        let id_f = BmsIndex::<ChannelTag, Base16>::try_from("f").unwrap();
+        assert_eq!(id_f.as_u8_hex(), Some(15));
     }
 
     #[test]
     fn to_index_base62() {
         let id = BmsIndex::<WavTag>::try_from("00").unwrap();
         assert_eq!(id.to_index(), Some(0));
-        let id = BmsIndex::<WavTag>::try_from("01").unwrap();
-        assert_eq!(id.to_index(), Some(1));
-        let id = BmsIndex::<WavTag>::try_from("ZZ").unwrap();
-        assert_eq!(id.to_index(), Some(1295));
-        let id = BmsIndex::<WavTag>::try_from("0A").unwrap();
-        assert_eq!(id.to_index(), Some(10));
+        let id_01 = BmsIndex::<WavTag>::try_from("01").unwrap();
+        assert_eq!(id_01.to_index(), Some(1));
+        let id_zz = BmsIndex::<WavTag>::try_from("ZZ").unwrap();
+        assert_eq!(id_zz.to_index(), Some(1295));
+        let id_0a_ = BmsIndex::<WavTag>::try_from("0A").unwrap();
+        assert_eq!(id_0a_.to_index(), Some(10));
     }
 
     #[test]
     fn to_index_single_char() {
         let id = BmsIndex::<WavTag>::try_from("A").unwrap();
         assert_eq!(id.to_index(), Some(10));
-        let id = BmsIndex::<WavTag>::try_from("z").unwrap();
-        assert_eq!(id.to_index(), Some(35));
+        let id_z = BmsIndex::<WavTag>::try_from("z").unwrap();
+        assert_eq!(id_z.to_index(), Some(35));
     }
 }

@@ -324,8 +324,8 @@ impl Messages {
                     BmsChannel::BgaLayer2 => {
                         self.push_scroll_full(values, measure, total_objects);
                     }
-                    BmsChannel::Note(raw) => {
-                        if let Some(ch) = raw.as_u8_hex() {
+                    BmsChannel::Note(note_ch) => {
+                        if let Some(ch) = note_ch.as_u8_hex() {
                             self.dispatch_note_channel(values, measure, ch, total_objects);
                         }
                     }
@@ -358,7 +358,7 @@ impl Messages {
 // Internal parsing helpers
 
 /// Check if a byte is a valid Base62 character (0-9, A-Z, a-z).
-fn is_base62(b: u8) -> bool {
+const fn is_base62(b: u8) -> bool {
     matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
 }
 
@@ -374,6 +374,7 @@ fn is_base62(b: u8) -> bool {
     clippy::indexing_slicing,
     reason = "while-loop guard ensures i < len and i+1 < len before indexing"
 )]
+#[expect(unsafe_code, reason = "ASCII bytes validated by the is_base62 guard")]
 fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let bytes = values.as_bytes();
     let mut result = Vec::new();
@@ -909,10 +910,10 @@ mod tests {
         assert_eq!(msgs.note_events[0].key_type, KeyType::Visible);
 
         // Channel 41 = 2P invisible key 1
-        let msgs = parse_one("#00141:3344");
-        assert_eq!(msgs.note_events.len(), 2);
-        assert_eq!(msgs.note_events[0].player, 2);
-        assert_eq!(msgs.note_events[0].lane, 1);
-        assert_eq!(msgs.note_events[0].key_type, KeyType::Invisible);
+        let msgs_41 = parse_one("#00141:3344");
+        assert_eq!(msgs_41.note_events.len(), 2);
+        assert_eq!(msgs_41.note_events[0].player, 2);
+        assert_eq!(msgs_41.note_events[0].lane, 1);
+        assert_eq!(msgs_41.note_events[0].key_type, KeyType::Invisible);
     }
 }

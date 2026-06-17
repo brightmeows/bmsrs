@@ -10,7 +10,7 @@ use bms_parser::Position;
 ///
 /// Built from `#XXX` measure-length changes. Measures not explicitly
 /// listed default to 100% (standard 4/4 = `resolution * 4` ticks).
-pub(crate) struct MeasureTable {
+pub struct MeasureTable {
     /// Cumulative tick at the start of each measure (index = measure number).
     starts: Vec<u64>,
 }

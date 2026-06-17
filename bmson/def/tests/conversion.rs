@@ -122,15 +122,15 @@ fn v0_stop_events_accepts_both_names() {
     assert_eq!(v0.stop_events[0].y, 480);
     assert!((v0.stop_events[0].v - 48.0).abs() < 1e-10);
 
-    let v0_json = r#"{
+    let v0_json_legacy = r#"{
         "info": {"title": "T", "artist": "A", "genre": "G", "level": 1, "initBPM": 120, "judgeRank": 100, "total": 100},
         "bpmNotes": [],
         "stopEvents": [{"y": 240, "v": 24}],
         "soundChannel": [],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
-    assert_eq!(v0.stop_events[0].y, 240);
+    let v0_legacy: bmson_def::v0::Bmson = serde_json::from_str(v0_json_legacy).unwrap();
+    assert_eq!(v0_legacy.stop_events[0].y, 240);
 }
 
 #[test]

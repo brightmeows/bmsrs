@@ -16,7 +16,7 @@ use bms_tokenizer::{BmsIndex, LnObjTag, WavTag};
 use crate::position::MeasureTable;
 
 /// A paired long note: start tick, duration in ticks, and WAV id.
-pub(crate) struct PairedLn {
+pub struct PairedLn {
     /// Absolute tick of the LN start.
     pub tick: u64,
     /// Duration in ticks (end tick - start tick).
@@ -38,7 +38,7 @@ pub(crate) struct PairedLn {
     clippy::indexing_slicing,
     reason = "indices bounded by while condition: i + 1 < len"
 )]
-pub(crate) fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
+pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
     // Group by (player, lane) preserving insertion order.
     let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
     for ev in events {
@@ -80,7 +80,7 @@ pub(crate) fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Ve
 ///
 /// Returns the paired LNs and the indices of consumed note events
 /// (both starts and ends) so the caller can remove them.
-pub(crate) fn pair_lnobj(
+pub fn pair_lnobj(
     note_events: &[NoteEvent],
     ln_obj: BmsIndex<LnObjTag>,
     table: &MeasureTable,

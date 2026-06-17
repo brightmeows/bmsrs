@@ -62,7 +62,7 @@ struct Builder<C: Clone + PartialEq> {
 
 impl<C: Clone + PartialEq> Builder<C> {
     /// Create an empty builder.
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             top_level: Vec::new(),
             top_pending: Vec::new(),

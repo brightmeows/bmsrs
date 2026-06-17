@@ -25,7 +25,7 @@ use bmsrs_chart::{AudioAsset, TimingTrack};
 ///
 /// `pulse_to_index` maps a note-event pulse to the index of its
 /// [`AudioAsset`] within the slice's `assets` vector.
-pub(crate) struct SlicedChannel {
+pub struct SlicedChannel {
     /// Audio assets in pulse-ascending order.
     pub assets: Vec<AudioAsset>,
     /// Pulse → asset-index lookup.
@@ -35,7 +35,7 @@ pub(crate) struct SlicedChannel {
 /// Slice a sound channel into pre-computed [`AudioAsset`]s.
 ///
 /// See the [module docs](self) for the algorithm.
-pub(crate) fn slice_channel(
+pub fn slice_channel(
     channel: &SoundChannel<'_>,
     timing: &TimingTrack,
     resolution: u64,

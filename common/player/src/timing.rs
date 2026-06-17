@@ -27,7 +27,7 @@ struct BpmSegment {
 ///    the target tick.
 ///
 /// Both parts use binary search, giving O(log n) per query.
-pub(crate) struct TimingCache {
+pub struct TimingCache {
     /// Sorted BPM segments (by `start_tick`).
     bpm_segments: Vec<BpmSegment>,
     /// Sorted `(stop_tick, cumulative_pause_seconds)` pairs.

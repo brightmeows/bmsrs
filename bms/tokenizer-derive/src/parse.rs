@@ -33,7 +33,7 @@ impl Placeholder {
 
     /// `true` if this is a named placeholder.
     #[must_use]
-    pub fn is_named(&self) -> bool {
+    pub const fn is_named(&self) -> bool {
         matches!(self, Self::Named(_))
     }
 }
@@ -58,20 +58,20 @@ pub struct BmsTokenTemplate {
 impl BmsTokenTemplate {
     /// `true` if this command has an index placeholder in the command part.
     #[must_use]
-    pub fn is_indexed(&self) -> bool {
+    pub const fn is_indexed(&self) -> bool {
         self.id_field.is_some()
     }
 
     /// `true` if this command expects a value (placeholder or literal).
     #[must_use]
-    pub fn has_value(&self) -> bool {
+    pub const fn has_value(&self) -> bool {
         self.value_field.is_some() || self.value_literal.is_some()
     }
 
     /// `true` if this command uses a fixed literal value.
     #[cfg(test)]
     #[must_use]
-    pub fn is_literal_value(&self) -> bool {
+    pub const fn is_literal_value(&self) -> bool {
         self.value_literal.is_some()
     }
 
@@ -141,7 +141,12 @@ pub fn parse_bms_token_attr(attr: &syn::Attribute) -> syn::Result<BmsTokenTempla
 ///
 /// Returns `TemplateParseError` if the string does not follow the expected
 /// template format.
+#[expect(
+    clippy::string_slice,
+    reason = "BMS token templates are ASCII-only; indexing at byte boundaries is safe"
+)]
 pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseError> {
+    #[expect(clippy::shadow_reuse, reason = "intentional self-shadow to trim")]
     let s = s.trim();
 
     let prefix = match s.chars().next() {
@@ -168,10 +173,8 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
 
     // Split at first space to separate command part from value part.
     let split_pos = rest.find(char::is_whitespace);
-    let (command_part, value_part) = match split_pos {
-        Some(pos) => (&rest[..pos], rest[pos..].trim()),
-        None => (rest, ""),
-    };
+    let (command_part, value_part) =
+        split_pos.map_or((rest, ""), |pos| (&rest[..pos], rest[pos..].trim()));
 
     let has_value = !value_part.is_empty();
 
@@ -208,6 +211,10 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
 /// # Errors
 ///
 /// Returns `TemplateParseError` if the braces are malformed.
+#[expect(
+    clippy::string_slice,
+    reason = "BMS command parts are ASCII-only; indexing at byte boundaries is safe"
+)]
 fn extract_command_and_id(part: &str) -> Result<(String, Option<Placeholder>), TemplateParseError> {
     if let Some(open) = part.find('{') {
         if !part.ends_with('}') {
@@ -250,6 +257,10 @@ enum ValuePart {
 /// # Errors
 ///
 /// Returns `TemplateParseError` if the value part is empty.
+#[expect(
+    clippy::string_slice,
+    reason = "BMS token value parts are ASCII-only; indexing at byte boundaries is safe"
+)]
 fn extract_value_part(part: &str) -> Result<ValuePart, TemplateParseError> {
     let trimmed = part.trim();
     if trimmed.is_empty() {

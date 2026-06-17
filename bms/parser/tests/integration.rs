@@ -36,7 +36,7 @@ fn parse_string(input: &str) -> Bms {
 fn event_types_accessible() {
     // Position
     let pos = Position::new(1, 0, 4);
-    let _ = pos.fraction();
+    let _frac: f64 = pos.fraction();
 
     // Event types are constructible
     let _bgm = BgmEvent {
@@ -56,12 +56,12 @@ fn event_types_accessible() {
         lane: 5,
         wav_id: "ZZ".parse().unwrap(),
     };
-    let _ = MineEvent {
+    let _: MineEvent = MineEvent {
         position: pos,
         player: 2,
         lane: 7,
     };
-    let _ = BpmChange {
+    let _: BpmChange = BpmChange {
         position: pos,
         value: BpmValue::Absolute(180.0),
     };
@@ -78,11 +78,11 @@ fn event_types_accessible() {
         layer: BgaLayer::Base,
         bmp_id: "03".parse().unwrap(),
     };
-    let _ = MeasureLength {
+    let _: MeasureLength = MeasureLength {
         measure: 1,
         length_percent: 200,
     };
-    let _ = StpEvent {
+    let _: StpEvent = StpEvent {
         position: pos,
         duration_ms: 500.0,
     };
@@ -296,31 +296,31 @@ fn note_messages_parsed() {
     let bms = parse("#00111:1122\n#00121:3344\n#00131:5566");
     // 1P visible (ch 11)
     assert_eq!(bms.messages.note_events.len(), 6);
-    let p1v: Vec<_> = bms
+    let visible_1p = bms
         .messages
         .note_events
         .iter()
         .filter(|n| n.player == 1 && n.key_type == KeyType::Visible)
-        .collect();
-    assert_eq!(p1v.len(), 2);
+        .count();
+    assert_eq!(visible_1p, 2);
 
     // 2P visible (ch 21)
-    let p2v: Vec<_> = bms
+    let visible_2p = bms
         .messages
         .note_events
         .iter()
         .filter(|n| n.player == 2 && n.key_type == KeyType::Visible)
-        .collect();
-    assert_eq!(p2v.len(), 2);
+        .count();
+    assert_eq!(visible_2p, 2);
 
     // 1P invisible (ch 31)
-    let p1i: Vec<_> = bms
+    let invisible_1p = bms
         .messages
         .note_events
         .iter()
         .filter(|n| n.player == 1 && n.key_type == KeyType::Invisible)
-        .collect();
-    assert_eq!(p1i.len(), 2);
+        .count();
+    assert_eq!(invisible_1p, 2);
 }
 
 #[test]
@@ -329,22 +329,22 @@ fn long_note_messages_parsed() {
     assert_eq!(bms.messages.long_note_events.len(), 4);
 
     // 1P LN
-    let p1: Vec<_> = bms
+    let ln_1p = bms
         .messages
         .long_note_events
         .iter()
         .filter(|n| n.player == 1)
-        .collect();
-    assert_eq!(p1.len(), 2);
+        .count();
+    assert_eq!(ln_1p, 2);
 
     // 2P LN
-    let p2: Vec<_> = bms
+    let ln_2p = bms
         .messages
         .long_note_events
         .iter()
         .filter(|n| n.player == 2)
-        .collect();
-    assert_eq!(p2.len(), 2);
+        .count();
+    assert_eq!(ln_2p, 2);
 }
 
 #[test]

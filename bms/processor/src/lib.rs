@@ -136,14 +136,15 @@ impl BmsProcessor {
 
 /// Determine LN mode and pair LNs. Returns paired LNs and consumed note indices.
 fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<usize>) {
-    if let Some(ln_obj) = bms.gameplay.ln_obj {
-        pair_lnobj(&bms.messages.note_events, ln_obj, table)
-    } else {
-        (
-            pair_lntype1(&bms.messages.long_note_events, table),
-            BTreeSet::new(),
-        )
-    }
+    bms.gameplay.ln_obj.map_or_else(
+        || {
+            (
+                pair_lntype1(&bms.messages.long_note_events, table),
+                BTreeSet::new(),
+            )
+        },
+        |ln_obj| pair_lnobj(&bms.messages.note_events, ln_obj, table),
+    )
 }
 
 /// Collect all playable notes (visible, invisible, LN, mines) into a sorted vector.

@@ -59,8 +59,8 @@ fn serde_json_round_trip() {
     assert_eq!(original, de);
 
     let generic = ModeHint::Generic(12);
-    let json = serde_json::to_string(&generic).unwrap();
-    assert_eq!(json, "\"generic-12keys\"");
-    let de: ModeHint = serde_json::from_str(&json).unwrap();
-    assert_eq!(generic, de);
+    let generic_json = serde_json::to_string(&generic).unwrap();
+    assert_eq!(generic_json, "\"generic-12keys\"");
+    let generic_de: ModeHint = serde_json::from_str(&generic_json).unwrap();
+    assert_eq!(generic, generic_de);
 }

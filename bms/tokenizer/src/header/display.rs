@@ -34,7 +34,7 @@ pub struct DifficultyLevel(u8);
 impl DifficultyLevel {
     /// The raw numeric value (1–5).
     #[must_use]
-    pub fn get(&self) -> u8 {
+    pub const fn get(&self) -> u8 {
         self.0
     }
 }

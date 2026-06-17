@@ -52,15 +52,17 @@ impl fmt::Display for StpParams {
 }
 
 impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C> for StpParams {
+    #[expect(
+        clippy::string_slice,
+        reason = "pos_part is ASCII digits and dots from BMS format; byte indexing is safe"
+    )]
     fn parse(s: &'a str) -> Option<Self> {
         let (pos_part, dur_part) = s.split_once(' ')?;
         let dur_ms: f64 = dur_part.trim().parse().ok()?;
 
-        let (measure_str, position_str) = if let Some(dot) = pos_part.find('.') {
+        let (measure_str, position_str) = pos_part.find('.').map_or((pos_part, "0"), |dot| {
             (&pos_part[..dot], &pos_part[dot + 1..])
-        } else {
-            (pos_part, "0")
-        };
+        });
 
         let measure: u16 = measure_str.parse().ok()?;
         let position: u16 = position_str.parse().ok()?;

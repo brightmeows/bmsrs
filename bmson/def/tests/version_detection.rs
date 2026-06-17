@@ -60,7 +60,7 @@ fn detect_empty_json_is_v0() {
     );
 }
 
-fn v2_json() -> &'static str {
+const fn v2_json() -> &'static str {
     r#"{
         "version": "2.0.0",
         "song_info": { "title": "T", "artist": "A", "genre": "G" },
@@ -72,7 +72,7 @@ fn v2_json() -> &'static str {
     }"#
 }
 
-fn v1_json() -> &'static str {
+const fn v1_json() -> &'static str {
     r#"{
         "version": "1.0.0",
         "info": {
@@ -83,7 +83,7 @@ fn v1_json() -> &'static str {
     }"#
 }
 
-fn v0_json() -> &'static str {
+const fn v0_json() -> &'static str {
     r#"{
         "info": {
             "title": "T", "artist": "A", "genre": "G", "level": 1,

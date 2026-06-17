@@ -36,11 +36,12 @@ fn resolution_zero_becomes_default() {
     let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 0}"#).unwrap();
     assert_eq!(cd.resolution, 240);
 
-    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 480}"#).unwrap();
-    assert_eq!(cd.resolution, 480);
+    let cd_480: ChartData =
+        serde_json::from_str(r#"{"init_bpm": 120, "resolution": 480}"#).unwrap();
+    assert_eq!(cd_480.resolution, 480);
 
-    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
-    assert_eq!(cd.resolution, 240);
+    let cd_default: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
+    assert_eq!(cd_default.resolution, 240);
 }
 
 #[test]
@@ -118,9 +119,9 @@ fn null_arrays_become_empty() {
     assert!(cd.bpm_events.is_empty());
     assert!(cd.stop_events.is_empty());
 
-    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
-    assert!(cd.bpm_events.is_empty());
-    assert!(cd.stop_events.is_empty());
+    let cd_no_events: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
+    assert!(cd_no_events.bpm_events.is_empty());
+    assert!(cd_no_events.stop_events.is_empty());
 }
 
 #[test]
@@ -149,8 +150,8 @@ fn lines_none_is_auto() {
     let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
     assert_eq!(cd.lines, None);
 
-    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "lines": null}"#).unwrap();
-    assert_eq!(cd.lines, None);
+    let cd_null: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "lines": null}"#).unwrap();
+    assert_eq!(cd_null.lines, None);
 }
 
 #[test]

@@ -1,5 +1,11 @@
 //! Integration tests for `FlowDocument::select_branches` (Task 3).
 
+#![expect(
+    clippy::panic_in_result_fn,
+    clippy::similar_names,
+    reason = "test code uses assertions and RNG-sequence variable names"
+)]
+
 use bms_control_flow::{BranchRng, ControlFlowError, FlowDoc, TokenPayload};
 use bms_tokenizer::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderResDefAudio, BmsToken, BmsTokenizer,
@@ -628,14 +634,14 @@ fn switch_in_switch_select() -> TestResult {
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: outer→1, inner→2 (CASE 2) → a.wav, c.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
-    assert_eq!(decisions.decisions.len(), 2);
-    assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
+    let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
+    assert_eq!(dec_12.decisions.len(), 2);
+    assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: outer→2 (CASE 2) → d.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
-    assert_eq!(decisions.decisions.len(), 1);
-    assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
+    let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
+    assert_eq!(dec_2.decisions.len(), 1);
+    assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
     Ok(())
 }
 
@@ -668,14 +674,14 @@ fn nested_random_in_switch_select() -> TestResult {
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: SWITCH→1, RANDOM→2 (ELSEIF 2) → a.wav, c.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
-    assert_eq!(decisions.decisions.len(), 2);
-    assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
+    let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
+    assert_eq!(dec_12.decisions.len(), 2);
+    assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: SWITCH→2 (CASE 2) → d.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
-    assert_eq!(decisions.decisions.len(), 1);
-    assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
+    let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
+    assert_eq!(dec_2.decisions.len(), 1);
+    assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
     Ok(())
 }
 
@@ -707,14 +713,14 @@ fn nested_switch_in_random_select() -> TestResult {
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: RANDOM→1, SWITCH→2 (CASE 2) → a.wav, c.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
-    assert_eq!(decisions.decisions.len(), 2);
-    assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
+    let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
+    assert_eq!(dec_12.decisions.len(), 2);
+    assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: RANDOM→2 (ELSE) → d.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
-    assert_eq!(decisions.decisions.len(), 1);
-    assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
+    let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
+    assert_eq!(dec_2.decisions.len(), 1);
+    assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
     Ok(())
 }
 
@@ -757,28 +763,28 @@ fn switch_insane_multi_level_select() -> TestResult {
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
     // RNG [1, 2]: SWITCH→1, RANDOM→2 (ELSE) → a.wav, c.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
-    assert_eq!(decisions.decisions.len(), 2);
-    assert_eq!(wav_filenames(&tokens), vec!["a.wav", "c.wav"]);
+    let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
+    assert_eq!(dec_12.decisions.len(), 2);
+    assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
     // RNG [2]: SWITCH→2 (CASE 2) → d.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[2]));
-    assert_eq!(decisions.decisions.len(), 1);
-    assert_eq!(wav_filenames(&tokens), vec!["d.wav"]);
+    let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
+    assert_eq!(dec_2.decisions.len(), 1);
+    assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
 
     // RNG [3, 1]: SWITCH→3 (CASE 3), inner SWITCH→1 → e.wav, f.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[3, 1]));
-    assert_eq!(decisions.decisions.len(), 2);
-    assert_eq!(wav_filenames(&tokens), vec!["e.wav", "f.wav"]);
+    let (result_31, dec_31) = items.select_branches(&mut SequenceRng::new(&[3, 1]));
+    assert_eq!(dec_31.decisions.len(), 2);
+    assert_eq!(wav_filenames(&result_31), vec!["e.wav", "f.wav"]);
 
     // RNG [3, 2]: SWITCH→3, inner SWITCH→2 → e.wav, g.wav
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[3, 2]));
-    assert_eq!(decisions.decisions.len(), 2);
-    assert_eq!(wav_filenames(&tokens), vec!["e.wav", "g.wav"]);
+    let (result_32, dec_32) = items.select_branches(&mut SequenceRng::new(&[3, 2]));
+    assert_eq!(dec_32.decisions.len(), 2);
+    assert_eq!(wav_filenames(&result_32), vec!["e.wav", "g.wav"]);
 
     // RNG [4]: SWITCH→4 (no CASE 4, nothing selected) → empty
-    let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[4]));
-    assert_eq!(decisions.decisions.len(), 1);
-    assert!(wav_filenames(&tokens).is_empty());
+    let (result_4, dec_4) = items.select_branches(&mut SequenceRng::new(&[4]));
+    assert_eq!(dec_4.decisions.len(), 1);
+    assert!(wav_filenames(&result_4).is_empty());
     Ok(())
 }

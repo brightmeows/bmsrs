@@ -198,7 +198,7 @@ impl BmsTokenizer {
 
     /// Set the error strategy.
     #[must_use]
-    pub fn error_strategy(mut self, strategy: ErrorStrategy) -> Self {
+    pub const fn error_strategy(mut self, strategy: ErrorStrategy) -> Self {
         self.error_strategy = strategy;
         self
     }
@@ -251,7 +251,7 @@ impl BmsTokenizer {
                     continue;
                 }
 
-                // SAFETY: line_number is always >= 1 here (incremented from 0
+                // line_number is always >= 1 here (incremented from 0
                 // before first use); the fallback is unreachable.
                 let nz_line = NonZeroUsize::new(line_number).unwrap_or(NonZeroUsize::MAX);
 

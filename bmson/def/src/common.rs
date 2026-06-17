@@ -69,6 +69,10 @@ impl fmt::Display for ModeHint {
 impl core::str::FromStr for ModeHint {
     type Err = core::convert::Infallible;
 
+    #[expect(
+        clippy::string_slice,
+        reason = "\"generic-\" and \"keys\"/\"k\" are ASCII; byte indexing is safe"
+    )]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "beat-5k" => Self::Beat5k,
@@ -330,7 +334,7 @@ pub struct NoteEvent {
 impl NoteEvent {
     /// Returns `true` if this note is a BGM note (not playable).
     #[must_use]
-    pub fn is_bgm(&self) -> bool {
+    pub const fn is_bgm(&self) -> bool {
         self.x == 0
     }
 }
@@ -591,13 +595,13 @@ where
 
 /// Default value for `judge_multiplier` / `life_multiplier` (`1.00`).
 #[must_use]
-pub fn default_multiplier() -> f64 {
+pub const fn default_multiplier() -> f64 {
     1.00
 }
 
 /// Default pulse resolution (240 ticks per quarter-note).
 #[must_use]
-pub fn default_resolution() -> u64 {
+pub const fn default_resolution() -> u64 {
     240
 }
 

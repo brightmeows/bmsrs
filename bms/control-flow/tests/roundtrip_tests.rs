@@ -1,5 +1,10 @@
 //! Integration tests for `FlowDoc::to_tokens` roundtrip.
 
+#![expect(
+    clippy::panic_in_result_fn,
+    reason = "test code uses assertions in Result-returning functions"
+)]
+
 use bms_control_flow::ControlFlowError;
 use bms_control_flow::{FlowDoc, TokenPayload};
 use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizer};

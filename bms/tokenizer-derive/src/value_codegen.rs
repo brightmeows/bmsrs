@@ -33,13 +33,7 @@ pub fn generate_bms_value_enum(
             .attrs
             .iter()
             .filter(|a| a.path().is_ident("bms_token"))
-            .filter_map(|a| {
-                if let Ok(lit) = a.parse_args::<syn::LitStr>() {
-                    Some(lit.value())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|a| a.parse_args::<syn::LitStr>().ok().map(|lit| lit.value()))
             .collect();
 
         if tokens.is_empty() {
@@ -50,7 +44,7 @@ pub fn generate_bms_value_enum(
             .to_compile_error();
         }
 
-        // SAFETY: non-emptiness verified above by the `if tokens.is_empty()` check.
+        // Non-emptiness verified above by the `if tokens.is_empty()` check.
         #[expect(clippy::indexing_slicing, reason = "pre-validated non-empty")]
         let first_token = &tokens[0];
         canonical_tokens.push(first_token.clone());

@@ -109,7 +109,7 @@ impl<T: NoteData> Player<T> {
     }
 
     /// Reset playback to tick 0.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.current_tick = 0;
     }
 
@@ -117,7 +117,7 @@ impl<T: NoteData> Player<T> {
 
     /// Current playback position in ticks.
     #[must_use]
-    pub fn current_tick(&self) -> u64 {
+    pub const fn current_tick(&self) -> u64 {
         self.current_tick
     }
 
@@ -283,7 +283,7 @@ impl<T: NoteData> Player<T> {
 
     /// Borrow the underlying chart.
     #[must_use]
-    pub fn chart(&self) -> &Chart<T> {
+    pub const fn chart(&self) -> &Chart<T> {
         &self.chart
     }
 

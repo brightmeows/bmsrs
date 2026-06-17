@@ -66,11 +66,12 @@ pub fn generate_impl(
     };
 
     let header_lifetime = syn::Lifetime::new("'header", proc_macro2::Span::call_site());
-    let error_type = if let Some(tp) = &type_param {
-        quote! { crate::BmsTokenizeError<#tp> }
-    } else {
-        quote! { crate::BmsTokenizeError<&'header str> }
-    };
+    let error_type = type_param.as_ref().map_or_else(
+        || quote! { crate::BmsTokenizeError<&'header str> },
+        |tp| {
+            quote! { crate::BmsTokenizeError<#tp> }
+        },
+    );
     let try_match_body = generate_try_match_body(
         data_enum,
         templates,
@@ -82,15 +83,13 @@ pub fn generate_impl(
     let format_body = generate_format_body(data_enum, templates);
 
     // Build the format_header where clause: C must implement Display + AsRef<str>.
-    let format_where: TokenStream = if let Some(tp) = &type_param {
+    let format_where: TokenStream = type_param.as_ref().map_or_else(TokenStream::new, |tp| {
         let tp_ident = &tp.ident;
         quote! {
             where #tp_ident: ::std::fmt::Display
                 + ::std::convert::AsRef<str>
         }
-    } else {
-        TokenStream::new()
-    };
+    });
 
     quote! {
         impl #impl_generics #enum_name #ty_generics #where_clause {
@@ -693,16 +692,20 @@ fn gen_field_parse(
             };
         }
     } else {
-        let (into_tokens_path, value_arg) = match type_param_ident {
-            Some(_tp) => (
-                quote! { crate::IntoTokensError<#_tp> },
-                quote! { ::std::convert::From::from(#value_src) },
-            ),
-            None => (
-                quote! { crate::IntoTokensError<&'header str> },
-                quote! { #value_src },
-            ),
-        };
+        let (into_tokens_path, value_arg) = type_param_ident.map_or_else(
+            || {
+                (
+                    quote! { crate::IntoTokensError<&'header str> },
+                    quote! { #value_src },
+                )
+            },
+            |_tp| {
+                (
+                    quote! { crate::IntoTokensError<#_tp> },
+                    quote! { ::std::convert::From::from(#value_src) },
+                )
+            },
+        );
         quote! {
             let #ident: #field_ty = #value_src.parse().map_err(|e|
                 <<#field_ty as ::std::str::FromStr>::Err as #into_tokens_path>::into_error(
@@ -728,12 +731,10 @@ fn check_placeholder_consistency(
         (Some(id_named), Some(val_named)) if id_named != val_named
     );
 
-    if mixed {
+    mixed.then(|| {
         let msg = "cannot mix named and unnamed placeholders in the same #[bms_token] template";
-        Some(syn::Error::new_spanned(variant, msg).to_compile_error())
-    } else {
-        None
-    }
+        syn::Error::new_spanned(variant, msg).to_compile_error()
+    })
 }
 
 /// Build the body that constructs a tuple variant for an indexed command with
@@ -828,11 +829,12 @@ pub fn generate_header_dispatch(
         (None, None) => TokenStream::new(),
     };
 
-    let error_type = if let Some(tp) = &type_param_ident {
-        quote! { crate::BmsTokenizeError<#tp> }
-    } else {
-        quote! { crate::BmsTokenizeError<&'header str> }
-    };
+    let error_type = type_param_ident.as_ref().map_or_else(
+        || quote! { crate::BmsTokenizeError<&'header str> },
+        |tp| {
+            quote! { crate::BmsTokenizeError<#tp> }
+        },
+    );
     let mut dispatch_arms = TokenStream::new();
 
     for variant in &data_enum.variants {

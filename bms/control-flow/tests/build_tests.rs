@@ -1,5 +1,10 @@
 //! Integration tests for `FlowDoc::from_tokens`.
 
+#![expect(
+    clippy::panic_in_result_fn,
+    reason = "test code uses assertions in Result-returning functions"
+)]
+
 use std::num::NonZeroUsize;
 
 use bms_control_flow::{

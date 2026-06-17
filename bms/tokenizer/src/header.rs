@@ -98,7 +98,11 @@ impl<C> TryFrom<BmsHeader<C>> for BmsHeaderFallback<C> {
 /// value cannot be parsed into the expected type.
 /// Parse with explicit supertraits for C (avoid `E0283` with `BmsStr` blanket impl).
 /// In tests, use the non-generic `parse_header_line_default` wrapper.
-pub(crate) fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
+#[expect(
+    clippy::string_slice,
+    reason = "BMS header lines are ASCII-only; byte indexing at whitespace boundaries is safe"
+)]
+pub fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
     line: &'a str,
     prefixes: &[char],
 ) -> Result<Option<BmsHeader<C>>, BmsTokenizeError<C>> {
@@ -114,7 +118,7 @@ pub(crate) fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<
     }
 
     // Determine prefix character from the configured list.
-    // SAFETY: trimmed is non-empty (checked above).
+    // trimmed is non-empty (checked above).
     let Some(first) = trimmed.chars().next() else {
         return Ok(None);
     };
@@ -175,7 +179,7 @@ pub(crate) fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<
 /// Convenience wrapper for tests — calls [`parse_header_line`] with the
 /// default `#` and `%` prefixes.
 #[cfg(test)]
-pub(crate) fn parse_header_line_default(
+pub fn parse_header_line_default(
     line: &str,
 ) -> Result<Option<BmsHeader<&str>>, BmsTokenizeError<&str>> {
     parse_header_line::<&str>(line, &['#', '%'])

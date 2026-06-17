@@ -452,21 +452,25 @@ pub enum DetectedVersion {
 /// Returns [`BmsonError::UnknownVersion`] when a `"version"` field is
 /// found but its value is not a string or does not start with `'0'`,
 /// `'1'` or `'2'`.
+#[expect(
+    clippy::string_slice,
+    reason = "JSON bytes for \"version\" key and ASCII version strings; byte indexing is safe"
+)]
 pub fn detect_version(json: &str) -> Result<DetectedVersion, BmsonError> {
     // Find the `"version"` key by scanning for the literal substring.
     let Some(key_pos) = json.find("\"version\"") else {
         return Ok(DetectedVersion::V0);
     };
 
-    let rest = &json[key_pos + 9..];
+    let mut rest = &json[key_pos + 9..];
     // Skip whitespace and expect `:`.
-    let rest = rest.trim_start();
-    let rest = rest.strip_prefix(':').ok_or_else(|| {
+    rest = rest.trim_start();
+    rest = rest.strip_prefix(':').ok_or_else(|| {
         BmsonError::UnknownVersion("malformed version field: expected ':'".into())
     })?;
     // Skip whitespace and expect opening `"`.
-    let rest = rest.trim_start();
-    let rest = rest.strip_prefix('"').ok_or_else(|| {
+    rest = rest.trim_start();
+    rest = rest.strip_prefix('"').ok_or_else(|| {
         BmsonError::UnknownVersion("malformed version field: expected string".into())
     })?;
     // Find the closing `"`.

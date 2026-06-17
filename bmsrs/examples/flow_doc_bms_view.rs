@@ -57,9 +57,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Derive `FlowDoc<Bms>`: every payload span is reduced to a `Bms` via
     //    `Bms::from_flat_tokens`. The control-flow skeleton is preserved
     //    verbatim — only the leaf payload kind changes.
-    let bms_tree: FlowDoc<Bms> = token_tree.map_payload(|TokenPayload { tokens }| {
-        Bms::from_flat_tokens(tokens.into_iter().map(|(_, token)| token))
-    });
+    let bms_tree: FlowDoc<Bms> = token_tree.map_payload(
+        |TokenPayload {
+             tokens: payload_tokens,
+         }| { Bms::from_flat_tokens(payload_tokens.into_iter().map(|(_, token)| token)) },
+    );
 
     // 4. Walk the resulting tree: each span prints its parsed `Bms` summary,
     //    nested under the original control-flow structure.

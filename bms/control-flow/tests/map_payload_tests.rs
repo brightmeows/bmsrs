@@ -1,5 +1,11 @@
 //! Integration tests for `FlowDoc::map_payload` and `try_map_payload`.
 
+#![expect(
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "test code uses assertions and unwraps in Result-returning functions"
+)]
+
 use bms_control_flow::{ControlFlowError, FlowBlock, FlowDoc, FlowNode, TokenPayload};
 use bms_tokenizer::BmsTokenizer;
 
@@ -56,10 +62,10 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
     // Branch 2 body: one payload span of 1 token.
     let b2 = r.branches.get(1).expect("branch 2");
     assert_eq!(b2.body.len(), 1);
-    let Some(FlowNode::Payload(n)) = b2.body.first() else {
+    let Some(FlowNode::Payload(n2)) = b2.body.first() else {
         panic!("expected payload in branch 2");
     };
-    assert_eq!(*n, 1);
+    assert_eq!(*n2, 1);
     Ok(())
 }
 

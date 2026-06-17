@@ -35,6 +35,10 @@ use crate::value_codegen::generate_bms_value_enum;
 /// operating modes.
 #[proc_macro_derive(BmsTokenAttr, attributes(bms_token, bms_fallback))]
 pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
+    #[expect(
+        clippy::shadow_reuse,
+        reason = "standard proc-macro shadow: TokenStream -> DeriveInput"
+    )]
     let input = syn::parse_macro_input!(input as DeriveInput);
 
     let enum_name = &input.ident;

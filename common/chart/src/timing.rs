@@ -59,7 +59,7 @@ enum TimingEvent {
 
 impl TimingEvent {
     /// Returns `true` if this is a [`TimingEvent::Stop`].
-    fn is_stop(self) -> bool {
+    const fn is_stop(self) -> bool {
         matches!(self, Self::Stop(_))
     }
 }
@@ -192,8 +192,8 @@ impl TimingTrack {
                 TimingEvent::Bpm(bpm) => {
                     current_bpm = *bpm;
                 }
-                TimingEvent::Stop(duration) => {
-                    let stop_seconds = *duration as f64 / res * 60.0 / current_bpm;
+                TimingEvent::Stop(stop_duration) => {
+                    let stop_seconds = *stop_duration as f64 / res * 60.0 / current_bpm;
                     if stop_seconds >= remaining {
                         // Target is within the stop — tick doesn't advance.
                         return current_tick;

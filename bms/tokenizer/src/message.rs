@@ -99,7 +99,11 @@ impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
 /// (e.g., it is a header, a comment, or empty).
 /// Returns `Err(...)` if the line looks like a channel message but has
 /// no valid channel suffix.
-pub(crate) fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
+#[expect(
+    clippy::string_slice,
+    reason = "BMS message lines are ASCII-only (hex digits, Base62 chars, colons); byte indexing is safe"
+)]
+pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
     line: &'a str,
 ) -> Result<Option<BmsMessage<C>>, BmsTokenizeError<C>> {
     if line.is_empty() || !line.starts_with('#') {

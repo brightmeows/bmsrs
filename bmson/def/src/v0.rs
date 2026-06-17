@@ -202,7 +202,7 @@ pub struct BmsonInfo<'a> {
 }
 
 /// Default value 100.0 for `#[serde(default)]` on fields like `resolution`.
-fn default_100() -> f64 {
+const fn default_100() -> f64 {
     100.0
 }
 
@@ -484,6 +484,6 @@ impl<'a> TryFrom<crate::Bmson<'a>> for Bmson<'a> {
 /// Used when converting from the root [`Bmson`] to [`v0::Bmson`](Bmson)
 /// to map empty `&str` fields to `None` (so they serialize as absent).
 #[must_use]
-pub(crate) fn some_if_nonempty(s: &str) -> Option<&str> {
+pub(crate) const fn some_if_nonempty(s: &str) -> Option<&str> {
     if s.is_empty() { None } else { Some(s) }
 }

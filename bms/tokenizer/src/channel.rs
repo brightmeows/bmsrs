@@ -118,7 +118,11 @@ impl BmsChannel {
 /// The input index is expected to contain uppercase characters (callers
 /// should normalise before constructing the index).
 #[must_use]
-pub(crate) fn classify_channel(ch: BmsIndex<ChannelTag, Base36>) -> BmsChannel {
+#[expect(
+    clippy::unreachable,
+    reason = "match arms confirmed by bytes.len() check above"
+)]
+pub fn classify_channel(ch: BmsIndex<ChannelTag, Base36>) -> BmsChannel {
     let bytes = ch.as_bytes();
 
     match bytes.len() {

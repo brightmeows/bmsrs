@@ -21,7 +21,7 @@ pub fn make_chart(notes: Vec<Note>) -> Chart {
     }
 }
 
-pub fn note(tick: u64, lane: u16, kind: NoteKind) -> Note {
+pub const fn note(tick: u64, lane: u16, kind: NoteKind) -> Note {
     Note {
         tick,
         audio: None,
