@@ -250,6 +250,119 @@ fn current_bpm_returns_active_bpm() {
 }
 
 #[test]
+fn duration_to_tick_constant_bpm() {
+    let chart = make_chart(vec![]); // 120 BPM, tick 0-239 = 0.5s
+    let player = Player::new(chart);
+
+    assert_eq!(player.duration_to_tick(Duration::ZERO), 0);
+    assert_eq!(player.duration_to_tick(Duration::from_secs(1)), 480);
+    assert_eq!(player.duration_to_tick(Duration::from_secs(2)), 960);
+}
+
+#[test]
+fn duration_to_tick_matches_timing_track() {
+    let chart = make_chart(vec![]);
+    let player = Player::new(chart);
+    let track = TimingTrack {
+        init_bpm: 120.0,
+        bpm_changes: vec![],
+        stops: vec![],
+    };
+
+    for d_ms in [0u64, 100, 250, 500, 1000, 2000, 5000] {
+        let dur = Duration::from_millis(d_ms);
+        let expected = track.duration_to_tick(dur, 240);
+        let actual = player.duration_to_tick(dur);
+        assert_eq!(actual, expected, "mismatch at {d_ms}ms");
+    }
+}
+
+#[test]
+fn duration_to_tick_with_bpm_changes_and_stops() {
+    let chart: Chart = Chart {
+        metadata: ChartMetadata::default(),
+        resolution: 240,
+        lane_count: 8,
+        timing: TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![BpmChange {
+                tick: 480,
+                bpm: 60.0,
+            }],
+            stops: vec![bmsrs_chart::StopEvent {
+                tick: 960,
+                duration: 480,
+            }],
+        },
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
+        notes: vec![],
+        bgm: vec![],
+        audio_assets: vec![],
+        bar_lines: vec![],
+        scroll_events: vec![],
+        bga: Bga::default(),
+    };
+    let player = Player::new(chart);
+    let track = TimingTrack {
+        init_bpm: 120.0,
+        bpm_changes: vec![BpmChange {
+            tick: 480,
+            bpm: 60.0,
+        }],
+        stops: vec![bmsrs_chart::StopEvent {
+            tick: 960,
+            duration: 480,
+        }],
+    };
+
+    for d_ms in [0u64, 100, 500, 1000, 2000, 4000, 8000] {
+        let dur = Duration::from_millis(d_ms);
+        let expected = track.duration_to_tick(dur, 240);
+        let actual = player.duration_to_tick(dur);
+        assert_eq!(actual, expected, "mismatch at {d_ms}ms");
+    }
+}
+
+#[test]
+fn duration_to_tick_stop_does_not_advance() {
+    let chart: Chart = Chart {
+        metadata: ChartMetadata::default(),
+        resolution: 240,
+        lane_count: 8,
+        timing: TimingTrack {
+            init_bpm: 120.0,
+            bpm_changes: vec![],
+            stops: vec![bmsrs_chart::StopEvent {
+                tick: 240,
+                duration: 480,
+            }],
+        },
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
+        notes: vec![],
+        bgm: vec![],
+        audio_assets: vec![],
+        bar_lines: vec![],
+        scroll_events: vec![],
+        bga: Bga::default(),
+    };
+    let player = Player::new(chart);
+
+    // Before stop: 240 ticks = 0.5s at 120 BPM
+    assert_eq!(player.duration_to_tick(Duration::from_secs_f64(0.5)), 240);
+
+    // During stop: tick should not advance.
+    assert_eq!(player.duration_to_tick(Duration::from_secs_f64(0.75)), 240);
+    assert_eq!(player.duration_to_tick(Duration::from_secs_f64(1.0)), 240);
+
+    // After stop: 480 ticks worth of time consumes the stop duration
+    // 0.5s (to stop) + 1.0s (stop at 120 BPM) = 1.5s, then continues
+    assert_eq!(player.duration_to_tick(Duration::from_secs_f64(1.5)), 240);
+    assert_eq!(player.duration_to_tick(Duration::from_secs_f64(2.0)), 480);
+}
+
+#[test]
 fn into_chart_returns_original_chart() {
     let chart = make_chart(vec![note(0, 0, NoteKind::Normal)]);
     let player = Player::new(chart);

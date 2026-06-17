@@ -486,6 +486,9 @@ impl Messages {
     }
 
     /// Parse playable note events (ch 11–49) from full concatenated values.
+    ///
+    /// Entries with `"00"` WAV index are filtered out — they represent
+    /// "no note" (silent step) positions and must not produce events.
     fn push_playable_full(
         &mut self,
         values: &str,
@@ -496,6 +499,12 @@ impl Messages {
         total_objects: u32,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            // "00" = no note — skip entirely. This must happen before
+            // BmsIndex parsing since "00" is a valid index but semantically
+            // means "no object at this position" in all BMS channels.
+            if val == "00" {
+                continue;
+            }
             let Ok(wav_id) = BmsIndex::try_from(val) else {
                 continue;
             };
@@ -898,6 +907,21 @@ mod tests {
                 .map(String::as_str),
             Some("AA")
         );
+    }
+
+    #[test]
+    fn note_events_filter_zero_entries() {
+        // "00" entries should not produce NoteEvent.
+        let msgs = parse_one("#00111:AA00BB");
+        assert_eq!(msgs.note_events.len(), 2);
+        assert_eq!(msgs.note_events[0].wav_id, "AA".try_into().unwrap());
+        assert_eq!(msgs.note_events[1].wav_id, "BB".try_into().unwrap());
+    }
+
+    #[test]
+    fn note_events_only_zero_entries_produces_nothing() {
+        let msgs = parse_one("#00111:0000");
+        assert_eq!(msgs.note_events.len(), 0);
     }
 
     #[test]

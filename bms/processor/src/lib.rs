@@ -33,7 +33,7 @@ use bmsrs_chart::{
 };
 use thiserror::Error;
 
-use crate::long_note::{PairedLn, pair_lnobj, pair_lntype1};
+use crate::long_note::{PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
 
 /// Errors that can occur during BMS processing.
@@ -118,7 +118,13 @@ impl BmsProcessor {
 
     /// Process a BMS chart, inferring the layout from `#PLAYER`.
     ///
-    /// Double Play → [`Beat14k`]; all others → [`Beat7k`].
+    /// | `#PLAYER` value | Layout |
+    /// |---|---|
+    /// | `Single` / `1` / `SP` | [`Beat7k`] |
+    /// | `Couple` / `2` / `CP` | [`Beat14k`] (co-op, 2P side) |
+    /// | `Double` / `3` / `DP` | [`Beat14k`] (one player, both sides) |
+    /// | `Battle` / `4` / `BP` | [`Beat14k`] (two players, same chart) |
+    /// | Unset / unknown | [`Beat7k`] (fallback) |
     ///
     /// # Errors
     ///
@@ -126,7 +132,10 @@ impl BmsProcessor {
     /// or not positive.
     pub fn process_default(bms: &Bms) -> Result<Chart<DefaultNoteData>, ProcessError> {
         match bms.gameplay.player {
-            Some(PlayerMode::Double | PlayerMode::Battle) => Self::process(bms, &Beat14k),
+            Some(PlayerMode::Double | PlayerMode::Battle | PlayerMode::Couple) => {
+                Self::process(bms, &Beat14k)
+            }
+            // Single / unset / unknown → single-play layout.
             _ => Self::process(bms, &Beat7k),
         }
     }
@@ -135,15 +144,29 @@ impl BmsProcessor {
 // Builder helpers
 
 /// Determine LN mode and pair LNs. Returns paired LNs and consumed note indices.
+///
+/// The LN notation is selected in this priority:
+/// 1. `#LNOBJ` — LNOBJ notation (channels 11-49 with marker WAV).
+/// 2. `#LNTYPE 2` — MGQ notation (channels 51-69, 00 = release).
+/// 3. `#LNTYPE 1` / default — RDM notation (channels 51-69, consecutive pairs).
 fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<usize>) {
-    bms.gameplay.ln_obj.map_or_else(
-        || {
-            (
-                pair_lntype1(&bms.messages.long_note_events, table),
-                BTreeSet::new(),
-            )
-        },
-        |ln_obj| pair_lnobj(&bms.messages.note_events, ln_obj, table),
+    // LNOBJ takes highest priority.
+    if let Some(ln_obj) = bms.gameplay.ln_obj {
+        return pair_lnobj(&bms.messages.note_events, ln_obj, table);
+    }
+
+    // Check for MGQ notation.
+    if bms.gameplay.ln_type == Some(bms_tokenizer::LnType::Type2) {
+        return (
+            pair_lntype2(&bms.messages.long_note_events, table),
+            BTreeSet::new(),
+        );
+    }
+
+    // Default: RDM / LNTYPE 1.
+    (
+        pair_lntype1(&bms.messages.long_note_events, table),
+        BTreeSet::new(),
     )
 }
 
@@ -333,9 +356,10 @@ fn build_stops_from_stp(
         .collect()
 }
 
-/// Build scroll-speed change events.
+/// Build scroll-speed change events, sorted by tick.
 fn build_scroll_events(bms: &Bms, table: &MeasureTable) -> Vec<ScrollChangeEvent> {
-    bms.messages
+    let mut events: Vec<ScrollChangeEvent> = bms
+        .messages
         .scroll_events
         .iter()
         .filter_map(|se| {
@@ -347,7 +371,9 @@ fn build_scroll_events(bms: &Bms, table: &MeasureTable) -> Vec<ScrollChangeEvent
                     rate,
                 })
         })
-        .collect()
+        .collect();
+    events.sort_by_key(|e| e.tick);
+    events
 }
 
 /// Build BGA data from BGA events and BMP file definitions.

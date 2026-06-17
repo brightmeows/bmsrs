@@ -123,6 +123,41 @@ impl TimingCache {
     pub(crate) fn bpm_at_tick(&self, tick: u64) -> f64 {
         segment_bpm_at_tick(&self.bpm_segments, tick)
     }
+
+    /// Convert wall-clock [`Duration`] to the nearest tick position.
+    ///
+    /// This is the inverse of [`tick_to_duration`](Self::tick_to_duration).
+    /// Time spent in stops does not advance the tick.
+    ///
+    /// Uses binary search on [`tick_to_duration`](Self::tick_to_duration)
+    /// for O(log² n) complexity.  The search upper bound is generous
+    /// (1000 measures past the last BPM segment) to cover any valid time.
+    #[must_use]
+    pub(crate) fn duration_to_tick(&self, duration: Duration) -> u64 {
+        let target = duration.as_secs_f64();
+        if target <= 0.0 {
+            return 0;
+        }
+
+        // Upper bound: 1000 measures past the last known BPM segment.
+        let last_segment_tick = self.bpm_segments.last().map_or(0, |s| s.start_tick);
+        let upper = last_segment_tick + self.resolution * 4 * 1000;
+
+        // Binary search: find the last tick whose time ≤ target.
+        let mut lo = 0_u64;
+        let mut hi = upper.max(1);
+
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if self.tick_to_duration(mid).as_secs_f64() <= target {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        lo.saturating_sub(1)
+    }
 }
 
 /// Binary-search BPM segments for the active BPM at `tick`.

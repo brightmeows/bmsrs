@@ -132,6 +132,39 @@ fn process_default_double_player_uses_beat14k() {
 }
 
 #[test]
+fn process_default_couple_player_uses_beat14k() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.player = Some(PlayerMode::Couple);
+
+    let chart = BmsProcessor::process_default(&bms).unwrap();
+
+    assert_eq!(chart.lane_count, 16);
+}
+
+#[test]
+fn process_default_battle_player_uses_beat14k() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.player = Some(PlayerMode::Battle);
+
+    let chart = BmsProcessor::process_default(&bms).unwrap();
+
+    assert_eq!(chart.lane_count, 16);
+}
+
+#[test]
+fn process_default_unset_player_uses_beat7k() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.player = None;
+
+    let chart = BmsProcessor::process_default(&bms).unwrap();
+
+    assert_eq!(chart.lane_count, 8);
+}
+
+#[test]
 fn process_lnobj_produces_long_note() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);

@@ -140,13 +140,10 @@ impl<T: NoteData> Player<T> {
 
     /// Convert wall-clock [`Duration`] to the nearest tick position.
     ///
-    /// Delegates to
-    /// [`TimingTrack::duration_to_tick`](bmsrs_chart::TimingTrack::duration_to_tick).
+    /// Uses the pre-computed timing cache for O(log² n) performance.
     #[must_use]
     pub fn duration_to_tick(&self, duration: Duration) -> u64 {
-        self.chart
-            .timing
-            .duration_to_tick(duration, self.chart.resolution)
+        self.cache.duration_to_tick(duration)
     }
 
     /// Total chart duration.
