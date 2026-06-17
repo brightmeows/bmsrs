@@ -1,9 +1,11 @@
 //! Integration tests for `FlowDocument::select_branches` (Task 3).
 
-use bms_control_flow::{BranchRng, ControlFlowError, DeterministicRng, FlowDoc, TokenPayload};
+use bms_control_flow::{BranchRng, ControlFlowError, FlowDoc, TokenPayload};
 use bms_tokenizer::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderResDefAudio, BmsToken, BmsTokenizer,
 };
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -17,11 +19,11 @@ fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, Co
     FlowDoc::from_tokens(tokens)
 }
 
-/// Helper: find a seed that makes `DeterministicRng` produce `target` on first
+/// Helper: find a seed that makes `StdRng` produce `target` on first
 /// `gen_range(max)` call.
 fn find_seed(target: u64, max: u64) -> Option<u64> {
     for seed in 0..1000 {
-        let mut rng = DeterministicRng::new(seed);
+        let mut rng = StdRng::seed_from_u64(seed);
         if rng.gen_range(max) == target {
             return Some(seed);
         }
@@ -68,7 +70,7 @@ fn random_selects_matching_branch() -> TestResult {
     )?;
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     assert_eq!(selection.decisions.len(), 1);
@@ -98,7 +100,7 @@ fn random_else_fallback_selected_when_no_match() -> TestResult {
     )?;
 
     let seed = find_seed(3, 3).ok_or("no seed found for value 3")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
@@ -122,7 +124,7 @@ fn switch_selects_matching_case() -> TestResult {
     )?;
 
     let seed = find_seed(2, 2).ok_or("no seed found for value 2")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
@@ -146,7 +148,7 @@ fn switch_fall_through_continues_to_next_case() -> TestResult {
     )?;
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
@@ -171,7 +173,7 @@ fn switch_stops_at_skip() -> TestResult {
     )?;
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
@@ -195,7 +197,7 @@ fn set_random_uses_fixed_value() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let mut rng = DeterministicRng::new(999);
+    let mut rng = StdRng::seed_from_u64(999);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
@@ -218,7 +220,7 @@ fn set_switch_uses_fixed_value() -> TestResult {
          #ENDSW",
     )?;
 
-    let mut rng = DeterministicRng::new(999);
+    let mut rng = StdRng::seed_from_u64(999);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     let decision = selection.decisions.first().ok_or("no decision")?;
@@ -248,7 +250,7 @@ fn nested_block_selection_both_blocks_decided() -> TestResult {
          #ENDSW",
     )?;
 
-    let mut rng = DeterministicRng::new(0);
+    let mut rng = SequenceRng::new(&[1, 1]);
     let (_, selection) = items.select_branches(&mut rng);
 
     assert_eq!(selection.decisions.len(), 2);
@@ -258,7 +260,7 @@ fn nested_block_selection_both_blocks_decided() -> TestResult {
 #[test]
 fn no_control_flow_preserves_all_tokens() -> TestResult {
     let items = build_doc("#TITLE Test\n#BPM 120\n#00101:1122")?;
-    let mut rng = DeterministicRng::new(0);
+    let mut rng = StdRng::seed_from_u64(0);
     let (tokens, selection) = items.select_branches(&mut rng);
 
     assert!(selection.decisions.is_empty());
@@ -277,7 +279,7 @@ fn cf_headers_not_in_selected_output() -> TestResult {
     )?;
 
     let seed = find_seed(1, 2).ok_or("no seed found for value 1")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, _) = items.select_branches(&mut rng);
 
     let cfs = cf_headers(&tokens);
@@ -289,35 +291,6 @@ fn cf_headers_not_in_selected_output() -> TestResult {
 }
 
 // BMS spec-derived tests (bmspec-4, memo/13-control-flow)
-
-/// Ad-hoc RNG that uses pre-determined seeds in sequence.
-struct TwoStepRng {
-    rng1: DeterministicRng,
-    rng2: DeterministicRng,
-    call_count: u64,
-}
-
-impl TwoStepRng {
-    fn new(seed1: u64, seed2: u64) -> Self {
-        Self {
-            rng1: DeterministicRng::new(seed1),
-            rng2: DeterministicRng::new(seed2),
-            call_count: 0,
-        }
-    }
-}
-
-impl BranchRng for TwoStepRng {
-    fn gen_range(&mut self, max: u64) -> u64 {
-        let result = if self.call_count == 0 {
-            self.rng1.gen_range(max)
-        } else {
-            self.rng2.gen_range(max)
-        };
-        self.call_count += 1;
-        result
-    }
-}
 
 // bmspec-4 Scenario 2: RNG yields 2 → #IF 2 branch selected.
 #[test]
@@ -334,7 +307,7 @@ fn random_selects_second_branch() -> TestResult {
     )?;
 
     let seed = find_seed(2, 2).ok_or("no seed found for value 2")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions.len(), 1);
@@ -367,9 +340,7 @@ fn multiple_sequential_random_blocks_select() -> TestResult {
     )?;
 
     // First RANDOM → 2 (b.wav), second RANDOM → 1 (c.wav)
-    let seed1 = find_seed(2, 2).ok_or("no seed found")?;
-    let seed2 = find_seed(1, 2).ok_or("no seed found")?;
-    let mut rng = TwoStepRng::new(seed1, seed2);
+    let mut rng = SequenceRng::new(&[2, 1]);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions.len(), 2);
@@ -400,7 +371,7 @@ fn elseif_first_match_wins() -> TestResult {
     )?;
 
     let seed = find_seed(2, 5).ok_or("no seed found for value 2")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].value, 2);
@@ -430,7 +401,7 @@ fn elseif_no_match_falls_to_else() -> TestResult {
     )?;
 
     let seed = find_seed(4, 5).ok_or("no seed found for value 4")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].selected_index, 3); // #ELSE
@@ -456,7 +427,7 @@ fn switch_def_fallback() -> TestResult {
     )?;
 
     let seed = find_seed(3, 3).ok_or("no seed found for value 3")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].selected_index, 2); // #DEF
@@ -476,7 +447,7 @@ fn random_no_branch_matches_yields_no_output() -> TestResult {
     )?;
 
     let seed = find_seed(2, 2).ok_or("no seed found for value 2")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert!(wav_filenames(&tokens).is_empty());
@@ -498,7 +469,7 @@ fn switch_only_def_selected_when_no_case() -> TestResult {
     )?;
 
     let seed = find_seed(3, 3).ok_or("no seed found for value 3")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions[0].selected_index, 0);
@@ -510,7 +481,7 @@ fn switch_only_def_selected_when_no_case() -> TestResult {
 #[test]
 fn empty_random_block_select_yields_nothing() -> TestResult {
     let items = build_doc("#RANDOM 2\n#ENDRANDOM")?;
-    let mut rng = DeterministicRng::new(0);
+    let mut rng = StdRng::seed_from_u64(0);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert!(tokens.is_empty());
@@ -530,7 +501,7 @@ fn random_single_branch_selected() -> TestResult {
     )?;
 
     let seed = find_seed(1, 1).ok_or("no seed found for value 1")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(wav_filenames(&tokens), vec!["a.wav"]);
@@ -567,8 +538,7 @@ fn nested_three_levels_selection() -> TestResult {
 
     // Outer → 2 (switch branch), Switch → 2 (case2 w/ inner random),
     // Inner → 1 (innermost.wav)
-    // DeterministicRng seed 3 produces sequence [2, 2, 1]
-    let mut rng = DeterministicRng::new(3);
+    let mut rng = SequenceRng::new(&[2, 2, 1]);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert_eq!(decisions.decisions.len(), 3);
@@ -593,7 +563,7 @@ fn headers_around_control_flow_preserved_in_selection() -> TestResult {
     )?;
 
     let seed = find_seed(1, 2).ok_or("no seed found")?;
-    let mut rng = DeterministicRng::new(seed);
+    let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, _) = items.select_branches(&mut rng);
 
     assert_eq!(tokens.len(), 3);

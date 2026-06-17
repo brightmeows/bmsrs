@@ -72,5 +72,6 @@ payload node first, so span ordering is preserved across block boundaries.
 cargo test -p bms-control-flow
 ```
 
-Helpers `SequenceRng`, `DeterministicRng`, `find_seed`, `build_doc` defined in test files.
+Helpers `SequenceRng`, `find_seed`, `build_doc` defined in test files.
+Any `rand::RngExt` automatically satisfies `BranchRng` via a blanket impl, so `StdRng`, `ThreadRng`, etc. work out of the box; tests use `StdRng::seed_from_u64` for deterministic seeding.
 `map_payload_tests` covers payload transformation and skeleton preservation.

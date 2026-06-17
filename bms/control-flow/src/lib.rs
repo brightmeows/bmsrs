@@ -31,5 +31,5 @@ mod to_tokens;
 mod types;
 
 pub use error::ControlFlowError;
-pub use rng::{BranchRng, DeterministicRng};
+pub use rng::BranchRng;
 pub use types::*;
