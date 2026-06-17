@@ -1,8 +1,8 @@
-//! Example: derive a `FlowTree<Bms>` view from a `FlowTree<TokenPayload<C>>`.
+//! Example: derive a `FlowDoc<Bms>` view from a `FlowDoc<TokenPayload<C>>`.
 //!
 //! `bms-control-flow` does not know about `Bms` — that is the whole point of
 //! the payload-generic design. This example shows the downstream pattern:
-//! build the token-level control-flow tree, then use [`FlowTree::map_payload`]
+//! build the token-level control-flow tree, then use [`FlowDoc::map_payload`]
 //! to reduce each payload span into a parsed `Bms`, keeping the Random/Switch
 //! skeleton intact. This is the data shape a chart editor would use to
 //! inspect every branch variant's parsed content.
@@ -10,7 +10,7 @@
 //! Run with:
 //!
 //! ```sh
-//! cargo run --example flow_tree_bms_view
+//! cargo run --example flow_doc_bms_view
 //! ```
 
 // An example's job is to print to stdout; the workspace-wide ban on
@@ -20,7 +20,7 @@
     reason = "example prints to stdout by design"
 )]
 
-use bmsrs::bms::control_flow::{FlowBlock, FlowNode, FlowTree, TokenPayload};
+use bmsrs::bms::control_flow::{FlowBlock, FlowDoc, FlowNode, TokenPayload};
 use bmsrs::bms::parser::Bms;
 use bmsrs::bms::tokenizer::BmsTokenizer;
 
@@ -52,23 +52,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Build the token-level control-flow tree — the editable source of
     //    truth. Consecutive non-control-flow tokens pack into payload spans;
     //    `#RANDOM`/`#IF` become structured branches.
-    let token_tree = FlowTree::from_tokens(tokens)?;
+    let token_tree = FlowDoc::from_tokens(tokens)?;
 
-    // 3. Derive `FlowTree<Bms>`: every payload span is reduced to a `Bms` via
+    // 3. Derive `FlowDoc<Bms>`: every payload span is reduced to a `Bms` via
     //    `Bms::from_flat_tokens`. The control-flow skeleton is preserved
     //    verbatim — only the leaf payload kind changes.
-    let bms_tree: FlowTree<Bms> = token_tree.map_payload(|TokenPayload { tokens }| {
+    let bms_tree: FlowDoc<Bms> = token_tree.map_payload(|TokenPayload { tokens }| {
         Bms::from_flat_tokens(tokens.into_iter().map(|(_, token)| token))
     });
 
     // 4. Walk the resulting tree: each span prints its parsed `Bms` summary,
     //    nested under the original control-flow structure.
-    println!("FlowTree<Bms> — skeleton with per-span parsed Bms:");
+    println!("FlowDoc<Bms> — skeleton with per-span parsed Bms:");
     walk(&bms_tree, 0);
     Ok(())
 }
 
-/// Recursively print a `FlowTree<Bms>` node list with per-span summaries.
+/// Recursively print a `FlowDoc<Bms>` node list with per-span summaries.
 fn walk(nodes: &[FlowNode<Bms>], depth: usize) {
     let indent = "  ".repeat(depth);
     for node in nodes {

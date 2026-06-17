@@ -1,31 +1,31 @@
-//! Integration tests for `FlowTree::to_tokens` roundtrip.
+//! Integration tests for `FlowDoc::to_tokens` roundtrip.
 
 use bms_control_flow::ControlFlowError;
-use bms_control_flow::{FlowTree, TokenPayload};
+use bms_control_flow::{FlowDoc, TokenPayload};
 use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizer};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize and build a `FlowTree<TokenPayload<&str>>`.
-fn build_doc(input: &str) -> std::result::Result<FlowTree<TokenPayload<&str>>, ControlFlowError> {
+/// Helper: tokenize and build a `FlowDoc<TokenPayload<&str>>`.
+fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
-    FlowTree::from_tokens(tokens)
+    FlowDoc::from_tokens(tokens)
 }
 
 /// Helper: tokenize and build with `C = String` for polymorphism coverage.
 fn build_doc_string(
     input: &str,
-) -> std::result::Result<FlowTree<TokenPayload<String>>, ControlFlowError> {
+) -> std::result::Result<FlowDoc<TokenPayload<String>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, String>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
-    FlowTree::from_tokens(tokens)
+    FlowDoc::from_tokens(tokens)
 }
 
 /// Extract control-flow headers from a token list as debug strings.

@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsToken};
 
 use crate::{
-    BranchValue, ControlFlowError, FlowBlock, FlowNode, FlowTree, RandomBlock, RandomBranch,
+    BranchValue, ControlFlowError, FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch,
     RandomBranchKind, SwitchBlock, SwitchCase, SwitchCaseKind, TokenPayload,
 };
 
@@ -46,7 +46,7 @@ enum StackEntry<C: Clone + PartialEq> {
     Switch(SwitchState<C>),
 }
 
-/// Accumulator packing a flat token stream into a [`FlowTree`].
+/// Accumulator packing a flat token stream into a [`FlowDoc`].
 ///
 /// Consecutive non-control-flow tokens are buffered in a per-scope `pending`
 /// list and flushed into a [`FlowNode::Payload`] whenever a control-flow
@@ -71,9 +71,9 @@ impl<C: Clone + PartialEq> Builder<C> {
     }
 
     /// Flush any remaining pending tokens and yield the finished tree.
-    fn finish(mut self) -> FlowTree<TokenPayload<C>> {
+    fn finish(mut self) -> FlowDoc<TokenPayload<C>> {
         self.flush();
-        FlowTree(self.top_level)
+        FlowDoc(self.top_level)
     }
 
     /// Buffer a non-control-flow token into the current scope's pending list.
@@ -338,8 +338,8 @@ fn flush_into<C: Clone + PartialEq>(
     body.push(FlowNode::Payload(TokenPayload { tokens }));
 }
 
-impl<C: Clone + PartialEq> FlowTree<TokenPayload<C>> {
-    /// Build a [`FlowTree`] from an iterator of `(line, token)` pairs.
+impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
+    /// Build a [`FlowDoc`] from an iterator of `(line, token)` pairs.
     ///
     /// Non-control-flow tokens are packed into consecutive payload spans.
     /// Control-flow tokens (`#RANDOM`, `#SWITCH`, etc.) are structured into

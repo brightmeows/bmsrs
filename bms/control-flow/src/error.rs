@@ -2,7 +2,7 @@
 
 use std::num::NonZeroUsize;
 
-/// Errors that can occur while building a [`FlowTree`](crate::FlowTree)
+/// Errors that can occur while building a [`FlowDoc`](crate::FlowDoc)
 /// from a flat token stream.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ControlFlowError {

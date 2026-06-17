@@ -1,20 +1,20 @@
 //! Integration tests for `FlowDocument::select_branches` (Task 3).
 
-use bms_control_flow::{BranchRng, ControlFlowError, DeterministicRng, FlowTree, TokenPayload};
+use bms_control_flow::{BranchRng, ControlFlowError, DeterministicRng, FlowDoc, TokenPayload};
 use bms_tokenizer::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderResDefAudio, BmsToken, BmsTokenizer,
 };
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize BMS text and build a `FlowTree<TokenPayload<&str>>`.
-fn build_doc(input: &str) -> std::result::Result<FlowTree<TokenPayload<&str>>, ControlFlowError> {
+/// Helper: tokenize BMS text and build a `FlowDoc<TokenPayload<&str>>`.
+fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
-    FlowTree::from_tokens(tokens)
+    FlowDoc::from_tokens(tokens)
 }
 
 /// Helper: find a seed that makes `DeterministicRng` produce `target` on first

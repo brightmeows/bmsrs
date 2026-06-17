@@ -17,21 +17,21 @@ pub enum BranchValue {
 ///
 /// Consecutive non-control-flow tokens are packed into a single payload
 /// node ([`FlowNode::Payload`]); control-flow commands become structured
-/// [`FlowBlock`] nodes. Build with [`FlowTree::from_tokens`], then use
-/// [`FlowTree::select_branches`], [`FlowTree::to_tokens`], or
-/// [`FlowTree::map_payload`] to derive other views.
+/// [`FlowBlock`] nodes. Build with [`FlowDoc::from_tokens`], then use
+/// [`FlowDoc::select_branches`], [`FlowDoc::to_tokens`], or
+/// [`FlowDoc::map_payload`] to derive other views.
 ///
-/// `FlowTree<TokenPayload<C>>` is the token-level source of truth (editable,
-/// roundtrippable). `FlowTree<Bms>` (obtained via `map_payload` downstream) is
+/// `FlowDoc<TokenPayload<C>>` is the token-level source of truth (editable,
+/// roundtrippable). `FlowDoc<Bms>` (obtained via `map_payload` downstream) is
 /// a read-only view showing each span's parsed aggregate.
 ///
 /// The inner `Vec<FlowNode<P>>` is accessible via `Deref`/`DerefMut` — slice
 /// and `Vec` methods (`iter`, `len`, `first`, `[index]`, …) work directly on
-/// `FlowTree`.
+/// `FlowDoc`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FlowTree<P>(pub Vec<FlowNode<P>>);
+pub struct FlowDoc<P>(pub Vec<FlowNode<P>>);
 
-/// A single entry in a [`FlowTree`]: either a payload span or a control-flow block.
+/// A single entry in a [`FlowDoc`]: either a payload span or a control-flow block.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FlowNode<P> {
     /// A span of consecutive non-control-flow tokens, packed into payload `P`.
@@ -111,9 +111,9 @@ pub enum SwitchCaseKind {
 
 /// Token-level payload: preserves each token of a span with its original line.
 ///
-/// This is the source-of-truth payload produced by [`FlowTree::from_tokens`].
-/// Roundtrip ([`FlowTree::to_tokens`]) and branch selection
-/// ([`FlowTree::select_branches`]) operate on this payload kind.
+/// This is the source-of-truth payload produced by [`FlowDoc::from_tokens`].
+/// Roundtrip ([`FlowDoc::to_tokens`]) and branch selection
+/// ([`FlowDoc::select_branches`]) operate on this payload kind.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TokenPayload<C> {
     /// The consecutive `(line, token)` pairs in this span.
@@ -138,7 +138,7 @@ pub struct BlockDecision {
 
 use std::ops::{Deref, DerefMut};
 
-impl<P> Deref for FlowTree<P> {
+impl<P> Deref for FlowDoc<P> {
     type Target = [FlowNode<P>];
 
     fn deref(&self) -> &Self::Target {
@@ -146,7 +146,7 @@ impl<P> Deref for FlowTree<P> {
     }
 }
 
-impl<P> DerefMut for FlowTree<P> {
+impl<P> DerefMut for FlowDoc<P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

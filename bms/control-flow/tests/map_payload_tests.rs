@@ -1,18 +1,18 @@
-//! Integration tests for `FlowTree::map_payload` and `try_map_payload`.
+//! Integration tests for `FlowDoc::map_payload` and `try_map_payload`.
 
-use bms_control_flow::{ControlFlowError, FlowBlock, FlowNode, FlowTree, TokenPayload};
+use bms_control_flow::{ControlFlowError, FlowBlock, FlowDoc, FlowNode, TokenPayload};
 use bms_tokenizer::BmsTokenizer;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize and build a `FlowTree<TokenPayload<&str>>`.
-fn build_doc(input: &str) -> Result<FlowTree<TokenPayload<&str>>, ControlFlowError> {
+/// Helper: tokenize and build a `FlowDoc<TokenPayload<&str>>`.
+fn build_doc(input: &str) -> Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
         .into_iter()
         .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
         .collect();
-    FlowTree::from_tokens(tokens)
+    FlowDoc::from_tokens(tokens)
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
     )?;
 
     // Map each payload span to its token count.
-    let counted: FlowTree<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
+    let counted: FlowDoc<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
 
     // Root carries the top-level payload (1 token: #TITLE) then the Random block.
     assert_eq!(counted.len(), 2);
@@ -76,7 +76,7 @@ fn map_payload_handles_switch_skeleton() -> TestResult {
     )?;
 
     // Collect each span's token count.
-    let spans: FlowTree<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
+    let spans: FlowDoc<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
 
     let Some(FlowNode::Block(FlowBlock::Switch(s))) = spans.first() else {
         panic!("expected Switch block");
@@ -114,7 +114,7 @@ fn try_map_payload_propagates_first_error() -> TestResult {
 
     // Fail on the second span by counting calls.
     let mut calls = 0;
-    let result: Result<FlowTree<usize>, SpanError> =
+    let result: Result<FlowDoc<usize>, SpanError> =
         tree.try_map_payload(|p: TokenPayload<&str>| {
             calls += 1;
             if calls == 1 {
@@ -131,7 +131,7 @@ fn try_map_payload_propagates_first_error() -> TestResult {
 #[test]
 fn try_map_payload_succeeds_when_all_spans_ok() -> TestResult {
     let tree = build_doc("#RANDOM 2\n#IF 1\n#00101:11\n#ENDIF\n#ENDRANDOM")?;
-    let result: Result<FlowTree<usize>, SpanError> =
+    let result: Result<FlowDoc<usize>, SpanError> =
         tree.try_map_payload(|p: TokenPayload<&str>| Ok(p.tokens.len()));
     let mapped = result.expect("all spans ok");
     assert_eq!(mapped.len(), 1);

@@ -1,14 +1,14 @@
-//! RNG-based branch selection for [`FlowTree`].
+//! RNG-based branch selection for [`FlowDoc`].
 
 use bms_tokenizer::BmsToken;
 
 use crate::rng::BranchRng;
 use crate::{
-    BlockDecision, BranchSelection, BranchValue, FlowBlock, FlowNode, FlowTree, RandomBranchKind,
+    BlockDecision, BranchSelection, BranchValue, FlowBlock, FlowDoc, FlowNode, RandomBranchKind,
     SwitchCaseKind, TokenPayload,
 };
 
-impl<C: Clone + PartialEq> FlowTree<TokenPayload<C>> {
+impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
     /// Select one branch per control-flow block using `rng`.
     ///
     /// Returns a flat token stream with only the chosen branches, plus a

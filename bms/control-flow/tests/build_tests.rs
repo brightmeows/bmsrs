@@ -1,9 +1,9 @@
-//! Integration tests for `FlowTree::from_tokens`.
+//! Integration tests for `FlowDoc::from_tokens`.
 
 use std::num::NonZeroUsize;
 
 use bms_control_flow::{
-    ControlFlowError, FlowBlock, FlowNode, FlowTree, RandomBlock, RandomBranchKind, SwitchBlock,
+    ControlFlowError, FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranchKind, SwitchBlock,
     SwitchCaseKind, TokenPayload,
 };
 use bms_tokenizer::{BmsToken, BmsTokenizer};
@@ -19,10 +19,10 @@ fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<&str>)> {
         .collect()
 }
 
-/// Helper: tokenize and build a `FlowTree<TokenPayload<&str>>`.
-fn build_doc(input: &str) -> std::result::Result<FlowTree<TokenPayload<&str>>, ControlFlowError> {
+/// Helper: tokenize and build a `FlowDoc<TokenPayload<&str>>`.
+fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens = tokenize(input);
-    FlowTree::from_tokens(tokens)
+    FlowDoc::from_tokens(tokens)
 }
 
 /// Extract the first root node as a `Random` block reference, or panic.
@@ -269,14 +269,14 @@ fn no_endrandom_leaves_block_unpopped() -> TestResult {
 #[test]
 fn unmatched_if_returns_error() {
     let tokens = tokenize("#IF 1\n#ENDIF");
-    let result = FlowTree::from_tokens(tokens);
+    let result = FlowDoc::from_tokens(tokens);
     assert!(matches!(result, Err(ControlFlowError::UnmatchedIf { .. })));
 }
 
 #[test]
 fn unmatched_endif_returns_error() {
     let tokens = tokenize("#ENDIF");
-    let result = FlowTree::from_tokens(tokens);
+    let result = FlowDoc::from_tokens(tokens);
     assert!(matches!(
         result,
         Err(ControlFlowError::UnmatchedEndIf { .. })
@@ -286,7 +286,7 @@ fn unmatched_endif_returns_error() {
 #[test]
 fn unmatched_endrandom_returns_error() {
     let tokens = tokenize("#ENDRANDOM");
-    let result = FlowTree::from_tokens(tokens);
+    let result = FlowDoc::from_tokens(tokens);
     assert!(matches!(
         result,
         Err(ControlFlowError::UnmatchedEndRandom { .. })
@@ -296,7 +296,7 @@ fn unmatched_endrandom_returns_error() {
 #[test]
 fn unmatched_case_returns_error() {
     let tokens = tokenize("#CASE 1");
-    let result = FlowTree::from_tokens(tokens);
+    let result = FlowDoc::from_tokens(tokens);
     assert!(matches!(
         result,
         Err(ControlFlowError::UnmatchedCase { .. })
@@ -306,7 +306,7 @@ fn unmatched_case_returns_error() {
 #[test]
 fn unmatched_endsw_returns_error() {
     let tokens = tokenize("#ENDSW");
-    let result = FlowTree::from_tokens(tokens);
+    let result = FlowDoc::from_tokens(tokens);
     assert!(matches!(
         result,
         Err(ControlFlowError::UnmatchedEndSw { .. })

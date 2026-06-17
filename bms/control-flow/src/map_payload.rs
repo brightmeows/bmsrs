@@ -1,21 +1,21 @@
-//! Generic payload transformation for [`FlowTree`].
+//! Generic payload transformation for [`FlowDoc`].
 //!
 //! These operations walk the control-flow skeleton and rewrite every payload
 //! span via a caller-supplied closure, leaving the branch/case structure
 //! untouched. They let downstream code derive payload views the control-flow
-//! crate itself does not know about (e.g. `FlowTree<Bms>` built from
-//! `FlowTree<TokenPayload<C>>`).
+//! crate itself does not know about (e.g. `FlowDoc<Bms>` built from
+//! `FlowDoc<TokenPayload<C>>`).
 
-use crate::{FlowBlock, FlowNode, FlowTree, RandomBlock, RandomBranch, SwitchBlock, SwitchCase};
+use crate::{FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch, SwitchBlock, SwitchCase};
 
-impl<P> FlowTree<P> {
+impl<P> FlowDoc<P> {
     /// Transform every payload span by `f`, preserving the control-flow skeleton.
     ///
     /// Each [`FlowNode::Payload`] is replaced by `Payload(f(p))`; block nodes
     /// keep their branches/cases and only their nested payloads are mapped.
     /// The closure runs once per payload span in tree order.
     #[must_use]
-    pub fn map_payload<Q>(self, mut f: impl FnMut(P) -> Q) -> FlowTree<Q> {
+    pub fn map_payload<Q>(self, mut f: impl FnMut(P) -> Q) -> FlowDoc<Q> {
         // The mapping closure is infallible, so wrap it with `Infallible` and
         // exhaustively match the impossible error — no `expect`/`unwrap` needed.
         match self.try_map_payload(|p| Ok::<Q, std::convert::Infallible>(f(p))) {
@@ -24,7 +24,7 @@ impl<P> FlowTree<P> {
         }
     }
 
-    /// Fallible variant of [`FlowTree::map_payload`].
+    /// Fallible variant of [`FlowDoc::map_payload`].
     ///
     /// Stops at the first span whose closure returns `Err`, propagating that
     /// error immediately. Useful when payload construction can fail (e.g.
@@ -37,9 +37,9 @@ impl<P> FlowTree<P> {
     pub fn try_map_payload<Q, E>(
         self,
         mut f: impl FnMut(P) -> Result<Q, E>,
-    ) -> Result<FlowTree<Q>, E> {
+    ) -> Result<FlowDoc<Q>, E> {
         let root = map_nodes(self.0, &mut f)?;
-        Ok(FlowTree(root))
+        Ok(FlowDoc(root))
     }
 }
 

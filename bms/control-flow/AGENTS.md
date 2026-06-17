@@ -1,21 +1,21 @@
 # bms-control-flow
 
 Second stage: tokenizer → **control-flow** → parser.
-Builds `FlowTree<TokenPayload<C>>` from tokens, selects branches via RNG,
+Builds `FlowDoc<TokenPayload<C>>` from tokens, selects branches via RNG,
 roundtrips, and derives payload views via `map_payload`.
 
 ## Core model
 
-`FlowTree<P>` carries payload type `P` at each content span. Consecutive
+`FlowDoc<P>` carries payload type `P` at each content span. Consecutive
 non-control-flow tokens are packed into a single payload node; control-flow
 commands become structured `FlowBlock` nodes.
 
 ```mermaid
 flowchart LR
     Tokens["(NonZeroUsize, BmsToken) pairs"]
-    Tree["FlowTree&lt;TokenPayload&lt;C&gt;&gt;"]
+    Tree["FlowDoc&lt;TokenPayload&lt;C&gt;&gt;"]
     Flat["Vec&lt;BmsToken&gt;"]
-    Other["FlowTree&lt;Q&gt;"]
+    Other["FlowDoc&lt;Q&gt;"]
 
     Tokens -- from_tokens --> Tree
     Tree -- select_branches(rng) --> Flat
@@ -24,31 +24,31 @@ flowchart LR
 ```
 
 ```rust
-let tree = FlowTree::from_tokens(tokens)?;
+let tree = FlowDoc::from_tokens(tokens)?;
 let (flat, sel) = tree.select_branches(&mut rng);
-let tree2 = FlowTree::from_tokens(tokens)?;
+let tree2 = FlowDoc::from_tokens(tokens)?;
 let flat2 = tree2.to_tokens();
 ```
 
 `from_tokens` input bundles line numbers. Caller filters `Result` from
-tokenizer first. `FlowTree<TokenPayload<C>>` is the token-level source of
+tokenizer first. `FlowDoc<TokenPayload<C>>` is the token-level source of
 truth (editable, roundtrippable).
 
 ## Payload generality
 
-`FlowTree<P>` is generic over the payload type `P`. `TokenPayload<C>` is the
+`FlowDoc<P>` is generic over the payload type `P`. `TokenPayload<C>` is the
 built-in token-level payload. Use `map_payload` / `try_map_payload` to derive
 other payload views while preserving the control-flow skeleton — e.g. a
-downstream crate builds `FlowTree<Bms>` from `FlowTree<TokenPayload<C>>`:
+downstream crate builds `FlowDoc<Bms>` from `FlowDoc<TokenPayload<C>>`:
 
 ```rust
-let bms_tree: FlowTree<Bms> = token_tree.map_payload(|TokenPayload { tokens }| {
+let bms_tree: FlowDoc<Bms> = token_tree.map_payload(|TokenPayload { tokens }| {
     Bms::from_flat_tokens(tokens.into_iter().map(|(_, t)| t))
 });
 ```
 
-`FlowTree<Bms>` is a read-only view: `to_tokens` / `select_branches` are only
-available on `FlowTree<TokenPayload<C>>`. This crate does **not** depend on
+`FlowDoc<Bms>` is a read-only view: `to_tokens` / `select_branches` are only
+available on `FlowDoc<TokenPayload<C>>`. This crate does **not** depend on
 `bms-parser`; the `Bms` view is constructed downstream.
 
 ## Selection

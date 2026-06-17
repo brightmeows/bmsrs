@@ -3,10 +3,10 @@
 use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsToken};
 
 use crate::{
-    BranchValue, FlowBlock, FlowNode, FlowTree, RandomBranchKind, SwitchCaseKind, TokenPayload,
+    BranchValue, FlowBlock, FlowDoc, FlowNode, RandomBranchKind, SwitchCaseKind, TokenPayload,
 };
 
-impl<C: Clone + PartialEq> FlowTree<TokenPayload<C>> {
+impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
     /// Convert the tree back to a flat token stream.
     ///
     /// Reconstructs the control-flow header commands (`#RANDOM`, `#IF`, etc.)
