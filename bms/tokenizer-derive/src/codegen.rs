@@ -8,6 +8,17 @@ use syn::spanned::Spanned;
 
 use crate::parse::{BmsTokenTemplate, Placeholder};
 
+/// Generic parameters extracted from the enum definition, bundled for
+/// passing through the codegen call tree without exceeding argument limits.
+struct GenericsCtx<'a> {
+    /// The enum's first type parameter ident (e.g., `C`), if any.
+    type_param_ident: Option<&'a syn::Ident>,
+    /// The enum's first lifetime, if any.
+    first_lifetime: Option<&'a syn::Lifetime>,
+    /// The synthesized `'header` lifetime used in generated signatures.
+    header_lifetime: &'a syn::Lifetime,
+}
+
 /// `true` if the attribute is `#[doc(hidden)]`.
 fn is_doc_hidden(attr: &syn::Attribute) -> bool {
     attr.path().is_ident("doc")
@@ -66,20 +77,18 @@ pub fn generate_impl(
     };
 
     let header_lifetime = syn::Lifetime::new("'header", proc_macro2::Span::call_site());
+    let generics_ctx = GenericsCtx {
+        type_param_ident,
+        first_lifetime,
+        header_lifetime: &header_lifetime,
+    };
     let error_type = type_param.as_ref().map_or_else(
         || quote! { crate::BmsTokenizeError<&'header str> },
         |tp| {
             quote! { crate::BmsTokenizeError<#tp> }
         },
     );
-    let try_match_body = generate_try_match_body(
-        data_enum,
-        templates,
-        fallbacks,
-        type_param_ident,
-        first_lifetime,
-        &header_lifetime,
-    );
+    let try_match_body = generate_try_match_body(data_enum, templates, fallbacks, &generics_ctx);
     let format_body = generate_format_body(data_enum, templates);
 
     // Build the format_header where clause: C must implement Display + AsRef<str>.
@@ -133,9 +142,7 @@ fn generate_try_match_body(
     data_enum: &syn::DataEnum,
     templates: &[Vec<BmsTokenTemplate>],
     fallbacks: &[bool],
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> TokenStream {
     let mut exact_branches: Vec<ExactBranch> = Vec::new();
     let mut indexed_checks = TokenStream::new();
@@ -157,24 +164,10 @@ fn generate_try_match_body(
             }
 
             if tmpl.is_indexed() {
-                let check = generate_indexed_match(
-                    variant,
-                    tmpl,
-                    is_fallback,
-                    type_param_ident,
-                    first_lifetime,
-                    header_lifetime,
-                );
+                let check = generate_indexed_match(variant, tmpl, is_fallback, generics);
                 indexed_checks.extend(check);
             } else {
-                let branches = generate_exact_branches(
-                    variant,
-                    tmpl,
-                    is_fallback,
-                    type_param_ident,
-                    first_lifetime,
-                    header_lifetime,
-                );
+                let branches = generate_exact_branches(variant, tmpl, is_fallback, generics);
                 exact_branches.extend(branches);
             }
         }
@@ -215,9 +208,7 @@ fn generate_exact_branches(
     variant: &syn::Variant,
     tmpl: &BmsTokenTemplate,
     is_fallback: bool,
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> Vec<ExactBranch> {
     let cmd_str = &tmpl.command;
     let context_str = format!("{}{}", tmpl.prefix, tmpl.command);
@@ -246,10 +237,7 @@ fn generate_exact_branches(
                 cmd_str,
                 &context_str,
                 is_fallback,
-                variant,
-                type_param_ident,
-                first_lifetime,
-                header_lifetime,
+                generics,
             )
         }
         syn::Fields::Named(fields_named) => {
@@ -270,10 +258,7 @@ fn generate_exact_branches(
                 cmd_str,
                 &context_str,
                 is_fallback,
-                variant,
-                type_param_ident,
-                first_lifetime,
-                header_lifetime,
+                generics,
             )
         }
         _ => {
@@ -288,20 +273,13 @@ fn generate_exact_branches(
 }
 
 /// Generate a branch for a tuple variant with exactly one field.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "derive codegen needs many parameters"
-)]
 fn exact_unnamed_branch(
     command_ident: &syn::Ident,
     field_ty: &syn::Type,
     cmd_str: &str,
     context_str: &str,
     is_fallback: bool,
-    _variant: &syn::Variant,
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> (TokenStream, TokenStream) {
     let cond = quote! { command.eq_ignore_ascii_case(#cmd_str) };
     let __value = format_ident!("__value");
@@ -311,9 +289,7 @@ fn exact_unnamed_branch(
         &quote!(value),
         context_str,
         is_fallback,
-        type_param_ident,
-        first_lifetime,
-        header_lifetime,
+        generics,
     );
     let body = quote! {
         #init
@@ -323,20 +299,13 @@ fn exact_unnamed_branch(
 }
 
 /// Generate a branch for a struct variant, parsing the value field.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "derive codegen needs many parameters"
-)]
 fn exact_named_field_branch(
     command_ident: &syn::Ident,
     field: &syn::Field,
     cmd_str: &str,
     context_str: &str,
     is_fallback: bool,
-    _variant: &syn::Variant,
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> (TokenStream, TokenStream) {
     let field_ty = &field.ty;
     let field_ident = &field.ident;
@@ -347,9 +316,7 @@ fn exact_named_field_branch(
         &quote!(value),
         context_str,
         is_fallback,
-        type_param_ident,
-        first_lifetime,
-        header_lifetime,
+        generics,
     );
     let body = quote! {
         #init
@@ -366,9 +333,7 @@ fn generate_indexed_match(
     variant: &syn::Variant,
     tmpl: &BmsTokenTemplate,
     is_fallback: bool,
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> TokenStream {
     let context_str = format!("{}{}", tmpl.prefix, tmpl.command);
     let base_len = tmpl.command.len();
@@ -378,25 +343,10 @@ fn generate_indexed_match(
 
     let variant_construction = if tmpl.is_unnamed_id() && tmpl.is_unnamed_value() {
         // Tuple variant with unnamed id + unnamed value.
-        build_indexed_tuple_body(
-            variant,
-            &context_str,
-            is_fallback,
-            type_param_ident,
-            first_lifetime,
-            header_lifetime,
-        )
+        build_indexed_tuple_body(variant, &context_str, is_fallback, generics)
     } else {
         let id_field_name = tmpl.id_field_name();
-        build_indexed_variant_body(
-            variant,
-            id_field_name,
-            &context_str,
-            is_fallback,
-            type_param_ident,
-            first_lifetime,
-            header_lifetime,
-        )
+        build_indexed_variant_body(variant, id_field_name, &context_str, is_fallback, generics)
     };
 
     quote! {
@@ -413,9 +363,7 @@ fn build_indexed_variant_body(
     id_field_name: &str,
     context_str: &str,
     is_fallback: bool,
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> TokenStream {
     let command_ident = &variant.ident;
 
@@ -444,9 +392,7 @@ fn build_indexed_variant_body(
             &value_src,
             context_str,
             fb,
-            type_param_ident,
-            first_lifetime,
-            header_lifetime,
+            generics,
         ));
     }
 
@@ -647,20 +593,19 @@ fn is_str_ref(ty: &syn::Type) -> bool {
 ///   equivalent)
 /// - Fallback fields: `let Some(#ident) = <T as BmsValue>::parse(#value_src) else { return Ok(None); };`
 /// - Other fields: `let #ident: T = #value_src.parse()...?;` (via `IntoTokensError`)
-#[expect(
-    clippy::too_many_arguments,
-    reason = "derive codegen needs many parameters"
-)]
 fn gen_field_parse(
     ident: &TokenStream,
     field_ty: &syn::Type,
     value_src: &TokenStream,
     context_str: &str,
     is_fallback: bool,
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> TokenStream {
+    let GenericsCtx {
+        type_param_ident,
+        first_lifetime,
+        header_lifetime,
+    } = generics;
     // Case 1: Field type matches the C type parameter → From::from with the
     // enum's lifetime 'a (the value is coerced from &'header str to &'a str).
     if let Some(tp_ident) = type_param_ident {
@@ -744,9 +689,7 @@ fn build_indexed_tuple_body(
     variant: &syn::Variant,
     context_str: &str,
     is_fallback: bool,
-    type_param_ident: Option<&syn::Ident>,
-    first_lifetime: Option<&syn::Lifetime>,
-    header_lifetime: &syn::Lifetime,
+    generics: &GenericsCtx,
 ) -> TokenStream {
     let command_ident = &variant.ident;
 
@@ -772,9 +715,7 @@ fn build_indexed_tuple_body(
             &value_src,
             context_str,
             fb,
-            type_param_ident,
-            first_lifetime,
-            header_lifetime,
+            generics,
         ));
         field_exprs.push(quote!(#bind));
     }
@@ -869,7 +810,7 @@ pub fn generate_header_dispatch(
         } else {
             dispatch_arms.extend(quote! {
                 if let Some(v) = <#inner_type>::try_match_header(command, value)
-                    .map_err(crate::BmsTokenizeError::from_ref)?
+                    .map_err(|e| crate::BmsTokenizeError::from_ref(&e))?
                 {
                     return Ok(Some(Self::#variant_ident(v)));
                 }

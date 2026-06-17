@@ -36,17 +36,13 @@ pub fn generate_bms_value_enum(
             .filter_map(|a| a.parse_args::<syn::LitStr>().ok().map(|lit| lit.value()))
             .collect();
 
-        if tokens.is_empty() {
+        let Some(first_token) = tokens.first() else {
             return syn::Error::new_spanned(
                 variant,
                 "each variant must have at least one #[bms_token(\"...\")] attribute",
             )
             .to_compile_error();
-        }
-
-        // Non-emptiness verified above by the `if tokens.is_empty()` check.
-        #[expect(clippy::indexing_slicing, reason = "pre-validated non-empty")]
-        let first_token = &tokens[0];
+        };
         canonical_tokens.push(first_token.clone());
         display_arms.extend(quote! {
             Self::#variant_ident => write!(f, #first_token),

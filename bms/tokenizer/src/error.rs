@@ -53,23 +53,22 @@ pub enum BmsTokenizeError<C> {
 impl<C> BmsTokenizeError<C> {
     /// Convert a borrowed `BmsTokenizeError<&str>` into this container type.
     #[must_use]
-    #[expect(clippy::needless_pass_by_value, reason = "consumed to move values out")]
-    pub(crate) fn from_ref<'a>(err: BmsTokenizeError<&'a str>) -> Self
+    pub(crate) fn from_ref<'a>(err: &BmsTokenizeError<&'a str>) -> Self
     where
         C: From<&'a str>,
     {
         match err {
             BmsTokenizeError::InvalidMeasure { value } => Self::InvalidMeasure {
-                value: C::from(value),
+                value: C::from(*value),
             },
             BmsTokenizeError::InvalidChannel { value } => Self::InvalidChannel {
-                value: C::from(value),
+                value: C::from(*value),
             },
             BmsTokenizeError::InvalidInteger { value } => Self::InvalidInteger {
-                value: C::from(value),
+                value: C::from(*value),
             },
             BmsTokenizeError::InvalidFloat { value } => Self::InvalidFloat {
-                value: C::from(value),
+                value: C::from(*value),
             },
             BmsTokenizeError::OutOfRange {
                 context,
@@ -77,7 +76,7 @@ impl<C> BmsTokenizeError<C> {
                 expected,
             } => Self::OutOfRange {
                 context,
-                value: C::from(value),
+                value: C::from(*value),
                 expected,
             },
         }

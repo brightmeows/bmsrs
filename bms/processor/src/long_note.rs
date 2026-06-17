@@ -34,10 +34,6 @@ pub struct PairedLn {
 /// Events are grouped by `(player, lane)` and sorted by position.
 /// Consecutive pairs form `(start, end)`: the first event is the start,
 /// the second is the end, the third is the next start, etc.
-#[expect(
-    clippy::indexing_slicing,
-    reason = "indices bounded by while condition: i + 1 < len"
-)]
 pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
     // Group by (player, lane) preserving insertion order.
     let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
@@ -51,10 +47,9 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
         let mut sorted = group.clone();
         sorted.sort_by_key(|ev| (u32::from(ev.position.measure) * 1_000_000) + ev.position.numer);
 
-        let mut i = 0;
-        while i + 1 < sorted.len() {
-            let start = sorted[i];
-            let end = sorted[i + 1];
+        // Consume events in consecutive pairs: first = start, second = end.
+        let mut iter = sorted.into_iter();
+        while let (Some(start), Some(end)) = (iter.next(), iter.next()) {
             let start_tick = table.position_to_tick(start.position);
             let end_tick = table.position_to_tick(end.position);
 
@@ -65,7 +60,6 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
                 player,
                 lane,
             });
-            i += 2;
         }
     }
 
