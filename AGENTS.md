@@ -21,7 +21,7 @@ cargo deny check
 
 | Crate | Directory | Summary |
 |---|---|---|
-| `bmsrs` | `./src` | Re-export facade |
+| `bmsrs` | `bmsrs/` | Re-export facade |
 | `bms-tokenizer` | `bms/tokenizer` | First stage of `tokenizer → control-flow → parser` |
 | `bms-tokenizer-derive` | `bms/tokenizer-derive` | Proc-macro for `#[derive(BmsTokenAttr)]` |
 | `bms-control-flow` | `bms/control-flow` | Generic `FlowDoc<P>` control-flow tree, branch selection, roundtrip, payload mapping |

@@ -1,0 +1,25 @@
+[package]
+name = "bmsrs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bms-tokenizer.workspace = true
+bms-control-flow.workspace = true
+bms-parser.workspace = true
+bms-processor.workspace = true
+bmson-def.workspace = true
+bmson-processor.workspace = true
+bmsrs-chart.workspace = true
+bmsrs-player.workspace = true
