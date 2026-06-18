@@ -14,15 +14,23 @@
 //! # Generic note data
 //!
 //! [`Chart<T>`][Chart] is parameterised by a [`NoteData`] type `T`.
-//! The default is [`DefaultNoteData`] (lane + kind only).
+//! The default is [`NoteData`] (position triple + kind).
 //! Custom types can carry format-specific extensions (volume, pan, LN mode, etc.).
+//!
+//! # Mode families
+//!
+//! Mode-family layouts ([`Bme`], [`Pms`], …) live in [`layout`] and are used
+//! by processors to map BMS channels / BMSON `x` values into the
+//! `(PlayerSide, Lane)` pair stored on each note. See the `layout` module
+//! docs for the family catalogue.
 //!
 //! # Example
 //!
 //! ```
+//! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
-//!     Chart, ChartMetadata, DefaultNoteData, Note, NoteKind, TimingTrack,
-//!     Bga,
+//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, PlayerSide,
+//!     TimingTrack, Bga,
 //! };
 //!
 //! let chart = Chart {
@@ -31,7 +39,6 @@
 //!         ..Default::default()
 //!     },
 //!     resolution: 240,
-//!     lane_count: 8,
 //!     timing: TimingTrack {
 //!         init_bpm: 120.0,
 //!         bpm_changes: vec![],
@@ -42,8 +49,9 @@
 //!     notes: vec![Note {
 //!         tick: 0,
 //!         audio: None,
-//!         data: DefaultNoteData {
-//!             lane: 0,
+//!         data: NoteData {
+//!             side: PlayerSide::Player1,
+//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
 //!             kind: NoteKind::Normal,
 //!         },
 //!     }],
@@ -59,13 +67,15 @@
 
 pub mod audio;
 pub mod layout;
+pub mod mode;
 pub mod note;
 pub mod timing;
 pub mod visual;
 
 pub use audio::{AudioAsset, BgmEvent};
-pub use layout::{Beat5k, Beat7k, Beat10k, Beat14k, GenericLayout, Layout, Popn5k, Popn9k};
-pub use note::{DefaultNoteData, Note, NoteData, NoteKind};
+pub use layout::{Bme, BmsLayout, BmsonLayout, DscOctFp, GenericLayout, Nanasi, Pms, PmsBme};
+pub use mode::{Lane, PlayerSide};
+pub use note::{Note, NoteData, NoteDataLike, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingTrack};
 pub use visual::{BarLine, Bga, BgaResource, BgaTimelineEvent, ScrollChangeEvent};
 
@@ -94,26 +104,25 @@ pub struct ChartMetadata {
 /// All event vectors should be sorted by tick ascending — processors
 /// guarantee this, and the player relies on it for binary-search queries.
 ///
+/// Each note carries its position as `(PlayerSide, Lane)` directly, so the
+/// chart needs no separate mode field.
+///
 /// # Fields
 ///
 /// | Field | Source |
 /// |-------|--------|
 /// | `metadata` | BMSON `SongInfo`/`ChartInfo` or BMS `Metadata` |
 /// | `resolution` | BMSON `resolution` or processor-chosen (240 for BMS) |
-/// | `lane_count` | Layout used during processing |
 /// | `timing` | BMSON `bpm_events`/`stop_events` or BMS `timing`/`messages` |
 /// | `notes` | BMSON `sound_channels` or BMS `messages` |
 /// | `audio_assets` | BMSON sliced sound channels or BMS WAV table |
 #[derive(Clone, Debug, PartialEq)]
-pub struct Chart<T: NoteData = DefaultNoteData> {
+pub struct Chart<T: NoteDataLike = NoteData> {
     /// Song and chart metadata.
     pub metadata: ChartMetadata,
 
     /// Ticks per quarter note (pulse resolution).
     pub resolution: u64,
-
-    /// Number of playable lanes (from the Layout used during processing).
-    pub lane_count: u16,
 
     /// Timing track for tick ↔ seconds conversion.
     pub timing: TimingTrack,
@@ -143,7 +152,7 @@ pub struct Chart<T: NoteData = DefaultNoteData> {
     pub bga: Bga,
 }
 
-impl<T: NoteData> Chart<T> {
+impl<T: NoteDataLike> Chart<T> {
     /// Returns the last tick position of any event in the chart
     /// (notes, BGM, bar lines, BGA).
     ///

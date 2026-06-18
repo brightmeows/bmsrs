@@ -1,11 +1,12 @@
 # bms-processor
 
-Converts `bms_parser::Bms` → `Chart<T>` via a `BmsMapping` layout.
+Converts `bms_parser::Bms` → `Chart<NoteData>` via a `BmsLayout`
+mode family (defined in `bmsrs-chart::layout`).
 
 ## Pipeline
 
 ```text
-bms_parser::Bms → BmsProcessor::process(bms, layout) → Chart<L::NoteData>
+bms_parser::Bms → BmsProcessor::process(bms, layout) → Chart<NoteData>
 ```
 
 ## Long-note modes
@@ -31,10 +32,14 @@ numer, denom}` = `measure_starts[measure] + numer * measure_len / denom`.
 - `#STOP` raw value = fraction of 1/192 measure → `raw/192 * res * 4` ticks.
 - `#STP` = milliseconds → ticks via `bpm_at_tick` helper.
 
-## Built-in layouts
+## Mode families
 
-`Beat7k`, `Beat5k`, `Beat14k`, `Beat10k`.
-`BmsProcessor::process_default` uses `Beat7k`.
+The layout argument selects a mode family from `bmsrs_chart::layout`:
+`Bme` (beat-5k/7k/10k/14k, uniform), `Pms`, `PmsBme`, `Nanasi`,
+`DscOctFp`. Each family decodes `(player, lane)` channel bytes directly
+into the `(PlayerSide, Lane)` pair stored on each note.
+`BmsProcessor::process_default` uses `Bme` unconditionally (the `#PLAYER`
+header does not affect mapping).
 
 ## Tests
 

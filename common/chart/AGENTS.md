@@ -19,8 +19,15 @@ Internal computation uses `f64`; conversion happens via
 ## Generic note data
 
 `Chart<T>` is parameterised by a `NoteData` type `T`. The default is
-`DefaultNoteData` (lane + kind only). Custom types carry format-specific
+`NoteData` (position triple: side, lane, kind). Custom types carry format-specific
 extensions (volume, pan, LN mode, etc.).
+
+## Mode families
+
+Channel/lane mapping is owned by the `layout` and `mode` modules (see their
+docs for the pivot mechanism and family catalogue). `Chart` itself stores
+**no** mode information — the note carries `(PlayerSide, Lane)` directly; the families are a
+processor-side concern.
 
 ## Zero external dependencies
 

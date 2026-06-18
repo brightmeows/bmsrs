@@ -24,9 +24,8 @@ merge them.
 
 ## Queries
 
-- `active_notes` / `upcoming_notes` — note visibility by tick window.
-- `active_bga` / `bga_events_in` — BGA layer state.
-- `current_bpm` / `scroll_rate_at` — timing/scroll at current position.
+Range queries group by concern — notes (optionally by lane or judgement),
+BGM/audio, BGA (three layers), and visuals. See the `Player` impl block.
 
 ## Tests
 

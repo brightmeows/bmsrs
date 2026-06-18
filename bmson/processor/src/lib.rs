@@ -1,32 +1,33 @@
-//! BMSON → [`Chart`] conversion processor.
+//! BMSON → `Chart` conversion processor.
 //!
-//! [`BmsonProcessor`] converts a [`bmson_def::Bmson`] (v2 root schema) into
-//! a format-agnostic [`Chart<T>`] by applying a [`BmsonMapping`] layout.
+//! [`BmsonProcessor`] converts a `bmson_def::Bmson` (v2 root schema) into
+//! a format-agnostic `Chart` by applying a `BmsonLayout` mode family
+//! (`Bme`, `Pms`, or `GenericLayout`).
 //!
 //! # Pipeline
 //!
 //! ```text
-//! bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<L::NoteData>
+//! bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<NoteData>
 //! ```
 //!
 //! For v0/v1 files, convert to the root schema first via `Bmson::from`.
 //!
 //! # Slicing
 //!
-//! Each [`bmson_def::SoundChannel`] is sliced into pre-computed
-//! [`AudioAsset`]s at every unique note pulse (see the internal `slice` module).
-//! for details.
+//! Each `bmson_def::SoundChannel` is sliced into pre-computed
+//! `AudioAsset`s at every unique note pulse (see the internal `slice`
+//! module for details).
 
 mod slice;
 
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-use bmson_def::{BGAEvent, BpmEvent, ModeHint, NoteEvent, StopEvent as BmsonStopEvent};
+use bmson_def::{BGAEvent, BpmEvent, ModeHint, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, BarLine, Beat5k, Beat7k, Beat10k, Beat14k, Bga, BgaResource, BgaTimelineEvent,
-    BgmEvent, BpmChange, Chart, ChartMetadata, DefaultNoteData, GenericLayout, Layout, Note,
-    NoteData, NoteKind, Popn5k, Popn9k, ScrollChangeEvent, StopEvent, TimingTrack,
+    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, Bme, BmsonLayout, BpmChange,
+    Chart, ChartMetadata, GenericLayout, Note, NoteData, NoteDataLike, NoteKind, Pms,
+    ScrollChangeEvent, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
@@ -40,41 +41,14 @@ pub enum ProcessError {
     InvalidBpm(f64),
 }
 
-/// Layout extension that maps BMSON channel numbers to chart lanes and
-/// constructs [`NoteData`] from BMSON note events.
-///
-/// Implement this trait on a [`Layout`] type to define how BMSON player
-/// channels (`x`) map to on-screen lanes, and how note data is constructed
-/// for regular notes, mines, and invisible notes.
-///
-/// Default implementations are provided for all built-in layout types
-/// ([`Beat7k`], [`Beat5k`], [`Beat14k`], [`Beat10k`], [`Popn9k`], [`Popn5k`],
-/// [`GenericLayout`]).
-pub trait BmsonMapping: Layout {
-    /// Map a BMSON player channel (`x`) to a zero-based lane index.
-    ///
-    /// Returns `None` if the channel is unmapped (note is discarded).
-    fn map_x(&self, x: u64) -> Option<u16>;
-
-    /// Construct note data for a regular (playable) note event.
-    fn make_note_data(&self, note: &NoteEvent, lane: u16) -> Self::NoteData;
-
-    /// Construct note data for a mine note.
-    fn make_mine_data(&self, lane: u16, damage: f64) -> Self::NoteData;
-
-    /// Construct note data for an invisible (key) note.
-    fn make_invisible_data(&self, lane: u16) -> Self::NoteData;
-}
-
 /// Zero-sized processor that converts [`bmson_def::Bmson`] into [`Chart`].
 ///
-/// Call [`process`](Self::process) with a layout, or
-/// [`process_default`](Self::process_default) to infer the layout from
-/// `mode_hint`.
+/// Call [`process`](Self::process) with a mode-family layout, or
+/// [`process_default`](Self::process_default) to select one from `mode_hint`.
 pub struct BmsonProcessor;
 
 impl BmsonProcessor {
-    /// Process a BMSON chart with an explicit layout.
+    /// Process a BMSON chart with an explicit mode-family layout.
     ///
     /// # Errors
     ///
@@ -82,9 +56,9 @@ impl BmsonProcessor {
     pub fn process<L>(
         bmson: &bmson_def::Bmson<'_>,
         layout: &L,
-    ) -> Result<Chart<L::NoteData>, ProcessError>
+    ) -> Result<Chart<NoteData>, ProcessError>
     where
-        L: BmsonMapping,
+        L: BmsonLayout,
     {
         let data = &bmson.chart_data;
 
@@ -117,7 +91,6 @@ impl BmsonProcessor {
         Ok(Chart {
             metadata,
             resolution,
-            lane_count: layout.lane_count(),
             timing,
             judge_multiplier: data.judge_multiplier,
             life_multiplier: data.life_multiplier,
@@ -130,32 +103,24 @@ impl BmsonProcessor {
         })
     }
 
-    /// Process a BMSON chart, inferring the layout from `mode_hint`.
+    /// Process a BMSON chart, selecting the mode family from `mode_hint`.
     ///
-    /// Equivalent to calling [`process`](Self::process) with the matching
-    /// built-in layout type. Unrecognised mode hints fall back to
-    /// [`Beat7k`] (the BMSON default).
+    /// `beat-*` and `dj-*` hints map to [`Bme`]; `popn-*` to [`Pms`];
+    /// `generic-nkeys` to [`GenericLayout`] with the given key count; anything
+    /// else falls back to [`Bme`] (the BMSON default).
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "generic key count fits in u16 for practical layouts"
-    )]
-    pub fn process_default(
-        bmson: &bmson_def::Bmson<'_>,
-    ) -> Result<Chart<DefaultNoteData>, ProcessError> {
+    pub fn process_default(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<NoteData>, ProcessError> {
         match bmson.chart_data.mode_hint {
-            ModeHint::Beat5k | ModeHint::Dj5k | ModeHint::Dj5kOnly | ModeHint::DjRuby => {
-                Self::process(bmson, &Beat5k)
+            ModeHint::Popn5k | ModeHint::Popn9k => Self::process(bmson, &Pms),
+            ModeHint::Generic(n) => {
+                let keys = u16::try_from(n).unwrap_or(0);
+                Self::process(bmson, &GenericLayout { keys })
             }
-            ModeHint::Beat14k | ModeHint::Dj14k => Self::process(bmson, &Beat14k),
-            ModeHint::Beat10k | ModeHint::Dj10k => Self::process(bmson, &Beat10k),
-            ModeHint::Popn9k => Self::process(bmson, &Popn9k),
-            ModeHint::Popn5k => Self::process(bmson, &Popn5k),
-            ModeHint::Generic(n) => Self::process(bmson, &GenericLayout { keys: n as u16 }),
-            _ => Self::process(bmson, &Beat7k),
+            // All beat-* and dj-* variants, plus Other/unknown → Bme.
+            _ => Self::process(bmson, &Bme),
         }
     }
 }
@@ -184,13 +149,13 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
 )]
-fn process_sound_channels<L: BmsonMapping>(
+fn process_sound_channels<L: BmsonLayout>(
     channels: &[bmson_def::SoundChannel<'_>],
     layout: &L,
     timing: &TimingTrack,
     resolution: u64,
     playable_pulses: &BTreeSet<u64>,
-) -> (Vec<AudioAsset>, Vec<Note<L::NoteData>>, Vec<BgmEvent>) {
+) -> (Vec<AudioAsset>, Vec<Note<NoteData>>, Vec<BgmEvent>) {
     let mut audio_assets = Vec::new();
     let mut notes = Vec::new();
     let mut bgm = Vec::new();
@@ -216,13 +181,20 @@ fn process_sound_channels<L: BmsonMapping>(
                     });
                 }
             } else {
-                let Some(lane) = layout.map_x(ne.x) else {
+                let Some(nd) = layout.map_x(ne.x) else {
                     continue;
                 };
                 notes.push(Note {
                     tick: ne.y,
                     audio: audio_idx,
-                    data: layout.make_note_data(ne, lane),
+                    data: NoteData {
+                        kind: if ne.l > 0 {
+                            NoteKind::Long { duration: ne.l }
+                        } else {
+                            NoteKind::Normal
+                        },
+                        ..nd
+                    },
                 });
             }
         }
@@ -238,11 +210,11 @@ fn process_sound_channels<L: BmsonMapping>(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
 )]
-fn process_mine_channels<L: BmsonMapping>(
+fn process_mine_channels<L: BmsonLayout>(
     channels: &[bmson_def::MineChannel<'_>],
     layout: &L,
     audio_assets: &mut Vec<AudioAsset>,
-    notes: &mut Vec<Note<L::NoteData>>,
+    notes: &mut Vec<Note<NoteData>>,
 ) {
     for mc in channels {
         let mine_audio_idx = audio_assets.len() as u32;
@@ -253,13 +225,16 @@ fn process_mine_channels<L: BmsonMapping>(
         });
 
         for mn in &mc.notes {
-            let Some(lane) = layout.map_x(mn.x) else {
+            let Some(nd) = layout.map_x(mn.x) else {
                 continue;
             };
             notes.push(Note {
                 tick: mn.y,
                 audio: Some(mine_audio_idx),
-                data: layout.make_mine_data(lane, mn.damage),
+                data: NoteData {
+                    kind: NoteKind::Mine { damage: mn.damage },
+                    ..nd
+                },
             });
         }
     }
@@ -270,11 +245,11 @@ fn process_mine_channels<L: BmsonMapping>(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
 )]
-fn process_key_channels<L: BmsonMapping>(
+fn process_key_channels<L: BmsonLayout>(
     channels: &[bmson_def::KeyChannel<'_>],
     layout: &L,
     audio_assets: &mut Vec<AudioAsset>,
-    notes: &mut Vec<Note<L::NoteData>>,
+    notes: &mut Vec<Note<NoteData>>,
 ) {
     for kc in channels {
         let key_audio_idx = audio_assets.len() as u32;
@@ -285,13 +260,16 @@ fn process_key_channels<L: BmsonMapping>(
         });
 
         for kn in &kc.notes {
-            let Some(lane) = layout.map_x(kn.x) else {
+            let Some(nd) = layout.map_x(kn.x) else {
                 continue;
             };
             notes.push(Note {
                 tick: kn.y,
                 audio: Some(key_audio_idx),
-                data: layout.make_invisible_data(lane),
+                data: NoteData {
+                    kind: NoteKind::Invisible,
+                    ..nd
+                },
             });
         }
     }
@@ -312,123 +290,6 @@ fn build_metadata(bmson: &bmson_def::Bmson<'_>) -> ChartMetadata {
         genre: bmson.song_info.genre.to_owned(),
         chart_name: bmson.chart_info.chart_name.to_owned(),
         level: bmson.chart_info.level,
-    }
-}
-
-/// Implement `BmsonMapping` for a layout whose `map_x` is a pure function
-/// of the channel `x`.
-macro_rules! impl_bmson_mapping {
-    ($ty:ty, |$x:ident| $body:expr) => {
-        impl BmsonMapping for $ty {
-            #[expect(
-                clippy::cast_possible_truncation,
-                reason = "channel value is bounded by layout"
-            )]
-            #[inline]
-            fn map_x(&self, $x: u64) -> Option<u16> {
-                $body
-            }
-
-            #[inline]
-            fn make_note_data(&self, note: &NoteEvent, lane: u16) -> Self::NoteData {
-                default_note_data(note, lane)
-            }
-
-            #[inline]
-            fn make_mine_data(&self, lane: u16, damage: f64) -> Self::NoteData {
-                DefaultNoteData {
-                    lane,
-                    kind: NoteKind::Mine { damage },
-                }
-            }
-
-            #[inline]
-            fn make_invisible_data(&self, lane: u16) -> Self::NoteData {
-                DefaultNoteData {
-                    lane,
-                    kind: NoteKind::Invisible,
-                }
-            }
-        }
-    };
-}
-
-impl_bmson_mapping!(Beat7k, |x| match x {
-    1..=8 => Some((x - 1) as u16),
-    _ => None,
-});
-
-impl_bmson_mapping!(Beat5k, |x| match x {
-    1..=5 => Some((x - 1) as u16),
-    8 => Some(5),
-    _ => None,
-});
-
-impl_bmson_mapping!(Beat14k, |x| match x {
-    1..=16 => Some((x - 1) as u16),
-    _ => None,
-});
-
-impl_bmson_mapping!(Beat10k, |x| match x {
-    1..=5 => Some((x - 1) as u16),
-    8 => Some(5),
-    9..=13 => Some((x - 9 + 6) as u16),
-    16 => Some(11),
-    _ => None,
-});
-
-impl_bmson_mapping!(Popn9k, |x| match x {
-    1..=9 => Some((x - 1) as u16),
-    _ => None,
-});
-
-impl_bmson_mapping!(Popn5k, |x| match x {
-    1..=5 => Some((x - 1) as u16),
-    _ => None,
-});
-
-/// Build [`DefaultNoteData`] from a BMSON note event and lane.
-const fn default_note_data(note: &NoteEvent, lane: u16) -> DefaultNoteData {
-    DefaultNoteData {
-        lane,
-        kind: if note.l > 0 {
-            NoteKind::Long { duration: note.l }
-        } else {
-            NoteKind::Normal
-        },
-    }
-}
-
-// GenericLayout needs `self.keys`, so it has an explicit impl.
-impl BmsonMapping for GenericLayout {
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "x is bounded by self.keys which is u16"
-    )]
-    #[inline]
-    fn map_x(&self, x: u64) -> Option<u16> {
-        (x >= 1 && x <= u64::from(self.keys)).then(|| (x - 1) as u16)
-    }
-
-    #[inline]
-    fn make_note_data(&self, note: &NoteEvent, lane: u16) -> Self::NoteData {
-        default_note_data(note, lane)
-    }
-
-    #[inline]
-    fn make_mine_data(&self, lane: u16, damage: f64) -> Self::NoteData {
-        DefaultNoteData {
-            lane,
-            kind: NoteKind::Mine { damage },
-        }
-    }
-
-    #[inline]
-    fn make_invisible_data(&self, lane: u16) -> Self::NoteData {
-        DefaultNoteData {
-            lane,
-            kind: NoteKind::Invisible,
-        }
     }
 }
 
@@ -466,7 +327,7 @@ fn build_scroll_events(events: &[bmson_def::ScrollEvent]) -> Vec<ScrollChangeEve
 fn build_bar_lines(
     lines: Option<&[bmson_def::BarLine]>,
     resolution: u64,
-    notes: &[Note<impl NoteData>],
+    notes: &[Note<impl NoteDataLike>],
     bgm: &[BgmEvent],
 ) -> Vec<BarLine> {
     if let Some(vec) = lines {

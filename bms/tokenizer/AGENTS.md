@@ -1,6 +1,6 @@
 # bms-tokenizer
 
-First stage of `tokenizer → parser → processor`.
+First stage of `tokenizer → control-flow → parser`.
 
 ## Scope
 

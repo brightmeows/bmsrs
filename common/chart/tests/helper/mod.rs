@@ -4,7 +4,6 @@ pub fn make_test_chart(notes: Vec<Note>, bgm: Vec<BgmEvent>) -> Chart {
     Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
-        lane_count: 8,
         timing: TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],

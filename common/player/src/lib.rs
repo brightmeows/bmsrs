@@ -7,16 +7,17 @@
 //! # Usage
 //!
 //! ```
+//! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, ChartMetadata, DefaultNoteData, Note, NoteKind, TimingTrack, Bga,
+//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, PlayerSide,
+//!     TimingTrack, Bga,
 //! };
 //! use bmsrs_player::Player;
 //!
 //! let chart = Chart {
 //!     metadata: ChartMetadata::default(),
 //!     resolution: 240,
-//!     lane_count: 8,
 //!     timing: TimingTrack {
 //!         init_bpm: 120.0,
 //!         bpm_changes: vec![],
@@ -27,8 +28,9 @@
 //!     notes: vec![Note {
 //!         tick: 480,
 //!         audio: None,
-//!         data: DefaultNoteData {
-//!             lane: 0,
+//!         data: NoteData {
+//!             side: PlayerSide::Player1,
+//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
 //!             kind: NoteKind::Normal,
 //!         },
 //!     }],
@@ -50,7 +52,8 @@ mod timing;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BarLine, BgaTimelineEvent, BgmEvent, Chart, Note, NoteData, NoteKind,
+    AudioAsset, BarLine, BgaTimelineEvent, BgmEvent, Chart, Lane, Note, NoteDataLike, NoteKind,
+    PlayerSide,
 };
 
 use crate::timing::TimingCache;
@@ -64,7 +67,7 @@ use crate::timing::TimingCache;
 ///
 /// The player is a pure simulation layer: no audio playback, rendering,
 /// input handling, judgement, or scoring.
-pub struct Player<T: NoteData> {
+pub struct Player<T: NoteDataLike> {
     /// The chart being played.
     chart: Chart<T>,
     /// Pre-computed timing cache for O(log n) queries.
@@ -73,7 +76,7 @@ pub struct Player<T: NoteData> {
     current_tick: u64,
 }
 
-impl<T: NoteData> Player<T> {
+impl<T: NoteDataLike> Player<T> {
     /// Create a new player from a chart, starting at tick 0.
     #[must_use]
     pub fn new(chart: Chart<T>) -> Self {
@@ -174,16 +177,17 @@ impl<T: NoteData> Player<T> {
         &self.chart.notes[start..end]
     }
 
-    /// Return an iterator over notes in `lane` within `[from_tick, to_tick)`.
+    /// Return an iterator over notes at `(side, lane)` within `[from_tick, to_tick)`.
     pub fn notes_in_lane(
         &self,
-        lane: u16,
+        side: PlayerSide,
+        lane: Lane,
         from_tick: u64,
         to_tick: u64,
     ) -> impl Iterator<Item = &Note<T>> {
         self.notes_in_range(from_tick, to_tick)
             .iter()
-            .filter(move |n| n.data.lane() == lane)
+            .filter(move |n| n.data.side() == side && n.data.lane() == lane)
     }
 
     /// Return an iterator over judgement-relevant notes in

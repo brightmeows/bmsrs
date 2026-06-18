@@ -1,12 +1,15 @@
-//! Note types and the [`NoteData`] trait.
+//! Note types and the [`NoteDataLike`] trait.
 //!
-//! Each note in a [`crate::Chart`] carries a `T: NoteData` that provides
-//! the minimum information the Player needs: lane and kind.
+//! Each note in a [`crate::Chart`] carries a `T: NoteDataLike` that provides
+//! the position triple `(PlayerSide, Lane)` plus the note kind — the minimum the
+//! Player needs to match and judge notes.
 
 use std::fmt::Debug;
 
+use crate::mode::{Lane, PlayerSide};
+
 /// The kind of a playable note.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum NoteKind {
     /// Normal (short) note — tap once.
     #[default]
@@ -28,54 +31,69 @@ pub enum NoteKind {
     Invisible,
 }
 
-/// Required note data for Player simulation.
+/// Trait for types that can serve as note data in a [`Chart`](crate::Chart).
 ///
-/// Every note stored in a [`crate::Chart`] carries a type `T: NoteData`.
-/// The Player accesses lane and kind through this trait, allowing
-/// format-specific extensions to be carried alongside the common data.
+/// The built-in [`NoteData`] struct implements this trait. Custom types can
+/// carry format-specific extensions (volume, pan, LN mode, etc.) while still
+/// providing the minimum position triple required by the Player.
 ///
 /// # Example
 ///
 /// ```
-/// use bmsrs_chart::note::{DefaultNoteData, NoteData, NoteKind};
+/// use std::num::NonZeroU8;
+/// use bmsrs_chart::mode::{Lane, PlayerSide};
+/// use bmsrs_chart::note::{NoteData, NoteDataLike, NoteKind};
 ///
-/// let data = DefaultNoteData { lane: 3, kind: NoteKind::Normal };
-/// assert_eq!(data.lane(), 3);
+/// let data = NoteData {
+///     side: PlayerSide::Player1,
+///     lane: Lane::Key(NonZeroU8::new(3).unwrap()),
+///     kind: NoteKind::Normal,
+/// };
+/// assert_eq!(data.side(), PlayerSide::Player1);
+/// assert_eq!(data.lane(), Lane::Key(NonZeroU8::new(3).unwrap()));
 /// assert_eq!(data.kind(), NoteKind::Normal);
 /// ```
-pub trait NoteData: Clone + Debug + PartialEq {
-    /// Lane index (0-based, left to right within the layout).
-    fn lane(&self) -> u16;
+pub trait NoteDataLike: Clone + Debug + PartialEq {
+    /// Which player side the note belongs to.
+    fn side(&self) -> PlayerSide;
+    /// Which key the note sits on.
+    fn lane(&self) -> Lane;
     /// Note kind.
     fn kind(&self) -> NoteKind;
 }
 
-/// Default [`NoteData`] implementation: just lane + kind.
+/// Default [`NoteDataLike`] implementation: position triple + kind.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DefaultNoteData {
-    /// Lane index (0-based).
-    pub lane: u16,
+pub struct NoteData {
+    /// Player side.
+    pub side: PlayerSide,
+    /// Key position.
+    pub lane: Lane,
     /// Note kind.
     pub kind: NoteKind,
 }
 
-impl NoteData for DefaultNoteData {
-    fn lane(&self) -> u16 {
+impl NoteDataLike for NoteData {
+    fn side(&self) -> PlayerSide {
+        self.side
+    }
+
+    fn lane(&self) -> Lane {
         self.lane
     }
 
     fn kind(&self) -> NoteKind {
-        self.kind.clone()
+        self.kind
     }
 }
 
 /// A note in the chart.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Note<T: NoteData = DefaultNoteData> {
+pub struct Note<T: NoteDataLike = NoteData> {
     /// Tick position.
     pub tick: u64,
     /// Audio asset index into [`crate::Chart::audio_assets`], or `None` if silent.
     pub audio: Option<u32>,
-    /// Format-specific note data (lane, kind, extensions).
+    /// Format-specific note data (position, kind, extensions).
     pub data: T,
 }

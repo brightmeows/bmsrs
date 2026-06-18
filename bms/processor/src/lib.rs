@@ -1,13 +1,22 @@
-//! BMS → [`Chart`] conversion processor.
+//! BMS → `Chart` conversion processor.
 //!
-//! [`BmsProcessor`] converts a [`bms_parser::Bms`] into a format-agnostic
-//! [`Chart<T>`] by applying a [`BmsMapping`] layout.
+//! [`BmsProcessor`] converts a `bms_parser::Bms` into a format-agnostic
+//! `Chart` by applying a `BmsLayout` mode family (e.g. `Bme`, `Pms`,
+//! `Nanasi`).
 //!
 //! # Pipeline
 //!
 //! ```text
-//! bms_parser::Bms → BmsProcessor::process(bms, layout) → Chart<L::NoteData>
+//! bms_parser::Bms → BmsProcessor::process(bms, layout) → Chart<NoteData>
 //! ```
+//!
+//! # Mode families
+//!
+//! The layout argument selects how BMS `(player, lane)` channel bytes decode
+//! into flat chart lanes. `Bme` covers beat-5k/7k/10k/14k uniformly (the key
+//! count of a chart is whatever its notes use). Other families (`Pms`,
+//! `PmsBme`, `Nanasi`, `DscOctFp`) cover their eponymous modes.
+//! [`BmsProcessor::process_default`] uses `Bme`.
 //!
 //! # Long-note modes
 //!
@@ -25,11 +34,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use bms_parser::{BgaLayer, Bms, BpmValue, KeyType};
-use bms_tokenizer::{BmpTag, BmsIndex, PlayerMode, WavTag};
+use bms_tokenizer::{BmpTag, BmsIndex, WavTag};
 use bmsrs_chart::{
-    AudioAsset, BarLine, Beat5k, Beat7k, Beat10k, Beat14k, Bga, BgaResource, BgaTimelineEvent,
-    BgmEvent, BpmChange, Chart, ChartMetadata, DefaultNoteData, Layout, Note, NoteKind,
-    ScrollChangeEvent, StopEvent, TimingTrack,
+    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, Bme, BmsLayout, BpmChange,
+    Chart, ChartMetadata, Note, NoteData, NoteKind, ScrollChangeEvent, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
@@ -44,21 +52,6 @@ pub enum ProcessError {
     InvalidBpm(f64),
 }
 
-/// Layout extension that maps BMS player/lane numbers to chart lanes and
-/// constructs [`NoteData`](bmsrs_chart::NoteData).
-///
-/// Default implementations are provided for [`Beat7k`], [`Beat5k`],
-/// [`Beat14k`], and [`Beat10k`].
-pub trait BmsMapping: Layout {
-    /// Map a BMS `(player, lane)` pair to a zero-based chart lane index.
-    ///
-    /// Returns `None` if unmapped (note is discarded).
-    fn map_lane(&self, player: u8, lane: u8) -> Option<u16>;
-
-    /// Construct note data for a note on `player` at `chart_lane`.
-    fn make_note_data(&self, player: u8, chart_lane: u16, kind: NoteKind) -> Self::NoteData;
-}
-
 /// Zero-sized processor that converts [`Bms`] into [`Chart`].
 pub struct BmsProcessor;
 
@@ -66,15 +59,19 @@ pub struct BmsProcessor;
 const RESOLUTION: u64 = 240;
 
 impl BmsProcessor {
-    /// Process a BMS chart with an explicit layout.
+    /// Process a BMS chart with an explicit mode-family layout.
+    ///
+    /// The layout decides how each BMS `(player, lane)` channel byte decodes
+    /// into a flat chart lane. See [`bmsrs_chart::layout`] for the available
+    /// families.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
     /// or not positive.
-    pub fn process<L>(bms: &Bms, layout: &L) -> Result<Chart<L::NoteData>, ProcessError>
+    pub fn process<L>(bms: &Bms, layout: &L) -> Result<Chart<NoteData>, ProcessError>
     where
-        L: BmsMapping,
+        L: BmsLayout,
     {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
         if init_bpm <= 0.0 {
@@ -103,7 +100,6 @@ impl BmsProcessor {
         Ok(Chart {
             metadata: build_metadata(bms),
             resolution: RESOLUTION,
-            lane_count: layout.lane_count(),
             timing,
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -116,28 +112,22 @@ impl BmsProcessor {
         })
     }
 
-    /// Process a BMS chart, inferring the layout from `#PLAYER`.
+    /// Process a BMS chart with the default [`Bme`] layout.
     ///
-    /// | `#PLAYER` value | Layout |
-    /// |---|---|
-    /// | `Single` / `1` / `SP` | [`Beat7k`] |
-    /// | `Couple` / `2` / `CP` | [`Beat14k`] (co-op, 2P side) |
-    /// | `Double` / `3` / `DP` | [`Beat14k`] (one player, both sides) |
-    /// | `Battle` / `4` / `BP` | [`Beat14k`] (two players, same chart) |
-    /// | Unset / unknown | [`Beat7k`] (fallback) |
+    /// `Bme` covers beat-5k/7k/10k/14k uniformly — both player sides are
+    /// mapped, so single-player charts simply leave the 2P lanes unused and
+    /// dual-player charts populate them. The `#PLAYER` header does not affect
+    /// the mapping (consistent with modern engines, which ignore it).
+    ///
+    /// For PMS, nanasi, or other families, call [`process`](Self::process)
+    /// with the relevant layout.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
     /// or not positive.
-    pub fn process_default(bms: &Bms) -> Result<Chart<DefaultNoteData>, ProcessError> {
-        match bms.gameplay.player {
-            Some(PlayerMode::Double | PlayerMode::Battle | PlayerMode::Couple) => {
-                Self::process(bms, &Beat14k)
-            }
-            // Single / unset / unknown → single-play layout.
-            _ => Self::process(bms, &Beat7k),
-        }
+    pub fn process_default(bms: &Bms) -> Result<Chart<NoteData>, ProcessError> {
+        Self::process(bms, &Bme)
     }
 }
 
@@ -171,14 +161,14 @@ fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<
 }
 
 /// Collect all playable notes (visible, invisible, LN, mines) into a sorted vector.
-fn collect_notes<L: BmsMapping>(
+fn collect_notes<L: BmsLayout>(
     bms: &Bms,
     layout: &L,
     table: &MeasureTable,
     wav_map: &BTreeMap<BmsIndex<WavTag>, u32>,
     paired_lns: &[PairedLn],
     consumed: &BTreeSet<usize>,
-) -> Vec<Note<L::NoteData>> {
+) -> Vec<Note<NoteData>> {
     let mut notes = Vec::new();
 
     // Visible notes (skip consumed LNOBJ pairs).
@@ -187,11 +177,14 @@ fn collect_notes<L: BmsMapping>(
             continue;
         }
         if ne.key_type == KeyType::Visible {
-            if let Some(lane) = layout.map_lane(ne.player, ne.lane) {
+            if let Some(nd) = layout.map_channel(ne.player, ne.lane) {
                 notes.push(Note {
                     tick: table.position_to_tick(ne.position),
                     audio: wav_map.get(&ne.wav_id).copied(),
-                    data: layout.make_note_data(ne.player, lane, NoteKind::Normal),
+                    data: NoteData {
+                        kind: NoteKind::Normal,
+                        ..nd
+                    },
                 });
             }
         }
@@ -200,11 +193,14 @@ fn collect_notes<L: BmsMapping>(
     // Invisible notes (keysounds).
     for ne in &bms.messages.note_events {
         if ne.key_type == KeyType::Invisible {
-            if let Some(lane) = layout.map_lane(ne.player, ne.lane) {
+            if let Some(nd) = layout.map_channel(ne.player, ne.lane) {
                 notes.push(Note {
                     tick: table.position_to_tick(ne.position),
                     audio: wav_map.get(&ne.wav_id).copied(),
-                    data: layout.make_note_data(ne.player, lane, NoteKind::Invisible),
+                    data: NoteData {
+                        kind: NoteKind::Invisible,
+                        ..nd
+                    },
                 });
             }
         }
@@ -212,28 +208,30 @@ fn collect_notes<L: BmsMapping>(
 
     // Paired long notes.
     for ln in paired_lns {
-        if let Some(lane) = layout.map_lane(ln.player, ln.lane) {
+        if let Some(nd) = layout.map_channel(ln.player, ln.lane) {
             notes.push(Note {
                 tick: ln.tick,
                 audio: wav_map.get(&ln.wav_id).copied(),
-                data: layout.make_note_data(
-                    ln.player,
-                    lane,
-                    NoteKind::Long {
+                data: NoteData {
+                    kind: NoteKind::Long {
                         duration: ln.duration,
                     },
-                ),
+                    ..nd
+                },
             });
         }
     }
 
     // Mines.
     for me in &bms.messages.mine_events {
-        if let Some(lane) = layout.map_lane(me.player, me.lane) {
+        if let Some(nd) = layout.map_channel(me.player, me.lane) {
             notes.push(Note {
                 tick: table.position_to_tick(me.position),
                 audio: None,
-                data: layout.make_note_data(me.player, lane, NoteKind::Mine { damage: 1.0 }),
+                data: NoteData {
+                    kind: NoteKind::Mine { damage: 1.0 },
+                    ..nd
+                },
             });
         }
     }
@@ -483,55 +481,3 @@ fn find_max_measure(bms: &Bms) -> u16 {
 
     max_m.max(1) + 1
 }
-
-// BmsMapping implementations
-
-/// Implements [`BmsMapping`] for a zero-sized layout type.
-macro_rules! impl_bms_mapping {
-    ($ty:ty, |$player:ident, $lane:ident| $body:expr) => {
-        impl BmsMapping for $ty {
-            #[inline]
-            fn map_lane(&self, $player: u8, $lane: u8) -> Option<u16> {
-                $body
-            }
-
-            #[inline]
-            fn make_note_data(
-                &self,
-                _player: u8,
-                chart_lane: u16,
-                kind: NoteKind,
-            ) -> Self::NoteData {
-                DefaultNoteData {
-                    lane: chart_lane,
-                    kind,
-                }
-            }
-        }
-    };
-}
-
-impl_bms_mapping!(Beat7k, |player, lane| match (player, lane) {
-    (1, 1..=8) => Some(u16::from(lane - 1)),
-    _ => None,
-});
-
-impl_bms_mapping!(Beat5k, |player, lane| match (player, lane) {
-    (1, 1..=5) => Some(u16::from(lane - 1)),
-    (1, 8) => Some(5),
-    _ => None,
-});
-
-impl_bms_mapping!(Beat14k, |player, lane| match (player, lane) {
-    (1, 1..=8) => Some(u16::from(lane - 1)),
-    (2, 1..=8) => Some(u16::from(lane - 1 + 8)),
-    _ => None,
-});
-
-impl_bms_mapping!(Beat10k, |player, lane| match (player, lane) {
-    (1, 1..=5) => Some(u16::from(lane - 1)),
-    (1, 8) => Some(5),
-    (2, 1..=5) => Some(u16::from(lane - 1 + 6)),
-    (2, 8) => Some(11),
-    _ => None,
-});

@@ -4,9 +4,26 @@ use bmson_def::{
     BGA, BGAEvent, BGAHeader, BarLine, Bmson, ChartData, ChartInfo, LnJudge, LnLife, LnType,
     MineChannel, MineNote, ModeHint, NoteEvent, ScrollEvent, SongInfo, SoundChannel,
 };
-use bmson_processor::{BmsonMapping, BmsonProcessor};
-use bmsrs_chart::{Beat5k, Beat7k, Beat10k, Beat14k, GenericLayout, NoteData, NoteKind, Popn9k};
+use bmson_processor::BmsonProcessor;
+use bmsrs_chart::mode::{Lane, PlayerSide};
+use bmsrs_chart::{Bme, BmsonLayout, GenericLayout, NoteData, NoteDataLike, NoteKind, Pms};
+use std::num::NonZeroU8;
 use std::path::Path;
+
+const fn nz(n: u8) -> NonZeroU8 {
+    match NonZeroU8::new(n) {
+        Some(v) => v,
+        None => panic!("nz: n must be non-zero"),
+    }
+}
+
+const fn key(n: u8) -> Lane {
+    Lane::Key(nz(n))
+}
+
+const fn sc(n: u8) -> Lane {
+    Lane::Scratch(nz(n))
+}
 
 const TITLE: &str = "Test Song";
 const ARTIST: &str = "Test Artist";
@@ -76,81 +93,92 @@ const fn ne(x: u64, y: u64, l: u64) -> NoteEvent {
 }
 
 #[test]
-fn beat7k_maps_keys_and_scratch() {
-    assert_eq!(Beat7k.map_x(1), Some(0));
-    assert_eq!(Beat7k.map_x(7), Some(6));
-    assert_eq!(Beat7k.map_x(8), Some(7));
-    assert_eq!(Beat7k.map_x(9), None);
-    assert_eq!(Beat7k.map_x(0), None);
+fn bme_bmson_x_aligns_scratch_with_keys() {
+    // x=8 is the 1P scratch and must match BMS channel 16's position.
+    assert_eq!(
+        Bme.map_x(1),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(1),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        Bme.map_x(5),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(5),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        Bme.map_x(6),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(6),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        Bme.map_x(8),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: sc(1),
+            kind: NoteKind::Normal
+        })
+    ); // SC
+    assert_eq!(
+        Bme.map_x(7),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(7),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(Bme.map_x(0), None);
 }
 
 #[test]
-fn beat5k_maps_keys_and_scratch() {
-    assert_eq!(Beat5k.map_x(1), Some(0));
-    assert_eq!(Beat5k.map_x(5), Some(4));
-    assert_eq!(Beat5k.map_x(8), Some(5));
-    assert_eq!(Beat5k.map_x(6), None);
+fn pms_bmson_popn_9k_maps_nine_keys() {
+    assert_eq!(
+        Pms.map_x(1),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(1),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        Pms.map_x(9),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(9),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(Pms.map_x(10), None);
 }
 
 #[test]
-fn beat14k_maps_all_sixteen_channels() {
-    assert_eq!(Beat14k.map_x(1), Some(0));
-    assert_eq!(Beat14k.map_x(8), Some(7));
-    assert_eq!(Beat14k.map_x(9), Some(8));
-    assert_eq!(Beat14k.map_x(16), Some(15));
-    assert_eq!(Beat14k.map_x(17), None);
-}
-
-#[test]
-fn beat10k_maps_split_layout() {
-    assert_eq!(Beat10k.map_x(1), Some(0));
-    assert_eq!(Beat10k.map_x(5), Some(4));
-    assert_eq!(Beat10k.map_x(8), Some(5));
-    assert_eq!(Beat10k.map_x(9), Some(6));
-    assert_eq!(Beat10k.map_x(13), Some(10));
-    assert_eq!(Beat10k.map_x(16), Some(11));
-    assert_eq!(Beat10k.map_x(6), None);
-}
-
-#[test]
-fn popn9k_maps_nine_keys() {
-    assert_eq!(Popn9k.map_x(1), Some(0));
-    assert_eq!(Popn9k.map_x(9), Some(8));
-    assert_eq!(Popn9k.map_x(10), None);
-}
-
-#[test]
-fn generic_layout_maps_by_keys() {
+fn generic_maps_by_keys() {
     let layout = GenericLayout { keys: 4 };
-    assert_eq!(layout.map_x(1), Some(0));
-    assert_eq!(layout.map_x(4), Some(3));
+    assert_eq!(
+        layout.map_x(1),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(1),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        layout.map_x(4),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(4),
+            kind: NoteKind::Normal
+        })
+    );
     assert_eq!(layout.map_x(5), None);
-}
-
-#[test]
-fn short_note_is_normal() {
-    let note = ne(1, 0, 0);
-    let data = Beat7k.make_note_data(&note, 0);
-    assert_eq!(data.kind, NoteKind::Normal);
-}
-
-#[test]
-fn long_note_preserves_duration() {
-    let note = ne(1, 0, 480);
-    let data = Beat7k.make_note_data(&note, 0);
-    assert_eq!(data.kind, NoteKind::Long { duration: 480 });
-}
-
-#[test]
-fn mine_data_has_damage() {
-    let data = Beat7k.make_mine_data(3, 0.5);
-    assert_eq!(data.kind, NoteKind::Mine { damage: 0.5 });
-}
-
-#[test]
-fn invisible_data_is_invisible() {
-    let data = Beat7k.make_invisible_data(2);
-    assert_eq!(data.kind, NoteKind::Invisible);
 }
 
 #[test]
@@ -163,7 +191,7 @@ fn bgm_discarded_when_playable_at_same_pulse() {
         ],
     }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.bgm.len(), 0);
     assert_eq!(chart.notes.len(), 1);
@@ -179,7 +207,7 @@ fn bgm_kept_when_no_playable_at_same_pulse() {
         ],
     }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.bgm.len(), 1);
     assert_eq!(chart.bgm[0].tick, 240);
@@ -192,15 +220,15 @@ fn process_basic_chart() {
         note_events: vec![ne(1, 0, 0), ne(2, 240, 0), ne(1, 480, 0)],
     }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.notes.len(), 3);
     assert_eq!(chart.notes[0].tick, 0);
-    assert_eq!(chart.notes[0].data.lane(), 0);
+    assert_eq!(chart.notes[0].data.lane(), key(1));
     assert_eq!(chart.notes[1].tick, 240);
-    assert_eq!(chart.notes[1].data.lane(), 1);
+    assert_eq!(chart.notes[1].data.lane(), key(2));
     assert_eq!(chart.notes[2].tick, 480);
-    assert_eq!(chart.notes[2].data.lane(), 0);
+    assert_eq!(chart.notes[2].data.lane(), key(1));
     assert_eq!(chart.audio_assets.len(), 3);
     assert_eq!(chart.audio_assets[0].path, Path::new("demo.wav"));
 }
@@ -212,10 +240,22 @@ fn process_long_note() {
         note_events: vec![ne(1, 0, 480)],
     }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.notes.len(), 1);
     assert_eq!(chart.notes[0].data.kind, NoteKind::Long { duration: 480 });
+}
+
+#[test]
+fn process_short_note_is_normal() {
+    let bmson = make_bmson(vec![SoundChannel {
+        name: Path::new("demo.wav"),
+        note_events: vec![ne(1, 0, 0)],
+    }]);
+
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
+
+    assert_eq!(chart.notes[0].data.kind, NoteKind::Normal);
 }
 
 #[test]
@@ -223,21 +263,52 @@ fn process_invalid_bpm_returns_error() {
     let mut bmson = make_bmson(vec![]);
     bmson.chart_data.init_bpm = 0.0;
 
-    let result = BmsonProcessor::process(&bmson, &Beat7k);
+    let result = BmsonProcessor::process(&bmson, &Bme);
     assert!(result.is_err());
 }
 
 #[test]
-fn process_default_uses_beat7k() {
+fn process_default_beat_hint_uses_bme() {
+    // mode_hint defaults to Beat7k → Bme. A scratch note (x=8) must map to
+    // Player1 Scratch(1).
     let bmson = make_bmson(vec![SoundChannel {
         name: Path::new("demo.wav"),
-        note_events: vec![ne(1, 0, 0)],
+        note_events: vec![ne(8, 0, 0)],
     }]);
 
     let chart = BmsonProcessor::process_default(&bmson).expect("processing succeeds");
 
-    assert_eq!(chart.lane_count, 8);
     assert_eq!(chart.notes.len(), 1);
+    assert_eq!(chart.notes[0].data.side(), PlayerSide::Player1);
+    assert_eq!(chart.notes[0].data.lane(), sc(1));
+}
+
+#[test]
+fn process_default_popn_hint_uses_pms() {
+    let mut bmson = make_bmson(vec![SoundChannel {
+        name: Path::new("demo.wav"),
+        note_events: vec![ne(9, 0, 0)],
+    }]);
+    bmson.chart_data.mode_hint = ModeHint::Popn9k;
+
+    let chart = BmsonProcessor::process_default(&bmson).expect("processing succeeds");
+
+    // Pms maps popn-9k x=9 → Player1 Key(9) (Bme would have mapped x=9 to a
+    // 2P lane, so this distinguishes the families).
+    assert_eq!(chart.notes[0].data.lane(), key(9));
+}
+
+#[test]
+fn process_default_generic_hint_uses_generic() {
+    let mut bmson = make_bmson(vec![SoundChannel {
+        name: Path::new("demo.wav"),
+        note_events: vec![ne(3, 0, 0)],
+    }]);
+    bmson.chart_data.mode_hint = ModeHint::Generic(4);
+
+    let chart = BmsonProcessor::process_default(&bmson).expect("processing succeeds");
+
+    assert_eq!(chart.notes[0].data.lane(), key(3));
 }
 
 #[test]
@@ -247,7 +318,7 @@ fn process_generates_auto_bar_lines() {
         note_events: vec![ne(1, 960, 0)],
     }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert!(!chart.bar_lines.is_empty());
     assert_eq!(chart.bar_lines[0].tick, 0);
@@ -261,7 +332,7 @@ fn process_explicit_bar_lines() {
     }]);
     bmson.chart_data.lines = Some(vec![BarLine { y: 0 }, BarLine { y: 100 }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.bar_lines.len(), 2);
     assert_eq!(chart.bar_lines[0].tick, 0);
@@ -284,7 +355,7 @@ fn process_bga_events() {
         poor_events: vec![],
     };
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.bga.resources.len(), 1);
     assert_eq!(chart.bga.resources[0].path, Path::new("bg.png"));
@@ -308,7 +379,7 @@ fn process_mine_channel() {
         }],
     }];
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     let mine_note = chart
         .notes
@@ -326,7 +397,7 @@ fn process_scroll_events() {
     }]);
     bmson.scroll_events = vec![ScrollEvent { y: 240, rate: 2.0 }];
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.scroll_events.len(), 1);
     assert_eq!(chart.scroll_events[0].tick, 240);
@@ -340,7 +411,7 @@ fn process_metadata() {
         note_events: vec![ne(1, 0, 0)],
     }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.metadata.title, TITLE);
     assert_eq!(chart.metadata.artist, ARTIST);
@@ -356,7 +427,7 @@ fn notes_sorted_by_tick() {
         note_events: vec![ne(1, 480, 0), ne(2, 0, 0), ne(3, 240, 0)],
     }]);
 
-    let chart = BmsonProcessor::process(&bmson, &Beat7k).expect("processing succeeds");
+    let chart = BmsonProcessor::process(&bmson, &Bme).expect("processing succeeds");
 
     assert_eq!(chart.notes[0].tick, 0);
     assert_eq!(chart.notes[1].tick, 240);

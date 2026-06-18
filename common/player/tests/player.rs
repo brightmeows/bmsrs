@@ -2,13 +2,27 @@
 
 mod helper;
 
+use std::num::NonZeroU8;
+
 use bmsrs_chart::{
     BarLine, Bga, BgmEvent, BpmChange, Chart, ChartMetadata, Note, NoteKind, ScrollChangeEvent,
     TimingTrack,
+    mode::{Lane, PlayerSide},
 };
 use bmsrs_player::Player;
 use helper::{make_chart, note};
 use std::time::Duration;
+
+const fn nz(n: u8) -> NonZeroU8 {
+    match NonZeroU8::new(n) {
+        Some(v) => v,
+        None => panic!("nz: n must be non-zero"),
+    }
+}
+
+const fn key(n: u8) -> Lane {
+    Lane::Key(nz(n))
+}
 
 #[test]
 fn new_player_starts_at_tick_zero() {
@@ -68,11 +82,11 @@ fn tick_to_duration_matches_timing_track() {
 #[test]
 fn notes_in_range_returns_subset() {
     let chart = make_chart(vec![
-        note(0, 0, NoteKind::Normal),
-        note(240, 1, NoteKind::Normal),
-        note(480, 0, NoteKind::Normal),
-        note(720, 1, NoteKind::Normal),
-        note(960, 0, NoteKind::Normal),
+        note(0, key(1), NoteKind::Normal),
+        note(240, key(2), NoteKind::Normal),
+        note(480, key(1), NoteKind::Normal),
+        note(720, key(2), NoteKind::Normal),
+        note(960, key(1), NoteKind::Normal),
     ]);
     let player = Player::new(chart);
 
@@ -83,27 +97,29 @@ fn notes_in_range_returns_subset() {
 }
 
 #[test]
-fn notes_in_lane_filters_by_lane() {
+fn notes_in_lane_filters_by_side_and_lane() {
     let chart = make_chart(vec![
-        note(0, 0, NoteKind::Normal),
-        note(240, 1, NoteKind::Normal),
-        note(480, 0, NoteKind::Normal),
+        note(0, key(1), NoteKind::Normal),
+        note(240, key(2), NoteKind::Normal),
+        note(480, key(1), NoteKind::Normal),
     ]);
     let player = Player::new(chart);
 
-    let lane0: Vec<&Note> = player.notes_in_lane(0, 0, 960).collect();
-    assert_eq!(lane0.len(), 2);
-    assert_eq!(lane0[0].tick, 0);
-    assert_eq!(lane0[1].tick, 480);
+    let lane1: Vec<&Note> = player
+        .notes_in_lane(PlayerSide::Player1, key(1), 0, 960)
+        .collect();
+    assert_eq!(lane1.len(), 2);
+    assert_eq!(lane1[0].tick, 0);
+    assert_eq!(lane1[1].tick, 480);
 }
 
 #[test]
 fn notes_for_judgement_excludes_invisible_and_mines() {
     let chart = make_chart(vec![
-        note(0, 0, NoteKind::Normal),
-        note(240, 0, NoteKind::Invisible),
-        note(480, 0, NoteKind::Mine { damage: 1.0 }),
-        note(720, 0, NoteKind::Long { duration: 240 }),
+        note(0, key(1), NoteKind::Normal),
+        note(240, key(1), NoteKind::Invisible),
+        note(480, key(1), NoteKind::Mine { damage: 1.0 }),
+        note(720, key(1), NoteKind::Long { duration: 240 }),
     ]);
     let player = Player::new(chart);
 
@@ -118,7 +134,6 @@ fn bgm_in_range_returns_events() {
     let chart: Chart = Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
-        lane_count: 8,
         timing: TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],
@@ -155,7 +170,6 @@ fn scroll_rate_at_returns_latest_multiplier() {
     let chart: Chart = Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
-        lane_count: 8,
         timing: TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],
@@ -192,7 +206,6 @@ fn bar_lines_in_range_returns_subset() {
     let chart: Chart = Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
-        lane_count: 8,
         timing: TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],
@@ -224,7 +237,6 @@ fn current_bpm_returns_active_bpm() {
     let chart: Chart = Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
-        lane_count: 8,
         timing: TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![BpmChange {
@@ -282,7 +294,6 @@ fn duration_to_tick_with_bpm_changes_and_stops() {
     let chart: Chart = Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
-        lane_count: 8,
         timing: TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![BpmChange {
@@ -329,7 +340,6 @@ fn duration_to_tick_stop_does_not_advance() {
     let chart: Chart = Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
-        lane_count: 8,
         timing: TimingTrack {
             init_bpm: 120.0,
             bpm_changes: vec![],
@@ -364,7 +374,7 @@ fn duration_to_tick_stop_does_not_advance() {
 
 #[test]
 fn into_chart_returns_original_chart() {
-    let chart = make_chart(vec![note(0, 0, NoteKind::Normal)]);
+    let chart = make_chart(vec![note(0, key(1), NoteKind::Normal)]);
     let player = Player::new(chart);
     let recovered = player.into_chart();
     assert_eq!(recovered.notes.len(), 1);
