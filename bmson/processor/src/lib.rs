@@ -1,8 +1,10 @@
 //! BMSON → `Chart` conversion processor.
 //!
 //! [`BmsonProcessor`] converts a `bmson_def::Bmson` (v2 root schema) into
-//! a format-agnostic `Chart` by applying a `BmsonLayout` mode family
-//! (`Bme`, `Pms`, or `GenericLayout`).
+//! a format-agnostic `Chart` by applying a [`BmsonLayout`] mode family
+//! ([`Beat`], [`Pms`], or [`GenericLayout`] for n-keys).
+//!
+//! Mode families and the [`BmsonLayout`] trait live in the [`layout`] module.
 //!
 //! # Pipeline
 //!
@@ -20,16 +22,20 @@
 
 mod slice;
 
+pub mod layout;
+
 use std::collections::BTreeSet;
 use std::time::Duration;
 
 use bmson_def::{BGAEvent, BpmEvent, ModeHint, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, Bme, BmsonLayout, BpmChange,
-    Chart, ChartMetadata, GenericLayout, Note, NoteData, NoteDataLike, NoteKind, Pms,
-    ScrollChangeEvent, StopEvent, TimingTrack,
+    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, BpmChange, Chart,
+    ChartMetadata, Note, NoteData, NoteDataLike, NoteKind, ScrollChangeEvent, StopEvent,
+    TimingTrack,
 };
 use thiserror::Error;
+
+use crate::layout::{Beat, BmsonLayout, GenericLayout, Pms};
 
 use crate::slice::slice_channel;
 
@@ -48,18 +54,60 @@ pub enum ProcessError {
 pub struct BmsonProcessor;
 
 impl BmsonProcessor {
-    /// Process a BMSON chart with an explicit mode-family layout.
+    /// Process a BMSON chart with a stateless mode-family layout.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
-    pub fn process<L>(
-        bmson: &bmson_def::Bmson<'_>,
-        layout: &L,
-    ) -> Result<Chart<NoteData>, ProcessError>
+    pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<NoteData>, ProcessError>
     where
         L: BmsonLayout,
     {
+        Self::process_body(bmson, &L::map_x)
+    }
+
+    /// Process a BMSON chart with a generic-nkeys layout.
+    ///
+    /// This is the only stateful layout family — call this directly instead
+    /// of [`process`](Self::process) when the mode hint is `generic-nkeys`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
+    pub fn process_nkeys(
+        bmson: &bmson_def::Bmson<'_>,
+        keys: u16,
+    ) -> Result<Chart<NoteData>, ProcessError> {
+        let layout = GenericLayout { keys };
+        Self::process_body(bmson, &|x| layout.map_x(x))
+    }
+
+    /// Process a BMSON chart, selecting the mode family from `mode_hint`.
+    ///
+    /// `beat-*` and `dj-*` hints map to [`Beat`]; `popn-*` to [`Pms`];
+    /// `generic-nkeys` to [`GenericLayout`] with the given key count; anything
+    /// else falls back to [`Beat`] (the BMSON default).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
+    pub fn process_default(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<NoteData>, ProcessError> {
+        match bmson.chart_data.mode_hint {
+            ModeHint::Popn5k | ModeHint::Popn9k => Self::process::<Pms>(bmson),
+            ModeHint::Generic(n) => {
+                let keys = u16::try_from(n).unwrap_or(0);
+                Self::process_nkeys(bmson, keys)
+            }
+            // All beat-* and dj-* variants, plus Other/unknown → Beat.
+            _ => Self::process::<Beat>(bmson),
+        }
+    }
+
+    /// Public entry point for custom decode logic (internal use).
+    fn process_body(
+        bmson: &bmson_def::Bmson<'_>,
+        decode: &impl Fn(u64) -> Option<NoteData>,
+    ) -> Result<Chart<NoteData>, ProcessError> {
         let data = &bmson.chart_data;
 
         if data.init_bpm <= 0.0 {
@@ -72,14 +120,14 @@ impl BmsonProcessor {
 
         let (mut audio_assets, mut notes, bgm) = process_sound_channels(
             &data.sound_channels,
-            layout,
+            decode,
             &timing,
             resolution,
             &playable_pulses,
         );
 
-        process_mine_channels(&bmson.mine_channels, layout, &mut audio_assets, &mut notes);
-        process_key_channels(&bmson.key_channels, layout, &mut audio_assets, &mut notes);
+        process_mine_channels(&bmson.mine_channels, decode, &mut audio_assets, &mut notes);
+        process_key_channels(&bmson.key_channels, decode, &mut audio_assets, &mut notes);
 
         notes.sort_by_key(|n| n.tick);
 
@@ -101,27 +149,6 @@ impl BmsonProcessor {
             scroll_events,
             bga,
         })
-    }
-
-    /// Process a BMSON chart, selecting the mode family from `mode_hint`.
-    ///
-    /// `beat-*` and `dj-*` hints map to [`Bme`]; `popn-*` to [`Pms`];
-    /// `generic-nkeys` to [`GenericLayout`] with the given key count; anything
-    /// else falls back to [`Bme`] (the BMSON default).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
-    pub fn process_default(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<NoteData>, ProcessError> {
-        match bmson.chart_data.mode_hint {
-            ModeHint::Popn5k | ModeHint::Popn9k => Self::process(bmson, &Pms),
-            ModeHint::Generic(n) => {
-                let keys = u16::try_from(n).unwrap_or(0);
-                Self::process(bmson, &GenericLayout { keys })
-            }
-            // All beat-* and dj-* variants, plus Other/unknown → Bme.
-            _ => Self::process(bmson, &Bme),
-        }
     }
 }
 
@@ -149,9 +176,9 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
 )]
-fn process_sound_channels<L: BmsonLayout>(
+fn process_sound_channels(
     channels: &[bmson_def::SoundChannel<'_>],
-    layout: &L,
+    decode: &impl Fn(u64) -> Option<NoteData>,
     timing: &TimingTrack,
     resolution: u64,
     playable_pulses: &BTreeSet<u64>,
@@ -181,7 +208,7 @@ fn process_sound_channels<L: BmsonLayout>(
                     });
                 }
             } else {
-                let Some(nd) = layout.map_x(ne.x) else {
+                let Some(nd) = decode(ne.x) else {
                     continue;
                 };
                 notes.push(Note {
@@ -210,9 +237,9 @@ fn process_sound_channels<L: BmsonLayout>(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
 )]
-fn process_mine_channels<L: BmsonLayout>(
+fn process_mine_channels(
     channels: &[bmson_def::MineChannel<'_>],
-    layout: &L,
+    decode: &impl Fn(u64) -> Option<NoteData>,
     audio_assets: &mut Vec<AudioAsset>,
     notes: &mut Vec<Note<NoteData>>,
 ) {
@@ -225,7 +252,7 @@ fn process_mine_channels<L: BmsonLayout>(
         });
 
         for mn in &mc.notes {
-            let Some(nd) = layout.map_x(mn.x) else {
+            let Some(nd) = decode(mn.x) else {
                 continue;
             };
             notes.push(Note {
@@ -245,9 +272,9 @@ fn process_mine_channels<L: BmsonLayout>(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
 )]
-fn process_key_channels<L: BmsonLayout>(
+fn process_key_channels(
     channels: &[bmson_def::KeyChannel<'_>],
-    layout: &L,
+    decode: &impl Fn(u64) -> Option<NoteData>,
     audio_assets: &mut Vec<AudioAsset>,
     notes: &mut Vec<Note<NoteData>>,
 ) {
@@ -260,7 +287,7 @@ fn process_key_channels<L: BmsonLayout>(
         });
 
         for kn in &kc.notes {
-            let Some(nd) = layout.map_x(kn.x) else {
+            let Some(nd) = decode(kn.x) else {
                 continue;
             };
             notes.push(Note {

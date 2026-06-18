@@ -4,9 +4,10 @@ use std::num::NonZeroU8;
 
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, NoteEvent, Position};
 use bms_processor::BmsProcessor;
+use bms_processor::layout::{Bme, BmsChannel, BmsLayout, DscOctFp, Nanasi, Pms, PmsBme};
 use bms_tokenizer::{BmsIndex, BpmTag, LnObjTag};
-use bmsrs_chart::mode::{BmsChannel, Lane, PlayerSide};
-use bmsrs_chart::{Bme, BmsLayout, Nanasi, Note, NoteData, NoteDataLike, NoteKind, Pms};
+use bmsrs_chart::mode::{Lane, PlayerSide};
+use bmsrs_chart::{Note, NoteData, NoteDataLike, NoteKind};
 
 /// Shorthand to construct a valid [`BmsChannel`] in tests.
 fn ch(player: u8, lane: u8) -> BmsChannel {
@@ -74,7 +75,24 @@ fn bme_maps_both_player_sides() {
 
 #[test]
 fn pms_maps_cross_side_channels_to_single_player() {
-    // PMS KEY6 is on 2P channel 22 → (2, 2), but reports Player1 (single-player).
+    // PMS KEY1-5 on 1P channels 11-15 → Player1
+    assert_eq!(
+        Pms::map_channel(ch(1, 1)),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(1),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        Pms::map_channel(ch(1, 5)),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(5),
+            kind: NoteKind::Normal
+        })
+    );
+    // PMS KEY6-9 on 2P channels 22-25 → still Player1 (single-player mode)
     assert_eq!(
         Pms::map_channel(ch(2, 2)),
         Some(NoteData {
@@ -83,6 +101,16 @@ fn pms_maps_cross_side_channels_to_single_player() {
             kind: NoteKind::Normal
         })
     );
+    assert_eq!(
+        Pms::map_channel(ch(2, 5)),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(9),
+            kind: NoteKind::Normal
+        })
+    );
+    // Channel 21 (2P lane 1) is unused by PMS.
+    assert_eq!(Pms::map_channel(ch(2, 1)), None);
 }
 
 #[test]
@@ -321,4 +349,91 @@ fn process_invisible_note_mapped() {
 
     assert_eq!(chart.notes.len(), 1);
     assert_eq!(chart.notes[0].data.kind(), NoteKind::Invisible);
+}
+
+#[test]
+fn pms_bme_reinterprets_16_17_as_keys() {
+    assert_eq!(
+        PmsBme::map_channel(ch(1, 8)),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(6),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        PmsBme::map_channel(ch(1, 6)),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: key(8),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        PmsBme::map_channel(ch(2, 7)),
+        Some(NoteData {
+            side: PlayerSide::Player2,
+            lane: key(9),
+            kind: NoteKind::Normal
+        })
+    );
+}
+
+#[test]
+fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
+    // P1 scratch
+    assert_eq!(
+        DscOctFp::map_channel(ch(1, 6)),
+        Some(NoteData {
+            side: PlayerSide::Player1,
+            lane: sc(1),
+            kind: NoteKind::Normal
+        })
+    );
+    // P2 foot pedal
+    assert_eq!(
+        DscOctFp::map_channel(ch(2, 1)),
+        Some(NoteData {
+            side: PlayerSide::Player2,
+            lane: PEDAL,
+            kind: NoteKind::Normal
+        })
+    );
+    // P2 second scratch
+    assert_eq!(
+        DscOctFp::map_channel(ch(2, 6)),
+        Some(NoteData {
+            side: PlayerSide::Player2,
+            lane: sc(2),
+            kind: NoteKind::Normal
+        })
+    );
+}
+
+#[test]
+fn pms_bme_maps_second_player_side() {
+    assert_eq!(
+        PmsBme::map_channel(ch(2, 1)),
+        Some(NoteData {
+            side: PlayerSide::Player2,
+            lane: key(1),
+            kind: NoteKind::Normal
+        })
+    );
+    assert_eq!(
+        PmsBme::map_channel(ch(2, 9)),
+        Some(NoteData {
+            side: PlayerSide::Player2,
+            lane: key(7),
+            kind: NoteKind::Normal
+        })
+    );
+}
+
+#[test]
+fn bms_channel_rejects_invalid_input() {
+    assert_eq!(BmsChannel::new(3, 1), None);
+    assert_eq!(BmsChannel::new(0, 1), None);
+    assert_eq!(BmsChannel::new(1, 0), None);
+    assert_eq!(BmsChannel::new(1, 10), None);
 }

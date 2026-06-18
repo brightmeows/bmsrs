@@ -17,13 +17,6 @@
 //! The default is [`NoteData`] (position triple + kind).
 //! Custom types can carry format-specific extensions (volume, pan, LN mode, etc.).
 //!
-//! # Mode families
-//!
-//! Mode-family layouts ([`Bme`], [`Pms`], …) live in [`layout`] and are used
-//! by processors to map BMS channels / BMSON `x` values into the
-//! `(PlayerSide, Lane)` pair stored on each note. See the `layout` module
-//! docs for the family catalogue.
-//!
 //! # Example
 //!
 //! ```
@@ -66,15 +59,13 @@
 //! ```
 
 pub mod audio;
-pub mod layout;
 pub mod mode;
 pub mod note;
 pub mod timing;
 pub mod visual;
 
 pub use audio::{AudioAsset, BgmEvent};
-pub use layout::{Bme, BmsLayout, BmsonLayout, DscOctFp, GenericLayout, Nanasi, Pms, PmsBme};
-pub use mode::{BmsChannel, Lane, PlayerSide};
+pub use mode::{Lane, PlayerSide};
 pub use note::{Note, NoteData, NoteDataLike, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingTrack};
 pub use visual::{BarLine, Bga, BgaResource, BgaTimelineEvent, ScrollChangeEvent};

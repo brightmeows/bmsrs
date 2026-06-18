@@ -1,22 +1,25 @@
 //! BMS → `Chart` conversion processor.
 //!
 //! [`BmsProcessor`] converts a `bms_parser::Bms` into a format-agnostic
-//! `Chart` by applying a `BmsLayout` mode family (e.g. `Bme`, `Pms`,
+//! `Chart` by applying a [`BmsLayout`] mode family (e.g. [`Bme`], `Pms`,
 //! `Nanasi`).
+//!
+//! Mode families and the [`BmsLayout`] trait live in this crate's `layout`
+//! module.
 //!
 //! # Pipeline
 //!
 //! ```text
-//! bms_parser::Bms → BmsProcessor::process(bms, layout) → Chart<NoteData>
+//! bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<NoteData>
 //! ```
 //!
 //! # Mode families
 //!
-//! The layout argument selects how BMS `(player, lane)` channel bytes decode
-//! into flat chart lanes. `Bme` covers beat-5k/7k/10k/14k uniformly (the key
+//! The layout type selects how BMS `(player, lane)` channel bytes decode
+//! into note positions. [`Bme`] covers beat-5k/7k/10k/14k uniformly (the key
 //! count of a chart is whatever its notes use). Other families (`Pms`,
 //! `PmsBme`, `Nanasi`, `DscOctFp`) cover their eponymous modes.
-//! [`BmsProcessor::process_default`] uses `Bme`.
+//! [`BmsProcessor::process_default`] uses [`Bme`].
 //!
 //! # Long-note modes
 //!
@@ -30,17 +33,20 @@
 mod long_note;
 mod position;
 
+pub mod layout;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use bms_parser::{BgaLayer, Bms, BpmValue, KeyType};
 use bms_tokenizer::{BmpTag, BmsIndex, WavTag};
 use bmsrs_chart::{
-    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, Bme, BmsChannel, BmsLayout,
-    BpmChange, Chart, ChartMetadata, Note, NoteData, NoteKind, ScrollChangeEvent, StopEvent,
-    TimingTrack,
+    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, BpmChange, Chart,
+    ChartMetadata, Note, NoteData, NoteKind, ScrollChangeEvent, StopEvent, TimingTrack,
 };
 use thiserror::Error;
+
+use crate::layout::{Bme, BmsChannel, BmsLayout};
 
 use crate::long_note::{PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
@@ -63,7 +69,7 @@ impl BmsProcessor {
     /// Process a BMS chart with an explicit mode-family layout.
     ///
     /// The layout type determines how each BMS `(player, lane)` channel byte
-    /// decodes into a note position. See [`bmsrs_chart::layout`] for the
+    /// decodes into a note position. See the `layout` module for the
     /// available families.
     ///
     /// # Errors

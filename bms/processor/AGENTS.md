@@ -1,13 +1,15 @@
 # bms-processor
 
-Converts `bms_parser::Bms` → `Chart<NoteData>` via a `BmsLayout`
-mode family (defined in `bmsrs-chart::layout`).
+Converts `bms_parser::Bms` → `Chart<NoteData>` via a [`BmsLayout`]
+mode family (defined in this crate's [`layout`] module).
 
 ## Pipeline
 
 ```text
-bms_parser::Bms → BmsProcessor::process(bms, layout) → Chart<NoteData>
+bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<NoteData>
 ```
+
+where `L: BmsLayout` is a stateless mode family (e.g. `Bme`, `Pms`, `Nanasi`).
 
 ## Long-note modes
 
@@ -34,12 +36,12 @@ numer, denom}` = `measure_starts[measure] + numer * measure_len / denom`.
 
 ## Mode families
 
-The layout argument selects a mode family from `bmsrs_chart::layout`:
-`Bme` (beat-5k/7k/10k/14k, uniform), `Pms`, `PmsBme`, `Nanasi`,
-`DscOctFp`. Each family decodes `(player, lane)` channel bytes directly
-into the `(PlayerSide, Lane)` pair stored on each note.
-`BmsProcessor::process_default` uses `Bme` unconditionally (the `#PLAYER`
-header does not affect mapping).
+A mode family is a ZST implementing `BmsLayout` (stateless trait).
+Each family is a single-table mapping: a `match` on `BmsChannel::lane()`
+or `(player(), lane())` that produces `Option<NoteData>`.
+
+Standard families cover BMS play modes — see the `layout` module for the
+current catalogue of families and their channel-to-lane tables.
 
 ## Tests
 

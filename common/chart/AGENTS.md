@@ -22,12 +22,12 @@ Internal computation uses `f64`; conversion happens via
 `NoteData` (position triple: side, lane, kind). Custom types carry format-specific
 extensions (volume, pan, LN mode, etc.).
 
-## Mode families
+## Mode families — processor-owned
 
-Channel/lane mapping is owned by the `layout` and `mode` modules (see their
-docs for the pivot mechanism and family catalogue). `Chart` itself stores
-**no** mode information — the note carries `(PlayerSide, Lane)` directly; the families are a
-processor-side concern.
+Mapping is **not** defined here. Each format processor owns its own layout
+module with its own trait + families. `Chart` stores no mode info — every
+note already carries `(PlayerSide, Lane)` at rest; families exist only
+during conversion and live in the processor that produced the chart.
 
 ## Zero external dependencies
 

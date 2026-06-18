@@ -1,34 +1,77 @@
-//! Mode-family layouts and the channel/lane mapping traits.
+//! BMS mode-family layouts: channel-to-lane mapping using [`BmsLayout`].
 //!
-//! A **mode family** is a lineage of BMS/BMSON play modes that share a common
-//! channel-to-key mapping table (e.g. the `Bme` family covers beat-5k/7k/10k/14k).
-//! Each family is expressed as a zero-sized newtype that implements the
-//! relevant mapping trait(s).
+//! Each family is expressed as a zero-sized newtype that maps a decoded
+//! [`BmsChannel`] `(player, lane)` pair to a [`NoteData`] note position.
 //!
 //! Families do **not** carry a key count: whether a chart is 5K or 7K is a
-//! property of which lanes its notes actually use, not of the family. This
-//! mirrors the reference design where a single `Beat` layout handles all
-//! beat-* variants.
-//!
-//! # Mapping
-//!
-//! Each family decodes BMS `(player, lane)` bytes and — where a BMSON
-//! `mode_hint` exists — `x` values directly into a `(PlayerSide, Lane)` pair
-//! stored on the note. There is no separate flat-lane layer: the position
-//! triple `(side, lane, kind)` is the chart's own representation.
-//!
-//! BMS-only families (`Nanasi`, `PmsBme`, `DscOctFp`) have no BMSON
-//! `mode_hint`, so they only implement [`BmsLayout`]. [`GenericLayout`] is
-//! BMSON-only and implements [`BmsonLayout`].
+//! property of which lanes its notes actually use, not of the family.
 
 use std::num::NonZeroU8;
 
-use crate::mode::{BmsChannel, Lane, PlayerSide};
-use crate::note::{NoteData, NoteKind};
+use bmsrs_chart::mode::{Lane, PlayerSide};
+use bmsrs_chart::note::{NoteData, NoteKind};
 
-/// BMS-side mapping: decodes a [`BmsChannel`] (the post-tokenizer
-/// `(player, lane)` pair) into a [`NoteData`] position (side + lane; kind is set
-/// to [`NoteKind::Normal`] and overridden by the caller as needed).
+/// A decoded BMS channel identifier: the `(player, lane)` pair extracted
+/// from a raw BMS channel byte (e.g. `"19"` → `{ player: 1, lane: 9 }`).
+///
+/// Construction validates `player ∈ {1, 2}` and `lane ∈ {1..=9}`, so
+/// downstream code can safely call [`player_side`](Self::player_side) and
+/// [`lane`](Self::lane) without extra checks.  The lane value is the decoded
+/// number (1–9), **not** the raw channel byte.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BmsChannel {
+    /// Player number (1 or 2).
+    player: u8,
+    /// Lane / key number (1–9).
+    lane: u8,
+}
+
+impl BmsChannel {
+    /// Try to construct a `BmsChannel` from a decoded `(player, lane)` pair.
+    ///
+    /// Returns `None` when `player` is not 1 or 2, or `lane` is not 1–9.
+    #[must_use]
+    pub const fn new(player: u8, lane: u8) -> Option<Self> {
+        if matches!((player, lane), (1 | 2, 1..=9)) {
+            Some(Self { player, lane })
+        } else {
+            None
+        }
+    }
+
+    /// The player number (1 or 2).
+    #[must_use]
+    pub const fn player(self) -> u8 {
+        self.player
+    }
+
+    /// The lane / key number (1–9).
+    #[must_use]
+    pub const fn lane(self) -> u8 {
+        self.lane
+    }
+
+    /// Convert the validated player number to [`PlayerSide`].
+    ///
+    /// # Panics
+    ///
+    /// Never panics in practice — `new()` guarantees `player ∈ {1, 2}`.
+    #[must_use]
+    pub fn player_side(self) -> PlayerSide {
+        match self.player {
+            1 => PlayerSide::Player1,
+            2 => PlayerSide::Player2,
+            _ => panic!(
+                "BmsChannel::player_side: player must be 1 or 2, got {}",
+                self.player
+            ),
+        }
+    }
+}
+
+/// BMS-side mapping: decodes a [`BmsChannel`] into a [`NoteData`] position
+/// (side + lane; kind is set to [`NoteKind::Normal`] and overridden by the
+/// caller as needed).
 ///
 /// `None` discards the note.
 pub trait BmsLayout {
@@ -37,20 +80,7 @@ pub trait BmsLayout {
     fn map_channel(ch: BmsChannel) -> Option<NoteData>;
 }
 
-/// BMSON-side mapping: decodes a sound-channel `x` value into a
-/// [`NoteData`] position (side + lane; kind is set to [`NoteKind::Normal`]).
-///
-/// `None` discards the note. Only families with a BMSON `mode_hint`
-/// counterpart implement this.
-pub trait BmsonLayout {
-    /// Map a BMSON player channel `x` to the note's position.
-    #[must_use]
-    fn map_x(&self, x: u64) -> Option<NoteData>;
-}
-
-/// Construct a `NonZeroU8` from a value known to be ≥ 1 at the call site
-/// (e.g. inside a `match` arm that has already excluded 0). Used to build
-/// `Lane::Key` / `Lane::Scratch` indices in the decoders below.
+/// Construct a `NonZeroU8` from a value known to be ≥ 1 at the call site.
 const fn nz(n: u8) -> Option<NonZeroU8> {
     NonZeroU8::new(n)
 }
@@ -60,11 +90,6 @@ const fn nz(n: u8) -> Option<NonZeroU8> {
 /// given chart is whatever its notes happen to use.
 ///
 /// Physical layout (left → right): `KEY1-5 | SC | KEY6-7` per side.
-///
-/// Per the bmson spec, `beat-10k` charts must leave `x ∈ {6, 7, 14, 15}`
-/// empty (those slots do not exist in 5K-per-side mode). This family maps
-/// them as `KEY6`/`KEY7` if present, so non-conforming input is preserved
-/// rather than discarded.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Bme;
 
@@ -88,46 +113,6 @@ impl BmsLayout for Bme {
             lane: key,
             kind: NoteKind::Normal,
         })
-    }
-}
-
-impl Bme {
-    /// Decode a BMSON `x` value into the BME-family position.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "x bounded by match arms to ≤16"
-    )]
-    #[must_use]
-    pub fn from_bmson(x: u64) -> Option<NoteData> {
-        match x {
-            1..=7 => Some(NoteData {
-                side: PlayerSide::Player1,
-                lane: Lane::Key(nz(x as u8)?),
-                kind: NoteKind::Normal,
-            }),
-            8 => Some(NoteData {
-                side: PlayerSide::Player1,
-                lane: Lane::Scratch(nz(1)?),
-                kind: NoteKind::Normal,
-            }),
-            9..=15 => Some(NoteData {
-                side: PlayerSide::Player2,
-                lane: Lane::Key(nz((x - 8) as u8)?),
-                kind: NoteKind::Normal,
-            }),
-            16 => Some(NoteData {
-                side: PlayerSide::Player2,
-                lane: Lane::Scratch(nz(1)?),
-                kind: NoteKind::Normal,
-            }),
-            _ => None,
-        }
-    }
-}
-
-impl BmsonLayout for Bme {
-    fn map_x(&self, x: u64) -> Option<NoteData> {
-        Self::from_bmson(x)
     }
 }
 
@@ -191,31 +176,6 @@ impl BmsLayout for Pms {
             lane: key,
             kind: NoteKind::Normal,
         })
-    }
-}
-
-impl Pms {
-    /// Decode a BMSON `x` value into the PMS-family position (`popn-9k`/`5k`).
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "x bounded by match arm to ≤9"
-    )]
-    #[must_use]
-    pub fn from_bmson(x: u64) -> Option<NoteData> {
-        match x {
-            1..=9 => Some(NoteData {
-                side: PlayerSide::Player1,
-                lane: Lane::Key(nz(x as u8)?),
-                kind: NoteKind::Normal,
-            }),
-            _ => None,
-        }
-    }
-}
-
-impl BmsonLayout for Pms {
-    fn map_x(&self, x: u64) -> Option<NoteData> {
-        Self::from_bmson(x)
     }
 }
 
@@ -342,32 +302,5 @@ impl BmsLayout for DscOctFp {
             }),
             _ => None,
         }
-    }
-}
-
-/// Generic n-keys family for BMSON `generic-nkeys`. `keys` is the channel
-/// count; channels `1..=keys` map left-to-right to `Lane::Key(1..=keys)`.
-///
-/// Unlike the other families, `GenericLayout` does not use the `(PlayerSide, Lane)`
-/// pivot produced by a `from_bms` decoder: it only implements [`BmsonLayout`]
-/// — there is no BMS-side counterpart. Its `keys` is a `u16` and may exceed
-/// the `u8` range of [`Lane::Key`]; channels above 255 are rejected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GenericLayout {
-    /// Number of keys (all on player 1).
-    pub keys: u16,
-}
-
-impl BmsonLayout for GenericLayout {
-    fn map_x(&self, x: u64) -> Option<NoteData> {
-        if !(1..=u64::from(self.keys)).contains(&x) {
-            return None;
-        }
-        let n = nz(u8::try_from(x).ok()?)?;
-        Some(NoteData {
-            side: PlayerSide::Player1,
-            lane: Lane::Key(n),
-            kind: NoteKind::Normal,
-        })
     }
 }
