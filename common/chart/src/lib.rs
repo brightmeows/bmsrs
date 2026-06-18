@@ -74,7 +74,7 @@ pub mod visual;
 
 pub use audio::{AudioAsset, BgmEvent};
 pub use layout::{Bme, BmsLayout, BmsonLayout, DscOctFp, GenericLayout, Nanasi, Pms, PmsBme};
-pub use mode::{Lane, PlayerSide};
+pub use mode::{BmsChannel, Lane, PlayerSide};
 pub use note::{Note, NoteData, NoteDataLike, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingTrack};
 pub use visual::{BarLine, Bga, BgaResource, BgaTimelineEvent, ScrollChangeEvent};

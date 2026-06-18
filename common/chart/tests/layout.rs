@@ -5,8 +5,13 @@ use std::num::NonZeroU8;
 use bmsrs_chart::layout::{
     Bme, BmsLayout, BmsonLayout, DscOctFp, GenericLayout, Nanasi, Pms, PmsBme,
 };
-use bmsrs_chart::mode::{Lane, PlayerSide};
+use bmsrs_chart::mode::{BmsChannel, Lane, PlayerSide};
 use bmsrs_chart::note::{NoteData, NoteKind};
+
+/// Shorthand to construct a valid [`BmsChannel`] in tests.
+fn ch(player: u8, lane: u8) -> BmsChannel {
+    BmsChannel::new(player, lane).unwrap_or_else(|| panic!("invalid BMS channel"))
+}
 
 const fn key(n: u8) -> Option<Lane> {
     Some(Lane::Key(match NonZeroU8::new(n) {
@@ -27,9 +32,8 @@ const PEDAL: Lane = Lane::FootPedal;
 
 #[test]
 fn bme_bms_maps_keys_scratch_and_key7() {
-    let layout = Bme;
     assert_eq!(
-        layout.map_channel(1, 1),
+        Bme::map_channel(ch(1, 1)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(1).unwrap(),
@@ -37,7 +41,7 @@ fn bme_bms_maps_keys_scratch_and_key7() {
         })
     );
     assert_eq!(
-        layout.map_channel(1, 5),
+        Bme::map_channel(ch(1, 5)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(5).unwrap(),
@@ -45,7 +49,7 @@ fn bme_bms_maps_keys_scratch_and_key7() {
         })
     );
     assert_eq!(
-        layout.map_channel(1, 6),
+        Bme::map_channel(ch(1, 6)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: SC1,
@@ -53,7 +57,7 @@ fn bme_bms_maps_keys_scratch_and_key7() {
         })
     );
     assert_eq!(
-        layout.map_channel(1, 8),
+        Bme::map_channel(ch(1, 8)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(6).unwrap(),
@@ -62,7 +66,7 @@ fn bme_bms_maps_keys_scratch_and_key7() {
     );
     // KEY7 (channel 19) — regressed in the old Beat7k (lane 9 dropped)
     assert_eq!(
-        layout.map_channel(1, 9),
+        Bme::map_channel(ch(1, 9)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(7).unwrap(),
@@ -70,14 +74,13 @@ fn bme_bms_maps_keys_scratch_and_key7() {
         })
     );
     // FREE zone (channel 17) is unmapped in the BME family
-    assert_eq!(layout.map_channel(1, 7), None);
+    assert_eq!(Bme::map_channel(ch(1, 7)), None);
 }
 
 #[test]
 fn bme_bms_maps_second_player_side() {
-    let layout = Bme;
     assert_eq!(
-        layout.map_channel(2, 1),
+        Bme::map_channel(ch(2, 1)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: key(1).unwrap(),
@@ -85,7 +88,7 @@ fn bme_bms_maps_second_player_side() {
         })
     );
     assert_eq!(
-        layout.map_channel(2, 6),
+        Bme::map_channel(ch(2, 6)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: SC1,
@@ -93,7 +96,7 @@ fn bme_bms_maps_second_player_side() {
         })
     );
     assert_eq!(
-        layout.map_channel(2, 9),
+        Bme::map_channel(ch(2, 9)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: key(7).unwrap(),
@@ -106,7 +109,7 @@ fn bme_bms_maps_second_player_side() {
 fn bme_bmson_x_aligns_scratch_with_bms() {
     let layout = Bme;
     // x=8 is the 1P scratch and must equal BMS channel 16's position.
-    assert_eq!(layout.map_x(8), layout.map_channel(1, 6));
+    assert_eq!(layout.map_x(8), Bme::map_channel(ch(1, 6)));
     assert_eq!(
         layout.map_x(8),
         Some(NoteData {
@@ -171,15 +174,15 @@ fn bme_bmson_covers_5k_as_subset() {
 }
 
 #[test]
-fn bme_unknown_player_returns_none() {
-    assert_eq!(Bme.map_channel(3, 1), None);
+fn bms_channel_rejects_invalid_player() {
+    assert_eq!(BmsChannel::new(3, 1), None);
+    assert_eq!(BmsChannel::new(0, 1), None);
 }
 
 #[test]
 fn nanasi_adds_foot_pedal_on_channel_17() {
-    let layout = Nanasi;
     assert_eq!(
-        layout.map_channel(1, 6),
+        Nanasi::map_channel(ch(1, 6)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: SC1,
@@ -187,7 +190,7 @@ fn nanasi_adds_foot_pedal_on_channel_17() {
         })
     );
     assert_eq!(
-        layout.map_channel(1, 9),
+        Nanasi::map_channel(ch(1, 9)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(7).unwrap(),
@@ -195,7 +198,7 @@ fn nanasi_adds_foot_pedal_on_channel_17() {
         })
     );
     assert_eq!(
-        layout.map_channel(1, 7),
+        Nanasi::map_channel(ch(1, 7)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: PEDAL,
@@ -203,7 +206,7 @@ fn nanasi_adds_foot_pedal_on_channel_17() {
         })
     );
     assert_eq!(
-        layout.map_channel(2, 7),
+        Nanasi::map_channel(ch(2, 7)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: PEDAL,
@@ -214,10 +217,9 @@ fn nanasi_adds_foot_pedal_on_channel_17() {
 
 #[test]
 fn pms_bms_spans_both_player_channels_into_single_side() {
-    let layout = Pms;
     // KEY1-5 on 1P channels 11-15 → Player1
     assert_eq!(
-        layout.map_channel(1, 1),
+        Pms::map_channel(ch(1, 1)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(1).unwrap(),
@@ -225,7 +227,7 @@ fn pms_bms_spans_both_player_channels_into_single_side() {
         })
     );
     assert_eq!(
-        layout.map_channel(1, 5),
+        Pms::map_channel(ch(1, 5)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(5).unwrap(),
@@ -234,7 +236,7 @@ fn pms_bms_spans_both_player_channels_into_single_side() {
     );
     // KEY6-9 on 2P channels 22-25 → still Player1 (single-player mode)
     assert_eq!(
-        layout.map_channel(2, 2),
+        Pms::map_channel(ch(2, 2)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(6).unwrap(),
@@ -242,7 +244,7 @@ fn pms_bms_spans_both_player_channels_into_single_side() {
         })
     );
     assert_eq!(
-        layout.map_channel(2, 5),
+        Pms::map_channel(ch(2, 5)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(9).unwrap(),
@@ -250,7 +252,7 @@ fn pms_bms_spans_both_player_channels_into_single_side() {
         })
     );
     // Channel 21 (2P lane 1) is unused by PMS.
-    assert_eq!(layout.map_channel(2, 1), None);
+    assert_eq!(Pms::map_channel(ch(2, 1)), None);
 }
 
 #[test]
@@ -277,9 +279,8 @@ fn pms_bmson_popn_9k_maps_nine_keys() {
 
 #[test]
 fn pms_bme_type_reinterprets_channel_16_17_as_keys() {
-    let layout = PmsBme;
     assert_eq!(
-        layout.map_channel(1, 8),
+        PmsBme::map_channel(ch(1, 8)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(6).unwrap(),
@@ -287,7 +288,7 @@ fn pms_bme_type_reinterprets_channel_16_17_as_keys() {
         })
     ); // KEY6 (ch 18)
     assert_eq!(
-        layout.map_channel(1, 9),
+        PmsBme::map_channel(ch(1, 9)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(7).unwrap(),
@@ -295,7 +296,7 @@ fn pms_bme_type_reinterprets_channel_16_17_as_keys() {
         })
     ); // KEY7 (ch 19)
     assert_eq!(
-        layout.map_channel(1, 6),
+        PmsBme::map_channel(ch(1, 6)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(8).unwrap(),
@@ -303,7 +304,7 @@ fn pms_bme_type_reinterprets_channel_16_17_as_keys() {
         })
     ); // KEY8 (ch 16)
     assert_eq!(
-        layout.map_channel(1, 7),
+        PmsBme::map_channel(ch(1, 7)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(9).unwrap(),
@@ -314,9 +315,8 @@ fn pms_bme_type_reinterprets_channel_16_17_as_keys() {
 
 #[test]
 fn pms_bme_type_maps_second_player_side() {
-    let layout = PmsBme;
     assert_eq!(
-        layout.map_channel(2, 1),
+        PmsBme::map_channel(ch(2, 1)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: key(1).unwrap(),
@@ -324,7 +324,7 @@ fn pms_bme_type_maps_second_player_side() {
         })
     );
     assert_eq!(
-        layout.map_channel(2, 7),
+        PmsBme::map_channel(ch(2, 7)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: key(9).unwrap(),
@@ -335,9 +335,8 @@ fn pms_bme_type_maps_second_player_side() {
 
 #[test]
 fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
-    let layout = DscOctFp;
     assert_eq!(
-        layout.map_channel(1, 6),
+        DscOctFp::map_channel(ch(1, 6)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: SC1,
@@ -345,7 +344,7 @@ fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
         })
     ); // SC1 (ch 16)
     assert_eq!(
-        layout.map_channel(1, 1),
+        DscOctFp::map_channel(ch(1, 1)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(1).unwrap(),
@@ -353,7 +352,7 @@ fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
         })
     );
     assert_eq!(
-        layout.map_channel(2, 2),
+        DscOctFp::map_channel(ch(2, 2)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: key(1).unwrap(),
@@ -361,7 +360,7 @@ fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
         })
     ); // KEY8 (ch 22)
     assert_eq!(
-        layout.map_channel(2, 6),
+        DscOctFp::map_channel(ch(2, 6)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: SC2,
@@ -369,7 +368,7 @@ fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
         })
     ); // SC2 (ch 26)
     assert_eq!(
-        layout.map_channel(2, 1),
+        DscOctFp::map_channel(ch(2, 1)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: PEDAL,

@@ -23,18 +23,18 @@
 
 use std::num::NonZeroU8;
 
-use crate::mode::{Lane, PlayerSide};
+use crate::mode::{BmsChannel, Lane, PlayerSide};
 use crate::note::{NoteData, NoteKind};
 
-/// BMS-side mapping: decodes a `(player, lane)` pair (the post-tokenizer
-/// channel byte form) into a [`NoteData`] position (side + lane; kind is set
+/// BMS-side mapping: decodes a [`BmsChannel`] (the post-tokenizer
+/// `(player, lane)` pair) into a [`NoteData`] position (side + lane; kind is set
 /// to [`NoteKind::Normal`] and overridden by the caller as needed).
 ///
 /// `None` discards the note.
 pub trait BmsLayout {
-    /// Map a BMS `(player, lane)` pair to the note's position.
+    /// Map a decoded BMS channel to the note's position.
     #[must_use]
-    fn map_channel(&self, player: u8, lane: u8) -> Option<NoteData>;
+    fn map_channel(ch: BmsChannel) -> Option<NoteData>;
 }
 
 /// BMSON-side mapping: decodes a sound-channel `x` value into a
@@ -68,16 +68,11 @@ const fn nz(n: u8) -> Option<NonZeroU8> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Bme;
 
-impl Bme {
+impl BmsLayout for Bme {
     /// Decode a BMS `(player, lane)` pair into the BME-family position.
-    #[must_use]
-    pub fn from_bms(player: u8, lane: u8) -> Option<NoteData> {
-        let side = match player {
-            1 => PlayerSide::Player1,
-            2 => PlayerSide::Player2,
-            _ => return None,
-        };
-        let key = match lane {
+    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+        let side = ch.player_side();
+        let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
             2 => Lane::Key(nz(2)?),
             3 => Lane::Key(nz(3)?),
@@ -94,7 +89,9 @@ impl Bme {
             kind: NoteKind::Normal,
         })
     }
+}
 
+impl Bme {
     /// Decode a BMSON `x` value into the BME-family position.
     #[expect(
         clippy::cast_possible_truncation,
@@ -128,12 +125,6 @@ impl Bme {
     }
 }
 
-impl BmsLayout for Bme {
-    fn map_channel(&self, player: u8, lane: u8) -> Option<NoteData> {
-        Self::from_bms(player, lane)
-    }
-}
-
 impl BmsonLayout for Bme {
     fn map_x(&self, x: u64) -> Option<NoteData> {
         Self::from_bmson(x)
@@ -146,16 +137,11 @@ impl BmsonLayout for Bme {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Nanasi;
 
-impl Nanasi {
+impl BmsLayout for Nanasi {
     /// Decode a BMS `(player, lane)` pair into the Nanasi-family position.
-    #[must_use]
-    pub fn from_bms(player: u8, lane: u8) -> Option<NoteData> {
-        let side = match player {
-            1 => PlayerSide::Player1,
-            2 => PlayerSide::Player2,
-            _ => return None,
-        };
-        let key = match lane {
+    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+        let side = ch.player_side();
+        let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
             2 => Lane::Key(nz(2)?),
             3 => Lane::Key(nz(3)?),
@@ -175,27 +161,20 @@ impl Nanasi {
     }
 }
 
-impl BmsLayout for Nanasi {
-    fn map_channel(&self, player: u8, lane: u8) -> Option<NoteData> {
-        Self::from_bms(player, lane)
-    }
-}
-
 /// Native PMS family: a single-player 9-key layout whose KEY6-9 reuse the 2P
 /// channels `22-25`. Covers `popn-9k`, `popn-5k` (subset), and the
 /// `pomu-battle` 3K subset.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Pms;
 
-impl Pms {
+impl BmsLayout for Pms {
     /// Decode a BMS `(player, lane)` pair into the PMS-family position.
     ///
     /// KEY1-5 come from 1P channels `11-15`; KEY6-9 come from 2P channels
     /// `22-25` (decoded `(2, 2..=5)`). All keys report `Player1` because PMS
     /// is single-player.
-    #[must_use]
-    pub fn from_bms(player: u8, lane: u8) -> Option<NoteData> {
-        let key = match (player, lane) {
+    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+        let key = match (ch.player(), ch.lane()) {
             (1, 1) => Lane::Key(nz(1)?),
             (1, 2) => Lane::Key(nz(2)?),
             (1, 3) => Lane::Key(nz(3)?),
@@ -213,7 +192,9 @@ impl Pms {
             kind: NoteKind::Normal,
         })
     }
+}
 
+impl Pms {
     /// Decode a BMSON `x` value into the PMS-family position (`popn-9k`/`5k`).
     #[expect(
         clippy::cast_possible_truncation,
@@ -232,12 +213,6 @@ impl Pms {
     }
 }
 
-impl BmsLayout for Pms {
-    fn map_channel(&self, player: u8, lane: u8) -> Option<NoteData> {
-        Self::from_bms(player, lane)
-    }
-}
-
 impl BmsonLayout for Pms {
     fn map_x(&self, x: u64) -> Option<NoteData> {
         Self::from_bmson(x)
@@ -251,16 +226,11 @@ impl BmsonLayout for Pms {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PmsBme;
 
-impl PmsBme {
+impl BmsLayout for PmsBme {
     /// Decode a BMS `(player, lane)` pair into the PMS-BME-type position.
-    #[must_use]
-    pub fn from_bms(player: u8, lane: u8) -> Option<NoteData> {
-        let side = match player {
-            1 => PlayerSide::Player1,
-            2 => PlayerSide::Player2,
-            _ => return None,
-        };
-        let key = match lane {
+    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+        let side = ch.player_side();
+        let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
             2 => Lane::Key(nz(2)?),
             3 => Lane::Key(nz(3)?),
@@ -280,23 +250,16 @@ impl PmsBme {
     }
 }
 
-impl BmsLayout for PmsBme {
-    fn map_channel(&self, player: u8, lane: u8) -> Option<NoteData> {
-        Self::from_bms(player, lane)
-    }
-}
-
 /// DSC/FPP + OCT/FP family: a dual-side layout with up to two scratches and a
 /// foot pedal. DSC/FPP (dual scratch, no pedal) and OCT/FP (13 keys + 2nd
 /// scratch + pedal) are both subsets of this family's key set.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DscOctFp;
 
-impl DscOctFp {
+impl BmsLayout for DscOctFp {
     /// Decode a BMS `(player, lane)` pair into the DscOctFp-family position.
-    #[must_use]
-    pub fn from_bms(player: u8, lane: u8) -> Option<NoteData> {
-        match (player, lane) {
+    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+        match (ch.player(), ch.lane()) {
             (1, 1) => Some(NoteData {
                 side: PlayerSide::Player1,
                 lane: Lane::Key(nz(1)?),
@@ -379,12 +342,6 @@ impl DscOctFp {
             }),
             _ => None,
         }
-    }
-}
-
-impl BmsLayout for DscOctFp {
-    fn map_channel(&self, player: u8, lane: u8) -> Option<NoteData> {
-        Self::from_bms(player, lane)
     }
 }
 

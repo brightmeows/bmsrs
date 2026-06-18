@@ -5,8 +5,13 @@ use std::num::NonZeroU8;
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, NoteEvent, Position};
 use bms_processor::BmsProcessor;
 use bms_tokenizer::{BmsIndex, BpmTag, LnObjTag};
-use bmsrs_chart::mode::{Lane, PlayerSide};
+use bmsrs_chart::mode::{BmsChannel, Lane, PlayerSide};
 use bmsrs_chart::{Bme, BmsLayout, Nanasi, Note, NoteData, NoteDataLike, NoteKind, Pms};
+
+/// Shorthand to construct a valid [`BmsChannel`] in tests.
+fn ch(player: u8, lane: u8) -> BmsChannel {
+    BmsChannel::new(player, lane).unwrap_or_else(|| panic!("invalid BMS channel"))
+}
 
 const fn nz(n: u8) -> NonZeroU8 {
     match NonZeroU8::new(n) {
@@ -30,7 +35,7 @@ fn bme_maps_key7_channel_19() {
     // Regression: the old Beat7k match `(1, 1..=8)` silently dropped
     // channel 19 (decoded lane 9, i.e. KEY7). Bme must map it to Key(7).
     assert_eq!(
-        Bme.map_channel(1, 9),
+        Bme::map_channel(ch(1, 9)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(7),
@@ -42,7 +47,7 @@ fn bme_maps_key7_channel_19() {
 #[test]
 fn bme_maps_both_player_sides() {
     assert_eq!(
-        Bme.map_channel(2, 6),
+        Bme::map_channel(ch(2, 6)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: sc(1),
@@ -50,7 +55,7 @@ fn bme_maps_both_player_sides() {
         })
     );
     assert_eq!(
-        Bme.map_channel(2, 6),
+        Bme::map_channel(ch(2, 6)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: Lane::Scratch(NonZeroU8::new(1).unwrap()),
@@ -58,7 +63,7 @@ fn bme_maps_both_player_sides() {
         })
     );
     assert_eq!(
-        Bme.map_channel(2, 9),
+        Bme::map_channel(ch(2, 9)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: key(7),
@@ -71,7 +76,7 @@ fn bme_maps_both_player_sides() {
 fn pms_maps_cross_side_channels_to_single_player() {
     // PMS KEY6 is on 2P channel 22 → (2, 2), but reports Player1 (single-player).
     assert_eq!(
-        Pms.map_channel(2, 2),
+        Pms::map_channel(ch(2, 2)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: key(6),
@@ -83,7 +88,7 @@ fn pms_maps_cross_side_channels_to_single_player() {
 #[test]
 fn nanasi_maps_foot_pedal_channel_17() {
     assert_eq!(
-        Nanasi.map_channel(1, 7),
+        Nanasi::map_channel(ch(1, 7)),
         Some(NoteData {
             side: PlayerSide::Player1,
             lane: PEDAL,
@@ -91,7 +96,7 @@ fn nanasi_maps_foot_pedal_channel_17() {
         })
     );
     assert_eq!(
-        Nanasi.map_channel(2, 7),
+        Nanasi::map_channel(ch(2, 7)),
         Some(NoteData {
             side: PlayerSide::Player2,
             lane: PEDAL,
@@ -115,7 +120,7 @@ fn process_basic_note() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     assert_eq!(chart.notes.len(), 1);
     assert_eq!(chart.notes[0].tick, 0);
@@ -141,7 +146,7 @@ fn process_key7_note_lands_on_key_seven() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     assert_eq!(chart.notes[0].data.lane(), key(7));
 }
@@ -150,7 +155,7 @@ fn process_key7_note_lands_on_key_seven() {
 fn process_zero_bpm_returns_error() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(0.0);
-    let result = BmsProcessor::process(&bms, &Bme);
+    let result = BmsProcessor::process::<Bme>(&bms);
     assert!(result.is_err());
 }
 
@@ -158,7 +163,7 @@ fn process_zero_bpm_returns_error() {
 fn process_negative_bpm_returns_error() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(-10.0);
-    let result = BmsProcessor::process(&bms, &Bme);
+    let result = BmsProcessor::process::<Bme>(&bms);
     assert!(result.is_err());
 }
 
@@ -174,7 +179,7 @@ fn process_bgm_events_mapped() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     assert_eq!(chart.bgm.len(), 1);
     assert_eq!(chart.bgm[0].tick, 0);
@@ -188,7 +193,7 @@ fn process_metadata_from_headers() {
     bms.metadata.artist = Some("Test Artist".to_owned());
     bms.metadata.genre = Some("Test Genre".to_owned());
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     assert_eq!(chart.metadata.title, "Test Song");
     assert_eq!(chart.metadata.artist, "Test Artist");
@@ -257,7 +262,7 @@ fn process_lnobj_produces_long_note() {
         wav_id: "02".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     let lns: Vec<&Note> = chart
         .notes
@@ -279,7 +284,7 @@ fn process_bpm_change_reference_resolved() {
         value: BpmValue::Reference(bpm_id),
     });
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     assert_eq!(chart.timing.bpm_changes.len(), 1);
     assert!((chart.timing.bpm_changes[0].bpm - 200.0).abs() < 1e-9);
@@ -290,7 +295,7 @@ fn process_bar_lines_generated() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     assert!(!chart.bar_lines.is_empty());
     assert_eq!(chart.bar_lines[0].tick, 0);
@@ -312,7 +317,7 @@ fn process_invisible_note_mapped() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process(&bms, &Bme).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     assert_eq!(chart.notes.len(), 1);
     assert_eq!(chart.notes[0].data.kind(), NoteKind::Invisible);

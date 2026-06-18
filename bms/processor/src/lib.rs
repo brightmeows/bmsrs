@@ -36,8 +36,9 @@ use std::time::Duration;
 use bms_parser::{BgaLayer, Bms, BpmValue, KeyType};
 use bms_tokenizer::{BmpTag, BmsIndex, WavTag};
 use bmsrs_chart::{
-    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, Bme, BmsLayout, BpmChange,
-    Chart, ChartMetadata, Note, NoteData, NoteKind, ScrollChangeEvent, StopEvent, TimingTrack,
+    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, Bme, BmsChannel, BmsLayout,
+    BpmChange, Chart, ChartMetadata, Note, NoteData, NoteKind, ScrollChangeEvent, StopEvent,
+    TimingTrack,
 };
 use thiserror::Error;
 
@@ -61,15 +62,15 @@ const RESOLUTION: u64 = 240;
 impl BmsProcessor {
     /// Process a BMS chart with an explicit mode-family layout.
     ///
-    /// The layout decides how each BMS `(player, lane)` channel byte decodes
-    /// into a flat chart lane. See [`bmsrs_chart::layout`] for the available
-    /// families.
+    /// The layout type determines how each BMS `(player, lane)` channel byte
+    /// decodes into a note position. See [`bmsrs_chart::layout`] for the
+    /// available families.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
     /// or not positive.
-    pub fn process<L>(bms: &Bms, layout: &L) -> Result<Chart<NoteData>, ProcessError>
+    pub fn process<L>(bms: &Bms) -> Result<Chart<NoteData>, ProcessError>
     where
         L: BmsLayout,
     {
@@ -94,7 +95,7 @@ impl BmsProcessor {
         };
 
         let (paired_lns, consumed) = pair_long_notes(bms, &table);
-        let notes = collect_notes(bms, layout, &table, &wav_map, &paired_lns, &consumed);
+        let notes = collect_notes::<L>(bms, &table, &wav_map, &paired_lns, &consumed);
         let bgm = collect_bgm(bms, &table, &wav_map);
 
         Ok(Chart {
@@ -119,15 +120,15 @@ impl BmsProcessor {
     /// dual-player charts populate them. The `#PLAYER` header does not affect
     /// the mapping (consistent with modern engines, which ignore it).
     ///
-    /// For PMS, nanasi, or other families, call [`process`](Self::process)
-    /// with the relevant layout.
+    /// For PMS, nanasi, or other families, call
+    /// [`process::<Nanasi>`](Self::process) with the relevant layout type.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
     /// or not positive.
     pub fn process_default(bms: &Bms) -> Result<Chart<NoteData>, ProcessError> {
-        Self::process(bms, &Bme)
+        Self::process::<Bme>(bms)
     }
 }
 
@@ -163,7 +164,6 @@ fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<
 /// Collect all playable notes (visible, invisible, LN, mines) into a sorted vector.
 fn collect_notes<L: BmsLayout>(
     bms: &Bms,
-    layout: &L,
     table: &MeasureTable,
     wav_map: &BTreeMap<BmsIndex<WavTag>, u32>,
     paired_lns: &[PairedLn],
@@ -177,7 +177,7 @@ fn collect_notes<L: BmsLayout>(
             continue;
         }
         if ne.key_type == KeyType::Visible {
-            if let Some(nd) = layout.map_channel(ne.player, ne.lane) {
+            if let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel) {
                 notes.push(Note {
                     tick: table.position_to_tick(ne.position),
                     audio: wav_map.get(&ne.wav_id).copied(),
@@ -193,7 +193,7 @@ fn collect_notes<L: BmsLayout>(
     // Invisible notes (keysounds).
     for ne in &bms.messages.note_events {
         if ne.key_type == KeyType::Invisible {
-            if let Some(nd) = layout.map_channel(ne.player, ne.lane) {
+            if let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel) {
                 notes.push(Note {
                     tick: table.position_to_tick(ne.position),
                     audio: wav_map.get(&ne.wav_id).copied(),
@@ -208,7 +208,7 @@ fn collect_notes<L: BmsLayout>(
 
     // Paired long notes.
     for ln in paired_lns {
-        if let Some(nd) = layout.map_channel(ln.player, ln.lane) {
+        if let Some(nd) = BmsChannel::new(ln.player, ln.lane).and_then(L::map_channel) {
             notes.push(Note {
                 tick: ln.tick,
                 audio: wav_map.get(&ln.wav_id).copied(),
@@ -224,7 +224,7 @@ fn collect_notes<L: BmsLayout>(
 
     // Mines.
     for me in &bms.messages.mine_events {
-        if let Some(nd) = layout.map_channel(me.player, me.lane) {
+        if let Some(nd) = BmsChannel::new(me.player, me.lane).and_then(L::map_channel) {
             notes.push(Note {
                 tick: table.position_to_tick(me.position),
                 audio: None,
