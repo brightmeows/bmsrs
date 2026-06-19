@@ -334,6 +334,7 @@ pub struct NoteEvent {
 impl NoteEvent {
     /// Returns `true` if this note is a BGM note (not playable).
     #[must_use]
+    #[inline]
     pub const fn is_bgm(&self) -> bool {
         self.x == 0
     }
@@ -585,6 +586,7 @@ pub struct KeyNote {
 ///
 /// Delegates to `T`'s [`Deserialize`] implementation; returns an error if the
 /// JSON value is neither `null` nor a valid `T`.
+#[inline]
 pub fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
@@ -595,12 +597,14 @@ where
 
 /// Default value for `judge_multiplier` / `life_multiplier` (`1.00`).
 #[must_use]
+#[inline]
 pub const fn default_multiplier() -> f64 {
     1.00
 }
 
 /// Default pulse resolution (240 ticks per quarter-note).
 #[must_use]
+#[inline]
 pub const fn default_resolution() -> u64 {
     240
 }
@@ -634,6 +638,7 @@ pub fn null_to_u64<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D:
 /// # Errors
 ///
 /// Returns an error if the JSON value is not a valid unsigned integer.
+#[inline]
 pub fn deserialize_resolution_nonzero<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<u64, D::Error> {
@@ -649,6 +654,7 @@ pub fn deserialize_resolution_nonzero<'de, D: Deserializer<'de>>(
 /// # Errors
 ///
 /// Returns an error if the JSON value is not a string.
+#[inline]
 pub fn de_path<'de, D: Deserializer<'de>>(deserializer: D) -> Result<&'de Path, D::Error> {
     let s: &'de str = Deserialize::deserialize(deserializer)?;
     Ok(Path::new(s))
@@ -662,6 +668,7 @@ pub fn de_path<'de, D: Deserializer<'de>>(deserializer: D) -> Result<&'de Path, 
 /// # Errors
 ///
 /// Returns an error if the JSON value is neither a string nor `null`.
+#[inline]
 pub fn de_opt_path<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<&'de Path>, D::Error> {

@@ -83,12 +83,19 @@ empty_drop = "deny"
 mutex_atomic = "deny"
 unnecessary_self_imports = "deny"
 
+# — allowed —
+# `wildcard_enum_match_arm` — `_ => Err(WrongHeaderType)` in TryFrom impls
+# intentionally catches all non-matching variants; explicit enumeration is
+# fragile and adds no safety value in this pattern.
+wildcard_enum_match_arm = "allow"
+
 # === Restriction (Applicability: HasPlaceholders) ===
 float_cmp_const = "deny"
 unnecessary_safety_comment = "deny"
 
 # === Restriction (Applicability: MachineApplicable) ===
 unnecessary_safety_doc = "deny"
+unused_trait_names = "deny"
 
 # === Restriction (Applicability: Unspecified) ===
 empty_structs_with_brackets = "deny"
@@ -96,6 +103,8 @@ for_kv_map = "deny"
 get_unwrap = "deny"
 items_after_test_module = "deny"
 let_underscore_must_use = "deny"
+map_err_ignore = "deny"
+same_name_method = "deny"
 shadow_reuse = "warn"
 shadow_same = "warn"
 exit = "deny"
@@ -108,13 +117,11 @@ multiple_unsafe_ops_per_block = "deny"
 panic_in_result_fn = "deny"
 print_stderr = "deny"
 print_stdout = "deny"
-pub_use = "allow"
 rc_buffer = "deny"
 redundant_type_annotations = "deny"
 shadow_unrelated = "deny"
 string_add = "deny"
 string_slice = "deny"
-tests_outside_test_module = "allow"
 todo = "deny"
 undocumented_unsafe_blocks = "deny"
 unimplemented = "deny"
@@ -122,6 +129,21 @@ unreachable = "deny"
 unwrap_in_result = "deny"
 unwrap_used = "warn"
 verbose_file_reads = "deny"
+
+# — allowed —
+# `as_conversions` — numeric conversions (u64↔f64, u64→u32 etc.) are
+# intentional and audited in this domain; `as` is the clearest expression.
+as_conversions = "allow"
+# `missing_inline_in_public_items` — requiring `#[inline]` on every pub method
+# across 8+ library crates adds excessive boilerplate with negligible benefit.
+missing_inline_in_public_items = "allow"
+# `module_name_repetitions` — public API items naturally share their module's
+# name; renaming them would degrade clarity at use sites.
+module_name_repetitions = "allow"
+# `pub_use` — re-exporting with `pub use` is intentional API facade pattern.
+pub_use = "allow"
+# `tests_outside_test_module` — integration tests may live alongside modules.
+tests_outside_test_module = "allow"
 
 # === Restriction (Applicability: MachineApplicable) ===
 missing_assert_message = "deny"
@@ -170,3 +192,9 @@ wildcard_dependencies = "deny"
 
 # === Pedantic (strict, occasional false positives) ===
 pedantic = { level = "deny", priority = -1 }
+
+# === Warn-by-default groups (elevated to deny for explicit enforcement) ===
+perf = { level = "deny", priority = -1 }
+style = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+complexity = { level = "deny", priority = -1 }

@@ -149,6 +149,10 @@ impl<T: NoteDataLike> Chart<T> {
     ///
     /// Useful for computing total chart duration.
     #[must_use]
+    #[expect(
+        clippy::missing_inline_in_public_items,
+        reason = "moderate size; compiler can decide inlining"
+    )]
     pub fn last_tick(&self) -> u64 {
         let note_last = self.notes.last().map_or(0, |n| n.tick);
         let bgm_last = self.bgm.last().map_or(0, |e| e.tick);
@@ -172,6 +176,7 @@ impl<T: NoteDataLike> Chart<T> {
 
     /// Returns the total duration of the chart.
     #[must_use]
+    #[inline]
     pub fn duration(&self) -> std::time::Duration {
         self.timing
             .tick_to_duration(self.last_tick(), self.resolution)

@@ -33,6 +33,13 @@ use crate::value_codegen::generate_bms_value_enum;
 ///
 /// See the [crate-level documentation](self) for a description of the three
 /// operating modes.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::missing_inline_in_public_items,
+        reason = "proc-macro entry point cannot be inlined"
+    )
+)]
 #[proc_macro_derive(BmsTokenAttr, attributes(bms_token, bms_fallback))]
 pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
     #[expect(

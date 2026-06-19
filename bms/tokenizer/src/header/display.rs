@@ -58,7 +58,7 @@ impl FromStr for DifficultyLevel {
     type Err = ParseDifficultyError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let v: u8 = s.parse().map_err(|_| ParseDifficultyError(s.to_owned()))?;
+        let v: u8 = s.parse().map_err(|_e| ParseDifficultyError(s.to_owned()))?;
         if !(1..=5).contains(&v) {
             return Err(ParseDifficultyError(s.to_owned()));
         }

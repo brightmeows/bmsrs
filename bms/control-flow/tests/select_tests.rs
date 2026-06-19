@@ -10,7 +10,7 @@ use bms_control_flow::{BranchRng, ControlFlowError, FlowDoc, TokenPayload};
 use bms_tokenizer::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderResDefAudio, BmsToken, BmsTokenizer,
 };
-use rand::SeedableRng;
+use rand::SeedableRng as _;
 use rand::rngs::StdRng;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;

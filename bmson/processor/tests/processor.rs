@@ -5,9 +5,9 @@ use bmson_def::{
     MineChannel, MineNote, ModeHint, NoteEvent, ScrollEvent, SongInfo, SoundChannel,
 };
 use bmson_processor::BmsonProcessor;
-use bmson_processor::layout::{Beat, BmsonLayout, GenericLayout, Pms};
+use bmson_processor::layout::{Beat, BmsonLayout as _, GenericLayout, Pms};
 use bmsrs_chart::mode::{Lane, PlayerSide};
-use bmsrs_chart::{NoteData, NoteDataLike, NoteKind};
+use bmsrs_chart::{NoteData, NoteDataLike as _, NoteKind};
 use std::num::NonZeroU8;
 use std::path::Path;
 

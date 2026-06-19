@@ -7,7 +7,7 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::spanned::Spanned;
+use syn::spanned::Spanned as _;
 
 /// Generate `FromStr` and `Display` for a domain enum.
 ///

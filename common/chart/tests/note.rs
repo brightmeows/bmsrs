@@ -3,7 +3,7 @@
 use std::num::NonZeroU8;
 
 use bmsrs_chart::mode::{Lane, PlayerSide};
-use bmsrs_chart::note::{NoteData, NoteDataLike, NoteKind};
+use bmsrs_chart::note::{NoteData, NoteDataLike as _, NoteKind};
 
 #[test]
 fn default_note_data_side_lane_and_kind() {

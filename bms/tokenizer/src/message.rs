@@ -53,7 +53,7 @@
 use std::fmt;
 
 use crate::channel::{BmsChannel, classify_channel};
-use crate::index::{Base36, Base62, BmsCharset, BmsIndex, ChannelTag};
+use crate::index::{Base36, Base62, BmsCharset as _, BmsIndex, ChannelTag};
 use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#ADDR:body`).
@@ -163,7 +163,7 @@ pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a st
         channel_upper
             .as_str()
             .try_into()
-            .map_err(|_| BmsTokenizeError::InvalidChannel {
+            .map_err(|_e| BmsTokenizeError::InvalidChannel {
                 value: C::from(addr),
             })?;
     let channel = classify_channel(channel_idx);

@@ -262,6 +262,7 @@ pub struct TryFromV0Error {
 impl TryFromV0Error {
     /// Create a new conversion error with a descriptive message.
     #[must_use]
+    #[inline]
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),

@@ -3,8 +3,8 @@
 #![expect(clippy::indexing_slicing, reason = "bounded by checked iteration")]
 
 use proc_macro2::TokenStream;
-use quote::{ToTokens, format_ident, quote};
-use syn::spanned::Spanned;
+use quote::{ToTokens as _, format_ident, quote};
+use syn::spanned::Spanned as _;
 
 use crate::parse::{BmsTokenTemplate, Placeholder};
 
@@ -261,7 +261,7 @@ fn generate_exact_branches(
                 generics,
             )
         }
-        _ => {
+        syn::Fields::Unnamed(_) | syn::Fields::Unit => {
             return vec![ExactBranch {
                 condition: quote! { command.eq_ignore_ascii_case(#cmd_str) },
                 body: quote! { return Ok(Some(Self::#command_ident)); },

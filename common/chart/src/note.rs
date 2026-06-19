@@ -74,14 +74,17 @@ pub struct NoteData {
 }
 
 impl NoteDataLike for NoteData {
+    #[inline]
     fn side(&self) -> PlayerSide {
         self.side
     }
 
+    #[inline]
     fn lane(&self) -> Lane {
         self.lane
     }
 
+    #[inline]
     fn kind(&self) -> NoteKind {
         self.kind
     }

@@ -4,10 +4,10 @@ use std::num::NonZeroU8;
 
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, NoteEvent, Position};
 use bms_processor::BmsProcessor;
-use bms_processor::layout::{Bme, BmsChannel, BmsLayout, DscOctFp, Nanasi, Pms, PmsBme};
+use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
 use bms_tokenizer::{BmsIndex, BpmTag, LnObjTag};
 use bmsrs_chart::mode::{Lane, PlayerSide};
-use bmsrs_chart::{Note, NoteData, NoteDataLike, NoteKind};
+use bmsrs_chart::{Note, NoteData, NoteDataLike as _, NoteKind};
 
 /// Shorthand to construct a valid [`BmsChannel`] in tests.
 fn ch(player: u8, lane: u8) -> BmsChannel {

@@ -96,6 +96,14 @@ impl TimingTrack {
         clippy::cast_precision_loss,
         reason = "tick values fit in f64 mantissa for practical chart lengths"
     )]
+    #[expect(
+        clippy::missing_inline_in_public_items,
+        reason = "larger function; compiler can decide inlining"
+    )]
+    #[expect(
+        clippy::as_conversions,
+        reason = "lossless or explicitly-rounded numeric conversion"
+    )]
     pub fn tick_to_duration(&self, tick: u64, resolution: u64) -> Duration {
         debug_assert!(resolution > 0, "resolution must be > 0");
         debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
@@ -159,6 +167,14 @@ impl TimingTrack {
         reason = "rounded result is within u64 range"
     )]
     #[expect(clippy::cast_sign_loss, reason = "remaining time is non-negative")]
+    #[expect(
+        clippy::missing_inline_in_public_items,
+        reason = "larger function; compiler can decide inlining"
+    )]
+    #[expect(
+        clippy::as_conversions,
+        reason = "lossless or explicitly-rounded numeric conversion"
+    )]
     pub fn duration_to_tick(&self, duration: Duration, resolution: u64) -> u64 {
         debug_assert!(resolution > 0, "resolution must be > 0");
         debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
