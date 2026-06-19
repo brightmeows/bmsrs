@@ -13,12 +13,14 @@ where `L: BmsLayout` is a stateless mode family (e.g. `Bme`, `Pms`, `Nanasi`).
 
 ## Long-note modes
 
-Two LN notations, auto-detected:
+Three LN notations, auto-detected:
 
 - **LNOBJ**: `#LNOBJ` designates a WAV index; regular notes paired by
   that index form LNs.
-- **LNTYPE 1 (RDM)**: channels 51–69 are paired consecutively per
-  `(player, lane)`.
+- **LNTYPE 2 (MGQ)**: channels 51–69 per `(player, lane)`. A `"00"`
+  entry acts as a release for any active LN on that channel.
+- **LNTYPE 1 (RDM)**: channels 51–69 per `(player, lane)`. `"00"`
+  entries are skipped; remaining events form consecutive start-end pairs.
 
 The `as_str()` method bridges `BmsIndex<LnObjTag>` to `NoteEvent.wav_id`
 (`BmsIndex<WavTag>`) since they are distinct phantom-typed indices.

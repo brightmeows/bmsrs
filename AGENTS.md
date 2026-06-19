@@ -8,7 +8,7 @@
 pre-commit run --all-files            # manually trigger all hooks at once
 ```
 
-Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`.
+Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`, `no-comment-decorations` (rejects decorative comment blocks), `no-confusable-unicode` (detects confusable Unicode dashes/spaces).
 
 ### CI / manual only
 
@@ -44,7 +44,8 @@ flowchart LR
     CF --> Par[bms-parser]
     Par --> BProc[bms-processor]
 
-    BMSON[".bmson file"] --> BDef[bmson-def]
+    BMSON[".bmson file"] --> DeChumsky[bmson-de-chumsky]
+    DeChumsky --> BDef[bmson-def]
     BDef --> BMProc[bmson-processor]
 
     BProc --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
@@ -99,5 +100,5 @@ bare struct with methods is sufficient when there is no state to configure.
 
 | Tests for | Location |
 |---|---|
-| Public API | `tests/*.rs` (integration) |
+| Public API | `<crate>/tests/*.rs` (integration) |
 | `pub(crate)` / private | `src/*.rs` `#[cfg(test)] mod` (inline) |
