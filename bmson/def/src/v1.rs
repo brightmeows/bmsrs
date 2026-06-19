@@ -180,7 +180,7 @@ const fn default_100() -> f64 {
 ///
 /// Identical to [`crate::SoundChannel`] except the notes field is
 /// `notes` (v1 convention) instead of `note_events` (v2).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'a"))]
 pub struct SoundChannel<'a> {
     /// Audio file name.

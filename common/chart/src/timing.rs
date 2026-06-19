@@ -40,7 +40,7 @@ pub struct BpmChange {
 /// When the playback reaches `tick`, the scroll halts for `duration` ticks
 /// worth of time (at the current BPM). Multiple stops at the same tick
 /// accumulate.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StopEvent {
     /// Tick where the stop begins.
     pub tick: u64,

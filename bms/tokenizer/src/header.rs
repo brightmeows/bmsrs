@@ -55,7 +55,7 @@ pub enum BmsHeader<C> {
 /// Captures the raw command name and value so that downstream consumers
 /// (parsers, tools) can handle engine-specific extensions that the
 /// tokenizer doesn't know about.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BmsHeaderFallback<C> {
     /// The raw command name as it appears in the file (e.g., `"MYEXT"`).
     pub command: C,
@@ -68,7 +68,7 @@ pub struct BmsHeaderFallback<C> {
 impl<C> From<BmsHeaderFallback<C>> for BmsHeader<C> {
     #[inline]
     fn from(fallback: BmsHeaderFallback<C>) -> Self {
-        BmsHeader::Fallback(fallback)
+        Self::Fallback(fallback)
     }
 }
 

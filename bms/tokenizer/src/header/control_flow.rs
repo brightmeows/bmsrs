@@ -24,7 +24,7 @@ use crate::{BmsHeader, BmsTryFromError};
 ///
 /// Nesting and engine compatibility are complex — see the BMS command memo
 /// for full details.
-#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
+#[derive(Debug, Clone, PartialEq, Eq, BmsTokenAttr)]
 pub enum BmsHeaderControlFlow {
     /// `#RANDOM N` (or `#RONDAM`) — start a random branch block.
     ///
@@ -96,7 +96,7 @@ pub enum BmsHeaderControlFlow {
 impl<C> From<BmsHeaderControlFlow> for BmsHeader<C> {
     #[inline]
     fn from(flow: BmsHeaderControlFlow) -> Self {
-        BmsHeader::ControlFlow(flow)
+        Self::ControlFlow(flow)
     }
 }
 

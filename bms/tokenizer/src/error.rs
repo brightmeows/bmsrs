@@ -124,13 +124,13 @@ pub trait IntoTokensError<C> {
 }
 
 impl<C> IntoTokensError<C> for BmsTokenizeError<C> {
-    fn into_error(self, context: &'static str, value: C) -> BmsTokenizeError<C> {
+    fn into_error(self, context: &'static str, value: C) -> Self {
         match self {
-            BmsTokenizeError::OutOfRange {
+            Self::OutOfRange {
                 context: "",
                 expected,
                 ..
-            } => BmsTokenizeError::OutOfRange {
+            } => Self::OutOfRange {
                 context,
                 value,
                 expected,

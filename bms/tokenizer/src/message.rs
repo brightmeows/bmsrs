@@ -59,7 +59,7 @@ use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 /// A channel data line in a BMS file (`#ADDR:body`).
 ///
 /// See the module-level documentation for the format description.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BmsMessage<C> {
     /// Raw address string (before `:`).
     pub addr: C,
@@ -77,7 +77,7 @@ pub struct BmsMessage<C> {
 impl<C> From<BmsMessage<C>> for BmsToken<C> {
     #[inline]
     fn from(msg: BmsMessage<C>) -> Self {
-        BmsToken::Message(msg)
+        Self::Message(msg)
     }
 }
 
@@ -166,7 +166,7 @@ pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a st
             .map_err(|_| BmsTokenizeError::InvalidChannel {
                 value: C::from(addr),
             })?;
-    let channel: BmsChannel = classify_channel(channel_idx);
+    let channel = classify_channel(channel_idx);
 
     // Track: extract all ASCII digit characters from prefix, build u16.
     // 0-indexed; empty prefix → track = 0.

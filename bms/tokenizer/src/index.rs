@@ -138,7 +138,7 @@ impl<T, C: BmsCharset> BmsIndex<T, C> {
             Some(hi)
         } else {
             let lo = hex_digit_value(self.bytes[1])?;
-            Some(hi << 4 | lo)
+            Some((hi << 4) | lo)
         }
     }
 }
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn bms_channel_id_error_display() {
         let err = BmsIndexError {
-            input: "!!!".to_string(),
+            input: "!!!".to_owned(),
         };
         assert!(err.to_string().contains("!!!"));
     }

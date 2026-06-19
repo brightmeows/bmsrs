@@ -88,7 +88,7 @@ impl NoteDataLike for NoteData {
 }
 
 /// A note in the chart.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Note<T: NoteDataLike = NoteData> {
     /// Tick position.
     pub tick: u64,

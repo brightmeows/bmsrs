@@ -183,7 +183,7 @@ pub enum BmsHeaderResDefAudio<C> {
 impl<C> From<BmsHeaderResDefAudio<C>> for BmsHeader<C> {
     #[inline]
     fn from(audio: BmsHeaderResDefAudio<C>) -> Self {
-        BmsHeader::ResDefAudio(audio)
+        Self::ResDefAudio(audio)
     }
 }
 

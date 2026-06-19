@@ -52,7 +52,7 @@ fn float_parses_successfully() {
 fn string_parses_successfully() {
     let (val, errors) = parse_json(r#""hello world""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("hello world".to_string())));
+    assert_eq!(val, Some(Value::String("hello world".to_owned())));
 }
 
 #[test]
@@ -98,42 +98,42 @@ fn simple_object_parses_successfully() {
 fn string_escape_newline() {
     let (val, errors) = parse_json(r#""\n""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("\n".to_string())));
+    assert_eq!(val, Some(Value::String("\n".to_owned())));
 }
 
 #[test]
 fn string_escape_tab() {
     let (val, errors) = parse_json(r#""\t""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("\t".to_string())));
+    assert_eq!(val, Some(Value::String("\t".to_owned())));
 }
 
 #[test]
 fn string_escape_quote() {
     let (val, errors) = parse_json(r#""\"hello\"""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("\"hello\"".to_string())));
+    assert_eq!(val, Some(Value::String("\"hello\"".to_owned())));
 }
 
 #[test]
 fn string_escape_backslash() {
     let (val, errors) = parse_json(r#""a\\b""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("a\\b".to_string())));
+    assert_eq!(val, Some(Value::String("a\\b".to_owned())));
 }
 
 #[test]
 fn string_escape_unicode() {
     let (val, errors) = parse_json(r#""\u0041""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("A".to_string())));
+    assert_eq!(val, Some(Value::String("A".to_owned())));
 }
 
 #[test]
 fn string_escape_solidus() {
     let (val, errors) = parse_json(r#""\/""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("/".to_string())));
+    assert_eq!(val, Some(Value::String("/".to_owned())));
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn multiple_escape_sequences_in_one_string() {
 fn mixed_escape_and_literal_in_one_string() {
     let (val, errors) = parse_json(r#""hello\nworld\t!""#);
     assert!(errors.is_empty());
-    assert_eq!(val, Some(Value::String("hello\nworld\t!".to_string())));
+    assert_eq!(val, Some(Value::String("hello\nworld\t!".to_owned())));
 }
 
 #[test]

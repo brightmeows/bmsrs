@@ -60,7 +60,7 @@ impl Position {
 // BGM
 
 /// A BGM (background music) note — channel `01`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BgmEvent {
     /// Position within the measure.
     pub position: Position,
@@ -80,7 +80,7 @@ pub enum KeyType {
 }
 
 /// A playable note (channels `11`–`19`, `21`–`29`, `31`–`39`, `41`–`49`).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoteEvent {
     /// Position within the measure.
     pub position: Position,
@@ -101,7 +101,7 @@ pub struct NoteEvent {
 /// The LN type (LN / CN / HCN) is determined by the chart-level
 /// [`LnType`](bms_tokenizer::LnType) and [`LnMode`](bms_tokenizer::LnMode)
 /// headers, not stored per-event.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongNoteEvent {
     /// Position within the measure (start of the hold).
     pub position: Position,
@@ -116,7 +116,7 @@ pub struct LongNoteEvent {
 // Mines
 
 /// A landmine note (channels `D1`–`D9`, `E1`–`E9`).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MineEvent {
     /// Position within the measure.
     pub position: Position,
@@ -149,7 +149,7 @@ pub struct BpmChange {
 // Stops
 
 /// A stop / pause event (channel `09`) that references a `#STOPxx` definition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StopEvent {
     /// Position within the measure.
     pub position: Position,
@@ -162,7 +162,7 @@ pub struct StopEvent {
 /// A scroll-speed multiplier event (channel `0A`).
 ///
 /// References a `#SCROLLxx` definition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScrollEvent {
     /// Position within the measure.
     pub position: Position,
@@ -184,7 +184,7 @@ pub enum BgaLayer {
 }
 
 /// A BGA display event (channels `04`, `05`, `06`, `07`).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BgaEvent {
     /// Position within the measure.
     pub position: Position,

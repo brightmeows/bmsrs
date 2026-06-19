@@ -36,7 +36,7 @@ fn parse_string(input: &str) -> Bms {
 fn event_types_accessible() {
     // Position
     let pos = Position::new(1, 0, 4);
-    let _frac: f64 = pos.fraction();
+    let _frac = pos.fraction();
 
     // Event types are constructible
     let _bgm = BgmEvent {

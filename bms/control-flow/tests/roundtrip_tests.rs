@@ -75,12 +75,12 @@ fn random_block_roundtrip_preserves_structure() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Random(2)".to_string(),
-            "If(1)".to_string(),
-            "EndIf".to_string(),
-            "If(2)".to_string(),
-            "EndIf".to_string(),
-            "EndRandom".to_string(),
+            "Random(2)".to_owned(),
+            "If(1)".to_owned(),
+            "EndIf".to_owned(),
+            "If(2)".to_owned(),
+            "EndIf".to_owned(),
+            "EndRandom".to_owned(),
         ]
     );
     Ok(())
@@ -103,10 +103,10 @@ fn switch_block_roundtrip_preserves_structure() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Switch(2)".to_string(),
-            "Case(1)".to_string(),
-            "Case(2)".to_string(),
-            "EndSwitch".to_string(),
+            "Switch(2)".to_owned(),
+            "Case(1)".to_owned(),
+            "Case(2)".to_owned(),
+            "EndSwitch".to_owned(),
         ]
     );
     Ok(())
@@ -136,16 +136,16 @@ fn nested_blocks_roundtrip_preserves_structure() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Switch(2)".to_string(),
-            "Case(1)".to_string(),
-            "Random(2)".to_string(),
-            "If(1)".to_string(),
-            "EndIf".to_string(),
-            "If(2)".to_string(),
-            "EndIf".to_string(),
-            "EndRandom".to_string(),
-            "Case(2)".to_string(),
-            "EndSwitch".to_string(),
+            "Switch(2)".to_owned(),
+            "Case(1)".to_owned(),
+            "Random(2)".to_owned(),
+            "If(1)".to_owned(),
+            "EndIf".to_owned(),
+            "If(2)".to_owned(),
+            "EndIf".to_owned(),
+            "EndRandom".to_owned(),
+            "Case(2)".to_owned(),
+            "EndSwitch".to_owned(),
         ]
     );
     Ok(())
@@ -166,10 +166,10 @@ fn setrandom_preserved_as_setrandom() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "SetRandom(1)".to_string(),
-            "If(1)".to_string(),
-            "EndIf".to_string(),
-            "EndRandom".to_string(),
+            "SetRandom(1)".to_owned(),
+            "If(1)".to_owned(),
+            "EndIf".to_owned(),
+            "EndRandom".to_owned(),
         ]
     );
     Ok(())
@@ -207,14 +207,14 @@ fn elseif_and_else_roundtrip() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Random(3)".to_string(),
-            "If(1)".to_string(),
-            "EndIf".to_string(),
-            "ElseIf(2)".to_string(),
-            "EndIf".to_string(),
-            "Else".to_string(),
-            "EndIf".to_string(),
-            "EndRandom".to_string(),
+            "Random(3)".to_owned(),
+            "If(1)".to_owned(),
+            "EndIf".to_owned(),
+            "ElseIf(2)".to_owned(),
+            "EndIf".to_owned(),
+            "Else".to_owned(),
+            "EndIf".to_owned(),
+            "EndRandom".to_owned(),
         ]
     );
     Ok(())
@@ -238,11 +238,11 @@ fn skip_preserved_in_switch() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Switch(2)".to_string(),
-            "Case(1)".to_string(),
-            "Skip(0)".to_string(),
-            "Case(2)".to_string(),
-            "EndSwitch".to_string(),
+            "Switch(2)".to_owned(),
+            "Case(1)".to_owned(),
+            "Skip(0)".to_owned(),
+            "Case(2)".to_owned(),
+            "EndSwitch".to_owned(),
         ]
     );
     Ok(())
@@ -263,9 +263,9 @@ fn setswitch_preserved_as_setswitch() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "SetSwitch(1)".to_string(),
-            "Case(1)".to_string(),
-            "EndSwitch".to_string(),
+            "SetSwitch(1)".to_owned(),
+            "Case(1)".to_owned(),
+            "EndSwitch".to_owned(),
         ]
     );
     Ok(())
@@ -290,12 +290,12 @@ fn switch_def_with_skip_roundtrip() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Switch(3)".to_string(),
-            "Case(1)".to_string(),
-            "Skip(0)".to_string(),
-            "Def".to_string(),
-            "Skip(0)".to_string(),
-            "EndSwitch".to_string(),
+            "Switch(3)".to_owned(),
+            "Case(1)".to_owned(),
+            "Skip(0)".to_owned(),
+            "Def".to_owned(),
+            "Skip(0)".to_owned(),
+            "EndSwitch".to_owned(),
         ]
     );
     Ok(())
@@ -317,10 +317,10 @@ fn switch_only_def_roundtrip() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Switch(3)".to_string(),
-            "Def".to_string(),
-            "Skip(0)".to_string(),
-            "EndSwitch".to_string(),
+            "Switch(3)".to_owned(),
+            "Def".to_owned(),
+            "Skip(0)".to_owned(),
+            "EndSwitch".to_owned(),
         ]
     );
     Ok(())
@@ -351,16 +351,16 @@ fn elseif_with_content_roundtrip() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Random(5)".to_string(),
-            "If(1)".to_string(),
-            "EndIf".to_string(),
-            "ElseIf(2)".to_string(),
-            "EndIf".to_string(),
-            "ElseIf(3)".to_string(),
-            "EndIf".to_string(),
-            "Else".to_string(),
-            "EndIf".to_string(),
-            "EndRandom".to_string(),
+            "Random(5)".to_owned(),
+            "If(1)".to_owned(),
+            "EndIf".to_owned(),
+            "ElseIf(2)".to_owned(),
+            "EndIf".to_owned(),
+            "ElseIf(3)".to_owned(),
+            "EndIf".to_owned(),
+            "Else".to_owned(),
+            "EndIf".to_owned(),
+            "EndRandom".to_owned(),
         ]
     );
     Ok(())
@@ -372,7 +372,7 @@ fn random_empty_block_roundtrip() -> TestResult {
     let tokens = items.to_tokens();
     let cfs = cf_debug(&tokens);
 
-    assert_eq!(cfs, vec!["Random(2)".to_string(), "EndRandom".to_string()]);
+    assert_eq!(cfs, vec!["Random(2)".to_owned(), "EndRandom".to_owned()]);
     Ok(())
 }
 
@@ -402,12 +402,12 @@ fn random_block_roundtrip_with_string_container() -> TestResult {
     assert_eq!(
         cfs,
         vec![
-            "Random(2)".to_string(),
-            "If(1)".to_string(),
-            "EndIf".to_string(),
-            "If(2)".to_string(),
-            "EndIf".to_string(),
-            "EndRandom".to_string(),
+            "Random(2)".to_owned(),
+            "If(1)".to_owned(),
+            "EndIf".to_owned(),
+            "If(2)".to_owned(),
+            "EndIf".to_owned(),
+            "EndRandom".to_owned(),
         ]
     );
     Ok(())

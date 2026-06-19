@@ -11,7 +11,7 @@ use std::time::Duration;
 /// For BMSON charts, the processor pre-computes slices using the
 /// sound-channel slicing algorithm, producing assets with specific
 /// `start` and `duration` values within the same audio file.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AudioAsset {
     /// File path relative to the chart file's directory.
     pub path: PathBuf,

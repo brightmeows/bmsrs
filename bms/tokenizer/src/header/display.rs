@@ -28,7 +28,7 @@ use crate::{BmsHeader, BmsTryFromError};
 ///
 /// Omitting `#DIFFICULTY` is allowed but means the chart cannot be
 /// filtered by difficulty category.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DifficultyLevel(u8);
 
 impl DifficultyLevel {
@@ -62,7 +62,7 @@ impl FromStr for DifficultyLevel {
         if !(1..=5).contains(&v) {
             return Err(ParseDifficultyError(s.to_owned()));
         }
-        Ok(DifficultyLevel(v))
+        Ok(Self(v))
     }
 }
 
@@ -152,7 +152,7 @@ pub enum BmsHeaderDisplay<C> {
 impl<C> From<BmsHeaderDisplay<C>> for BmsHeader<C> {
     #[inline]
     fn from(display: BmsHeaderDisplay<C>) -> Self {
-        BmsHeader::Display(display)
+        Self::Display(display)
     }
 }
 

@@ -316,7 +316,7 @@ pub enum BmsHeaderGameplay<C> {
 impl<C> From<BmsHeaderGameplay<C>> for BmsHeader<C> {
     #[inline]
     fn from(gameplay: BmsHeaderGameplay<C>) -> Self {
-        BmsHeader::Gameplay(gameplay)
+        Self::Gameplay(gameplay)
     }
 }
 

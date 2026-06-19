@@ -16,7 +16,7 @@ use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 /// If the same index is defined in both `#BMP` and `#BGA`, `#BGA` takes
 /// priority.  `BM98de` treats `x1 y1 x2 y2 = 0 0 1 1` as a 2×2 pixel
 /// crop; most others treat it as 1×1.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BgaParams {
     /// Index into the `#BMP` table (decimal).
     pub bmp_index: u16,
@@ -64,7 +64,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 ///
 /// Syntactic sugar for `#BGA` where you specify width/height instead of
 /// bottom-right corner.  Internally equivalent to `#BGA`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtBgaParams {
     /// Index into the `#BMP` table (decimal).
     pub bmp_index: u16,
@@ -116,7 +116,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// Like `#BMP`, but the specified ARGB colour is treated as transparent
 /// instead of the default pure-black (`RGB:00:00:00`).  The index
 /// shares the `#BMP` namespace.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExBmpParams<C> {
     /// Alpha component (0–255).
     pub a: u8,
@@ -164,7 +164,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// where each 2-char pair references a `#BMP`/`#EXBMP`/`#BGA`/`#@BGA`
 /// index.  Unlike normal BMS messages, `00` here **shows** `#BMP00`
 /// rather than being a rest.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwBgaParams<C> {
     /// Frame rate.
     pub fr: u32,
@@ -232,7 +232,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// LAYER2 / POOR).  Unlike `#EXBMP` (per-image), this affects the whole
 /// layer.  The index is referenced by channels `#xxxA1-A4`.  Shares the
 /// alpha channel with opacity channels `#xxx0B-0E`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgbParams {
     /// Alpha component (0–255).
     pub a: u8,
@@ -431,7 +431,7 @@ pub enum BmsHeaderResDefVisual<C> {
 impl<C> From<BmsHeaderResDefVisual<C>> for BmsHeader<C> {
     #[inline]
     fn from(visual: BmsHeaderResDefVisual<C>) -> Self {
-        BmsHeader::ResDefVisual(visual)
+        Self::ResDefVisual(visual)
     }
 }
 

@@ -210,7 +210,7 @@ const fn default_100() -> f64 {
 ///
 /// Has an extra field `k` that was removed in v1.0.0.
 /// The `k` field is optional — official samples omit it on some entries.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BarLine {
     /// Pulse offset.
     pub y: u64,
@@ -239,7 +239,7 @@ pub struct EventNote {
 /// A sound channel in the v0 schema.
 ///
 /// Uses the field name `"notes"` (not `"note_events"` as in v2).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'a"))]
 pub struct SoundChannel<'a> {
     /// Audio file name.

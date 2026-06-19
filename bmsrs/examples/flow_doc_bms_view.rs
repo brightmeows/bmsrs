@@ -15,10 +15,7 @@
 
 // An example's job is to print to stdout; the workspace-wide ban on
 // `println!` (in favour of `tracing`) does not serve that purpose here.
-#![expect(
-    clippy::disallowed_macros,
-    reason = "example prints to stdout by design"
-)]
+#![expect(clippy::print_stdout, reason = "example prints to stdout by design")]
 
 use bmsrs::bms::control_flow::{FlowBlock, FlowDoc, FlowNode, TokenPayload};
 use bmsrs::bms::parser::Bms;

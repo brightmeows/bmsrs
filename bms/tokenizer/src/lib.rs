@@ -106,7 +106,7 @@ where
 impl<C> From<BmsHeader<C>> for BmsToken<C> {
     #[inline]
     fn from(header: BmsHeader<C>) -> Self {
-        BmsToken::Header(header)
+        Self::Header(header)
     }
 }
 
@@ -122,12 +122,12 @@ impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
     }
 }
 
-impl<C> TryFrom<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>)> for BmsToken<C> {
+impl<C> TryFrom<(NonZeroUsize, Result<Self, BmsTokenizeError<C>>)> for BmsToken<C> {
     type Error = BmsTryFromError<C>;
 
     #[inline]
     fn try_from(
-        pair: (NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>),
+        pair: (NonZeroUsize, Result<Self, BmsTokenizeError<C>>),
     ) -> Result<Self, Self::Error> {
         let (line, result) = pair;
         result.map_err(|error| BmsTryFromError::TokenizationError { line, error })

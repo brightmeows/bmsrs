@@ -195,7 +195,7 @@ pub enum BmsHeaderTiming {
 impl<C> From<BmsHeaderTiming> for BmsHeader<C> {
     #[inline]
     fn from(timing: BmsHeaderTiming) -> Self {
-        BmsHeader::Timing(timing)
+        Self::Timing(timing)
     }
 }
 

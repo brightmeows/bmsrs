@@ -53,7 +53,7 @@ use std::path::Path;
 /// Each field specifies an **additional** amount (in milliseconds) added
 /// to the player's default window for that judgement tier.
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JudgementDeltas {
     /// Additional offset for the PERFECT window (ms).
     pub perfect: u64,
@@ -140,7 +140,7 @@ pub struct Bmson<'a> {
 /// Extracted from the old `BmsonInfo` in v1.  Contains only the fields that
 /// describe the **composition itself** (not a specific chart).
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SongInfo<'a> {
     /// Song title.
     ///
@@ -169,7 +169,7 @@ pub struct SongInfo<'a> {
 /// Carries difficulty information, display assets and BGA for one specific
 /// chart arrangement of a song.
 ///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartInfo<'a> {
     /// Chart subtitle.
     ///

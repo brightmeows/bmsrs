@@ -10,7 +10,7 @@ use crate::{BmsHeader, BmsTryFromError};
 ///
 /// These commands identify the chart and its authors.  They carry no
 /// gameplay effect — they are purely informational.
-#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
+#[derive(Debug, Clone, PartialEq, Eq, BmsTokenAttr)]
 pub enum BmsHeaderMetadata<C> {
     /// `#TITLE` — song title.
     ///
@@ -98,7 +98,7 @@ pub enum BmsHeaderMetadata<C> {
 impl<C> From<BmsHeaderMetadata<C>> for BmsHeader<C> {
     #[inline]
     fn from(meta: BmsHeaderMetadata<C>) -> Self {
-        BmsHeader::Metadata(meta)
+        Self::Metadata(meta)
     }
 }
 

@@ -33,12 +33,7 @@ disallowed-types = [
   { path = "std::sync::RwLock", reason = "use tokio::sync::RwLock (if held across .await)" },
 ]
 
-# Disallowed print/dbg macros (use tracing instead)
+# Disallowed macros (kept: std::todo — dedicated `todo` lint already denies usage)
 disallowed-macros = [
-  { path = "std::println", reason = "use tracing::info!/warn!/error!" },
-  { path = "std::eprintln", reason = "use tracing::info!/warn!/error!" },
-  { path = "std::print", reason = "use tracing::info!/warn!/error!" },
-  { path = "std::eprint", reason = "use tracing::info!/warn!/error!" },
-  { path = "std::dbg", reason = "remove before commit" },
   { path = "std::todo", reason = "implement or use tracing::warn! for incomplete paths" },
 ]

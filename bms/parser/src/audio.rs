@@ -9,7 +9,7 @@ use bms_tokenizer::{BmsHeaderResDefAudio, BmsIndex, WavTag};
 /// Audio resource definitions.
 ///
 /// Indexed definitions use `BTreeMap`; scalar fields use `Option`.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Audio {
     /// Sound effect / BGM file definitions (`#WAV`, `#EXWAV`).
     pub wav_files: BTreeMap<BmsIndex<WavTag>, String>,

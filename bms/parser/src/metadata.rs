@@ -9,7 +9,7 @@ use bms_tokenizer::{BmsHeaderMetadata, BmsIndex, TextTag};
 /// Song / chart identification metadata.
 ///
 /// All fields use last-wins semantics.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Metadata {
     /// Song title (`#TITLE`).
     pub title: Option<String>,

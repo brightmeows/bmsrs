@@ -15,7 +15,7 @@ use bms_tokenizer::{
 // string.  Since Bms owns all its data, we convert to owned equivalents here.
 
 /// Owned version of [`ExBmpParams`] with a `String` filename.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedExBmpParams {
     /// Alpha component (0–255).
     pub a: u8,
@@ -42,7 +42,7 @@ impl<C: AsRef<str>> From<&ExBmpParams<C>> for OwnedExBmpParams {
 }
 
 /// Owned version of [`SwBgaParams`] with a `String` pattern.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedSwBgaParams {
     /// Frame rate.
     pub fr: u32,
