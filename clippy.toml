@@ -37,3 +37,6 @@ disallowed-types = [
 disallowed-macros = [
   { path = "std::todo", reason = "implement or use tracing::warn! for incomplete paths" },
 ]
+
+# Duplicate crate versions allowed (transitive deps with unavoidable version skew)
+allowed-duplicate-crates = ["hashbrown", "wit-bindgen"]

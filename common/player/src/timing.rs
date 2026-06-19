@@ -52,8 +52,8 @@ impl TimingCache {
             bpm: timing.init_bpm,
         }];
 
-        let mut current_tick = 0_u64;
-        let mut current_seconds = 0.0_f64;
+        let mut current_tick = 0u64;
+        let mut current_seconds = 0.0f64;
         let mut current_bpm = timing.init_bpm;
 
         for bc in &timing.bpm_changes {
@@ -74,7 +74,7 @@ impl TimingCache {
         sorted_stops.sort_by_key(|s| s.tick);
 
         let mut stop_cumsum = Vec::with_capacity(sorted_stops.len());
-        let mut total_pause = 0.0_f64;
+        let mut total_pause = 0.0f64;
         for stop in &sorted_stops {
             let bpm = segment_bpm_at_tick(&bpm_segments, stop.tick);
             total_pause += stop.duration as f64 / res * 60.0 / bpm;
@@ -144,7 +144,7 @@ impl TimingCache {
         let upper = last_segment_tick + self.resolution * 4 * 1000;
 
         // Binary search: find the last tick whose time ≤ target.
-        let mut lo = 0_u64;
+        let mut lo = 0u64;
         let mut hi = upper.max(1);
 
         while lo < hi {

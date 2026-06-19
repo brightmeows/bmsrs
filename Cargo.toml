@@ -129,6 +129,7 @@ unreachable = "deny"
 unwrap_in_result = "deny"
 unwrap_used = "warn"
 verbose_file_reads = "deny"
+cfg_not_test = "deny"
 
 # — allowed —
 # `as_conversions` — numeric conversions (u64↔f64, u64→u32 etc.) are
@@ -148,9 +149,11 @@ tests_outside_test_module = "allow"
 # === Restriction (Applicability: MachineApplicable) ===
 missing_assert_message = "deny"
 try_err = "deny"
+separated_literal_suffix = "deny"
 
 # === Nursery (Applicability: MachineApplicable) ===
 derive_partial_eq_without_eq = "deny"
+equatable_if_let = "deny"
 missing_const_for_fn = "deny"
 needless_collect = "deny"
 nonstandard_macro_braces = "deny"
@@ -164,6 +167,7 @@ unused_rounding = "deny"
 use_self = "deny"
 
 # === Nursery (Applicability: MaybeIncorrect) ===
+doc_link_code = "deny"
 iter_with_drain = "deny"
 option_if_let_else = "deny"
 significant_drop_in_scrutinee = "deny"
@@ -173,9 +177,12 @@ or_fun_call = "deny"
 
 # === Nursery (Applicability: Unspecified) ===
 branches_sharing_code = "deny"
+collection_is_never_read = "deny"
 future_not_send = "deny"
 iter_on_single_items = "deny"
 missing_fields_in_debug = "deny"
+needless_pass_by_ref_mut = "deny"
+set_contains_or_insert = "deny"
 suboptimal_flops = "deny"
 
 # === Nursery (Applicability: MachineApplicable) ===
@@ -186,6 +193,7 @@ significant_drop_tightening = "deny"
 
 # === Cargo (Applicability: Unspecified) ===
 cargo_common_metadata = "deny"
+multiple_crate_versions = "deny"
 negative_feature_names = "deny"
 redundant_feature_names = "deny"
 wildcard_dependencies = "deny"

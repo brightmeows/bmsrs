@@ -111,8 +111,8 @@ impl TimingTrack {
         let res = resolution as f64;
         let events = self.build_events();
 
-        let mut seconds = 0.0_f64;
-        let mut current_tick = 0_u64;
+        let mut seconds = 0.0f64;
+        let mut current_tick = 0u64;
         let mut current_bpm = self.init_bpm;
 
         for (event_tick, event) in &events {
@@ -189,7 +189,7 @@ impl TimingTrack {
         let events = self.build_events();
 
         let mut remaining = seconds;
-        let mut current_tick = 0_u64;
+        let mut current_tick = 0u64;
         let mut current_bpm = self.init_bpm;
 
         for (event_tick, event) in &events {

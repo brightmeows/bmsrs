@@ -36,7 +36,7 @@ impl MeasureTable {
         let mut starts = Vec::with_capacity(usize::from(max_measure) + 2);
         starts.push(0);
 
-        let mut prev = 0_u64;
+        let mut prev = 0u64;
         for m in 0..=max_measure {
             let percent = pct.get(&m).copied().unwrap_or(100);
             let len = ticks_per_measure * percent / 100;
