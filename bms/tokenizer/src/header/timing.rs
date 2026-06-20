@@ -192,13 +192,6 @@ pub enum BmsHeaderTiming {
 
 // From / TryFrom conversions
 
-impl<C> From<BmsHeaderTiming> for BmsHeader<C> {
-    #[inline]
-    fn from(timing: BmsHeaderTiming) -> Self {
-        Self::Timing(timing)
-    }
-}
-
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderTiming {
     type Error = BmsTryFromError<C>;
 

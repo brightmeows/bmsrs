@@ -4,7 +4,6 @@
 //! This module also defines the domain types used by [`BmsHeaderDisplay`]:
 //! [`DifficultyLevel`] and [`PoorBgaMode`].
 
-use std::fmt;
 use std::str::FromStr;
 
 use thiserror::Error;
@@ -28,7 +27,8 @@ use crate::{BmsHeader, BmsTryFromError};
 ///
 /// Omitting `#DIFFICULTY` is allowed but means the chart cannot be
 /// filtered by difficulty category.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display, derive_more::Deref)]
+#[display("{}", _0)]
 pub struct DifficultyLevel(u8);
 
 impl DifficultyLevel {
@@ -63,12 +63,6 @@ impl FromStr for DifficultyLevel {
             return Err(ParseDifficultyError(s.to_owned()));
         }
         Ok(Self(v))
-    }
-}
-
-impl fmt::Display for DifficultyLevel {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
     }
 }
 
@@ -148,13 +142,6 @@ pub enum BmsHeaderDisplay<C> {
 }
 
 // From / TryFrom conversions
-
-impl<C> From<BmsHeaderDisplay<C>> for BmsHeader<C> {
-    #[inline]
-    fn from(display: BmsHeaderDisplay<C>) -> Self {
-        Self::Display(display)
-    }
-}
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderDisplay<C> {
     type Error = BmsTryFromError<C>;

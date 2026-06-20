@@ -14,7 +14,13 @@ readme.workspace = true
 
 [dependencies]
 thiserror.workspace = true
+derive_more.workspace = true
+itertools.workspace = true
 bms-tokenizer-derive.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true
 
 [lib]
 

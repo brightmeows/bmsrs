@@ -180,13 +180,6 @@ pub enum BmsHeaderResDefAudio<C> {
 
 // From / TryFrom conversions
 
-impl<C> From<BmsHeaderResDefAudio<C>> for BmsHeader<C> {
-    #[inline]
-    fn from(audio: BmsHeaderResDefAudio<C>) -> Self {
-        Self::ResDefAudio(audio)
-    }
-}
-
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefAudio<C> {
     type Error = BmsTryFromError<C>;
 

@@ -103,13 +103,6 @@ where
 
 // From / TryFrom conversions
 
-impl<C> From<BmsHeader<C>> for BmsToken<C> {
-    #[inline]
-    fn from(header: BmsHeader<C>) -> Self {
-        Self::Header(header)
-    }
-}
-
 impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
     type Error = BmsTryFromError<C>;
 
@@ -138,7 +131,7 @@ use header::parse_header_line;
 use message::parse_message_line;
 
 /// A single token produced by tokenizing a BMS file.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, derive_more::From)]
 pub enum BmsToken<C> {
     /// A header command (metadata, gameplay, timing, resources, etc.).
     Header(BmsHeader<C>),

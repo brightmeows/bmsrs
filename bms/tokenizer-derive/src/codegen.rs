@@ -608,12 +608,12 @@ fn gen_field_parse(
     } = generics;
     // Case 1: Field type matches the C type parameter → From::from with the
     // enum's lifetime 'a (the value is coerced from &'header str to &'a str).
-    if let Some(tp_ident) = type_param_ident {
-        if is_type_param(field_ty, tp_ident) {
-            return quote! {
-                let #ident = ::std::convert::From::from(#value_src);
-            };
-        }
+    if let Some(tp_ident) = type_param_ident
+        && is_type_param(field_ty, tp_ident)
+    {
+        return quote! {
+            let #ident = ::std::convert::From::from(#value_src);
+        };
     }
 
     // Case 2: &str field (literal &str, not C type param) → direct assignment.

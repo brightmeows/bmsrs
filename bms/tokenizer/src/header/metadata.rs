@@ -95,13 +95,6 @@ pub enum BmsHeaderMetadata<C> {
 
 // From / TryFrom conversions
 
-impl<C> From<BmsHeaderMetadata<C>> for BmsHeader<C> {
-    #[inline]
-    fn from(meta: BmsHeaderMetadata<C>) -> Self {
-        Self::Metadata(meta)
-    }
-}
-
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderMetadata<C> {
     type Error = BmsTryFromError<C>;
 

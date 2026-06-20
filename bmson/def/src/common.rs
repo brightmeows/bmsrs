@@ -2,6 +2,7 @@
 
 use serde::de::{self, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::{DefaultOnNull, serde_as};
 use std::fmt;
 use std::path::Path;
 
@@ -245,6 +246,7 @@ impl<'de> Deserialize<'de> for LnMode {
 /// | `ln_life_hint` | [`LnLife`] | Per-note LN life override |
 /// | `vol` | `i8` | Volume (percent, DJ.NEXT) |
 /// | `pan` | `i8` | Pan (DJ.NEXT) |
+#[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoteEvent {
     /// Player channel (`0` = BGM, `>0` = playable key/column).
@@ -260,7 +262,8 @@ pub struct NoteEvent {
     /// | `beat-5k` | 1–5 = keys, 8 = scratch |
     /// | `popn-9k` | 1–9 = keys |
     /// | `generic-nkeys` | 1…n left-to-right |
-    #[serde(default, deserialize_with = "null_to_u64")]
+    #[serde(default)]
+    #[serde_as(deserialize_as = "DefaultOnNull")]
     pub x: u64,
 
     /// Pulse offset of this note.
@@ -607,26 +610,6 @@ pub const fn default_multiplier() -> f64 {
 #[inline]
 pub const fn default_resolution() -> u64 {
     240
-}
-
-/// Deserialise a `u64` field, accepting `null` as `0`.
-///
-/// Used for [`NoteEvent::x`] where the spec allows `null` (→ BGM).
-///
-/// # Errors
-///
-/// Returns an error if the JSON value is neither `null` nor a valid unsigned integer.
-pub fn null_to_u64<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum X {
-        Num(u64),
-        Null,
-    }
-    match X::deserialize(deserializer)? {
-        X::Num(n) => Ok(n),
-        X::Null => Ok(0),
-    }
 }
 
 /// Deserialise a `u64` resolution field, replacing `0` with the default `240`.

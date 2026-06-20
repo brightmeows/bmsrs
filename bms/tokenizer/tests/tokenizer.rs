@@ -64,26 +64,7 @@ fn tokenize_mixed_content() {
 #00201:AABB
 ";
     let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
-    assert_eq!(tokens.len(), 6);
-
-    assert!(matches!(
-        tokens[0].1,
-        Ok(BmsToken::Header(BmsHeader::Metadata(_)))
-    ));
-    assert!(matches!(
-        tokens[1].1,
-        Ok(BmsToken::Header(BmsHeader::Metadata(_)))
-    ));
-    assert!(matches!(
-        tokens[2].1,
-        Ok(BmsToken::Header(BmsHeader::Timing(_)))
-    ));
-    assert!(matches!(
-        tokens[3].1,
-        Ok(BmsToken::Header(BmsHeader::ResDefAudio(_)))
-    ));
-    assert!(matches!(tokens[4].1, Ok(BmsToken::Message(_))));
-    assert!(matches!(tokens[5].1, Ok(BmsToken::Message(_))));
+    insta::assert_debug_snapshot!(tokens);
 }
 
 #[test]

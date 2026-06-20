@@ -313,13 +313,6 @@ pub enum BmsHeaderGameplay<C> {
 
 // From / TryFrom conversions
 
-impl<C> From<BmsHeaderGameplay<C>> for BmsHeader<C> {
-    #[inline]
-    fn from(gameplay: BmsHeaderGameplay<C>) -> Self {
-        Self::Gameplay(gameplay)
-    }
-}
-
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderGameplay<C> {
     type Error = BmsTryFromError<C>;
 

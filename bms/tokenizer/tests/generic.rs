@@ -5,6 +5,8 @@
 
 use std::num::NonZeroUsize;
 
+use proptest::prelude::*;
+
 use bms_tokenizer::{
     BmsHeader, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsToken, BmsTokenizeError, BmsTokenizer,
 };
@@ -54,4 +56,14 @@ fn c_fields_parsed_correctly() {
         unwrapped,
         BmsToken::Header(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav { .. }))
     ));
+}
+
+proptest! {
+    #[test]
+    fn tokenize_never_panics_on_valid_input(title in "TITLE [A-Za-z0-9 ]+") {
+        let input = format!("#{title}");
+        let _tokens: Vec<_> = BmsTokenizer::new()
+            .tokenize::<Vec<_>, &str>(&input);
+        // Should always produce some result, never panic
+    }
 }

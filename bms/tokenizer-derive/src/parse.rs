@@ -24,7 +24,7 @@ pub enum Placeholder {
 impl Placeholder {
     /// If this is a named placeholder, return its name.
     #[must_use]
-    pub fn name(&self) -> Option<&str> {
+    pub const fn name(&self) -> Option<&str> {
         match self {
             Self::Named(n) => Some(n.as_str()),
             Self::Unnamed => None,

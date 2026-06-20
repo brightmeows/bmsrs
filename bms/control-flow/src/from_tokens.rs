@@ -3,6 +3,7 @@
 use std::num::NonZeroUsize;
 
 use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsToken};
+use itertools::Itertools as _;
 
 use crate::{
     BranchValue, ControlFlowError, FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch,
@@ -196,10 +197,10 @@ impl<C: Clone + PartialEq> Builder<C> {
                         message: "#SKIP without matching #SWITCH",
                         line,
                     })?;
-                if let Some(StackEntry::Switch(state)) = self.stack.get_mut(idx) {
-                    if let Some(case) = state.current_case.as_mut() {
-                        case.has_skip = true;
-                    }
+                if let Some(StackEntry::Switch(state)) = self.stack.get_mut(idx)
+                    && let Some(case) = state.current_case.as_mut()
+                {
+                    case.has_skip = true;
                 }
             }
         }
@@ -353,14 +354,20 @@ impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
         tokens: impl IntoIterator<Item = (NonZeroUsize, BmsToken<C>)>,
     ) -> Result<Self, ControlFlowError> {
         let mut builder = Builder::new();
-        for (line, token) in tokens {
-            match token {
-                BmsToken::Header(BmsHeader::ControlFlow(cf)) => {
-                    builder.handle_control_flow(line, &cf)?;
+        tokens
+            .into_iter()
+            .map(|(line, token)| -> Result<(), ControlFlowError> {
+                match token {
+                    BmsToken::Header(BmsHeader::ControlFlow(cf)) => {
+                        builder.handle_control_flow(line, &cf)
+                    }
+                    other => {
+                        builder.push_token(line, other);
+                        Ok(())
+                    }
                 }
-                other => builder.push_token(line, other),
-            }
-        }
+            })
+            .process_results(|iter| iter.for_each(drop))?;
         Ok(builder.finish())
     }
 }

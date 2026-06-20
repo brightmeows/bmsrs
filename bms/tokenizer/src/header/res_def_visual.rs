@@ -428,13 +428,6 @@ pub enum BmsHeaderResDefVisual<C> {
 
 // From / TryFrom conversions
 
-impl<C> From<BmsHeaderResDefVisual<C>> for BmsHeader<C> {
-    #[inline]
-    fn from(visual: BmsHeaderResDefVisual<C>) -> Self {
-        Self::ResDefVisual(visual)
-    }
-}
-
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefVisual<C> {
     type Error = BmsTryFromError<C>;
 

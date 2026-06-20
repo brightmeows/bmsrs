@@ -29,7 +29,7 @@ use crate::BmsTryFromError;
 /// The dispatch order follows the variant declaration order below.
 /// Variants annotated with `#[bms_fallback]` are excluded from dispatch
 /// and instead catch anything that didn't match a concrete variant.
-#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From)]
 pub enum BmsHeader<C> {
     /// Audio resource definitions (`#WAV`, `#EXWAV`, `#WAVCMD`, etc.).
     ResDefAudio(BmsHeaderResDefAudio<C>),
@@ -64,13 +64,6 @@ pub struct BmsHeaderFallback<C> {
 }
 
 // From / TryFrom conversions
-
-impl<C> From<BmsHeaderFallback<C>> for BmsHeader<C> {
-    #[inline]
-    fn from(fallback: BmsHeaderFallback<C>) -> Self {
-        Self::Fallback(fallback)
-    }
-}
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderFallback<C> {
     type Error = BmsTryFromError<C>;

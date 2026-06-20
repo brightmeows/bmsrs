@@ -253,7 +253,8 @@ use crate::{BpmEvent, StopEvent};
 use crate::{ChartData, ChartInfo, SongInfo};
 
 /// Error type for v0 ↔ root conversion failures.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_more::Display)]
+#[display("v0 conversion error: {message}")]
 pub struct TryFromV0Error {
     /// Human-readable description of what went wrong.
     pub message: String,
@@ -267,12 +268,6 @@ impl TryFromV0Error {
         Self {
             message: message.into(),
         }
-    }
-}
-
-impl core::fmt::Display for TryFromV0Error {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "v0 conversion error: {}", self.message)
     }
 }
 

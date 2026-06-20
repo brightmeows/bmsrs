@@ -1,0 +1,95 @@
+---
+source: bms/tokenizer/tests/tokenizer.rs
+expression: tokens
+---
+[
+    (
+        1,
+        Ok(
+            Header(
+                Metadata(
+                    Title(
+                        "Test Song",
+                    ),
+                ),
+            ),
+        ),
+    ),
+    (
+        2,
+        Ok(
+            Header(
+                Metadata(
+                    Artist(
+                        "Test Artist",
+                    ),
+                ),
+            ),
+        ),
+    ),
+    (
+        3,
+        Ok(
+            Header(
+                Timing(
+                    Bpm(
+                        180.0,
+                    ),
+                ),
+            ),
+        ),
+    ),
+    (
+        4,
+        Ok(
+            Header(
+                ResDefAudio(
+                    Wav {
+                        id: BmsIndex {
+                            bytes: [
+                                48,
+                                49,
+                            ],
+                            _phantom: PhantomData<(bms_tokenizer::index::WavTag, bms_tokenizer::index::Base62)>,
+                        },
+                        filename: "kick.wav",
+                    },
+                ),
+            ),
+        ),
+    ),
+    (
+        5,
+        Ok(
+            Message(
+                BmsMessage {
+                    addr: "00111",
+                    body: "11223344",
+                    track: 1,
+                    channel: Note(
+                        BmsIndex {
+                            bytes: [
+                                49,
+                                49,
+                            ],
+                            _phantom: PhantomData<(bms_tokenizer::index::ChannelTag, bms_tokenizer::index::Base36)>,
+                        },
+                    ),
+                },
+            ),
+        ),
+    ),
+    (
+        6,
+        Ok(
+            Message(
+                BmsMessage {
+                    addr: "00201",
+                    body: "AABB",
+                    track: 2,
+                    channel: Bgm,
+                },
+            ),
+        ),
+    ),
+]

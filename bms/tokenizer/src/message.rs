@@ -74,13 +74,6 @@ pub struct BmsMessage<C> {
     pub channel: BmsChannel,
 }
 
-impl<C> From<BmsMessage<C>> for BmsToken<C> {
-    #[inline]
-    fn from(msg: BmsMessage<C>) -> Self {
-        Self::Message(msg)
-    }
-}
-
 impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
     type Error = BmsTryFromError<C>;
 

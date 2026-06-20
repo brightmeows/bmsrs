@@ -16,6 +16,7 @@ readme.workspace = true
 bms-tokenizer.workspace = true
 thiserror.workspace = true
 rand.workspace = true
+itertools.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["std_rng"] }

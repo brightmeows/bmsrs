@@ -182,33 +182,33 @@ fn collect_notes<L: BmsLayout>(
         if consumed.contains(&i) {
             continue;
         }
-        if ne.key_type == KeyType::Visible {
-            if let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel) {
-                notes.push(Note {
-                    tick: table.position_to_tick(ne.position),
-                    audio: wav_map.get(&ne.wav_id).copied(),
-                    data: NoteData {
-                        kind: NoteKind::Normal,
-                        ..nd
-                    },
-                });
-            }
+        if ne.key_type == KeyType::Visible
+            && let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel)
+        {
+            notes.push(Note {
+                tick: table.position_to_tick(ne.position),
+                audio: wav_map.get(&ne.wav_id).copied(),
+                data: NoteData {
+                    kind: NoteKind::Normal,
+                    ..nd
+                },
+            });
         }
     }
 
     // Invisible notes (keysounds).
     for ne in &bms.messages.note_events {
-        if ne.key_type == KeyType::Invisible {
-            if let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel) {
-                notes.push(Note {
-                    tick: table.position_to_tick(ne.position),
-                    audio: wav_map.get(&ne.wav_id).copied(),
-                    data: NoteData {
-                        kind: NoteKind::Invisible,
-                        ..nd
-                    },
-                });
-            }
+        if ne.key_type == KeyType::Invisible
+            && let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel)
+        {
+            notes.push(Note {
+                tick: table.position_to_tick(ne.position),
+                audio: wav_map.get(&ne.wav_id).copied(),
+                data: NoteData {
+                    kind: NoteKind::Invisible,
+                    ..nd
+                },
+            });
         }
     }
 

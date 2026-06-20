@@ -93,13 +93,6 @@ pub enum BmsHeaderControlFlow {
 
 // From / TryFrom conversions
 
-impl<C> From<BmsHeaderControlFlow> for BmsHeader<C> {
-    #[inline]
-    fn from(flow: BmsHeaderControlFlow) -> Self {
-        Self::ControlFlow(flow)
-    }
-}
-
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderControlFlow {
     type Error = BmsTryFromError<C>;
 
