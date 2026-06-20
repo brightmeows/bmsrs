@@ -3,7 +3,7 @@
 //! These tests consume the crate through its public API only, exactly as
 //! an external consumer would.
 
-use bms_tokenizer::{Base36, BmsChannel, BmsIndex, ChannelTag};
+use bms_tokenizer::{BmsChannel, ChannelIndex};
 
 // Helpers
 
@@ -13,7 +13,7 @@ fn ch(s: &str) -> BmsChannel {
 }
 
 #[expect(clippy::unwrap_used, reason = "test helper panics on invalid input")]
-fn idx(s: &str) -> BmsIndex<ChannelTag, Base36> {
+fn idx(s: &str) -> ChannelIndex {
     let upper = s.to_ascii_uppercase();
     upper.as_str().try_into().unwrap()
 }

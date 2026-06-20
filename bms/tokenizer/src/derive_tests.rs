@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use crate::{BmsIndex, BmsTokenAttr, BmsValue, WavTag};
+use crate::{BmsTokenAttr, BmsValue, WavIndex};
 
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum SimpleHeaders<'a> {
@@ -84,12 +84,9 @@ fn command_invalid_float_returns_err() {
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum NamedHeaders<'a> {
     #[bms_token("#WAV{id} {filename}")]
-    Wav {
-        id: BmsIndex<WavTag>,
-        filename: &'a str,
-    },
+    Wav { id: WavIndex, filename: &'a str },
     #[bms_token("#BPM{id} {value}")]
-    BpmDef { id: BmsIndex<WavTag>, value: f64 },
+    BpmDef { id: WavIndex, value: f64 },
 }
 
 #[test]
@@ -98,7 +95,7 @@ fn command_named_indexed() {
     assert_eq!(
         result,
         Some(NamedHeaders::Wav {
-            id: BmsIndex::<WavTag>::try_from("01").unwrap(),
+            id: WavIndex::try_from("01").unwrap(),
             filename: "kick.wav",
         })
     );
@@ -110,7 +107,7 @@ fn command_named_indexed_base36() {
     assert_eq!(
         result,
         Some(NamedHeaders::Wav {
-            id: BmsIndex::<WavTag>::try_from("2A").unwrap(),
+            id: WavIndex::try_from("2A").unwrap(),
             filename: "snare.wav",
         })
     );
@@ -122,7 +119,7 @@ fn command_named_indexed_value() {
     assert_eq!(
         result,
         Some(NamedHeaders::BpmDef {
-            id: BmsIndex::<WavTag>::try_from("01").unwrap(),
+            id: WavIndex::try_from("01").unwrap(),
             value: 180.0,
         })
     );
@@ -131,7 +128,7 @@ fn command_named_indexed_value() {
 #[test]
 fn command_indexed_format() {
     let h = NamedHeaders::Wav {
-        id: BmsIndex::<WavTag>::try_from("01").unwrap(),
+        id: WavIndex::try_from("01").unwrap(),
         filename: "kick.wav",
     };
     assert_eq!(
@@ -143,7 +140,7 @@ fn command_indexed_format() {
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum UnnamedIndexed {
     #[bms_token("#BPM{} {}")]
-    BpmDef(BmsIndex<WavTag>, f64),
+    BpmDef(WavIndex, f64),
 }
 
 #[test]
@@ -152,7 +149,7 @@ fn command_unnamed_indexed_parse() {
     assert_eq!(
         result,
         Some(UnnamedIndexed::BpmDef(
-            BmsIndex::<WavTag>::try_from("01").unwrap(),
+            WavIndex::try_from("01").unwrap(),
             180.0,
         ))
     );
@@ -160,7 +157,7 @@ fn command_unnamed_indexed_parse() {
 
 #[test]
 fn command_unnamed_indexed_format() {
-    let h = UnnamedIndexed::BpmDef(BmsIndex::<WavTag>::try_from("2A").unwrap(), 200.0);
+    let h = UnnamedIndexed::BpmDef(WavIndex::try_from("2A").unwrap(), 200.0);
     assert_eq!(h.format_header(), ("#BPM2A".to_owned(), "200".to_owned()));
 }
 

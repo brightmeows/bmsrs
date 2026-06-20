@@ -6,17 +6,17 @@
 
 use std::fmt;
 
-use crate::index::{Base36, BmsIndex, ChannelTag};
+use crate::index::ChannelIndex;
 
 /// Categorized BMS channel identifier.
 ///
 /// Each known non-note channel is a unit variant.  Note channels carry
-/// their raw [`BmsIndex`] for downstream interpretation (player, type,
+/// their raw [`ChannelIndex`] for downstream interpretation (player, type,
 /// and key number are the parser's concern).  Unknown channels also
 /// carry the raw index so that custom / engine-specific channels are
 /// preserved in the token stream.
 ///
-/// The inner [`BmsIndex`] uses the [`Base36`] charset — input is
+/// The inner [`ChannelIndex`] validates as Base36 (`0-9A-Z`) — input is
 /// normalized to uppercase on construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BmsChannel {
@@ -83,14 +83,14 @@ pub enum BmsChannel {
     /// `11–1Z`, `21–2Z`, `31–3Z`, `41–4Z`, `51–5Z`, `61–6Z`,
     /// `D1–D9`, `E1–E9`.
     ///
-    /// The raw [`BmsIndex`] carries the full channel string so the
+    /// The raw [`ChannelIndex`] carries the full channel string so the
     /// parser can extract player, note type, and key number.
-    Note(BmsIndex<ChannelTag, Base36>),
+    Note(ChannelIndex),
 
     // Unknown / reserved
     /// An unknown or reserved channel (e.g. `00`, `0F`, `10`, `20`,
     /// `70–96`, `ZZ`, etc.).
-    Unknown(BmsIndex<ChannelTag, Base36>),
+    Unknown(ChannelIndex),
 }
 
 // Construction
@@ -104,15 +104,15 @@ impl BmsChannel {
     #[must_use]
     pub fn from_raw(s: &str) -> Option<Self> {
         let upper = s.to_ascii_uppercase();
-        let idx: BmsIndex<ChannelTag, Base36> = upper.as_str().try_into().ok()?;
+        let idx: ChannelIndex = upper.as_str().try_into().ok()?;
         Some(classify_channel(idx))
     }
 }
 
-/// Classify a validated [`BmsIndex<ChannelTag, Base36>`] into a
+/// Classify a validated [`ChannelIndex`] into a
 /// [`BmsChannel`] variant.
 ///
-/// Every valid `BmsIndex` maps to exactly one variant — there is no
+/// Every valid `ChannelIndex` maps to exactly one variant — there is no
 /// fallible path.
 ///
 /// The input index is expected to contain uppercase characters (callers
@@ -122,7 +122,7 @@ impl BmsChannel {
     clippy::unreachable,
     reason = "match arms confirmed by bytes.len() check above"
 )]
-pub fn classify_channel(ch: BmsIndex<ChannelTag, Base36>) -> BmsChannel {
+pub fn classify_channel(ch: ChannelIndex) -> BmsChannel {
     let bytes = ch.as_bytes();
 
     match bytes.len() {
@@ -208,7 +208,7 @@ pub fn classify_channel(ch: BmsIndex<ChannelTag, Base36>) -> BmsChannel {
         }
         _ => {
             // `as_bytes()` guarantees 1 or 2 bytes; this arm is unreachable.
-            unreachable!("BmsIndex::as_bytes() returns 1 or 2 bytes")
+            unreachable!("ChannelIndex::as_bytes() returns 1 or 2 bytes")
         }
     }
 }
@@ -222,7 +222,7 @@ impl BmsChannel {
     /// [`BmsChannel::Bgm`] → `Some(0x01)`).  Non-hex channels
     /// ([`Scroll`](Self::Scroll), [`Speed`](Self::Speed)) return `None`.
     /// [`Note`](Self::Note) and [`Unknown`](Self::Unknown) delegate to
-    /// the inner [`BmsIndex::as_u8_hex`].
+    /// the inner [`crate::index::BmsIndex::as_u8_hex`].
     #[must_use]
     pub fn as_u8_hex(&self) -> Option<u8> {
         match self {

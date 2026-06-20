@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsHeaderTiming, BmsIndex, BpmTag, ScrollTag, SpeedTag, StopTag};
+use bms_tokenizer::{BmsHeaderTiming, BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
 
 /// Timing definitions and global scalars.
 ///
@@ -20,13 +20,13 @@ pub struct Timing {
     /// Reference BPM for auto HI-SPEED (`#BASEBPM`).
     pub base_bpm: Option<f64>,
     /// Extended BPM definitions (`#BPMxx`, `#EXBPMxx`).
-    pub bpm_defs: BTreeMap<BmsIndex<BpmTag>, f64>,
+    pub bpm_defs: BTreeMap<BpmIndex, f64>,
     /// Stop-sequence definitions (`#STOPxx`).
-    pub stop_defs: BTreeMap<BmsIndex<StopTag>, f64>,
+    pub stop_defs: BTreeMap<StopIndex, f64>,
     /// Scroll speed multiplier definitions (`#SCROLLxx`).
-    pub scroll_defs: BTreeMap<BmsIndex<ScrollTag>, f64>,
+    pub scroll_defs: BTreeMap<ScrollIndex, f64>,
     /// Visual note-spacing definitions (`#SPEEDxx`).
-    pub speed_defs: BTreeMap<BmsIndex<SpeedTag>, f64>,
+    pub speed_defs: BTreeMap<SpeedIndex, f64>,
 }
 
 impl Timing {

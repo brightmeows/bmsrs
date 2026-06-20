@@ -39,7 +39,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use bms_parser::{BgaLayer, Bms, BpmValue, KeyType};
-use bms_tokenizer::{BmpTag, BmsIndex, WavTag};
+use bms_tokenizer::{BmpIndex, WavIndex};
 use bmsrs_chart::{
     AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, BpmChange, Chart,
     ChartMetadata, Note, NoteData, NoteKind, ScrollChangeEvent, StopEvent, TimingTrack,
@@ -171,7 +171,7 @@ fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<
 fn collect_notes<L: BmsLayout>(
     bms: &Bms,
     table: &MeasureTable,
-    wav_map: &BTreeMap<BmsIndex<WavTag>, u32>,
+    wav_map: &BTreeMap<WavIndex, u32>,
     paired_lns: &[PairedLn],
     consumed: &BTreeSet<usize>,
 ) -> Vec<Note<NoteData>> {
@@ -250,7 +250,7 @@ fn collect_notes<L: BmsLayout>(
 fn collect_bgm(
     bms: &Bms,
     table: &MeasureTable,
-    wav_map: &BTreeMap<BmsIndex<WavTag>, u32>,
+    wav_map: &BTreeMap<WavIndex, u32>,
 ) -> Vec<BgmEvent> {
     bms.messages
         .bgm_events
@@ -264,10 +264,10 @@ fn collect_bgm(
         .collect()
 }
 
-/// Build WAV audio assets and a `BmsIndex<WavTag>` → `u32` lookup map.
+/// Build WAV audio assets and a `WavIndex` → `u32` lookup map.
 fn build_audio_assets(
-    wav_files: &BTreeMap<BmsIndex<WavTag>, String>,
-) -> (BTreeMap<BmsIndex<WavTag>, u32>, Vec<AudioAsset>) {
+    wav_files: &BTreeMap<WavIndex, String>,
+) -> (BTreeMap<WavIndex, u32>, Vec<AudioAsset>) {
     let mut wav_map = BTreeMap::new();
     let mut audio_assets = Vec::new();
     for (&wav_id, path) in wav_files {
@@ -382,7 +382,7 @@ fn build_scroll_events(bms: &Bms, table: &MeasureTable) -> Vec<ScrollChangeEvent
 
 /// Build BGA data from BGA events and BMP file definitions.
 fn build_bga(bms: &Bms, table: &MeasureTable) -> Bga {
-    let mut bmp_map: BTreeMap<BmsIndex<BmpTag>, u32> = BTreeMap::new();
+    let mut bmp_map: BTreeMap<BmpIndex, u32> = BTreeMap::new();
     let mut resources = Vec::new();
     for (&bmp_id, path) in &bms.visual.bmp_files {
         #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]

@@ -185,8 +185,8 @@ mod tests {
     use crate::header::gameplay::Rank;
     use crate::header::timing::StpParams;
     use crate::index::{
-        BmpTag, BmsIndex, BpmTag, ChangeOptionTag, ExRankTag, LnObjTag, ScrollTag, SeekTag,
-        SpeedTag, StopTag, TextTag, WavTag,
+        BmpIndex, BpmIndex, ChangeOptionIndex, ExRankIndex, LnObjIndex, ScrollIndex, SeekIndex,
+        SpeedIndex, StopIndex, TextIndex, WavIndex,
     };
 
     #[test]
@@ -278,7 +278,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Text {
-                id: BmsIndex::<TextTag>::try_from("01").unwrap(),
+                id: TextIndex::try_from("01").unwrap(),
                 value: "in-game text"
             })
         );
@@ -292,7 +292,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Text {
-                id: BmsIndex::<TextTag>::try_from("00").unwrap(),
+                id: TextIndex::try_from("00").unwrap(),
                 value: "\"MISS!!\""
             })
         );
@@ -306,7 +306,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Metadata(BmsHeaderMetadata::Text {
-                id: BmsIndex::<TextTag>::try_from("01").unwrap(),
+                id: TextIndex::try_from("01").unwrap(),
                 value: "some text"
             })
         );
@@ -402,7 +402,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::LnObj(
-                BmsIndex::<LnObjTag>::try_from("01").unwrap()
+                LnObjIndex::try_from("01").unwrap()
             ))
         );
     }
@@ -448,7 +448,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::ChangeOption {
-                id: BmsIndex::<ChangeOptionTag>::try_from("01").unwrap(),
+                id: ChangeOptionIndex::try_from("01").unwrap(),
                 value: "774:HIDDEN_STEALTH"
             })
         );
@@ -777,7 +777,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
-                id: BmsIndex::<WavTag>::try_from("01").unwrap(),
+                id: WavIndex::try_from("01").unwrap(),
                 filename: "kick.wav"
             })
         );
@@ -791,7 +791,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
-                id: BmsIndex::<WavTag>::try_from("2A").unwrap(),
+                id: WavIndex::try_from("2A").unwrap(),
                 filename: "snare.wav"
             })
         );
@@ -832,7 +832,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bmp {
-                id: BmsIndex::<BmpTag>::try_from("01").unwrap(),
+                id: BmpIndex::try_from("01").unwrap(),
                 filename: "bg.bmp"
             })
         );
@@ -946,7 +946,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Seek {
-                id: BmsIndex::<SeekTag>::try_from("01").unwrap(),
+                id: SeekIndex::try_from("01").unwrap(),
                 value: 1.5
             })
         );
@@ -958,7 +958,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::BpmDef {
-                id: BmsIndex::<BpmTag>::try_from("01").unwrap(),
+                id: BpmIndex::try_from("01").unwrap(),
                 value: 180.0
             })
         );
@@ -970,7 +970,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::StopDef {
-                id: BmsIndex::<StopTag>::try_from("01").unwrap(),
+                id: StopIndex::try_from("01").unwrap(),
                 value: 192.0
             })
         );
@@ -982,7 +982,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::ScrollDef {
-                id: BmsIndex::<ScrollTag>::try_from("01").unwrap(),
+                id: ScrollIndex::try_from("01").unwrap(),
                 value: 1.5
             })
         );
@@ -994,7 +994,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::SpeedDef {
-                id: BmsIndex::<SpeedTag>::try_from("01").unwrap(),
+                id: SpeedIndex::try_from("01").unwrap(),
                 value: 2.0
             })
         );
@@ -1006,7 +1006,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Gameplay(BmsHeaderGameplay::ExRank {
-                id: BmsIndex::<ExRankTag>::try_from("01").unwrap(),
+                id: ExRankIndex::try_from("01").unwrap(),
                 value: 5.0
             })
         );
@@ -1089,7 +1089,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
-                id: BmsIndex::<WavTag>::try_from("01").unwrap(),
+                id: WavIndex::try_from("01").unwrap(),
                 filename: "sound.wav"
             })
         );
@@ -1157,7 +1157,7 @@ mod tests {
         assert_eq!(
             result,
             BmsHeader::Timing(BmsHeaderTiming::ExBpm {
-                id: BmsIndex::<BpmTag>::try_from("01").unwrap(),
+                id: BpmIndex::try_from("01").unwrap(),
                 value: 180.0
             })
         );

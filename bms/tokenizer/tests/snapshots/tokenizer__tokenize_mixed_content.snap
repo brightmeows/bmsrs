@@ -1,5 +1,6 @@
 ---
 source: bms/tokenizer/tests/tokenizer.rs
+assertion_line: 67
 expression: tokens
 ---
 [
@@ -45,13 +46,14 @@ expression: tokens
             Header(
                 ResDefAudio(
                     Wav {
-                        id: BmsIndex {
-                            bytes: [
-                                48,
-                                49,
-                            ],
-                            _phantom: PhantomData<(bms_tokenizer::index::WavTag, bms_tokenizer::index::Base62)>,
-                        },
+                        id: WavIndex(
+                            BmsIndex {
+                                bytes: [
+                                    48,
+                                    49,
+                                ],
+                            },
+                        ),
                         filename: "kick.wav",
                     },
                 ),
@@ -67,13 +69,14 @@ expression: tokens
                     body: "11223344",
                     track: 1,
                     channel: Note(
-                        BmsIndex {
-                            bytes: [
-                                49,
-                                49,
-                            ],
-                            _phantom: PhantomData<(bms_tokenizer::index::ChannelTag, bms_tokenizer::index::Base36)>,
-                        },
+                        ChannelIndex(
+                            BmsIndex {
+                                bytes: [
+                                    49,
+                                    49,
+                                ],
+                            },
+                        ),
                     ),
                 },
             ),

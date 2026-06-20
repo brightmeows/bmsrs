@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use crate::index::{BmsIndex, WavTag};
+use crate::index::WavIndex;
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
 /// Parameters for `#EXWAV{id}` — extended WAV with pan/volume/frequency
@@ -135,7 +135,7 @@ pub enum BmsHeaderResDefAudio<C> {
     #[bms_token("#WAV{id} {filename}")]
     Wav {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
-        id: BmsIndex<WavTag>,
+        id: WavIndex,
         /// Path or name of the resource file.
         filename: C,
     },
@@ -147,7 +147,7 @@ pub enum BmsHeaderResDefAudio<C> {
     #[bms_fallback]
     ExWav {
         /// The 2-character index.
-        id: BmsIndex<WavTag>,
+        id: WavIndex,
         /// Parsed EXWAV parameters.
         params: ExWavParams<C>,
     },

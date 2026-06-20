@@ -11,24 +11,28 @@ use thiserror::Error;
 ///
 /// Every variant carries the original input `value` (as the string container
 /// `C`) so callers can inspect or display the raw text that caused the failure.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum BmsTokenizeError<C> {
     /// The measure number in a channel line is not a valid 3-digit value.
+    #[error("invalid measure number: \"{value}\"")]
     InvalidMeasure {
         /// The raw measure string that failed validation.
         value: C,
     },
     /// The channel number in a channel line is not a valid 2-digit value.
+    #[error("invalid channel number: \"{value}\"")]
     InvalidChannel {
         /// The raw channel string that failed validation.
         value: C,
     },
     /// An integer field could not be parsed.
+    #[error("invalid integer: \"{value}\"")]
     InvalidInteger {
         /// The raw input that could not be parsed as an integer.
         value: C,
     },
     /// A float field could not be parsed.
+    #[error("invalid float: \"{value}\"")]
     InvalidFloat {
         /// The raw input that could not be parsed as a float.
         value: C,
@@ -39,6 +43,7 @@ pub enum BmsTokenizeError<C> {
     /// falls outside valid bounds) and "unrecognised" (the value does not
     /// match any known option for a literal enum).  When no specific valid
     /// set is available, `expected` is the empty string.
+    #[error("value out of range: \"{value}\" for {context} (expected {expected})")]
     OutOfRange {
         /// The header command name (e.g., `"#DIFFICULTY"`).
         context: &'static str,
@@ -82,31 +87,6 @@ impl<C> BmsTokenizeError<C> {
         }
     }
 }
-
-impl<C: fmt::Display> fmt::Display for BmsTokenizeError<C> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidMeasure { value } => {
-                write!(f, "invalid measure number: \"{value}\"")
-            }
-            Self::InvalidChannel { value } => {
-                write!(f, "invalid channel number: \"{value}\"")
-            }
-            Self::InvalidInteger { value } => write!(f, "invalid integer: \"{value}\""),
-            Self::InvalidFloat { value } => write!(f, "invalid float: \"{value}\""),
-            Self::OutOfRange {
-                context,
-                value,
-                expected,
-            } => write!(
-                f,
-                "value out of range: \"{value}\" for {context} (expected {expected})"
-            ),
-        }
-    }
-}
-
-impl<C: fmt::Debug + fmt::Display> std::error::Error for BmsTokenizeError<C> {}
 
 /// Conversion from a `FromStr::Err` into a [`BmsTokenizeError`].
 ///
@@ -169,7 +149,7 @@ impl<C> IntoTokensError<C> for ParseBmsValueError {
 ///
 /// When non-empty, the string provides a human-readable hint about the expected
 /// values (e.g., `"expected 1 or 2"`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub struct ParseBmsValueError(pub &'static str);
 
 impl fmt::Display for ParseBmsValueError {
@@ -181,8 +161,6 @@ impl fmt::Display for ParseBmsValueError {
         }
     }
 }
-
-impl std::error::Error for ParseBmsValueError {}
 
 /// Error type for `TryFrom` conversions between token types.
 ///

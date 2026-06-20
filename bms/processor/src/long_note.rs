@@ -14,7 +14,7 @@
 use std::collections::BTreeMap;
 
 use bms_parser::{LongNoteEvent, NoteEvent};
-use bms_tokenizer::{BmsIndex, LnObjTag, WavTag};
+use bms_tokenizer::{LnObjIndex, WavIndex};
 
 use crate::position::MeasureTable;
 
@@ -25,7 +25,7 @@ pub struct PairedLn {
     /// Duration in ticks (end tick - start tick).
     pub duration: u64,
     /// WAV index of the LN start event.
-    pub wav_id: BmsIndex<WavTag>,
+    pub wav_id: WavIndex,
     /// Player number (1 or 2).
     pub player: u8,
     /// Original lane (1-9).
@@ -35,7 +35,7 @@ pub struct PairedLn {
 /// Returns `true` if the WAV index represents an empty / no-note position
 /// (the `"00"` index in BMS notation).
 #[inline]
-fn is_empty_index(idx: BmsIndex<WavTag>) -> bool {
+fn is_empty_index(idx: WavIndex) -> bool {
     idx.as_str() == "00"
 }
 
@@ -149,7 +149,7 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
 /// (both starts and ends) so the caller can remove them.
 pub fn pair_lnobj(
     note_events: &[NoteEvent],
-    ln_obj: BmsIndex<LnObjTag>,
+    ln_obj: LnObjIndex,
     table: &MeasureTable,
 ) -> (Vec<PairedLn>, std::collections::BTreeSet<usize>) {
     let ln_obj_str = ln_obj.as_str();
@@ -188,7 +188,7 @@ pub fn pair_lnobj(
 mod tests {
     use super::*;
     use bms_parser::Position;
-    use bms_tokenizer::LnObjTag;
+    use bms_tokenizer::LnObjIndex;
 
     fn make_table() -> MeasureTable {
         MeasureTable::new(4, &[], 240)
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn lnobj_pairs_start_and_end() {
-        let ln_obj: BmsIndex<LnObjTag> = "FF".parse().unwrap();
+        let ln_obj: LnObjIndex = "FF".parse().unwrap();
         let notes = vec![
             note_event(1, 1, 0, 0, "AA"),
             note_event(1, 1, 1, 0, "FF"), // LNOBJ marker
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn lnobj_consumed_notes_excluded_from_regular() {
-        let ln_obj: BmsIndex<LnObjTag> = "FF".parse().unwrap();
+        let ln_obj: LnObjIndex = "FF".parse().unwrap();
         let notes = vec![
             note_event(1, 1, 0, 0, "AA"),
             note_event(1, 1, 1, 0, "FF"),
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn lnobj_unmatched_marker_produces_no_pair() {
-        let ln_obj: BmsIndex<LnObjTag> = "FF".parse().unwrap();
+        let ln_obj: LnObjIndex = "FF".parse().unwrap();
         let notes = vec![
             note_event(1, 1, 0, 0, "FF"), // marker with no preceding note
         ];

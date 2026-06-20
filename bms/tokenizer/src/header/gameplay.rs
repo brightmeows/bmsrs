@@ -9,7 +9,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::BmsTokenAttr;
-use crate::index::{BmsIndex, ChangeOptionTag, ExRankTag, LnObjTag};
+use crate::index::{ChangeOptionIndex, ExRankIndex, LnObjIndex};
 use crate::{BmsHeader, BmsTryFromError};
 
 /// The play mode specified by `#PLAYER`.
@@ -225,7 +225,7 @@ pub enum BmsHeaderGameplay<C> {
     #[bms_token("#EXRANK{id} {value}")]
     ExRank {
         /// The 2-character index.
-        id: BmsIndex<ExRankTag>,
+        id: ExRankIndex,
         /// Judgment width as a percentage (NORMAL = 100).
         value: f64,
     },
@@ -267,7 +267,7 @@ pub enum BmsHeaderGameplay<C> {
     /// **Caveat**: nanasi and fgt++ have a bug where lowercase indices
     /// are not recognised as `#LNOBJ` markers — use uppercase.
     #[bms_token("#LNOBJ {}")]
-    LnObj(BmsIndex<LnObjTag>),
+    LnObj(LnObjIndex),
     /// `#LNMODE` — force LN / CN / HCN mode (beatoraja extension).
     ///
     /// When present, the chart's long-note type is locked regardless of
@@ -297,7 +297,7 @@ pub enum BmsHeaderGameplay<C> {
     #[bms_token("#CHANGEOPTION{id} {value}")]
     ChangeOption {
         /// The 2-character index.
-        id: BmsIndex<ChangeOptionTag>,
+        id: ChangeOptionIndex,
         /// The option string (e.g., `"774:HIDDEN_STEALTH"`).
         value: C,
     },

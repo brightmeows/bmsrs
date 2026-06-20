@@ -44,9 +44,9 @@ pub use header::{
     BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
 };
 pub use index::{
-    Base16, Base36, Base62, BmpTag, BmsIndex, BmsIndexError, BmsObjectId, BpmTag, ChangeOptionTag,
-    ChannelTag, ExRankTag, LnObjTag, ObjectTag, ScrollTag, SeekTag, SpeedTag, StopTag, TextTag,
-    WavTag,
+    BmpIndex, BmsBase, BmsIndex, BmsIndexError, BpmIndex, ChangeOptionIndex, ChannelIndex,
+    ExRankIndex, LnObjIndex, ObjectIndex, ScrollIndex, SeekIndex, SpeedIndex, StopIndex, TextIndex,
+    WavIndex,
 };
 pub use message::BmsMessage;
 

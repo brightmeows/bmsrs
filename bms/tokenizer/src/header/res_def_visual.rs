@@ -5,7 +5,7 @@
 use std::fmt;
 
 use crate::header::display::PoorBgaMode;
-use crate::index::{BmpTag, BmsIndex, SeekTag};
+use crate::index::{BmpIndex, SeekIndex};
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
 /// Parameters for `#BGA{id}` — image crop-and-place definition.
@@ -316,7 +316,7 @@ pub enum BmsHeaderResDefVisual<C> {
     #[bms_token("#BMP{id} {filename}")]
     Bmp {
         /// The 2-character index.
-        id: BmsIndex<BmpTag>,
+        id: BmpIndex,
         /// Path or name of the resource file.
         filename: C,
     },
@@ -325,7 +325,7 @@ pub enum BmsHeaderResDefVisual<C> {
     #[bms_fallback]
     ExBmp {
         /// The 2-character index.
-        id: BmsIndex<BmpTag>,
+        id: BmpIndex,
         /// Parsed parameters.
         params: ExBmpParams<C>,
     },
@@ -334,7 +334,7 @@ pub enum BmsHeaderResDefVisual<C> {
     #[bms_fallback]
     Bga {
         /// The 2-character index.
-        id: BmsIndex<BmpTag>,
+        id: BmpIndex,
         /// Parsed placement parameters.
         params: BgaParams,
     },
@@ -343,7 +343,7 @@ pub enum BmsHeaderResDefVisual<C> {
     #[bms_fallback]
     AtBga {
         /// The 2-character index.
-        id: BmsIndex<BmpTag>,
+        id: BmpIndex,
         /// Parsed placement parameters.
         params: AtBgaParams,
     },
@@ -356,7 +356,7 @@ pub enum BmsHeaderResDefVisual<C> {
     #[bms_fallback]
     SwBga {
         /// The 2-character index.
-        id: BmsIndex<BmpTag>,
+        id: BmpIndex,
         /// Parsed transition parameters.
         params: SwBgaParams<C>,
     },
@@ -365,7 +365,7 @@ pub enum BmsHeaderResDefVisual<C> {
     #[bms_fallback]
     Argb {
         /// The 2-character index.
-        id: BmsIndex<BmpTag>,
+        id: BmpIndex,
         /// Parsed ARGB values.
         params: ArgbParams,
     },
@@ -390,7 +390,7 @@ pub enum BmsHeaderResDefVisual<C> {
     #[bms_token("#SEEK{id} {value}")]
     Seek {
         /// The 2-character index.
-        id: BmsIndex<SeekTag>,
+        id: SeekIndex,
         /// Seek time in milliseconds.
         value: f64,
     },

@@ -5,8 +5,8 @@
 
 use bms_parser::*;
 use bms_tokenizer::{
-    BmpTag, BmsBaseMode, BmsChannel, BmsIndex, BmsTokenizer, BpmTag, LnMode, LnType, PlayerMode,
-    Rank, StopTag, WavTag,
+    BmpIndex, BmsBaseMode, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, Rank,
+    StopIndex, WavIndex,
 };
 
 /// Helper: parse a BMS string into a `Bms` (default C = &str).
@@ -237,7 +237,7 @@ fn dropped_visual_headers_stored() {
 ",
     );
 
-    let id01: BmsIndex<BmpTag> = "01".try_into().unwrap();
+    let id01: BmpIndex = "01".try_into().unwrap();
 
     // BMP is stored
     assert_eq!(
@@ -560,11 +560,11 @@ fn mixed_headers_and_messages() {
 #[test]
 fn wav_and_bpm_defs() {
     let bms = parse("#WAV01 a.wav\n#WAV02 b.wav\n#BPM01 180.0\n#EXBPM02 200.0\n#STOP01 192\n");
-    let wav1: BmsIndex<WavTag> = "01".parse().unwrap();
-    let wav2: BmsIndex<WavTag> = "02".parse().unwrap();
-    let bpm1: BmsIndex<BpmTag> = "01".parse().unwrap();
-    let bpm2: BmsIndex<BpmTag> = "02".parse().unwrap();
-    let stp1: BmsIndex<StopTag> = "01".parse().unwrap();
+    let wav1: WavIndex = "01".parse().unwrap();
+    let wav2: WavIndex = "02".parse().unwrap();
+    let bpm1: BpmIndex = "01".parse().unwrap();
+    let bpm2: BpmIndex = "02".parse().unwrap();
+    let stp1: StopIndex = "01".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav1).map(String::as_str),
@@ -604,7 +604,7 @@ fn parse_with_string_container() {
     );
     assert_eq!(bms.metadata.title.as_deref(), Some("My Song"));
     assert_eq!(bms.metadata.artist.as_deref(), Some("composer"));
-    let wav_id: BmsIndex<WavTag> = "01".try_into().unwrap();
+    let wav_id: WavIndex = "01".try_into().unwrap();
     assert_eq!(
         bms.audio.wav_files.get(&wav_id).map(String::as_str),
         Some("kick.wav")

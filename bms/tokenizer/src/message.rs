@@ -5,8 +5,8 @@
 //! A channel data line has the form `#ADDR:body`, where:
 //!
 //! - `ADDR` is a string consisting of a **track** (numeric digits, 0-indexed)
-//!   followed by a **channel** (the last 1–2 valid [`Base62`](crate::Base62)
-//!   characters).  For example, in `#00111:...`, the address `00111` has
+//!   followed by a **channel** (the last 1–2 valid Base62 characters
+//!   (`0-9A-Za-z`)).  For example, in `#00111:...`, the address `00111` has
 //!   track `001` and channel `11`.
 //! - `body` is the raw value string — 2-character object indices are parsed
 //!   by downstream (parser) from concatenated raw storage.
@@ -53,7 +53,7 @@
 use std::fmt;
 
 use crate::channel::{BmsChannel, classify_channel};
-use crate::index::{Base36, Base62, BmsCharset as _, BmsIndex, ChannelTag};
+use crate::index::{ChannelIndex, is_base62};
 use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// A channel data line in a BMS file (`#ADDR:body`).
@@ -69,7 +69,7 @@ pub struct BmsMessage<C> {
     /// 0-indexed track number, extracted from the numeric digits in [`addr`](BmsMessage::addr)
     /// that precede the channel suffix.
     pub track: u16,
-    /// Channel number — the last 1–2 valid [`Base62`](crate::Base62) characters
+    /// Channel number — the last 1–2 valid Base62 characters (`0-9A-Za-z`)
     /// from [`addr`](BmsMessage::addr), categorised into a [`BmsChannel`] enum.
     pub channel: BmsChannel,
 }
@@ -132,14 +132,14 @@ pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a st
         let bytes = addr.as_bytes();
         let len = bytes.len();
         let last = bytes[len - 1];
-        if !Base62::is_valid(last) {
+        if !is_base62(last) {
             return Err(BmsTokenizeError::InvalidChannel {
                 value: C::from(addr),
             });
         }
         if len >= 2 {
             let second_last = bytes[len - 2];
-            if Base62::is_valid(second_last) {
+            if is_base62(second_last) {
                 (&addr[len - 2..], &addr[..len - 2])
             } else {
                 (&addr[len - 1..], &addr[..len - 1])
@@ -152,7 +152,7 @@ pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a st
     // Normalise to uppercase; channel IDs are case-insensitive and stored
     // as Base36 (uppercase alphanumeric).
     let channel_upper = channel_str.to_ascii_uppercase();
-    let channel_idx: BmsIndex<ChannelTag, Base36> =
+    let channel_idx: ChannelIndex =
         channel_upper
             .as_str()
             .try_into()
@@ -188,7 +188,7 @@ mod tests {
         crate::message::parse_message_line(s)
     }
 
-    fn idx(s: &str) -> BmsIndex<ChannelTag, Base36> {
+    fn idx(s: &str) -> ChannelIndex {
         let upper = s.to_ascii_uppercase();
         upper.as_str().try_into().unwrap()
     }

@@ -5,7 +5,7 @@ use std::num::NonZeroU8;
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, NoteEvent, Position};
 use bms_processor::BmsProcessor;
 use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
-use bms_tokenizer::{BmsIndex, BpmTag, LnObjTag};
+use bms_tokenizer::{BpmIndex, LnObjIndex};
 use bmsrs_chart::mode::{Lane, PlayerSide};
 use bmsrs_chart::{Note, NoteData, NoteDataLike as _, NoteKind};
 
@@ -273,7 +273,7 @@ fn process_lnobj_produces_long_note() {
     bms.audio
         .wav_files
         .insert("02".parse().unwrap(), "b.wav".to_owned());
-    let ln_obj: BmsIndex<LnObjTag> = "02".parse().unwrap();
+    let ln_obj: LnObjIndex = "02".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
@@ -305,7 +305,7 @@ fn process_lnobj_produces_long_note() {
 fn process_bpm_change_reference_resolved() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    let bpm_id: BmsIndex<BpmTag> = "01".parse().unwrap();
+    let bpm_id: BpmIndex = "01".parse().unwrap();
     bms.timing.bpm_defs.insert(bpm_id, 200.0);
     bms.messages.bpm_changes.push(BpmChange {
         position: Position::new(1, 0, 8),

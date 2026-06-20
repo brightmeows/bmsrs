@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    ArgbParams, AtBgaParams, BgaParams, BmpTag, BmsHeaderResDefVisual, BmsIndex, ExBmpParams,
-    PoorBgaMode, SeekTag, SwBgaParams,
+    ArgbParams, AtBgaParams, BgaParams, BmpIndex, BmsHeaderResDefVisual, ExBmpParams, PoorBgaMode,
+    SeekIndex, SwBgaParams,
 };
 
 // Owned parameter types
@@ -89,19 +89,19 @@ impl<C: AsRef<str>> From<&SwBgaParams<C>> for OwnedSwBgaParams {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Visual {
     /// Image / BGA file definitions (`#BMP`).
-    pub bmp_files: BTreeMap<BmsIndex<BmpTag>, String>,
+    pub bmp_files: BTreeMap<BmpIndex, String>,
     /// Video seek position definitions (`#SEEKxx`).
-    pub seek_defs: BTreeMap<BmsIndex<SeekTag>, f64>,
+    pub seek_defs: BTreeMap<SeekIndex, f64>,
     /// Extended BMP definitions with ARGB tint (`#EXBMPxx`).
-    pub ex_bmp_defs: BTreeMap<BmsIndex<BmpTag>, OwnedExBmpParams>,
+    pub ex_bmp_defs: BTreeMap<BmpIndex, OwnedExBmpParams>,
     /// BGA crop-and-place definitions (`#BGAxx`).
-    pub crop_defs: BTreeMap<BmsIndex<BmpTag>, BgaParams>,
+    pub crop_defs: BTreeMap<BmpIndex, BgaParams>,
     /// BGA crop-and-place (width/height form) (`#@BGAxx`).
-    pub alt_crop_defs: BTreeMap<BmsIndex<BmpTag>, AtBgaParams>,
+    pub alt_crop_defs: BTreeMap<BmpIndex, AtBgaParams>,
     /// Key-bound BGA animation definitions (`#SWBGAxx`).
-    pub sw_bga_defs: BTreeMap<BmsIndex<BmpTag>, OwnedSwBgaParams>,
+    pub sw_bga_defs: BTreeMap<BmpIndex, OwnedSwBgaParams>,
     /// Per-layer colour / alpha overlay definitions (`#ARGBxx`).
-    pub argb_defs: BTreeMap<BmsIndex<BmpTag>, ArgbParams>,
+    pub argb_defs: BTreeMap<BmpIndex, ArgbParams>,
     /// Video file as BGA (`#VIDEOFILE`).
     pub video_file: Option<String>,
     /// Video file as BGA, no loop (`#MOVIE`).

@@ -15,7 +15,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmpTag, BmsChannel, BmsIndex, BpmTag, ScrollTag, StopTag, WavTag};
+use bms_tokenizer::{BmpIndex, BmsChannel, BpmIndex, ScrollIndex, StopIndex, WavIndex};
 
 // Position
 
@@ -65,7 +65,7 @@ pub struct BgmEvent {
     /// Position within the measure.
     pub position: Position,
     /// Reference into the `#WAV` table.
-    pub wav_id: BmsIndex<WavTag>,
+    pub wav_id: WavIndex,
 }
 
 // Playable notes
@@ -91,7 +91,7 @@ pub struct NoteEvent {
     /// Whether the note is visible or invisible.
     pub key_type: KeyType,
     /// Reference into the `#WAV` table.
-    pub wav_id: BmsIndex<WavTag>,
+    pub wav_id: WavIndex,
 }
 
 // Long notes
@@ -110,7 +110,7 @@ pub struct LongNoteEvent {
     /// Lane / key number (1–9).
     pub lane: u8,
     /// Reference into the `#WAV` table.
-    pub wav_id: BmsIndex<WavTag>,
+    pub wav_id: WavIndex,
 }
 
 // Mines
@@ -134,7 +134,7 @@ pub enum BpmValue {
     /// Absolute BPM value (channel `03`).
     Absolute(f64),
     /// Reference to a `#BPMxx` definition (channel `08`).
-    Reference(BmsIndex<BpmTag>),
+    Reference(BpmIndex),
 }
 
 /// A BPM change event (channels `03`, `08`).
@@ -154,7 +154,7 @@ pub struct StopEvent {
     /// Position within the measure.
     pub position: Position,
     /// Reference into the `#STOP` table.
-    pub stop_id: BmsIndex<StopTag>,
+    pub stop_id: StopIndex,
 }
 
 // Scroll
@@ -167,7 +167,7 @@ pub struct ScrollEvent {
     /// Position within the measure.
     pub position: Position,
     /// Reference into the `#SCROLL` table.
-    pub scroll_id: BmsIndex<ScrollTag>,
+    pub scroll_id: ScrollIndex,
 }
 
 // BGA events
@@ -191,7 +191,7 @@ pub struct BgaEvent {
     /// Which BGA layer this event targets.
     pub layer: BgaLayer,
     /// Reference into the `#BMP` table.
-    pub bmp_id: BmsIndex<BmpTag>,
+    pub bmp_id: BmpIndex,
 }
 
 // Measure length
@@ -397,7 +397,7 @@ impl Messages {
     /// Parse BGM events (ch 01) from full concatenated values.
     fn push_bgm_full(&mut self, values: &str, measure: u16, total_objects: u32) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            let Ok(wav_id) = BmsIndex::try_from(val) else {
+            let Ok(wav_id) = val.parse::<WavIndex>() else {
                 continue;
             };
             self.bgm_events.push(BgmEvent {
@@ -435,7 +435,7 @@ impl Messages {
     /// Parse BPM reference changes (ch 08) from full concatenated values.
     fn push_bpm_reference_full(&mut self, values: &str, measure: u16, total_objects: u32) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            let Ok(bpm_id) = BmsIndex::try_from(val) else {
+            let Ok(bpm_id) = val.parse::<BpmIndex>() else {
                 continue;
             };
             self.bpm_changes.push(BpmChange {
@@ -448,7 +448,7 @@ impl Messages {
     /// Parse stop events (ch 09) from full concatenated values.
     fn push_stop_full(&mut self, values: &str, measure: u16, total_objects: u32) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            let Ok(stop_id) = BmsIndex::try_from(val) else {
+            let Ok(stop_id) = val.parse::<StopIndex>() else {
                 continue;
             };
             self.stop_events.push(StopEvent {
@@ -461,7 +461,7 @@ impl Messages {
     /// Parse scroll events (ch 0A) from full concatenated values.
     fn push_scroll_full(&mut self, values: &str, measure: u16, total_objects: u32) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            let Ok(scroll_id) = BmsIndex::try_from(val) else {
+            let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
                 continue;
             };
             self.scroll_events.push(ScrollEvent {
@@ -474,7 +474,7 @@ impl Messages {
     /// Parse BGA display events (ch 04–07) from full concatenated values.
     fn push_bga_full(&mut self, values: &str, measure: u16, layer: BgaLayer, total_objects: u32) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            let Ok(bmp_id) = BmsIndex::try_from(val) else {
+            let Ok(bmp_id) = val.parse::<BmpIndex>() else {
                 continue;
             };
             self.bga_events.push(BgaEvent {
@@ -500,12 +500,12 @@ impl Messages {
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             // "00" = no note — skip entirely. This must happen before
-            // BmsIndex parsing since "00" is a valid index but semantically
+            // parsing since "00" is a valid index but semantically
             // means "no object at this position" in all BMS channels.
             if val == "00" {
                 continue;
             }
-            let Ok(wav_id) = BmsIndex::try_from(val) else {
+            let Ok(wav_id) = val.parse::<WavIndex>() else {
                 continue;
             };
             self.note_events.push(NoteEvent {
@@ -528,7 +528,7 @@ impl Messages {
         total_objects: u32,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            let Ok(wav_id) = BmsIndex::try_from(val) else {
+            let Ok(wav_id) = val.parse::<WavIndex>() else {
                 continue;
             };
             self.long_note_events.push(LongNoteEvent {
@@ -661,7 +661,7 @@ mod tests {
     #[test]
     fn bgm_event_fields() {
         let pos = Position::new(1, 0, 1);
-        let id: BmsIndex<WavTag> = "01".try_into().unwrap();
+        let id: WavIndex = "01".try_into().unwrap();
         let ev = BgmEvent {
             position: pos,
             wav_id: id,
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn note_event_visible() {
         let pos = Position::new(1, 0, 1);
-        let id: BmsIndex<WavTag> = "AA".try_into().unwrap();
+        let id: WavIndex = "AA".try_into().unwrap();
         let ev = NoteEvent {
             position: pos,
             player: 1,
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn bpm_change_reference() {
         let pos = Position::new(0, 0, 1);
-        let id: BmsIndex<BpmTag> = "05".try_into().unwrap();
+        let id: BpmIndex = "05".try_into().unwrap();
         let ev = BpmChange {
             position: pos,
             value: BpmValue::Reference(id),

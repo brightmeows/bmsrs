@@ -5,7 +5,7 @@ use std::fmt;
 
 use crate::BmsTokenAttr;
 use crate::BmsValue;
-use crate::index::{BmsIndex, BpmTag, ScrollTag, SpeedTag, StopTag};
+use crate::index::{BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
 use crate::{BmsHeader, BmsTryFromError};
 
 /// Parameters for `#STP` — bemaniaDX-style stop (absolute time, in ms).
@@ -105,7 +105,7 @@ pub enum BmsHeaderTiming {
     #[bms_token("#BPM{id} {value}")]
     BpmDef {
         /// The 2-character index (e.g., `"01"`, `"2A"`).
-        id: BmsIndex<BpmTag>,
+        id: BpmIndex,
         /// The BPM value (may be fractional or negative).
         value: f64,
     },
@@ -133,7 +133,7 @@ pub enum BmsHeaderTiming {
     #[bms_token("#STOP{id} {value}")]
     StopDef {
         /// The 2-character index.
-        id: BmsIndex<StopTag>,
+        id: StopIndex,
         /// Stop duration in 192nd-note units (may be fractional).
         value: f64,
     },
@@ -145,7 +145,7 @@ pub enum BmsHeaderTiming {
     #[bms_token("#SCROLL{id} {value}")]
     ScrollDef {
         /// The 2-character index.
-        id: BmsIndex<ScrollTag>,
+        id: ScrollIndex,
         /// Scroll speed multiplier.
         value: f64,
     },
@@ -158,7 +158,7 @@ pub enum BmsHeaderTiming {
     #[bms_token("#SPEED{id} {value}")]
     SpeedDef {
         /// The 2-character index.
-        id: BmsIndex<SpeedTag>,
+        id: SpeedIndex,
         /// Speed multiplier value.
         value: f64,
     },
@@ -170,7 +170,7 @@ pub enum BmsHeaderTiming {
     #[bms_token("#EXBPM{id} {value}")]
     ExBpm {
         /// The 2-character index.
-        id: BmsIndex<BpmTag>,
+        id: BpmIndex,
         /// The BPM value.
         value: f64,
     },
