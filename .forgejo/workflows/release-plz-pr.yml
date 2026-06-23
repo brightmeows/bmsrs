@@ -23,16 +23,54 @@ jobs:
           # Persist credentials so git push (called by release-plz) can authenticate.
           persist-credentials: true
 
-      - name: Install release-plz and cargo-semver-checks
-        run: |
-          cargo binstall --no-confirm \
-            release-plz@0.3.159 \
-            cargo-semver-checks@0.48
+      - name: Get Rust version
+        run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> $GITHUB_ENV
 
-      - name: Prepare release PR
+      - name: Restore cargo registry
+        uses: https://data.forgejo.org/actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-reg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-reg-${{ runner.os }}-
+
+      - name: Restore cargo target
+        uses: https://data.forgejo.org/actions/cache@v4
+        with:
+          # 各子目录理由：
+          #   deps/         — registry 依赖的 .rlib/.rmeta，源码路径稳定，编译指纹一致，可重用
+          #   .fingerprint/ — cargo 依赖它的指纹判定 freshness，缺了即使有 .rlib 也会重编
+          #   semver-checks — 基线版本的 rustdoc JSON，版本不变就不会变，免去每次重新生成
+          path: |
+            target/debug/deps
+            target/debug/.fingerprint
+            target/semver-checks
+          key: rust-target-pr-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-target-pr-${{ runner.os }}-${{ env.RUST_VERSION }}-
+
+      - name: Install release-plz and prepare release PR
+        # Uses cargo-binstall — assumes it is pre-installed in the container
+        # (ghcr.io/catthehacker/ubuntu:rust-latest includes it).
+        # CARGO_TARGET_DIR: 将 release-plz 临时目录内的编译重定向到工作区 target，使其被缓存覆盖
+        # CARGO_INCREMENTAL: 增量数据路径绑定临时目录，永不命中，禁用以节省 I/O 和缓存空间
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_INCREMENTAL: 0
         run: |
+          echo "::group::Install release-plz + cargo-semver-checks"
+          cargo binstall --no-confirm release-plz@0.3.159 cargo-semver-checks@0.48
+          echo "::endgroup::"
+
+          echo "::group::Configure git"
           git config --global user.name "BrightMeowS"
           git config --global user.email "brightmeows@163.com"
+          echo "::endgroup::"
+
+          echo "::group::Run release-plz release-pr"
           release-plz release-pr \
             --forge gitea \
             --git-token "${{ secrets.GITHUB_TOKEN }}"
+          echo "::endgroup::"
