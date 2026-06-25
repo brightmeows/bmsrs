@@ -1,22 +1,50 @@
 //! Public position types identifying a note's key.
 //!
-//! A note's position is the pair `(PlayerSide, Lane)` — the deepest public
+//! A note's position is the pair `(NoteSide, Lane)` — the deepest public
 //! types of the chart model. Every note carries this pair alongside its
 //! [`NoteKind`](crate::NoteKind).
 
 use std::num::NonZeroU8;
 
-/// Player side of a note.
+/// Which side of the playfield a note belongs to, as a 1-based index.
 ///
-/// `Player2` is only meaningful for dual-side modes (e.g. beat-14k);
-/// single-player families (e.g. PMS) record `Player1` uniformly.
-#[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PlayerSide {
-    /// First player side.
-    Player1,
-    /// Second player side.
-    Player2,
+/// Stored as a [`NonZeroU8`] so that side numbering is open-ended: current
+/// formats use only sides 1 and 2 (dual-player BMS/BMSON), but future formats
+/// or battle modes may introduce additional sides without changing this type.
+///
+/// Use [`NoteSide::new`] for arbitrary indices, or the [`NoteSide::ONE`] /
+/// [`NoteSide::TWO`] constants for the common dual-player case.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct NoteSide(NonZeroU8);
+
+impl NoteSide {
+    /// Side 1 (1P).
+    pub const ONE: Self = Self(NonZeroU8::MIN);
+
+    /// Side 2 (2P).
+    pub const TWO: Self = match NonZeroU8::new(2) {
+        Some(n) => Self(n),
+        None => panic!("2 is non-zero"),
+    };
+
+    /// Construct a side from a non-zero index. Any positive value is valid,
+    /// so the type is open to future formats with more than two sides.
+    #[must_use]
+    pub const fn new(value: NonZeroU8) -> Self {
+        Self(value)
+    }
+
+    /// The 1-based side index.
+    #[must_use]
+    pub const fn get(self) -> NonZeroU8 {
+        self.0
+    }
+
+    /// The side index as a plain `u8`, for table lookups.
+    #[must_use]
+    pub const fn as_u8(self) -> u8 {
+        self.0.get()
+    }
 }
 
 /// Which key a note sits on, independent of player side.

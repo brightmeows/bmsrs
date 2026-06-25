@@ -4,7 +4,7 @@ mod helper;
 
 use std::num::NonZeroU8;
 
-use bmsrs_chart::{BgmEvent, Lane, Note, NoteData, NoteKind, PlayerSide};
+use bmsrs_chart::{BgmEvent, Lane, Note, NoteData, NoteKind, NoteSide};
 use helper::make_test_chart;
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -19,7 +19,7 @@ const fn note(tick: u64) -> Note {
         tick,
         audio: None,
         data: NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: Lane::Key(nz(1)),
             kind: NoteKind::Normal,
         },

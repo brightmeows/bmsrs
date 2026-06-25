@@ -22,7 +22,7 @@
 //! ```
 //! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
-//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, PlayerSide,
+//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, NoteSide,
 //!     TimingTrack, Bga,
 //! };
 //!
@@ -43,7 +43,7 @@
 //!         tick: 0,
 //!         audio: None,
 //!         data: NoteData {
-//!             side: PlayerSide::Player1,
+//!             side: NoteSide::ONE,
 //!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
 //!             kind: NoteKind::Normal,
 //!         },
@@ -65,7 +65,7 @@ pub mod timing;
 pub mod visual;
 
 pub use audio::{AudioAsset, BgmEvent};
-pub use mode::{Lane, PlayerSide};
+pub use mode::{Lane, NoteSide};
 pub use note::{Note, NoteData, NoteDataLike, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingTrack};
 pub use visual::{BarLine, Bga, BgaResource, BgaTimelineEvent, ScrollChangeEvent};
@@ -95,7 +95,7 @@ pub struct ChartMetadata {
 /// All event vectors should be sorted by tick ascending — processors
 /// guarantee this, and the player relies on it for binary-search queries.
 ///
-/// Each note carries its position as `(PlayerSide, Lane)` directly, so the
+/// Each note carries its position as `(NoteSide, Lane)` directly, so the
 /// chart needs no separate mode field.
 ///
 /// # Fields

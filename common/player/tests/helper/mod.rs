@@ -1,5 +1,5 @@
 use bmsrs_chart::{
-    Bga, Chart, ChartMetadata, Lane, Note, NoteData, NoteKind, PlayerSide, TimingTrack,
+    Bga, Chart, ChartMetadata, Lane, Note, NoteData, NoteKind, NoteSide, TimingTrack,
 };
 
 pub fn make_chart(notes: Vec<Note>) -> Chart {
@@ -27,7 +27,7 @@ pub const fn note(tick: u64, lane: Lane, kind: NoteKind) -> Note {
         tick,
         audio: None,
         data: NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane,
             kind,
         },

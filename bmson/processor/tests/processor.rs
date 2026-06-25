@@ -6,7 +6,7 @@ use bmson_def::{
 };
 use bmson_processor::BmsonProcessor;
 use bmson_processor::layout::{Beat, BmsonLayout as _, GenericLayout, Pms};
-use bmsrs_chart::mode::{Lane, PlayerSide};
+use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{NoteData, NoteDataLike as _, NoteKind};
 use std::num::NonZeroU8;
 use std::path::Path;
@@ -99,7 +99,7 @@ fn bme_bmson_x_aligns_scratch_with_keys() {
     assert_eq!(
         Beat::map_x(1),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(1),
             kind: NoteKind::Normal
         })
@@ -107,7 +107,7 @@ fn bme_bmson_x_aligns_scratch_with_keys() {
     assert_eq!(
         Beat::map_x(5),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(5),
             kind: NoteKind::Normal
         })
@@ -115,7 +115,7 @@ fn bme_bmson_x_aligns_scratch_with_keys() {
     assert_eq!(
         Beat::map_x(6),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(6),
             kind: NoteKind::Normal
         })
@@ -123,7 +123,7 @@ fn bme_bmson_x_aligns_scratch_with_keys() {
     assert_eq!(
         Beat::map_x(8),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: sc(1),
             kind: NoteKind::Normal
         })
@@ -131,7 +131,7 @@ fn bme_bmson_x_aligns_scratch_with_keys() {
     assert_eq!(
         Beat::map_x(7),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(7),
             kind: NoteKind::Normal
         })
@@ -144,7 +144,7 @@ fn pms_bmson_popn_9k_maps_nine_keys() {
     assert_eq!(
         Pms::map_x(1),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(1),
             kind: NoteKind::Normal
         })
@@ -152,7 +152,7 @@ fn pms_bmson_popn_9k_maps_nine_keys() {
     assert_eq!(
         Pms::map_x(9),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(9),
             kind: NoteKind::Normal
         })
@@ -166,7 +166,7 @@ fn generic_maps_by_keys() {
     assert_eq!(
         layout.map_x(1),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(1),
             kind: NoteKind::Normal
         })
@@ -174,7 +174,7 @@ fn generic_maps_by_keys() {
     assert_eq!(
         layout.map_x(4),
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key(4),
             kind: NoteKind::Normal
         })
@@ -280,7 +280,7 @@ fn process_default_beat_hint_uses_bme() {
     let chart = BmsonProcessor::process_default(&bmson).expect("processing succeeds");
 
     assert_eq!(chart.notes.len(), 1);
-    assert_eq!(chart.notes[0].data.side(), PlayerSide::Player1);
+    assert_eq!(chart.notes[0].data.side(), NoteSide::ONE);
     assert_eq!(chart.notes[0].data.lane(), sc(1));
 }
 

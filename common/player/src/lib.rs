@@ -10,7 +10,7 @@
 //! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, PlayerSide,
+//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, NoteSide,
 //!     TimingTrack, Bga,
 //! };
 //! use bmsrs_player::Player;
@@ -29,7 +29,7 @@
 //!         tick: 480,
 //!         audio: None,
 //!         data: NoteData {
-//!             side: PlayerSide::Player1,
+//!             side: NoteSide::ONE,
 //!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
 //!             kind: NoteKind::Normal,
 //!         },
@@ -53,7 +53,7 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, BarLine, BgaTimelineEvent, BgmEvent, Chart, Lane, Note, NoteDataLike, NoteKind,
-    PlayerSide,
+    NoteSide,
 };
 
 use crate::timing::TimingCache;
@@ -180,7 +180,7 @@ impl<T: NoteDataLike> Player<T> {
     /// Return an iterator over notes at `(side, lane)` within `[from_tick, to_tick)`.
     pub fn notes_in_lane(
         &self,
-        side: PlayerSide,
+        side: NoteSide,
         lane: Lane,
         from_tick: u64,
         to_tick: u64,

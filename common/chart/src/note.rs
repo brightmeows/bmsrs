@@ -1,12 +1,12 @@
 //! Note types and the [`NoteDataLike`] trait.
 //!
 //! Each note in a [`crate::Chart`] carries a `T: NoteDataLike` that provides
-//! the position triple `(PlayerSide, Lane)` plus the note kind — the minimum the
+//! the position triple `(NoteSide, Lane)` plus the note kind — the minimum the
 //! Player needs to match and judge notes.
 
 use std::fmt::Debug;
 
-use crate::mode::{Lane, PlayerSide};
+use crate::mode::{Lane, NoteSide};
 
 /// The kind of a playable note.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -41,21 +41,21 @@ pub enum NoteKind {
 ///
 /// ```
 /// use std::num::NonZeroU8;
-/// use bmsrs_chart::mode::{Lane, PlayerSide};
+/// use bmsrs_chart::mode::{Lane, NoteSide};
 /// use bmsrs_chart::note::{NoteData, NoteDataLike, NoteKind};
 ///
 /// let data = NoteData {
-///     side: PlayerSide::Player1,
+///     side: NoteSide::ONE,
 ///     lane: Lane::Key(NonZeroU8::new(3).unwrap()),
 ///     kind: NoteKind::Normal,
 /// };
-/// assert_eq!(data.side(), PlayerSide::Player1);
+/// assert_eq!(data.side(), NoteSide::ONE);
 /// assert_eq!(data.lane(), Lane::Key(NonZeroU8::new(3).unwrap()));
 /// assert_eq!(data.kind(), NoteKind::Normal);
 /// ```
 pub trait NoteDataLike: Clone + Debug + PartialEq {
     /// Which player side the note belongs to.
-    fn side(&self) -> PlayerSide;
+    fn side(&self) -> NoteSide;
     /// Which key the note sits on.
     fn lane(&self) -> Lane;
     /// Note kind.
@@ -66,7 +66,7 @@ pub trait NoteDataLike: Clone + Debug + PartialEq {
 #[derive(Clone, Debug, PartialEq)]
 pub struct NoteData {
     /// Player side.
-    pub side: PlayerSide,
+    pub side: NoteSide,
     /// Key position.
     pub lane: Lane,
     /// Note kind.
@@ -75,7 +75,7 @@ pub struct NoteData {
 
 impl NoteDataLike for NoteData {
     #[inline]
-    fn side(&self) -> PlayerSide {
+    fn side(&self) -> NoteSide {
         self.side
     }
 

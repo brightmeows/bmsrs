@@ -8,21 +8,21 @@
 
 use std::num::NonZeroU8;
 
-use bmsrs_chart::mode::{Lane, PlayerSide};
+use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::note::{NoteData, NoteKind};
 
 /// A decoded BMS channel identifier: the `(player, lane)` pair extracted
 /// from a raw BMS channel byte (e.g. `"19"` → `{ player: 1, lane: 9 }`).
 ///
 /// Construction validates `player ∈ {1, 2}` and `lane ∈ {1..=9}`, so
-/// downstream code can safely call [`player_side`](Self::player_side) and
+/// downstream code can safely call [`note_side`](Self::note_side) and
 /// [`lane`](Self::lane) without extra checks.  The lane value is the decoded
 /// number (1–9), **not** the raw channel byte.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BmsChannel {
-    /// Player side, stored as the validated [`PlayerSide`] (guaranteed by
+    /// Player side, stored as the validated [`NoteSide`] (guaranteed by
     /// [`new`](Self::new) to be `Player1` or `Player2`).
-    player: PlayerSide,
+    player: NoteSide,
     /// Lane / key number (1–9).
     lane: u8,
 }
@@ -34,8 +34,8 @@ impl BmsChannel {
     #[must_use]
     pub const fn new(player: u8, lane: u8) -> Option<Self> {
         let side = match player {
-            1 => PlayerSide::Player1,
-            2 => PlayerSide::Player2,
+            1 => NoteSide::ONE,
+            2 => NoteSide::TWO,
             _ => return None,
         };
         if matches!(lane, 1..=9) {
@@ -51,12 +51,12 @@ impl BmsChannel {
         self.lane
     }
 
-    /// The validated [`PlayerSide`] of this channel.
+    /// The validated [`NoteSide`] of this channel.
     ///
     /// [`new`](Self::new) guarantees the player is `Player1` or `Player2`,
     /// so this is a direct field access with no fallible conversion.
     #[must_use]
-    pub const fn player_side(self) -> PlayerSide {
+    pub const fn note_side(self) -> NoteSide {
         self.player
     }
 }
@@ -88,7 +88,7 @@ pub struct Bme;
 impl BmsLayout for Bme {
     /// Decode a BMS `(player, lane)` pair into the BME-family position.
     fn map_channel(ch: BmsChannel) -> Option<NoteData> {
-        let side = ch.player_side();
+        let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
             2 => Lane::Key(nz(2)?),
@@ -117,7 +117,7 @@ pub struct Nanasi;
 impl BmsLayout for Nanasi {
     /// Decode a BMS `(player, lane)` pair into the Nanasi-family position.
     fn map_channel(ch: BmsChannel) -> Option<NoteData> {
-        let side = ch.player_side();
+        let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
             2 => Lane::Key(nz(2)?),
@@ -148,23 +148,23 @@ impl BmsLayout for Pms {
     /// Decode a BMS `(player, lane)` pair into the PMS-family position.
     ///
     /// KEY1-5 come from 1P channels `11-15`; KEY6-9 come from 2P channels
-    /// `22-25` (decoded `(2, 2..=5)`). All keys report `Player1` because PMS
+    /// `22-25` (decoded `(2, 2..=5)`). All keys report `NoteSide::ONE` because PMS
     /// is single-player.
     fn map_channel(ch: BmsChannel) -> Option<NoteData> {
-        let key = match (ch.player_side(), ch.lane()) {
-            (PlayerSide::Player1, 1) => Lane::Key(nz(1)?),
-            (PlayerSide::Player1, 2) => Lane::Key(nz(2)?),
-            (PlayerSide::Player1, 3) => Lane::Key(nz(3)?),
-            (PlayerSide::Player1, 4) => Lane::Key(nz(4)?),
-            (PlayerSide::Player1, 5) => Lane::Key(nz(5)?),
-            (PlayerSide::Player2, 2) => Lane::Key(nz(6)?),
-            (PlayerSide::Player2, 3) => Lane::Key(nz(7)?),
-            (PlayerSide::Player2, 4) => Lane::Key(nz(8)?),
-            (PlayerSide::Player2, 5) => Lane::Key(nz(9)?),
+        let key = match (ch.note_side().as_u8(), ch.lane()) {
+            (1, 1) => Lane::Key(nz(1)?),
+            (1, 2) => Lane::Key(nz(2)?),
+            (1, 3) => Lane::Key(nz(3)?),
+            (1, 4) => Lane::Key(nz(4)?),
+            (1, 5) => Lane::Key(nz(5)?),
+            (2, 2) => Lane::Key(nz(6)?),
+            (2, 3) => Lane::Key(nz(7)?),
+            (2, 4) => Lane::Key(nz(8)?),
+            (2, 5) => Lane::Key(nz(9)?),
             _ => return None,
         };
         Some(NoteData {
-            side: PlayerSide::Player1,
+            side: NoteSide::ONE,
             lane: key,
             kind: NoteKind::Normal,
         })
@@ -181,7 +181,7 @@ pub struct PmsBme;
 impl BmsLayout for PmsBme {
     /// Decode a BMS `(player, lane)` pair into the PMS-BME-type position.
     fn map_channel(ch: BmsChannel) -> Option<NoteData> {
-        let side = ch.player_side();
+        let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
             2 => Lane::Key(nz(2)?),
@@ -211,84 +211,84 @@ pub struct DscOctFp;
 impl BmsLayout for DscOctFp {
     /// Decode a BMS `(player, lane)` pair into the DscOctFp-family position.
     fn map_channel(ch: BmsChannel) -> Option<NoteData> {
-        match (ch.player_side(), ch.lane()) {
-            (PlayerSide::Player1, 1) => Some(NoteData {
-                side: PlayerSide::Player1,
+        match (ch.note_side().as_u8(), ch.lane()) {
+            (1, 1) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Key(nz(1)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player1, 2) => Some(NoteData {
-                side: PlayerSide::Player1,
+            (1, 2) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Key(nz(2)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player1, 3) => Some(NoteData {
-                side: PlayerSide::Player1,
+            (1, 3) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Key(nz(3)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player1, 4) => Some(NoteData {
-                side: PlayerSide::Player1,
+            (1, 4) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Key(nz(4)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player1, 5) => Some(NoteData {
-                side: PlayerSide::Player1,
+            (1, 5) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Key(nz(5)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player1, 6) => Some(NoteData {
-                side: PlayerSide::Player1,
+            (1, 6) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Scratch(nz(1)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player1, 8) => Some(NoteData {
-                side: PlayerSide::Player1,
+            (1, 8) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Key(nz(6)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player1, 9) => Some(NoteData {
-                side: PlayerSide::Player1,
+            (1, 9) => Some(NoteData {
+                side: NoteSide::ONE,
                 lane: Lane::Key(nz(7)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 1) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 1) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::FootPedal,
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 2) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 2) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::Key(nz(1)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 3) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 3) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::Key(nz(2)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 4) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 4) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::Key(nz(3)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 5) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 5) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::Key(nz(4)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 6) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 6) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::Scratch(nz(2)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 8) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 8) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::Key(nz(5)?),
                 kind: NoteKind::Normal,
             }),
-            (PlayerSide::Player2, 9) => Some(NoteData {
-                side: PlayerSide::Player2,
+            (2, 9) => Some(NoteData {
+                side: NoteSide::TWO,
                 lane: Lane::Key(nz(6)?),
                 kind: NoteKind::Normal,
             }),
