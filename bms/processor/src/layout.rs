@@ -34,8 +34,8 @@ impl BmsChannel {
     #[must_use]
     pub const fn new(player: u8, lane: u8) -> Option<Self> {
         let side = match player {
-            1 => NoteSide::ONE,
-            2 => NoteSide::TWO,
+            1 => NoteSide::P1,
+            2 => NoteSide::P2,
             _ => return None,
         };
         if matches!(lane, 1..=9) {
@@ -148,7 +148,7 @@ impl BmsLayout for Pms {
     /// Decode a BMS `(player, lane)` pair into the PMS-family position.
     ///
     /// KEY1-5 come from 1P channels `11-15`; KEY6-9 come from 2P channels
-    /// `22-25` (decoded `(2, 2..=5)`). All keys report `NoteSide::ONE` because PMS
+    /// `22-25` (decoded `(2, 2..=5)`). All keys report `NoteSide::P1` because PMS
     /// is single-player.
     fn map_channel(ch: BmsChannel) -> Option<NoteData> {
         let key = match (ch.note_side().as_u8(), ch.lane()) {
@@ -164,7 +164,7 @@ impl BmsLayout for Pms {
             _ => return None,
         };
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key,
             kind: NoteKind::Normal,
         })
@@ -213,82 +213,82 @@ impl BmsLayout for DscOctFp {
     fn map_channel(ch: BmsChannel) -> Option<NoteData> {
         match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(1)?),
                 kind: NoteKind::Normal,
             }),
             (1, 2) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(2)?),
                 kind: NoteKind::Normal,
             }),
             (1, 3) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(3)?),
                 kind: NoteKind::Normal,
             }),
             (1, 4) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(4)?),
                 kind: NoteKind::Normal,
             }),
             (1, 5) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(5)?),
                 kind: NoteKind::Normal,
             }),
             (1, 6) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Scratch(nz(1)?),
                 kind: NoteKind::Normal,
             }),
             (1, 8) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(6)?),
                 kind: NoteKind::Normal,
             }),
             (1, 9) => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(7)?),
                 kind: NoteKind::Normal,
             }),
             (2, 1) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::FootPedal,
                 kind: NoteKind::Normal,
             }),
             (2, 2) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Key(nz(1)?),
                 kind: NoteKind::Normal,
             }),
             (2, 3) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Key(nz(2)?),
                 kind: NoteKind::Normal,
             }),
             (2, 4) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Key(nz(3)?),
                 kind: NoteKind::Normal,
             }),
             (2, 5) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Key(nz(4)?),
                 kind: NoteKind::Normal,
             }),
             (2, 6) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Scratch(nz(2)?),
                 kind: NoteKind::Normal,
             }),
             (2, 8) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Key(nz(5)?),
                 kind: NoteKind::Normal,
             }),
             (2, 9) => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Key(nz(6)?),
                 kind: NoteKind::Normal,
             }),

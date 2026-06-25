@@ -29,7 +29,7 @@
 //!         tick: 480,
 //!         audio: None,
 //!         data: NoteData {
-//!             side: NoteSide::ONE,
+//!             side: NoteSide::P1,
 //!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
 //!             kind: NoteKind::Normal,
 //!         },

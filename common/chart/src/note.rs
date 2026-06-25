@@ -45,11 +45,11 @@ pub enum NoteKind {
 /// use bmsrs_chart::note::{NoteData, NoteDataLike, NoteKind};
 ///
 /// let data = NoteData {
-///     side: NoteSide::ONE,
+///     side: NoteSide::P1,
 ///     lane: Lane::Key(NonZeroU8::new(3).unwrap()),
 ///     kind: NoteKind::Normal,
 /// };
-/// assert_eq!(data.side(), NoteSide::ONE);
+/// assert_eq!(data.side(), NoteSide::P1);
 /// assert_eq!(data.lane(), Lane::Key(NonZeroU8::new(3).unwrap()));
 /// assert_eq!(data.kind(), NoteKind::Normal);
 /// ```

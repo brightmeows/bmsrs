@@ -27,7 +27,7 @@ pub const fn note(tick: u64, lane: Lane, kind: NoteKind) -> Note {
         tick,
         audio: None,
         data: NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane,
             kind,
         },

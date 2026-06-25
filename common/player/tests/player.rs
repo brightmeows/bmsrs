@@ -105,9 +105,7 @@ fn notes_in_lane_filters_by_side_and_lane() {
     ]);
     let player = Player::new(chart);
 
-    let lane1: Vec<&Note> = player
-        .notes_in_lane(NoteSide::ONE, key(1), 0, 960)
-        .collect();
+    let lane1: Vec<&Note> = player.notes_in_lane(NoteSide::P1, key(1), 0, 960).collect();
     assert_eq!(lane1.len(), 2);
     assert_eq!(lane1[0].tick, 0);
     assert_eq!(lane1[1].tick, 480);

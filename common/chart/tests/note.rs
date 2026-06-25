@@ -8,11 +8,11 @@ use bmsrs_chart::note::{NoteData, NoteDataLike as _, NoteKind};
 #[test]
 fn default_note_data_side_lane_and_kind() {
     let data = NoteData {
-        side: NoteSide::ONE,
+        side: NoteSide::P1,
         lane: Lane::Key(NonZeroU8::new(5).unwrap()),
         kind: NoteKind::Long { duration: 480 },
     };
-    assert_eq!(data.side(), NoteSide::ONE);
+    assert_eq!(data.side(), NoteSide::P1);
     assert_eq!(data.lane(), Lane::Key(NonZeroU8::new(5).unwrap()));
     assert_eq!(data.kind(), NoteKind::Long { duration: 480 });
 }

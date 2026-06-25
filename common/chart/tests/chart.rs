@@ -19,7 +19,7 @@ const fn note(tick: u64) -> Note {
         tick,
         audio: None,
         data: NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: Lane::Key(nz(1)),
             kind: NoteKind::Normal,
         },

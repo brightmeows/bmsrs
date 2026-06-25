@@ -49,22 +49,22 @@ impl Beat {
     pub fn from_bmson(x: u64) -> Option<NoteData> {
         match x {
             1..=7 => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(x as u8)?),
                 kind: NoteKind::Normal,
             }),
             8 => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Scratch(nz(1)?),
                 kind: NoteKind::Normal,
             }),
             9..=15 => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Key(nz((x - 8) as u8)?),
                 kind: NoteKind::Normal,
             }),
             16 => Some(NoteData {
-                side: NoteSide::TWO,
+                side: NoteSide::P2,
                 lane: Lane::Scratch(nz(1)?),
                 kind: NoteKind::Normal,
             }),
@@ -94,7 +94,7 @@ impl Pms {
     pub fn from_bmson(x: u64) -> Option<NoteData> {
         match x {
             1..=9 => Some(NoteData {
-                side: NoteSide::ONE,
+                side: NoteSide::P1,
                 lane: Lane::Key(nz(x as u8)?),
                 kind: NoteKind::Normal,
             }),
@@ -133,7 +133,7 @@ impl GenericLayout {
         }
         let n = nz(u8::try_from(x).ok()?)?;
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: Lane::Key(n),
             kind: NoteKind::Normal,
         })

@@ -38,7 +38,7 @@ fn bme_maps_key7_channel_19() {
     assert_eq!(
         Bme::map_channel(ch(1, 9)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key(7),
             kind: NoteKind::Normal
         })
@@ -50,7 +50,7 @@ fn bme_maps_both_player_sides() {
     assert_eq!(
         Bme::map_channel(ch(2, 6)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: sc(1),
             kind: NoteKind::Normal
         })
@@ -58,7 +58,7 @@ fn bme_maps_both_player_sides() {
     assert_eq!(
         Bme::map_channel(ch(2, 6)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: Lane::Scratch(NonZeroU8::new(1).unwrap()),
             kind: NoteKind::Normal
         })
@@ -66,7 +66,7 @@ fn bme_maps_both_player_sides() {
     assert_eq!(
         Bme::map_channel(ch(2, 9)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: key(7),
             kind: NoteKind::Normal
         })
@@ -79,7 +79,7 @@ fn pms_maps_cross_side_channels_to_single_player() {
     assert_eq!(
         Pms::map_channel(ch(1, 1)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key(1),
             kind: NoteKind::Normal
         })
@@ -87,7 +87,7 @@ fn pms_maps_cross_side_channels_to_single_player() {
     assert_eq!(
         Pms::map_channel(ch(1, 5)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key(5),
             kind: NoteKind::Normal
         })
@@ -96,7 +96,7 @@ fn pms_maps_cross_side_channels_to_single_player() {
     assert_eq!(
         Pms::map_channel(ch(2, 2)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key(6),
             kind: NoteKind::Normal
         })
@@ -104,7 +104,7 @@ fn pms_maps_cross_side_channels_to_single_player() {
     assert_eq!(
         Pms::map_channel(ch(2, 5)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key(9),
             kind: NoteKind::Normal
         })
@@ -118,7 +118,7 @@ fn nanasi_maps_foot_pedal_channel_17() {
     assert_eq!(
         Nanasi::map_channel(ch(1, 7)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: PEDAL,
             kind: NoteKind::Normal
         })
@@ -126,7 +126,7 @@ fn nanasi_maps_foot_pedal_channel_17() {
     assert_eq!(
         Nanasi::map_channel(ch(2, 7)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: PEDAL,
             kind: NoteKind::Normal
         })
@@ -152,7 +152,7 @@ fn process_basic_note() {
 
     assert_eq!(chart.notes.len(), 1);
     assert_eq!(chart.notes[0].tick, 0);
-    assert_eq!(chart.notes[0].data.side(), NoteSide::ONE);
+    assert_eq!(chart.notes[0].data.side(), NoteSide::P1);
     assert_eq!(chart.notes[0].data.lane(), key(1));
     assert_eq!(chart.notes[0].data.kind(), NoteKind::Normal);
     assert_eq!(chart.audio_assets.len(), 1);
@@ -231,7 +231,7 @@ fn process_metadata_from_headers() {
 #[test]
 fn process_default_uses_bme_and_maps_both_sides() {
     // process_default is unconditional Bme (the #PLAYER header does not
-    // affect mapping). A 2P note reports NoteSide::TWO.
+    // affect mapping). A 2P note reports NoteSide::P2.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.audio
@@ -259,8 +259,8 @@ fn process_default_uses_bme_and_maps_both_sides() {
         .iter()
         .map(|n| (n.data.side(), n.data.lane()))
         .collect();
-    assert!(positions.contains(&(NoteSide::ONE, key(1))));
-    assert!(positions.contains(&(NoteSide::TWO, key(1))));
+    assert!(positions.contains(&(NoteSide::P1, key(1))));
+    assert!(positions.contains(&(NoteSide::P2, key(1))));
 }
 
 #[test]
@@ -356,7 +356,7 @@ fn pms_bme_reinterprets_16_17_as_keys() {
     assert_eq!(
         PmsBme::map_channel(ch(1, 8)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key(6),
             kind: NoteKind::Normal
         })
@@ -364,7 +364,7 @@ fn pms_bme_reinterprets_16_17_as_keys() {
     assert_eq!(
         PmsBme::map_channel(ch(1, 6)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: key(8),
             kind: NoteKind::Normal
         })
@@ -372,7 +372,7 @@ fn pms_bme_reinterprets_16_17_as_keys() {
     assert_eq!(
         PmsBme::map_channel(ch(2, 7)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: key(9),
             kind: NoteKind::Normal
         })
@@ -385,7 +385,7 @@ fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
     assert_eq!(
         DscOctFp::map_channel(ch(1, 6)),
         Some(NoteData {
-            side: NoteSide::ONE,
+            side: NoteSide::P1,
             lane: sc(1),
             kind: NoteKind::Normal
         })
@@ -394,7 +394,7 @@ fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
     assert_eq!(
         DscOctFp::map_channel(ch(2, 1)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: PEDAL,
             kind: NoteKind::Normal
         })
@@ -403,7 +403,7 @@ fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
     assert_eq!(
         DscOctFp::map_channel(ch(2, 6)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: sc(2),
             kind: NoteKind::Normal
         })
@@ -415,7 +415,7 @@ fn pms_bme_maps_second_player_side() {
     assert_eq!(
         PmsBme::map_channel(ch(2, 1)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: key(1),
             kind: NoteKind::Normal
         })
@@ -423,7 +423,7 @@ fn pms_bme_maps_second_player_side() {
     assert_eq!(
         PmsBme::map_channel(ch(2, 9)),
         Some(NoteData {
-            side: NoteSide::TWO,
+            side: NoteSide::P2,
             lane: key(7),
             kind: NoteKind::Normal
         })

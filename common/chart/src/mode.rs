@@ -12,17 +12,17 @@ use std::num::NonZeroU8;
 /// formats use only sides 1 and 2 (dual-player BMS/BMSON), but future formats
 /// or battle modes may introduce additional sides without changing this type.
 ///
-/// Use [`NoteSide::new`] for arbitrary indices, or the [`NoteSide::ONE`] /
-/// [`NoteSide::TWO`] constants for the common dual-player case.
+/// Use [`NoteSide::new`] for arbitrary indices, or the [`NoteSide::P1`] /
+/// [`NoteSide::P2`] constants for the common dual-player case.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NoteSide(NonZeroU8);
 
 impl NoteSide {
     /// Side 1 (1P).
-    pub const ONE: Self = Self(NonZeroU8::MIN);
+    pub const P1: Self = Self(NonZeroU8::MIN);
 
     /// Side 2 (2P).
-    pub const TWO: Self = match NonZeroU8::new(2) {
+    pub const P2: Self = match NonZeroU8::new(2) {
         Some(n) => Self(n),
         None => panic!("2 is non-zero"),
     };
