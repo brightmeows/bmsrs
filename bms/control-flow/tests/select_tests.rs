@@ -788,3 +788,27 @@ fn switch_insane_multi_level_select() -> TestResult {
     assert!(wav_filenames(&result_4).is_empty());
     Ok(())
 }
+
+#[test]
+fn random_zero_yields_empty_branch_without_panicking() -> TestResult {
+    // `#RANDOM 0` is malformed (empty range); select_branches must not
+    // panic — it uses value 0, which matches no `#IF`, so the block is a
+    // silent empty.
+    let doc = build_doc("#RANDOM 0\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#ENDRANDOM")?;
+    let (tokens, decisions) = doc.select_branches(&mut SequenceRng::new(&[]));
+    assert_eq!(decisions.decisions.len(), 1);
+    assert_eq!(decisions.decisions[0].value, 0);
+    assert!(wav_filenames(&tokens).is_empty());
+    Ok(())
+}
+
+#[test]
+fn switch_zero_yields_empty_branch_without_panicking() -> TestResult {
+    // `#SWITCH 0` is malformed (empty range); same graceful-empty contract.
+    let doc = build_doc("#SWITCH 0\n#CASE 1\n#WAV01 a.wav\n#SKIP 0\n#ENDSW")?;
+    let (tokens, decisions) = doc.select_branches(&mut SequenceRng::new(&[]));
+    assert_eq!(decisions.decisions.len(), 1);
+    assert_eq!(decisions.decisions[0].value, 0);
+    assert!(wav_filenames(&tokens).is_empty());
+    Ok(())
+}

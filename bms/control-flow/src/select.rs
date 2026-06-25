@@ -59,7 +59,12 @@ fn select_block<C: Clone + PartialEq>(
 ) {
     match block {
         FlowBlock::Random(r) => {
+            // `#RANDOM 0` is malformed (an empty range would panic in the
+            // RNG). Treat it as a value matching no `#IF` branch, yielding a
+            // silent empty block — consistent with how unmatched branches
+            // are handled below.
             let value = match r.value {
+                BranchValue::Max(0) => 0,
                 BranchValue::Max(max) => rng.gen_range(max),
                 BranchValue::Set(n) => n,
             };
@@ -84,7 +89,10 @@ fn select_block<C: Clone + PartialEq>(
             });
         }
         FlowBlock::Switch(s) => {
+            // `#SWITCH 0` is malformed (see the Random arm above): avoid the
+            // empty-range panic by using a value that matches no `#CASE`.
             let value = match s.value {
+                BranchValue::Max(0) => 0,
                 BranchValue::Max(max) => rng.gen_range(max),
                 BranchValue::Set(n) => n,
             };
