@@ -87,7 +87,7 @@ bare struct with methods is sufficient when there is no state to configure.
 
 ## MSRV & edition
 
-- Minimum Rust version: **1.85**.
+- Minimum Rust version: **1.88**.
 - Edition: **2024** (`resolver = "3"`).
 
 ## Testing
