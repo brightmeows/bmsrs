@@ -374,7 +374,10 @@ const fn is_base62(b: u8) -> bool {
     clippy::indexing_slicing,
     reason = "while-loop guard ensures i < len and i+1 < len before indexing"
 )]
-#[expect(unsafe_code, reason = "ASCII bytes validated by the is_base62 guard")]
+#[expect(
+    clippy::expect_used,
+    reason = "two base62 chars are valid ASCII by the is_base62 guard"
+)]
 fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let bytes = values.as_bytes();
     let mut result = Vec::new();
@@ -382,8 +385,8 @@ fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let len = bytes.len();
     while i < len {
         if is_base62(bytes[i]) && i + 1 < len && is_base62(bytes[i + 1]) {
-            // SAFETY: two valid Base62 chars are always valid ASCII.
-            let chunk = unsafe { std::str::from_utf8_unchecked(&bytes[i..i + 2]) };
+            let chunk =
+                std::str::from_utf8(&bytes[i..i + 2]).expect("two base62 chars are valid ASCII");
             result.push(chunk);
             i += 2;
         } else {

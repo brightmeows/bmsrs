@@ -97,12 +97,19 @@ pub struct BmsIndex {
 )]
 impl BmsIndex {
     /// Return the ASCII string representation of this ID (borrows from self).
+    ///
+    /// # Panics
+    ///
+    /// Never panics in practice — the bytes are validated as ASCII on
+    /// construction, so the UTF-8 conversion is infallible.
     #[must_use]
-    #[expect(unsafe_code, reason = "ASCII bytes validated on construction")]
+    #[expect(
+        clippy::expect_used,
+        reason = "bytes are ASCII by the BmsIndex construction invariant"
+    )]
     pub fn as_str(&self) -> &str {
         let len = if self.bytes[1] == 0 { 1 } else { 2 };
-        // SAFETY: bytes are validated as ASCII alphanumeric on construction.
-        unsafe { std::str::from_utf8_unchecked(&self.bytes[..len]) }
+        std::str::from_utf8(&self.bytes[..len]).expect("bytes validated ASCII on construction")
     }
 
     /// Return the raw ASCII bytes (1 or 2 bytes).

@@ -55,7 +55,7 @@ bms-processor = { path = "bms/processor" }
 bmsrs-player = { path = "common/player" }
 
 [workspace.lints.rust]
-unsafe_code = "deny"
+unsafe_code = "forbid"
 dead_code = "deny"
 unused = { level = "deny", priority = -1 }
 unused_crate_dependencies = "allow"
