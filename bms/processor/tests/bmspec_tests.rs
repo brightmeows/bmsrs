@@ -332,16 +332,26 @@ fn bmspec_1_05_extended_bpm() {
          #00111:05\n",
     );
 
-    // bmspec 期望：对象在 init BPM 60 下走 3 秒。
-    // 当前实现在 ext BPM 通道中将 "00" 解析为 BPM00 引用（默认 120），
-    // 导致 BPM 在 tick 0 即变为 120 → 对象在 2s。
-    // 这是已知的 bmspec 符合性差距。
+    // #BPM01 120 defines extended BPM index 01 = 120.0
+    // #00008:0001 → channel 08 (extended BPM), track=0, values [00, 01]
+    // "00" = 休止（无 BPM 变更），"01" 引用 BPM01=120 at position 1/2
+    // BPM 序列：
+    //   tick 0: init 60 (from #BPM 60)
+    //   tick 480: BPM 120 (from "01" → BPM01)
+    // Note at tick 960 = measure 1, pos 0/1
+    //   0-480 ticks at 60 BPM = 480/240 * 60/60 = 2.0s
+    //   480-960 ticks at 120 BPM = 480/240 * 60/120 = 1.0s
+    //   Total: 3.0s
+
     let notes = all_notes(&chart);
-    assert!(!notes.is_empty(), "should have notes");
     assert_eq!(notes[0].0, 960, "note at tick 960");
+    let dur = chart
+        .data
+        .timing
+        .tick_to_duration(notes[0].0, chart.data.resolution);
     assert!(
-        (chart.data.timing.init_bpm - 60.0).abs() < 1e-9,
-        "init BPM should be 60"
+        (dur.as_secs_f64() - 3.0).abs() < 1e-6,
+        "expected 3.0s, got {dur:?}"
     );
 }
 

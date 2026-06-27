@@ -650,6 +650,10 @@ impl Messages {
         base: BmsBase,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            // "00" = 休止 / 无 BPM 变更，与通道 03 的 absolute BPM 行为一致。
+            if val == "00" {
+                continue;
+            }
             let Ok(bpm_id) = val.parse::<BpmIndex>() else {
                 continue;
             };
