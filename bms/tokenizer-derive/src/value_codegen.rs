@@ -1,20 +1,19 @@
-//! Code generator for `#[derive(BmsValue)]` on domain enums.
+//! 领域枚举上 `#[derive(BmsValue)]` 的代码生成器。
 //!
-//! Each variant is annotated with one or more `#[bms_token("literal")]`
-//! attributes specifying the string representations of that variant.
-//! The derive generates `FromStr` (matching any of the tokens) and
-//! `Display` (outputting the first token).
+//! 每个变体通过一个或多个 `#[bms_token("literal")]` 属性标注，指定该
+//! 变体的字符串表示。derive 会生成 `FromStr`（匹配任一 token）与
+//! `Display`（输出首个 token）。
 
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::spanned::Spanned as _;
 
-/// Generate `FromStr` and `Display` for a domain enum.
+/// 为领域枚举生成 `FromStr` 与 `Display`。
 ///
 /// # Panics
 ///
-/// Panics at compile time (via `compile_error!`) if a variant has no
-/// `#[bms_token("...")]` attribute.
+/// 若变体没有 `#[bms_token("...")]` 属性，则在编译期触发
+/// `compile_error!`。
 pub fn generate_bms_value_enum(
     enum_name: &syn::Ident,
     generics: &syn::Generics,
@@ -56,7 +55,7 @@ pub fn generate_bms_value_enum(
         }
     }
 
-    // Build a hint like "expected 1, 2, 3, or 4" from the canonical tokens.
+    // 从规范 token 构建提示字符串，例如 "expected 1, 2, 3, or 4"。
     let hint = build_literal_enum_hint(&canonical_tokens);
     let hint_lit = syn::LitStr::new(&hint, data_enum.enum_token.span);
 
@@ -88,9 +87,9 @@ pub fn generate_bms_value_enum(
     }
 }
 
-/// Build a human-readable hint string listing the valid values.
+/// 构建列出合法值的人类可读提示字符串。
 ///
-/// Examples:
+/// 示例：
 /// - `["1", "2"]` → `"expected 1 or 2"`
 /// - `["1", "2", "3"]` → `"expected 1, 2, or 3"`
 /// - `["1", "01"]` → `"expected 1, 01"`
@@ -103,7 +102,7 @@ fn build_literal_enum_hint(values: &[String]) -> String {
     let mut s = String::from("expected ");
     for (i, val) in values.iter().enumerate() {
         if i == n - 1 {
-            // Last item: prepend "or" with correct separator.
+            // 最后一项：以正确的分隔符前置 "or"。
             if n > 2 {
                 s.push_str(", or ");
             } else if n == 2 {

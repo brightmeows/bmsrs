@@ -1,4 +1,4 @@
-//! Code generator for `#[derive(BmsTokenAttr)]`.
+//! `#[derive(BmsTokenAttr)]` 的代码生成器。
 
 #![expect(clippy::indexing_slicing, reason = "bounded by checked iteration")]
 
@@ -8,18 +8,18 @@ use syn::spanned::Spanned as _;
 
 use crate::parse::{BmsTokenTemplate, Placeholder};
 
-/// Generic parameters extracted from the enum definition, bundled for
-/// passing through the codegen call tree without exceeding argument limits.
+/// 从枚举定义中提取的泛型参数上下文，打包传递以避免在代码生成调用链中
+/// 超出参数数量限制。
 struct GenericsCtx<'a> {
-    /// The enum's first type parameter ident (e.g., `C`), if any.
+    /// 枚举首个类型参数的 ident（如 `C`），如有。
     type_param_ident: Option<&'a syn::Ident>,
-    /// The enum's first lifetime, if any.
+    /// 枚举的首个生命周期，如有。
     first_lifetime: Option<&'a syn::Lifetime>,
-    /// The synthesized `'header` lifetime used in generated signatures.
+    /// 在生成签名中使用的合成 `'header` 生命周期。
     header_lifetime: &'a syn::Lifetime,
 }
 
-/// `true` if the attribute is `#[doc(hidden)]`.
+/// 当属性为 `#[doc(hidden)]` 时返回 `true`。
 fn is_doc_hidden(attr: &syn::Attribute) -> bool {
     attr.path().is_ident("doc")
         && attr
@@ -28,7 +28,7 @@ fn is_doc_hidden(attr: &syn::Attribute) -> bool {
             .is_ok_and(|list| list.tokens.to_string().contains("hidden"))
 }
 
-/// Generate the `BmsToken` impl block for a header sub-enum.
+/// 为头部子枚举生成 `BmsToken` 的 impl 块。
 pub fn generate_impl(
     enum_name: &syn::Ident,
     generics: &syn::Generics,
@@ -43,10 +43,10 @@ pub fn generate_impl(
     let type_param = generics.type_params().next();
     let type_param_ident = type_param.map(|tp| &tp.ident);
 
-    // Build the where clause for try_match_header:
-    // C needs Display + AsRef<str> + Clone + From<&'a str> (from the BmsValue
-    // trait).  We do NOT use 'header in the From bound — instead the value is
-    // coerced from &'header str to &'a str via the 'header: 'a bound.
+    // 构建 try_match_header 的 where 子句：
+    // C 需要 Display + AsRef<str> + Clone + From<&'a str>（来自 BmsValue
+    // trait）。我们在 From 约束中不使用 'header —— 而是通过 'header: 'a
+    // 约束将值由 &'header str 协变到 &'a str。
     let header_where = match (first_lifetime_param, &type_param) {
         (Some(lt), Some(tp)) => {
             let lifetime = &lt.lifetime;
@@ -91,7 +91,7 @@ pub fn generate_impl(
     let try_match_body = generate_try_match_body(data_enum, templates, fallbacks, &generics_ctx);
     let format_body = generate_format_body(data_enum, templates);
 
-    // Build the format_header where clause: C must implement Display + AsRef<str>.
+    // 构建 format_header 的 where 子句：C 必须实现 Display + AsRef<str>。
     let format_where: TokenStream = type_param.as_ref().map_or_else(TokenStream::new, |tp| {
         let tp_ident = &tp.ident;
         quote! {
@@ -129,15 +129,15 @@ pub fn generate_impl(
     }
 }
 
-/// A single branch in the `if/else if` chain for exact (non-indexed) matching.
+/// `if/else if` 链中用于精确（非索引）匹配的单个分支。
 struct ExactBranch {
-    /// The condition expression (e.g., `command.eq_ignore_ascii_case("TITLE")`).
+    /// 条件表达式（如 `command.eq_ignore_ascii_case("TITLE")`）。
     condition: TokenStream,
-    /// The body to execute when the condition matches.
+    /// 条件匹配时要执行的体。
     body: TokenStream,
 }
 
-/// Generate the body of `try_match_header`.
+/// 生成 `try_match_header` 的函数体。
 fn generate_try_match_body(
     data_enum: &syn::DataEnum,
     templates: &[Vec<BmsTokenTemplate>],
@@ -148,7 +148,7 @@ fn generate_try_match_body(
     let mut indexed_checks = TokenStream::new();
 
     for (variant_idx, variant) in data_enum.variants.iter().enumerate() {
-        // Skip #[doc(hidden)] variants (e.g., _Phantom from PhantomData).
+        // 跳过 #[doc(hidden)] 变体（如来自 PhantomData 的 _Phantom）。
         if variant.attrs.iter().any(is_doc_hidden) {
             continue;
         }
@@ -158,7 +158,7 @@ fn generate_try_match_body(
         let is_fallback = fallbacks.get(variant_idx).copied().unwrap_or(false);
 
         for tmpl in variant_templates {
-            // Validate placeholder consistency: all Named or all Unnamed.
+            // 校验占位符一致性：全部 Named 或全部 Unnamed。
             if let Some(err) = check_placeholder_consistency(tmpl, variant) {
                 return err;
             }
@@ -184,7 +184,7 @@ fn generate_try_match_body(
     }
 }
 
-/// Build an `if cond { body } else if cond { body } ...` chain from branches.
+/// 根据分支构建 `if cond { body } else if cond { body } ...` 链。
 fn build_if_else_chain(branches: &[ExactBranch]) -> TokenStream {
     if branches.is_empty() {
         return TokenStream::new();
@@ -203,7 +203,7 @@ fn build_if_else_chain(branches: &[ExactBranch]) -> TokenStream {
     result
 }
 
-/// Generate exact-match branches for a non-indexed variant.
+/// 为非索引变体生成精确匹配分支。
 fn generate_exact_branches(
     variant: &syn::Variant,
     tmpl: &BmsTokenTemplate,
@@ -214,7 +214,7 @@ fn generate_exact_branches(
     let context_str = format!("{}{}", tmpl.prefix, tmpl.command);
     let command_ident = &variant.ident;
 
-    // Literal-value template: match both command AND value literally.
+    // 字面值模板：命令与值均按字面匹配。
     if let Some(literal) = &tmpl.value_literal {
         return vec![ExactBranch {
             condition: quote! { command.eq_ignore_ascii_case(#cmd_str) && value == #literal },
@@ -272,7 +272,7 @@ fn generate_exact_branches(
     vec![ExactBranch { condition, body }]
 }
 
-/// Generate a branch for a tuple variant with exactly one field.
+/// 为恰好含一个字段的 tuple 变体生成分支。
 fn exact_unnamed_branch(
     command_ident: &syn::Ident,
     field_ty: &syn::Type,
@@ -298,7 +298,7 @@ fn exact_unnamed_branch(
     (cond, body)
 }
 
-/// Generate a branch for a struct variant, parsing the value field.
+/// 为 struct 变体生成分支，解析 value 字段。
 fn exact_named_field_branch(
     command_ident: &syn::Ident,
     field: &syn::Field,
@@ -327,8 +327,7 @@ fn exact_named_field_branch(
     (cond, body)
 }
 
-/// Generate prefix/length checks and variant construction for an indexed
-/// command.
+/// 为索引命令生成前缀/长度检查与变体构造。
 fn generate_indexed_match(
     variant: &syn::Variant,
     tmpl: &BmsTokenTemplate,
@@ -342,7 +341,7 @@ fn generate_indexed_match(
     let expected_len = base_len + 2;
 
     let variant_construction = if tmpl.is_unnamed_id() && tmpl.is_unnamed_value() {
-        // Tuple variant with unnamed id + unnamed value.
+        // tuple 变体，id 与 value 均为匿名。
         build_indexed_tuple_body(variant, &context_str, is_fallback, generics)
     } else {
         let id_field_name = tmpl.id_field_name();
@@ -357,7 +356,7 @@ fn generate_indexed_match(
     }
 }
 
-/// Build the body that constructs the variant, parsing `__idx` and `value`.
+/// 构造变体的体，解析 `__idx` 与 `value`。
 fn build_indexed_variant_body(
     variant: &syn::Variant,
     id_field_name: &str,
@@ -381,7 +380,7 @@ fn build_indexed_variant_body(
             .unwrap_or_default();
         let field_ty = &field.ty;
 
-        // id field always uses FromStr + IntoTokensError (never fallback).
+        // id 字段始终使用 FromStr + IntoTokensError（绝不回退）。
         let is_id = field_name == id_field_name;
         let value_src = if is_id { quote!(__idx) } else { quote!(value) };
         let fb = if is_id { false } else { is_fallback };
@@ -406,7 +405,7 @@ fn build_indexed_variant_body(
     }
 }
 
-/// Generate the match arms for `format_header`.
+/// 为 `format_header` 生成 match 分支。
 fn generate_format_body(
     data_enum: &syn::DataEnum,
     templates: &[Vec<BmsTokenTemplate>],
@@ -432,7 +431,7 @@ fn generate_format_body(
         let cmd_expr = if tmpl.is_indexed() {
             let base_lit = syn::LitStr::new(&cmd_token, variant.span());
             if tmpl.is_unnamed_id() {
-                // Unnamed id → use __bind_0 (first tuple field).
+                // 匿名 id → 使用 __bind_0（首个 tuple 字段）。
                 quote! { format!("{}{}", #base_lit, __bind_0) }
             } else {
                 let id_field_str = tmpl.id_field_name();
@@ -451,7 +450,7 @@ fn generate_format_body(
         });
     }
 
-    // Fallback arms for variants WITHOUT any #[bms_token] attrs.
+    // 不带任何 #[bms_token] 属性的变体的回退分支。
     for (variant_idx, variant) in data_enum.variants.iter().enumerate() {
         if variant.attrs.iter().any(is_doc_hidden) {
             continue;
@@ -470,7 +469,7 @@ fn generate_format_body(
         });
     }
 
-    // Catch-all for #[doc(hidden)] variants (e.g., _Phantom from PhantomData).
+    // 针对 #[doc(hidden)] 变体（如来自 PhantomData 的 _Phantom）的兜底分支。
     if has_doc_hidden {
         arms.extend(quote! { _ => unreachable!(), });
     }
@@ -478,7 +477,7 @@ fn generate_format_body(
     arms
 }
 
-/// Generate the value-side expression of a `format_header` match arm.
+/// 生成 `format_header` match 分支的值侧表达式。
 fn generate_format_value_expr(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -> TokenStream {
     if let Some(literal) = &tmpl.value_literal {
         let lit = syn::LitStr::new(literal, variant.span());
@@ -488,7 +487,7 @@ fn generate_format_value_expr(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -
     let value_field_name = match &tmpl.value_field {
         Some(Placeholder::Named(name)) => name.clone(),
         Some(Placeholder::Unnamed) => {
-            // Unnamed value: unnamed fields handled by Fields::Unnamed branch
+            // 匿名 value：匿名字段由 Fields::Unnamed 分支处理。
             "value".to_owned()
         }
         None => return quote! { String::new() },
@@ -496,8 +495,8 @@ fn generate_format_value_expr(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -
 
     match &variant.fields {
         syn::Fields::Unnamed(fields_unnamed) => {
-            // Use the last unnamed field as the value (index 0 = id for
-            // indexed commands, index 1 or 0 = value).
+            // 使用最后一个匿名字段作为 value（索引命令中索引 0 = id，
+            // 索引 1 或 0 = value）。
             let last = fields_unnamed.unnamed.len().saturating_sub(1);
             let bind = format_ident!("__bind_{last}");
             quote! { #bind.to_string() }
@@ -518,7 +517,7 @@ fn generate_format_value_expr(variant: &syn::Variant, tmpl: &BmsTokenTemplate) -
     }
 }
 
-/// Convert a variant definition into a `match self` pattern.
+/// 将变体定义转换为 `match self` 模式。
 fn variant_to_pattern(variant: &syn::Variant) -> TokenStream {
     let ident = &variant.ident;
     match &variant.fields {
@@ -536,7 +535,7 @@ fn variant_to_pattern(variant: &syn::Variant) -> TokenStream {
     }
 }
 
-/// Convert a variant definition into a `match self` wildcard pattern.
+/// 将变体定义转换为 `match self` 通配符模式。
 fn variant_to_wildcard_pattern(variant: &syn::Variant) -> TokenStream {
     let ident = &variant.ident;
     match &variant.fields {
@@ -546,10 +545,10 @@ fn variant_to_wildcard_pattern(variant: &syn::Variant) -> TokenStream {
     }
 }
 
-/// `true` if the field type is the given type parameter ident.
+/// 当字段类型为给定类型参数 ident 时返回 `true`。
 ///
-/// Checks whether the type path's final segment equals `type_param_ident`.
-/// This is used to detect string-container fields (`C`) vs regular fields.
+/// 检查类型路径的末段是否等于 `type_param_ident`。
+/// 用于区分字符串容器字段（`C`）与普通字段。
 fn is_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
     let syn::Type::Path(type_path) = ty else {
         return false;
@@ -560,9 +559,9 @@ fn is_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
         .is_some_and(|id| id == type_param_ident)
 }
 
-/// `true` if the type path contains the given type parameter ident.
+/// 当类型路径包含给定类型参数 ident 时返回 `true`。
 ///
-/// Checks whether the path has generic arguments that include `type_param_ident`.
+/// 检查路径是否含有包含 `type_param_ident` 的泛型参数。
 fn has_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
     let syn::Type::Path(type_path) = ty else {
         return false;
@@ -576,7 +575,7 @@ fn has_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
     })
 }
 
-/// `true` if the field type is `&str` (with any lifetime).
+/// 当字段类型为 `&str`（任意生命周期）时返回 `true`。
 fn is_str_ref(ty: &syn::Type) -> bool {
     let syn::Type::Reference(type_ref) = ty else {
         return false;
@@ -584,15 +583,14 @@ fn is_str_ref(ty: &syn::Type) -> bool {
     matches!(&*type_ref.elem, syn::Type::Path(p) if p.path.is_ident("str"))
 }
 
-/// Generate a `let` binding that initializes a field from a string source.
+/// 生成从一个字符串源初始化字段的 `let` 绑定。
 ///
-/// Four cases:
-/// - Field type matches `type_param_ident` (C): `let #ident = From::from(#value_src);`
-///   (uses `From::from` not `BmsStr::from_borrowed` because `BmsStr` bounds
-///   cause E0283 via its blanket impl; `From::from` is the supertrait-bound
-///   equivalent)
-/// - Fallback fields: `let Some(#ident) = <T as BmsValue>::parse(#value_src) else { return Ok(None); };`
-/// - Other fields: `let #ident: T = #value_src.parse()...?;` (via `IntoTokensError`)
+/// 四种情形：
+/// - 字段类型匹配 `type_param_ident` (C)：`let #ident = From::from(#value_src);`
+///   （使用 `From::from` 而非 `BmsStr::from_borrowed`，因为 `BmsStr` 的约束
+///   会通过其 blanket 实现引发 E0283；`From::from` 是父 trait 约束的等价形式）
+/// - 回退字段：`let Some(#ident) = <T as BmsValue>::parse(#value_src) else { return Ok(None); };`
+/// - 其他字段：`let #ident: T = #value_src.parse()...?;`（通过 `IntoTokensError`）
 fn gen_field_parse(
     ident: &TokenStream,
     field_ty: &syn::Type,
@@ -606,8 +604,8 @@ fn gen_field_parse(
         first_lifetime,
         header_lifetime,
     } = generics;
-    // Case 1: Field type matches the C type parameter → From::from with the
-    // enum's lifetime 'a (the value is coerced from &'header str to &'a str).
+    // 情形 1：字段类型匹配 C 类型参数 → 用枚举的生命周期 'a 调用 From::from
+    // （值由 &'header str 协变到 &'a str）。
     if let Some(tp_ident) = type_param_ident
         && is_type_param(field_ty, tp_ident)
     {
@@ -616,15 +614,15 @@ fn gen_field_parse(
         };
     }
 
-    // Case 2: &str field (literal &str, not C type param) → direct assignment.
+    // 情形 2：&str 字段（字面 &str，非 C 类型参数） → 直接赋值。
     if is_str_ref(field_ty) {
         return quote! { let #ident = #value_src; };
     }
 
-    // Case 3/4: Fallback (BmsValue) or FromStr.
+    // 情形 3/4：回退（BmsValue）或 FromStr。
     if is_fallback {
-        // Use explicit C param on BmsValue when available so that manual impls
-        // resolve correctly (e.g., ExWavParams<'a, C> implements BmsValue<'a, C>).
+        // 当可用时，在 BmsValue 上使用显式 C 参数，以便手动实现能正确解析
+        // （如 `ExWavParams<'a, C>` 实现了 `BmsValue<'a, C>`）。
         let bms_value_path = match (first_lifetime, type_param_ident) {
             (Some(life), Some(tp)) => quote! { crate::BmsValue<#life, #tp> },
             (Some(life), None) => quote! { crate::BmsValue<#life> },
@@ -661,8 +659,8 @@ fn gen_field_parse(
     }
 }
 
-/// Check that a template's placeholders are consistent: all Named or all Unnamed.
-/// Returns `Some(TokenStream)` with a `compile_error!` if mixed, `None` if OK.
+/// 校验模板的占位符是否一致：全部 Named 或全部 Unnamed。
+/// 混合时返回含 `compile_error!` 的 `Some(TokenStream)`，否则返回 `None`。
 fn check_placeholder_consistency(
     tmpl: &BmsTokenTemplate,
     variant: &syn::Variant,
@@ -670,7 +668,7 @@ fn check_placeholder_consistency(
     let id_is_named = tmpl.id_field.as_ref().map(Placeholder::is_named);
     let value_is_named = tmpl.value_field.as_ref().map(Placeholder::is_named);
 
-    // If both are present and disagree, that's a mix.
+    // 若两者都存在且不一致，则为混合。
     let mixed = matches!(
         (id_is_named, value_is_named),
         (Some(id_named), Some(val_named)) if id_named != val_named
@@ -682,9 +680,8 @@ fn check_placeholder_consistency(
     })
 }
 
-/// Build the body that constructs a tuple variant for an indexed command with
-/// unnamed placeholders (`#BPM{} {}`).  The first field is the index value,
-/// the second (or only remaining) field is the value.
+/// 为带匿名占位符的索引命令（`#BPM{} {}`）构造 tuple 变体的体。
+/// 首个字段为索引值，第二个（或仅剩的）字段为 value。
 fn build_indexed_tuple_body(
     variant: &syn::Variant,
     context_str: &str,
@@ -704,7 +701,7 @@ fn build_indexed_tuple_body(
         let field_ty = &field.ty;
         let bind = format_ident!("__f{i}");
 
-        // First field is the index (from command suffix) — never fallback.
+        // 首个字段为索引（来自命令后缀） —— 永不回退。
         let is_id = i == 0;
         let value_src = if is_id { quote!(__idx) } else { quote!(value) };
         let fb = if is_id { false } else { is_fallback };
@@ -726,11 +723,10 @@ fn build_indexed_tuple_body(
     }
 }
 
-/// Generate `try_match_header` on the top-level `BmsHeader` enum.
+/// 在顶层 `BmsHeader` 枚举上生成 `try_match_header`。
 ///
-/// The generated method dispatches to each sub-enum's `try_match_header`
-/// in declaration order.  Variants annotated with `#[bms_fallback]`
-/// (e.g., the catch-all `Fallback` variant) are skipped.
+/// 生成的方法按声明顺序依次调度到各子枚举的 `try_match_header`。
+/// 带 `#[bms_fallback]` 的变体（如兜底的 `Fallback` 变体）会被跳过。
 pub fn generate_header_dispatch(
     enum_name: &syn::Ident,
     generics: &syn::Generics,
@@ -779,7 +775,7 @@ pub fn generate_header_dispatch(
     let mut dispatch_arms = TokenStream::new();
 
     for variant in &data_enum.variants {
-        // Skip #[doc(hidden)] variants (e.g., PhantomData) and #[bms_fallback].
+        // 跳过 #[doc(hidden)] 变体（如 PhantomData）与 #[bms_fallback]。
         if variant
             .attrs
             .iter()
@@ -797,9 +793,8 @@ pub fn generate_header_dispatch(
         let variant_ident = &variant.ident;
         let inner_type = &fields.unnamed[0].ty;
 
-        // If the inner type has the parent's type parameter (e.g., C),
-        // its error type matches the parent's. Otherwise, convert via
-        // BmsTokenizeError::from_ref.
+        // 若内部类型含父级的类型参数（如 C），其错误类型与父级一致；
+        // 否则通过 BmsTokenizeError::from_ref 转换。
         let has_c = type_param_ident.is_some_and(|tp| has_type_param(inner_type, &tp.ident));
         if has_c {
             dispatch_arms.extend(quote! {

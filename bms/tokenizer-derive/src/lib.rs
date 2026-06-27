@@ -1,22 +1,21 @@
-//! Proc-macro helper — `#[derive(BmsTokenAttr)]` handles all
-//! `#[bms_token("...")]` patterns in a single derive.
+//! Proc-macro 辅助工具 —— `#[derive(BmsTokenAttr)]` 在单个 derive 中
+//! 处理所有 `#[bms_token("...")]` 模式。
 //!
-//! Three modes are detected automatically from the enum structure:
+//! 根据枚举结构自动检测三种模式：
 //!
-//! | Mode | Trigger | Generated items |
+//! | 模式 | 触发条件 | 生成的项 |
 //! |---|---|---|
-//! | **Command** | variants have `#[bms_token("#...")]` | `try_match_header` + `format_header` |
-//! | **Literal** | variants have `#[bms_token("0")]` | `FromStr` + `Display` |
-//! | **Dispatch** | no `#[bms_token]`, all single-tuple | `BmsHeader::try_match_header` |
+//! | **Command** | 变体带 `#[bms_token("#...")]` | `try_match_header` + `format_header` |
+//! | **Literal** | 变体带 `#[bms_token("0")]` | `FromStr` + `Display` |
+//! | **Dispatch** | 无 `#[bms_token]`，全部为单字段 tuple 变体 | `BmsHeader::try_match_header` |
 //!
-//! In dispatch mode, variants with `#[bms_fallback]` are excluded from
-//! forwarding (the catch-all `Fallback` variant).  In command mode,
-//! `#[bms_fallback]` causes parse failures to return `Ok(None)` (falling
-//! through to `BmsHeaderFallback`) instead of `Err`.
+//! 在 dispatch 模式下，带 `#[bms_fallback]` 的变体会从转发中排除
+//! （即兜底的 `Fallback` 变体）。在 command 模式下，`#[bms_fallback]`
+//! 会使解析失败时返回 `Ok(None)`（穿透到 `BmsHeaderFallback`）而非 `Err`。
 //!
-//! The generated code references `crate::BmsValue` and `crate::BmsTokenizeError`,
-//! so the consumer must have these types in their crate root (bms-tokenizer
-//! re-exports them from its `lib.rs`).
+//! 生成的代码会引用 `crate::BmsValue` 与 `crate::BmsTokenizeError`，
+//! 因此消费方必须在 crate 根下提供这些类型（bms-tokenizer 会从其
+//! `lib.rs` 中重新导出这些类型）。
 
 mod codegen;
 mod parse;
@@ -29,10 +28,9 @@ use crate::codegen::{generate_header_dispatch, generate_impl};
 use crate::parse::parse_bms_token_attr;
 use crate::value_codegen::generate_bms_value_enum;
 
-/// Unified derive for all `#[bms_token("...")]` patterns.
+/// 针对所有 `#[bms_token("...")]` 模式的统一 derive。
 ///
-/// See the [crate-level documentation](self) for a description of the three
-/// operating modes.
+/// 三种工作模式的描述请参见 [crate 级文档](self)。
 #[cfg_attr(
     test,
     expect(
@@ -57,8 +55,8 @@ pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
             .into();
     };
 
-    // Dispatch mode: no #[bms_token] on any variant, and all variants are
-    // single-field tuple variants (like Metadata(BmsHeaderMetadata<'a>)).
+    // Dispatch 模式：所有变体都没有 #[bms_token]，且全部为单字段 tuple 变体
+    // （如 Metadata(BmsHeaderMetadata<'a>)）。
     let has_bms_token = data_enum
         .variants
         .iter()
@@ -81,7 +79,7 @@ pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
         .into();
     }
 
-    // Literal vs command mode: peek the first #[bms_token] value.
+    // Literal 还是 command 模式：查看首个 #[bms_token] 的值。
     let first_token = data_enum.variants.iter().find_map(|v| {
         v.attrs.iter().find_map(|a| {
             if a.path().is_ident("bms_token") {
