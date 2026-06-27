@@ -61,6 +61,7 @@ fn event_types_accessible() {
         position: pos,
         player: 2,
         lane: 7,
+        damage: 5.0,
     };
     let _: BpmChange = BpmChange {
         position: pos,
@@ -81,7 +82,7 @@ fn event_types_accessible() {
     };
     let _: MeasureLength = MeasureLength {
         measure: 1,
-        length_percent: 200,
+        length_ratio: 2.0,
     };
     let _: StpEvent = StpEvent {
         position: pos,
@@ -419,10 +420,17 @@ fn bga_messages_parsed() {
 
 #[test]
 fn measure_length_parsed() {
-    let bms = parse("#00102:200");
+    let bms = parse("#00102:2");
     assert_eq!(bms.messages.measure_lengths.len(), 1);
     assert_eq!(bms.messages.measure_lengths[0].measure, 1);
-    assert_eq!(bms.messages.measure_lengths[0].length_percent, 200);
+    assert!((bms.messages.measure_lengths[0].length_ratio - 2.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn measure_length_fractional() {
+    let bms = parse("#00102:0.75");
+    assert_eq!(bms.messages.measure_lengths.len(), 1);
+    assert!((bms.messages.measure_lengths[0].length_ratio - 0.75).abs() < f64::EPSILON);
 }
 
 // Message concatenation

@@ -21,7 +21,7 @@ pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{
     BgaEvent, BgmEvent, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength, Messages,
-    MineEvent, NoteEvent, Position, ScrollEvent, StopEvent, StpEvent,
+    MineEvent, NoteEvent, Position, ScrollEvent, SpeedEvent, StopEvent, StpEvent,
 };
 pub use metadata::Metadata;
 pub use timing::Timing;
@@ -79,7 +79,7 @@ impl Bms {
             }
         }
 
-        bms.messages.finalize();
+        bms.messages.finalize(bms_base);
         bms
     }
 

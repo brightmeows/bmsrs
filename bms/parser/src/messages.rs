@@ -15,7 +15,9 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmpIndex, BmsChannel, BpmIndex, ScrollIndex, StopIndex, WavIndex};
+use bms_tokenizer::{
+    BmpIndex, BmsBase, BmsChannel, BpmIndex, ScrollIndex, SpeedIndex, StopIndex, WavIndex,
+};
 use bmsrs_chart::BgaLayer;
 
 // Position
@@ -117,7 +119,10 @@ pub struct LongNoteEvent {
 // Mines
 
 /// A landmine note (channels `D1`–`D9`, `E1`–`E9`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The damage value is derived from the BMS 2-character index:
+/// `damage = base36_value / 2.0`, with `ZZ` = instant kill.
+#[derive(Debug, Clone, PartialEq)]
 pub struct MineEvent {
     /// Position within the measure.
     pub position: Position,
@@ -125,6 +130,8 @@ pub struct MineEvent {
     pub player: u8,
     /// Lane / key number (1–9).
     pub lane: u8,
+    /// Damage dealt on miss (0.0 = none, `f64::INFINITY` = instant kill).
+    pub damage: f64,
 }
 
 // BPM changes
@@ -171,6 +178,18 @@ pub struct ScrollEvent {
     pub scroll_id: ScrollIndex,
 }
 
+/// A visual note-spacing keyframe event (channel `SP`).
+///
+/// References a `#SPEEDxx` definition.  Between keyframes the spacing
+/// factor is linearly interpolated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpeedEvent {
+    /// Position within the measure.
+    pub position: Position,
+    /// Reference into the `#SPEED` table.
+    pub speed_id: SpeedIndex,
+}
+
 // BGA events
 
 /// A BGA display event (channels `04`, `05`, `06`, `07`).
@@ -187,12 +206,18 @@ pub struct BgaEvent {
 // Measure length
 
 /// A measure length change (channel `02`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// The value is a ratio relative to a standard 4/4 measure:
+/// - `1.0` = 4/4 (standard)
+/// - `0.75` = 3/4
+/// - `2.0` = 8/4
+/// - `0.015625` = 1/64
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MeasureLength {
     /// Measure number.
     pub measure: u16,
-    /// Length as a percentage (e.g. 200 = 2× the default length).
-    pub length_percent: u64,
+    /// Length ratio (1.0 = standard 4/4 measure).
+    pub length_ratio: f64,
 }
 
 // Header-based position stop
@@ -238,6 +263,8 @@ pub struct Messages {
     pub stop_events: Vec<StopEvent>,
     /// Scroll-speed events from channel `SC`.
     pub scroll_events: Vec<ScrollEvent>,
+    /// Visual note-spacing keyframe events from channel `SP`.
+    pub speed_events: Vec<SpeedEvent>,
     /// BGA display events from channels `04`–`07`.
     pub bga_events: Vec<BgaEvent>,
     /// Measure length changes from channel `02`.
@@ -280,8 +307,12 @@ impl Messages {
     ///
     /// Calling this multiple times appends duplicate events; call it exactly
     /// once after all data is loaded.
+    ///
+    /// `base` controls index normalisation: in standard Base36 mode indices
+    /// are uppercased for case-insensitive lookup; in Base62 mode the
+    /// original case is preserved.
     #[expect(clippy::too_many_lines, reason = "finalize handles all channel types")]
-    pub fn finalize(&mut self) {
+    pub fn finalize(&mut self, base: BmsBase) {
         // Clear existing parse results so finalize is safe to call once.
         self.bgm_events.clear();
         self.note_events.clear();
@@ -290,6 +321,7 @@ impl Messages {
         self.bpm_changes.clear();
         self.stop_events.clear();
         self.scroll_events.clear();
+        self.speed_events.clear();
         self.bga_events.clear();
         self.measure_lengths.clear();
 
@@ -303,7 +335,7 @@ impl Messages {
                         for line in lines {
                             let objects = split_2char_values_lenient(line);
                             let total_objects = objects.len() as u32;
-                            self.push_bgm_full(line, measure, total_objects);
+                            self.push_bgm_full(line, measure, total_objects, base);
                         }
                     }
                     // Measure length / Option: last line wins.
@@ -331,13 +363,25 @@ impl Messages {
                                 self.push_bpm_absolute_full(&merged, measure, total_objects);
                             }
                             BmsChannel::ExtendedBpm => {
-                                self.push_bpm_reference_full(&merged, measure, total_objects);
+                                self.push_bpm_reference_full(&merged, measure, total_objects, base);
                             }
                             BmsChannel::BgaBase => {
-                                self.push_bga_full(&merged, measure, BgaLayer::Base, total_objects);
+                                self.push_bga_full(
+                                    &merged,
+                                    measure,
+                                    BgaLayer::Base,
+                                    total_objects,
+                                    base,
+                                );
                             }
                             BmsChannel::BgaPoor => {
-                                self.push_bga_full(&merged, measure, BgaLayer::Poor, total_objects);
+                                self.push_bga_full(
+                                    &merged,
+                                    measure,
+                                    BgaLayer::Poor,
+                                    total_objects,
+                                    base,
+                                );
                             }
                             BmsChannel::BgaLayer => {
                                 self.push_bga_full(
@@ -345,6 +389,7 @@ impl Messages {
                                     measure,
                                     BgaLayer::Layer,
                                     total_objects,
+                                    base,
                                 );
                             }
                             BmsChannel::BgaLayer2 => {
@@ -353,17 +398,27 @@ impl Messages {
                                     measure,
                                     BgaLayer::Layer2,
                                     total_objects,
+                                    base,
                                 );
                             }
                             BmsChannel::Stop => {
-                                self.push_stop_full(&merged, measure, total_objects);
+                                self.push_stop_full(&merged, measure, total_objects, base);
                             }
                             BmsChannel::Scroll => {
-                                self.push_scroll_full(&merged, measure, total_objects);
+                                self.push_scroll_full(&merged, measure, total_objects, base);
+                            }
+                            BmsChannel::Speed => {
+                                self.push_speed_full(&merged, measure, total_objects, base);
                             }
                             BmsChannel::Note(note_ch) => {
                                 if let Some(ch) = note_ch.as_u8_hex() {
-                                    self.dispatch_note_channel(&merged, measure, ch, total_objects);
+                                    self.dispatch_note_channel(
+                                        &merged,
+                                        measure,
+                                        ch,
+                                        total_objects,
+                                        base,
+                                    );
                                 }
                             }
                             // Non-event channels — kept in raw only.
@@ -380,7 +435,6 @@ impl Messages {
                             | BmsChannel::BgaArgbLayer2
                             | BmsChannel::BgaArgbPoor
                             | BmsChannel::BgaKeyBound
-                            | BmsChannel::Speed
                             | BmsChannel::Seek
                             | BmsChannel::Bgm
                             | BmsChannel::MeasureLength
@@ -501,27 +555,79 @@ fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     result
 }
 
+/// Decode a 2-character BMS landmine index into a damage value.
+///
+/// The index is interpreted as a Base36 value (unless the base overrides):
+/// - `"00"` → `0.0` (no mine, caller should pre-filter)
+/// - `"01"` → `0.5`
+/// - `"ZZ"` → [`f64::INFINITY`] (instant kill per BMS spec)
+/// - All other values → `base36_value / 2.0`
+fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
+    let parsed = if base == BmsBase::Base62 {
+        val.parse::<u16>().or_else(|_| base36_decode(val))
+    } else {
+        let upper = val.to_ascii_uppercase();
+        base36_decode(&upper)
+    };
+    match parsed {
+        Ok(1295) => f64::INFINITY,
+        Ok(n) => f64::from(n) / 2.0,
+        Err(()) => 1.0,
+    }
+}
+
+/// Decode a Base36 (0-9A-Z) string to a u16 value.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "guarded by bytes.len() != 2 check above"
+)]
+fn base36_decode(s: &str) -> Result<u16, ()> {
+    let bytes = s.as_bytes();
+    if bytes.len() != 2 {
+        return Err(());
+    }
+    let hi = base36_digit(bytes[0]).ok_or(())?;
+    let lo = base36_digit(bytes[1]).ok_or(())?;
+    Ok(hi * 36 + lo)
+}
+
+/// Decode a single Base36 digit (0-9, A-Z, case-insensitive).
+fn base36_digit(b: u8) -> Option<u16> {
+    match b {
+        b'0'..=b'9' => Some(u16::from(b - b'0')),
+        b'A'..=b'Z' => Some(u16::from(b - b'A') + 10),
+        b'a'..=b'z' => Some(u16::from(b - b'a') + 10),
+        _ => None,
+    }
+}
+
 impl Messages {
     /// Parse BGM events (ch 01) from full concatenated values.
-    fn push_bgm_full(&mut self, values: &str, measure: u16, total_objects: u32) {
+    fn push_bgm_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(wav_id) = val.parse::<WavIndex>() else {
                 continue;
             };
             self.bgm_events.push(BgmEvent {
                 position: Position::new(measure, i as u32, total_objects),
-                wav_id,
+                wav_id: WavIndex::from(wav_id.normalize(base)),
             });
         }
     }
 
     /// Parse a measure length change (ch 02) from raw value.
+    ///
+    /// The value is a ratio relative to 4/4: `1.0` = 4/4, `0.75` = 3/4,
+    /// `2.0` = 8/4.  Non-numeric or zero values are silently ignored
+    /// (the measure defaults to 4/4).
     fn push_measure_length(&mut self, values: &str, measure: u16) {
-        // The entire value is the length percentage (e.g. "200" = 200%)
-        if let Ok(pct) = values.parse::<u64>() {
+        if let Ok(ratio) = values.trim().parse::<f64>()
+            && ratio > 0.0
+            && ratio.is_finite()
+        {
             self.measure_lengths.push(MeasureLength {
                 measure,
-                length_percent: pct,
+                length_ratio: ratio,
             });
         }
     }
@@ -549,46 +655,72 @@ impl Messages {
     }
 
     /// Parse BPM reference changes (ch 08) from full concatenated values.
-    fn push_bpm_reference_full(&mut self, values: &str, measure: u16, total_objects: u32) {
+    fn push_bpm_reference_full(
+        &mut self,
+        values: &str,
+        measure: u16,
+        total_objects: u32,
+        base: BmsBase,
+    ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(bpm_id) = val.parse::<BpmIndex>() else {
                 continue;
             };
             self.bpm_changes.push(BpmChange {
                 position: Position::new(measure, i as u32, total_objects),
-                value: BpmValue::Reference(bpm_id),
+                value: BpmValue::Reference(BpmIndex::from(bpm_id.normalize(base))),
             });
         }
     }
 
     /// Parse stop events (ch 09) from full concatenated values.
-    fn push_stop_full(&mut self, values: &str, measure: u16, total_objects: u32) {
+    fn push_stop_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(stop_id) = val.parse::<StopIndex>() else {
                 continue;
             };
             self.stop_events.push(StopEvent {
                 position: Position::new(measure, i as u32, total_objects),
-                stop_id,
+                stop_id: StopIndex::from(stop_id.normalize(base)),
             });
         }
     }
 
     /// Parse scroll events (ch SC) from full concatenated values.
-    fn push_scroll_full(&mut self, values: &str, measure: u16, total_objects: u32) {
+    fn push_scroll_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
                 continue;
             };
             self.scroll_events.push(ScrollEvent {
                 position: Position::new(measure, i as u32, total_objects),
-                scroll_id,
+                scroll_id: ScrollIndex::from(scroll_id.normalize(base)),
+            });
+        }
+    }
+
+    /// Parse speed keyframe events (ch SP) from full concatenated values.
+    fn push_speed_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            let Ok(speed_id) = val.parse::<SpeedIndex>() else {
+                continue;
+            };
+            self.speed_events.push(SpeedEvent {
+                position: Position::new(measure, i as u32, total_objects),
+                speed_id: SpeedIndex::from(speed_id.normalize(base)),
             });
         }
     }
 
     /// Parse BGA display events (ch 04–07) from full concatenated values.
-    fn push_bga_full(&mut self, values: &str, measure: u16, layer: BgaLayer, total_objects: u32) {
+    fn push_bga_full(
+        &mut self,
+        values: &str,
+        measure: u16,
+        layer: BgaLayer,
+        total_objects: u32,
+        base: BmsBase,
+    ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(bmp_id) = val.parse::<BmpIndex>() else {
                 continue;
@@ -596,7 +728,7 @@ impl Messages {
             self.bga_events.push(BgaEvent {
                 position: Position::new(measure, i as u32, total_objects),
                 layer,
-                bmp_id,
+                bmp_id: BmpIndex::from(bmp_id.normalize(base)),
             });
         }
     }
@@ -605,6 +737,10 @@ impl Messages {
     ///
     /// Entries with `"00"` WAV index are filtered out — they represent
     /// "no note" (silent step) positions and must not produce events.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "BMS event parsing requires channel context: measure, player, lane, type, plus base for normalization"
+    )]
     fn push_playable_full(
         &mut self,
         values: &str,
@@ -613,6 +749,7 @@ impl Messages {
         lane: u8,
         key_type: KeyType,
         total_objects: u32,
+        base: BmsBase,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             // "00" = no note — skip entirely. This must happen before
@@ -629,7 +766,7 @@ impl Messages {
                 player,
                 lane,
                 key_type,
-                wav_id,
+                wav_id: WavIndex::from(wav_id.normalize(base)),
             });
         }
     }
@@ -642,6 +779,7 @@ impl Messages {
         player: u8,
         lane: u8,
         total_objects: u32,
+        base: BmsBase,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(wav_id) = val.parse::<WavIndex>() else {
@@ -651,12 +789,16 @@ impl Messages {
                 position: Position::new(measure, i as u32, total_objects),
                 player,
                 lane,
-                wav_id,
+                wav_id: WavIndex::from(wav_id.normalize(base)),
             });
         }
     }
 
     /// Parse mine events (ch D1–E9) from full concatenated values.
+    ///
+    /// The 2-character index encodes damage as a Base36 value:
+    /// `damage = value / 2.0`, with `ZZ` (1295) = instant kill.
+    /// Entries with `"00"` are filtered out (no mine at that position).
     fn push_mine_full(
         &mut self,
         values: &str,
@@ -664,13 +806,19 @@ impl Messages {
         player: u8,
         lane: u8,
         total_objects: u32,
+        base: BmsBase,
     ) {
-        for (i, _val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // For mines, the value is the damage amount (not stored as WAV ref here)
+        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            // "00" = no mine — skip entirely.
+            if val == "00" {
+                continue;
+            }
+            let damage = decode_mine_damage(val, base);
             self.mine_events.push(MineEvent {
                 position: Position::new(measure, i as u32, total_objects),
                 player,
                 lane,
+                damage,
             });
         }
     }
@@ -679,7 +827,14 @@ impl Messages {
     ///
     /// Called from [`finalize`](Self::finalize) when a [`BmsChannel::Note`]
     /// variant has a decodable hex channel value.
-    fn dispatch_note_channel(&mut self, values: &str, measure: u16, ch: u8, total_objects: u32) {
+    fn dispatch_note_channel(
+        &mut self,
+        values: &str,
+        measure: u16,
+        ch: u8,
+        total_objects: u32,
+        base: BmsBase,
+    ) {
         match ch {
             0x11..=0x19 => {
                 self.push_playable_full(
@@ -689,6 +844,7 @@ impl Messages {
                     ch - 0x10,
                     KeyType::Visible,
                     total_objects,
+                    base,
                 );
             }
             0x21..=0x29 => {
@@ -699,6 +855,7 @@ impl Messages {
                     ch - 0x20,
                     KeyType::Visible,
                     total_objects,
+                    base,
                 );
             }
             0x31..=0x39 => {
@@ -709,6 +866,7 @@ impl Messages {
                     ch - 0x30,
                     KeyType::Invisible,
                     total_objects,
+                    base,
                 );
             }
             0x41..=0x49 => {
@@ -719,19 +877,20 @@ impl Messages {
                     ch - 0x40,
                     KeyType::Invisible,
                     total_objects,
+                    base,
                 );
             }
             0x51..=0x59 => {
-                self.push_long_note_full(values, measure, 1, ch - 0x50, total_objects);
+                self.push_long_note_full(values, measure, 1, ch - 0x50, total_objects, base);
             }
             0x61..=0x69 => {
-                self.push_long_note_full(values, measure, 2, ch - 0x60, total_objects);
+                self.push_long_note_full(values, measure, 2, ch - 0x60, total_objects, base);
             }
             0xD1..=0xD9 => {
-                self.push_mine_full(values, measure, 1, ch - 0xD0, total_objects);
+                self.push_mine_full(values, measure, 1, ch - 0xD0, total_objects, base);
             }
             0xE1..=0xE9 => {
-                self.push_mine_full(values, measure, 2, ch - 0xE0, total_objects);
+                self.push_mine_full(values, measure, 2, ch - 0xE0, total_objects, base);
             }
             _ => { /* non-note hex in Note variant — kept in raw */ }
         }
@@ -851,9 +1010,11 @@ mod tests {
             position: pos,
             player: 2,
             lane: 5,
+            damage: 2.5,
         };
         assert_eq!(ev.player, 2);
         assert_eq!(ev.lane, 5);
+        assert!((ev.damage - 2.5).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -872,10 +1033,10 @@ mod tests {
     fn measure_length_fields() {
         let ml = MeasureLength {
             measure: 1,
-            length_percent: 200,
+            length_ratio: 2.0,
         };
         assert_eq!(ml.measure, 1);
-        assert_eq!(ml.length_percent, 200);
+        assert!((ml.length_ratio - 2.0).abs() < f64::EPSILON);
     }
 
     // Event parsing integration tests
@@ -898,7 +1059,7 @@ mod tests {
                 msgs.concat_raw(msg);
             }
         }
-        msgs.finalize();
+        msgs.finalize(bms_tokenizer::BmsBase::Base36);
         msgs
     }
 
@@ -1006,10 +1167,26 @@ mod tests {
 
     #[test]
     fn measure_length_parsed() {
-        let msgs = parse_one("#00102:200");
+        // #00102:2 means 8/4 (2x a standard 4/4 measure).
+        let msgs = parse_one("#00102:2");
         assert_eq!(msgs.measure_lengths.len(), 1);
         assert_eq!(msgs.measure_lengths[0].measure, 1);
-        assert_eq!(msgs.measure_lengths[0].length_percent, 200);
+        assert!((msgs.measure_lengths[0].length_ratio - 2.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn measure_length_fractional() {
+        // #00102:0.75 means 3/4.
+        let msgs = parse_one("#00102:0.75");
+        assert_eq!(msgs.measure_lengths.len(), 1);
+        assert!((msgs.measure_lengths[0].length_ratio - 0.75).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn measure_length_default_on_invalid() {
+        // Invalid values are silently dropped.
+        let msgs = parse_one("#00102:notanumber");
+        assert!(msgs.measure_lengths.is_empty());
     }
 
     #[test]

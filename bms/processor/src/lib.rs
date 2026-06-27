@@ -141,6 +141,9 @@ impl BmsProcessor {
         // Scroll events (priority 4).
         collect_scroll_events(bms, &table, &mut events);
 
+        // Speed events (priority 5).
+        collect_speed_events(bms, &table, &mut events);
+
         // Stable sort preserves insertion order at the same tick.
         events.sort_by_key(bmsrs_chart::Event::tick);
 
@@ -281,7 +284,7 @@ fn collect_notes<L: BmsLayout>(
             table.position_to_tick(me.position),
             me.player,
             me.lane,
-            NoteKind::Mine { damage: 1.0 },
+            NoteKind::Mine { damage: me.damage },
             None,
             events,
         );
@@ -357,6 +360,22 @@ fn collect_scroll_events(
     for se in &bms.messages.scroll_events {
         if let Some(&rate) = bms.timing.scroll_defs.get(&se.scroll_id) {
             events.push(Event::Scroll {
+                tick: table.position_to_tick(se.position),
+                rate,
+            });
+        }
+    }
+}
+
+/// Build visual note-spacing (SPEED) keyframe events.
+fn collect_speed_events(
+    bms: &Bms,
+    table: &MeasureTable,
+    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+) {
+    for se in &bms.messages.speed_events {
+        if let Some(&rate) = bms.timing.speed_defs.get(&se.speed_id) {
+            events.push(Event::Speed {
                 tick: table.position_to_tick(se.position),
                 rate,
             });
