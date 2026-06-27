@@ -28,6 +28,7 @@ mod error;
 mod header;
 mod index;
 mod message;
+mod preprocess;
 
 #[cfg(test)]
 mod derive_tests;
@@ -49,6 +50,7 @@ pub use index::{
     WavIndex,
 };
 pub use message::BmsMessage;
+pub use preprocess::preprocess;
 
 /// Unified trait for BMS header values.
 ///
@@ -240,7 +242,7 @@ impl BmsTokenizer {
                 line_number += 1;
 
                 let trimmed = segment.trim();
-                if trimmed.is_empty() || trimmed.starts_with("//") {
+                if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with(';') {
                     continue;
                 }
 
