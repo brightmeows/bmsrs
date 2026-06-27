@@ -119,11 +119,7 @@ mod tests {
     const RES: u64 = 240;
 
     fn timing_120() -> TimingTrack {
-        TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
-        }
+        TimingTrack::new(120.0, vec![], vec![])
     }
 
     #[test]

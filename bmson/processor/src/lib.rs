@@ -228,11 +228,11 @@ fn collect_playable_pulses(channels: &[bmson_def::SoundChannel<'_>]) -> BTreeSet
 
 /// 从 BMSON 谱面数据构建 [`TimingTrack`]。
 fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
-    TimingTrack {
-        init_bpm: data.init_bpm,
-        bpm_changes: data.bpm_events.iter().map(build_bpm_change).collect(),
-        stops: data.stop_events.iter().map(build_stop_event).collect(),
-    }
+    TimingTrack::new(
+        data.init_bpm,
+        data.bpm_events.iter().map(build_bpm_change).collect(),
+        data.stop_events.iter().map(build_stop_event).collect(),
+    )
 }
 
 /// 处理音频通道：切片、创建音符/BGM 事件。

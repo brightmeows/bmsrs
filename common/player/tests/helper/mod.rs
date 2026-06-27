@@ -11,11 +11,7 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack {
-                init_bpm: 120.0,
-                bpm_changes: vec![],
-                stops: vec![],
-            },
+            timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             events,

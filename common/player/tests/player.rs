@@ -67,12 +67,7 @@ fn tick_to_duration_matches_timing_track() {
     let player = Player::new(chart);
 
     for tick in [0u64, 120, 240, 480, 960] {
-        let expected = TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
-        }
-        .tick_to_duration(tick, 240);
+        let expected = TimingTrack::new(120.0, vec![], vec![]).tick_to_duration(tick, 240);
         let actual = player.tick_to_duration(tick);
         assert_eq!(actual, expected, "mismatch at tick {tick}");
     }
@@ -133,11 +128,7 @@ fn bgm_in_range_returns_events() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack {
-                init_bpm: 120.0,
-                bpm_changes: vec![],
-                stops: vec![],
-            },
+            timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             events: vec![
@@ -171,11 +162,7 @@ fn scroll_rate_at_returns_latest_multiplier() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack {
-                init_bpm: 120.0,
-                bpm_changes: vec![],
-                stops: vec![],
-            },
+            timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             events: vec![
@@ -206,11 +193,7 @@ fn bar_lines_in_range_returns_subset() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack {
-                init_bpm: 120.0,
-                bpm_changes: vec![],
-                stops: vec![],
-            },
+            timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             events: vec![
@@ -236,14 +219,14 @@ fn current_bpm_returns_active_bpm() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack {
-                init_bpm: 120.0,
-                bpm_changes: vec![BpmChange {
+            timing: TimingTrack::new(
+                120.0,
+                vec![BpmChange {
                     tick: 480,
                     bpm: 200.0,
                 }],
-                stops: vec![],
-            },
+                vec![],
+            ),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             events: vec![],
@@ -271,11 +254,7 @@ fn duration_to_tick_constant_bpm() {
 fn duration_to_tick_matches_timing_track() {
     let chart = make_chart(vec![]);
     let player = Player::new(chart);
-    let track = TimingTrack {
-        init_bpm: 120.0,
-        bpm_changes: vec![],
-        stops: vec![],
-    };
+    let track = TimingTrack::new(120.0, vec![], vec![]);
 
     for d_ms in [0u64, 100, 250, 500, 1000, 2000, 5000] {
         let dur = Duration::from_millis(d_ms);
@@ -292,17 +271,17 @@ fn duration_to_tick_with_bpm_changes_and_stops() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack {
-                init_bpm: 120.0,
-                bpm_changes: vec![BpmChange {
+            timing: TimingTrack::new(
+                120.0,
+                vec![BpmChange {
                     tick: 480,
                     bpm: 60.0,
                 }],
-                stops: vec![bmsrs_chart::StopEvent {
+                vec![bmsrs_chart::StopEvent {
                     tick: 960,
                     duration: 480,
                 }],
-            },
+            ),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             events: vec![],
@@ -310,17 +289,17 @@ fn duration_to_tick_with_bpm_changes_and_stops() {
         },
     };
     let player = Player::new(chart);
-    let track = TimingTrack {
-        init_bpm: 120.0,
-        bpm_changes: vec![BpmChange {
+    let track = TimingTrack::new(
+        120.0,
+        vec![BpmChange {
             tick: 480,
             bpm: 60.0,
         }],
-        stops: vec![bmsrs_chart::StopEvent {
+        vec![bmsrs_chart::StopEvent {
             tick: 960,
             duration: 480,
         }],
-    };
+    );
 
     for d_ms in [0u64, 100, 500, 1000, 2000, 4000, 8000] {
         let dur = Duration::from_millis(d_ms);
@@ -337,14 +316,14 @@ fn duration_to_tick_stop_does_not_advance() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack {
-                init_bpm: 120.0,
-                bpm_changes: vec![],
-                stops: vec![bmsrs_chart::StopEvent {
+            timing: TimingTrack::new(
+                120.0,
+                vec![],
+                vec![bmsrs_chart::StopEvent {
                     tick: 240,
                     duration: 480,
                 }],
-            },
+            ),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             events: vec![],

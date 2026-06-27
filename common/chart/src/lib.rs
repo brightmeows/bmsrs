@@ -49,11 +49,7 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         resolution: 240,
-//!         timing: TimingTrack {
-//!             init_bpm: 120.0,
-//!             bpm_changes: vec![],
-//!             stops: vec![],
-//!         },
+//!         timing: TimingTrack::new(120.0, vec![], vec![]),
 //!         events: vec![Event::Note {
 //!             tick: 0,
 //!             side: NoteSide::P1,

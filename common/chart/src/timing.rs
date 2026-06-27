@@ -8,13 +8,16 @@
 //! 的转换仅发生在公开 API 边界处，通过 [`Duration::from_secs_f64`] 与
 //! [`Duration::as_secs_f64`] 完成。
 
+use std::sync::OnceLock;
 use std::time::Duration;
 
 /// 用于将脉冲位置换算为实际时间的计时信息。
 ///
 /// 所有事件都在绝对脉冲位置上。处理器负责将格式特有的位置
 /// （BMSON 脉冲、BMS 小节）换算为脉冲。
-#[derive(Clone, Debug, Default, PartialEq)]
+///
+/// 合并的 BPM/停止事件列表在首次需要时惰性计算并缓存，避免重复构建。
+#[derive(Debug)]
 pub struct TimingTrack {
     /// 脉冲 0 处的初始 BPM。
     pub init_bpm: f64,
@@ -22,6 +25,8 @@ pub struct TimingTrack {
     pub bpm_changes: Vec<BpmChange>,
     /// 停止（暂停）事件，按脉冲升序排列。
     pub stops: Vec<StopEvent>,
+    /// 惰性缓存的合并事件列表（BPM 变更 + 停止，已排序）。
+    events_cache: OnceLock<Vec<(u64, TimingEvent)>>,
 }
 
 /// BPM 变更事件。
@@ -46,7 +51,7 @@ pub struct StopEvent {
 }
 
 /// 合并时间线的内部事件表示。
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum TimingEvent {
     /// BPM 变更 —— `is_stop = false` 确保同一脉冲上 BPM 排在 Stop 之前。
     Bpm(f64),
@@ -62,21 +67,38 @@ impl TimingEvent {
 }
 
 impl TimingTrack {
+    /// 创建一个新的计时轨。
+    ///
+    /// 使用构造函数而非直接构造结构体以确保内部缓存正确初始化。
+    #[must_use]
+    pub const fn new(init_bpm: f64, bpm_changes: Vec<BpmChange>, stops: Vec<StopEvent>) -> Self {
+        Self {
+            init_bpm,
+            bpm_changes,
+            stops,
+            events_cache: OnceLock::new(),
+        }
+    }
+
     /// 由 `bpm_changes` 与停止事件构造已排序的事件列表。
     ///
+    /// 第一次调用时构建并缓存结果，后续调用返回缓存引用。
     /// 同一脉冲上，BPM 变更排在停止之前（依据 BMSON 规范：
     /// "speed will first change, then the music pauses"）。
-    fn build_events(&self) -> Vec<(u64, TimingEvent)> {
-        let mut events: Vec<(u64, TimingEvent)> = Vec::new();
-        for bc in &self.bpm_changes {
-            events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
-        }
-        for st in &self.stops {
-            events.push((st.tick, TimingEvent::Stop(st.duration)));
-        }
-        // 按脉冲排序，再按 BPM（false）排在 Stop（true）之前。
-        events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
-        events
+    fn cached_events(&self) -> &[(u64, TimingEvent)] {
+        self.events_cache.get_or_init(|| {
+            let mut events: Vec<(u64, TimingEvent)> =
+                Vec::with_capacity(self.bpm_changes.len() + self.stops.len());
+            for bc in &self.bpm_changes {
+                events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
+            }
+            for st in &self.stops {
+                events.push((st.tick, TimingEvent::Stop(st.duration)));
+            }
+            // 按脉冲排序，再按 BPM（false）排在 Stop（true）之前。
+            events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
+            events
+        })
     }
 
     /// 将脉冲位置换算为实际时间 [`Duration`]。
@@ -106,13 +128,13 @@ impl TimingTrack {
         debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
 
         let res = resolution as f64;
-        let events = self.build_events();
+        let events = self.cached_events();
 
         let mut seconds = 0.0f64;
         let mut current_tick = 0u64;
         let mut current_bpm = self.init_bpm;
 
-        for (event_tick, event) in &events {
+        for (event_tick, event) in events {
             if *event_tick > tick {
                 break;
             }
@@ -182,13 +204,13 @@ impl TimingTrack {
         }
 
         let res = resolution as f64;
-        let events = self.build_events();
+        let events = self.cached_events();
 
         let mut remaining = seconds;
         let mut current_tick = 0u64;
         let mut current_bpm = self.init_bpm;
 
-        for (event_tick, event) in &events {
+        for (event_tick, event) in events {
             // 将回放推进到 event_tick。
             if *event_tick > current_tick {
                 let delta_ticks = *event_tick - current_tick;
@@ -217,5 +239,37 @@ impl TimingTrack {
 
         // 目标超出所有事件。
         current_tick + (remaining * res * current_bpm / 60.0).round() as u64
+    }
+}
+
+impl Clone for TimingTrack {
+    fn clone(&self) -> Self {
+        Self {
+            init_bpm: self.init_bpm,
+            bpm_changes: self.bpm_changes.clone(),
+            stops: self.stops.clone(),
+            // 不复制缓存状态——克隆体首次使用时惰性构建。
+            events_cache: OnceLock::new(),
+        }
+    }
+}
+
+impl Default for TimingTrack {
+    fn default() -> Self {
+        Self {
+            init_bpm: 0.0,
+            bpm_changes: Vec::new(),
+            stops: Vec::new(),
+            events_cache: OnceLock::new(),
+        }
+    }
+}
+
+impl PartialEq for TimingTrack {
+    fn eq(&self, other: &Self) -> bool {
+        self.init_bpm == other.init_bpm
+            && self.bpm_changes == other.bpm_changes
+            && self.stops == other.stops
+        // 忽略 events_cache 状态——无论是否缓存，原始数据相同则相等。
     }
 }

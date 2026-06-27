@@ -180,11 +180,7 @@ mod tests {
 
     #[test]
     fn constant_bpm_tick_zero_is_zero() {
-        let timing = TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
-        };
+        let timing = TimingTrack::new(120.0, vec![], vec![]);
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(0);
@@ -193,11 +189,7 @@ mod tests {
 
     #[test]
     fn constant_bpm_120_one_beat_is_half_second() {
-        let timing = TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
-        };
+        let timing = TimingTrack::new(120.0, vec![], vec![]);
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(240);
@@ -206,14 +198,14 @@ mod tests {
 
     #[test]
     fn bpm_change_segment_boundary() {
-        let timing = TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![BpmChange {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![BpmChange {
                 tick: 240,
                 bpm: 60.0,
             }],
-            stops: vec![],
-        };
+            vec![],
+        );
         let cache = TimingCache::new(&timing, RES);
 
         // 0-240 在 120 BPM 下 = 0.5s，240-480 在 60 BPM 下 = 1.0s。
@@ -223,14 +215,14 @@ mod tests {
 
     #[test]
     fn stop_strictly_before_target_adds_pause() {
-        let timing = TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![StopEvent {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![],
+            vec![StopEvent {
                 tick: 240,
                 duration: 240,
             }],
-        };
+        );
         let cache = TimingCache::new(&timing, RES);
 
         // 240 处的停止严格在 241 之前，因此暂停被计入。
@@ -241,14 +233,14 @@ mod tests {
 
     #[test]
     fn stop_at_target_excludes_pause() {
-        let timing = TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![StopEvent {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![],
+            vec![StopEvent {
                 tick: 240,
                 duration: 240,
             }],
-        };
+        );
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(240);
@@ -257,11 +249,7 @@ mod tests {
 
     #[test]
     fn matches_timing_track_constant_bpm() {
-        let timing = TimingTrack {
-            init_bpm: 150.0,
-            bpm_changes: vec![],
-            stops: vec![],
-        };
+        let timing = TimingTrack::new(150.0, vec![], vec![]);
         let cache = TimingCache::new(&timing, RES);
 
         for tick in [0u64, 100, 240, 480, 960, 1920] {
@@ -273,9 +261,9 @@ mod tests {
 
     #[test]
     fn matches_timing_track_with_bpm_changes_and_stops() {
-        let timing = TimingTrack {
-            init_bpm: 150.0,
-            bpm_changes: vec![
+        let timing = TimingTrack::new(
+            150.0,
+            vec![
                 BpmChange {
                     tick: 480,
                     bpm: 200.0,
@@ -285,11 +273,11 @@ mod tests {
                     bpm: 100.0,
                 },
             ],
-            stops: vec![StopEvent {
+            vec![StopEvent {
                 tick: 960,
                 duration: 480,
             }],
-        };
+        );
         let cache = TimingCache::new(&timing, RES);
 
         for tick in [0u64, 100, 240, 479, 480, 959, 960, 961, 1200, 2400] {
@@ -301,14 +289,14 @@ mod tests {
 
     #[test]
     fn bpm_at_tick_returns_correct_bpm() {
-        let timing = TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![BpmChange {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![BpmChange {
                 tick: 480,
                 bpm: 200.0,
             }],
-            stops: vec![],
-        };
+            vec![],
+        );
         let cache = TimingCache::new(&timing, RES);
 
         assert!((cache.bpm_at_tick(0) - 120.0).abs() < 1e-9);

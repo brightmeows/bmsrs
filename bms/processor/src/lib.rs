@@ -88,11 +88,7 @@ impl BmsProcessor {
         stops.extend(build_stops_from_stp(bms, &table, &bpm_changes, init_bpm));
         stops.sort_by_key(|s| s.tick);
 
-        let timing = TimingTrack {
-            init_bpm,
-            bpm_changes,
-            stops,
-        };
+        let timing = TimingTrack::new(init_bpm, bpm_changes, stops);
 
         let bmp_map = build_bmp_map(&bms.visual.bmp_files);
         let bga_resources = bmp_map
