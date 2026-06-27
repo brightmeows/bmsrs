@@ -9,10 +9,10 @@
 //!
 //! # 排序
 //!
-//! 处理器使用稳定排序按脉冲对事件排序，因此同一脉冲上各事件的相对顺序
-//! 由插入顺序决定。约定如下：
+//! 处理器按 `(tick, priority)` 对事件排序。[`Event::priority`] 定义了
+//! 同一脉冲上各事件的顺序：
 //!
-//! `Bar → Note/BGA/BGM → BPM → Stop → Scroll → Custom`
+//! `Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) → Custom(6)`
 
 use std::fmt::Debug;
 
@@ -110,6 +110,24 @@ pub enum Event<T, C: CustomEvent = NoCustomEvent> {
 }
 
 impl<T, C: CustomEvent> Event<T, C> {
+    /// 返回排序优先级（数字越小越优先）。
+    ///
+    /// 同一脉冲上按优先级升序排列。约定：
+    ///
+    /// `Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) → Custom(6)`
+    #[must_use]
+    pub const fn priority(&self) -> u8 {
+        match self {
+            Self::Bar { .. } => 0,
+            Self::Note { .. } | Self::Bga { .. } | Self::Bgm { .. } => 1,
+            Self::Bpm { .. } => 2,
+            Self::Stop { .. } => 3,
+            Self::Scroll { .. } => 4,
+            Self::Speed { .. } => 5,
+            Self::Custom(_) => 6,
+        }
+    }
+
     /// 统一返回此事件的脉冲位置，与变体无关。
     #[must_use]
     pub fn tick(&self) -> u64 {
