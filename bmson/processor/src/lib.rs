@@ -64,8 +64,8 @@ impl NoteExt for BmsonNoteExt {}
 /// BMSON 处理过程中可能出现的错误。
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// `init_bpm` 必须严格为正。
-    #[error("init_bpm must be positive, got {0}")]
+    /// `init_bpm` 必须为非零有限值。
+    #[error("init_bpm must be non-zero finite, got {0}")]
     InvalidBpm(f64),
 }
 
@@ -139,7 +139,7 @@ impl BmsonProcessor {
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let data = &bmson.chart_data;
 
-        if data.init_bpm <= 0.0 {
+        if data.init_bpm.is_nan() || data.init_bpm == 0.0 {
             return Err(ProcessError::InvalidBpm(data.init_bpm));
         }
 

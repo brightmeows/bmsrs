@@ -40,11 +40,15 @@ impl TimingCache {
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     pub(crate) fn new(timing: &TimingTrack, resolution: u64) -> Self {
         debug_assert!(resolution > 0, "resolution must be positive");
-        debug_assert!(timing.init_bpm > 0.0, "init_bpm must be positive");
+        debug_assert!(
+            !timing.init_bpm.is_nan() && timing.init_bpm != 0.0,
+            "init_bpm must be non-zero finite"
+        );
 
         let res = resolution as f64;
 
         // 构造 BPM 段（不含停止的累积秒数）。
+        // BPM 段存储原始值（可能为负），时序计算使用 |bpm|。
         let mut bpm_segments = vec![BpmSegment {
             start_tick: 0,
             start_seconds: 0.0,
@@ -57,7 +61,7 @@ impl TimingCache {
 
         for bc in &timing.bpm_changes {
             if bc.tick > current_tick {
-                current_seconds += (bc.tick - current_tick) as f64 / res * 60.0 / current_bpm;
+                current_seconds += (bc.tick - current_tick) as f64 / res * 60.0 / current_bpm.abs();
                 current_tick = bc.tick;
             }
             current_bpm = bc.bpm;
@@ -76,7 +80,7 @@ impl TimingCache {
         let mut total_pause = 0.0f64;
         for stop in &sorted_stops {
             let bpm = segment_bpm_at_tick(&bpm_segments, stop.tick);
-            total_pause += stop.duration as f64 / res * 60.0 / bpm;
+            total_pause += stop.duration as f64 / res * 60.0 / bpm.abs();
             stop_cumsum.push((stop.tick, total_pause));
         }
 
@@ -105,7 +109,7 @@ impl TimingCache {
             .partition_point(|s| s.start_tick <= tick)
             .saturating_sub(1);
         let seg = &self.bpm_segments[idx];
-        let base = seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm;
+        let base = seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm.abs();
 
         // 加上目标脉冲之前（不含）的累积停止暂停。
         let stop_idx = self.stop_cumsum.partition_point(|(t, _)| *t < tick);

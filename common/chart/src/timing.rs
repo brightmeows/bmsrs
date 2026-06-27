@@ -125,7 +125,10 @@ impl TimingTrack {
     )]
     pub fn tick_to_duration(&self, tick: u64, resolution: u64) -> Duration {
         debug_assert!(resolution > 0, "resolution must be > 0");
-        debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
+        debug_assert!(
+            !self.init_bpm.is_nan() && self.init_bpm != 0.0,
+            "init_bpm must be non-zero finite"
+        );
 
         let res = resolution as f64;
         let events = self.cached_events();
@@ -141,7 +144,7 @@ impl TimingTrack {
             // 将回放推进到 event_tick。
             if *event_tick > current_tick {
                 let delta = (*event_tick - current_tick) as f64;
-                seconds += delta / res * 60.0 / current_bpm;
+                seconds += delta / res * 60.0 / current_bpm.abs();
                 current_tick = *event_tick;
             }
             match event {
@@ -152,7 +155,7 @@ impl TimingTrack {
                     // 仅当停止严格位于目标脉冲之前时才计入停止时间。
                     // 在目标脉冲本身处，时间是暂停之前的时刻（依据规范）。
                     if *event_tick < tick {
-                        seconds += *duration as f64 / res * 60.0 / current_bpm;
+                        seconds += *duration as f64 / res * 60.0 / current_bpm.abs();
                     }
                 }
             }
@@ -161,7 +164,7 @@ impl TimingTrack {
         // 从最后一个事件到目标脉冲的剩余时间。
         if tick > current_tick {
             let delta = (tick - current_tick) as f64;
-            seconds += delta / res * 60.0 / current_bpm;
+            seconds += delta / res * 60.0 / current_bpm.abs();
         }
 
         Duration::from_secs_f64(seconds)
@@ -195,7 +198,10 @@ impl TimingTrack {
     )]
     pub fn duration_to_tick(&self, duration: Duration, resolution: u64) -> u64 {
         debug_assert!(resolution > 0, "resolution must be > 0");
-        debug_assert!(self.init_bpm > 0.0, "init_bpm must be > 0");
+        debug_assert!(
+            !self.init_bpm.is_nan() && self.init_bpm != 0.0,
+            "init_bpm must be non-zero finite"
+        );
 
         let seconds = duration.as_secs_f64();
 
@@ -214,9 +220,10 @@ impl TimingTrack {
             // 将回放推进到 event_tick。
             if *event_tick > current_tick {
                 let delta_ticks = *event_tick - current_tick;
-                let delta_seconds = delta_ticks as f64 / res * 60.0 / current_bpm;
+                let delta_seconds = delta_ticks as f64 / res * 60.0 / current_bpm.abs();
                 if delta_seconds >= remaining {
-                    return current_tick + (remaining * res * current_bpm / 60.0).round() as u64;
+                    return current_tick
+                        + (remaining * res * current_bpm.abs() / 60.0).round() as u64;
                 }
                 remaining -= delta_seconds;
                 current_tick = *event_tick;
@@ -227,7 +234,7 @@ impl TimingTrack {
                     current_bpm = *bpm;
                 }
                 TimingEvent::Stop(stop_duration) => {
-                    let stop_seconds = *stop_duration as f64 / res * 60.0 / current_bpm;
+                    let stop_seconds = *stop_duration as f64 / res * 60.0 / current_bpm.abs();
                     if stop_seconds >= remaining {
                         // 目标位于停止内 —— 脉冲不推进。
                         return current_tick;
@@ -238,7 +245,7 @@ impl TimingTrack {
         }
 
         // 目标超出所有事件。
-        current_tick + (remaining * res * current_bpm / 60.0).round() as u64
+        current_tick + (remaining * res * current_bpm.abs() / 60.0).round() as u64
     }
 }
 

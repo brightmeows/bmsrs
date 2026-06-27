@@ -150,11 +150,18 @@ fn process_zero_bpm_returns_error() {
 }
 
 #[test]
-fn process_negative_bpm_returns_error() {
+fn process_negative_bpm_is_accepted() {
+    // 负 BPM 用于逆向滚动（逆走），时序上使用 |bpm| 计算。
     let mut bms = Bms::default();
-    bms.timing.bpm = Some(-10.0);
+    bms.timing.bpm = Some(-120.0);
     let result = BmsProcessor::process::<Bme>(&bms);
-    assert!(result.is_err());
+    assert!(result.is_ok());
+    let chart = result.unwrap();
+    // BPM 绝对值 = 120，因此 240 ticks = 0.5s。
+    assert_eq!(
+        chart.data.timing.tick_to_duration(240, 240),
+        std::time::Duration::from_millis(500)
+    );
 }
 
 #[test]

@@ -77,7 +77,7 @@ impl BmsProcessor {
         L: BmsLayout,
     {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
-        if init_bpm <= 0.0 {
+        if init_bpm.is_nan() || init_bpm == 0.0 {
             return Err(ProcessError::InvalidBpm(init_bpm));
         }
 
@@ -461,8 +461,10 @@ fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
 }
 
 /// 从 `#STOPxx` 定义（通道 `09`）构建停止事件。
+///
+/// 负 STOP 值被钳位到 `0`（跳过/忽略），与 beatoraja/Angolmois 的行为一致。
 #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
-#[expect(clippy::cast_sign_loss, reason = "raw is non-negative")]
+#[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
 #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
 fn build_stops_from_defs(bms: &Bms, table: &MeasureTable) -> Vec<StopEvent> {
     bms.messages
@@ -471,15 +473,17 @@ fn build_stops_from_defs(bms: &Bms, table: &MeasureTable) -> Vec<StopEvent> {
         .filter_map(|se| {
             bms.timing.stop_defs.get(&se.stop_id).map(|&raw| StopEvent {
                 tick: table.position_to_tick(se.position),
-                duration: (raw / 192.0 * RESOLUTION as f64 * 4.0).round() as u64,
+                duration: (raw / 192.0 * RESOLUTION as f64 * 4.0).round().max(0.0) as u64,
             })
         })
         .collect()
 }
 
 /// 从 `#STP` 头部命令构建停止事件（时长以毫秒计）。
+///
+/// 负 STOP 值被钳位到 `0`（跳过/忽略），与 beatoraja/Angolmois 的行为一致。
 #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
-#[expect(clippy::cast_sign_loss, reason = "duration_ms is non-negative")]
+#[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
 #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
 fn build_stops_from_stp(
     bms: &Bms,
@@ -496,7 +500,7 @@ fn build_stops_from_stp(
             let tick_duration = stp.duration_ms / 1000.0 * bpm / 60.0 * RESOLUTION as f64;
             StopEvent {
                 tick,
-                duration: tick_duration.round() as u64,
+                duration: tick_duration.round().max(0.0) as u64,
             }
         })
         .collect()
