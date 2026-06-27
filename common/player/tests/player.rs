@@ -259,7 +259,7 @@ fn current_bpm_returns_active_bpm() {
 
 #[test]
 fn duration_to_tick_constant_bpm() {
-    let chart = make_chart(vec![]); // 120 BPM, tick 0-239 = 0.5s
+    let chart = make_chart(vec![]); // 120 BPM，脉冲 0-239 = 0.5s
     let player = Player::new(chart);
 
     assert_eq!(player.duration_to_tick(Duration::ZERO), 0);
@@ -353,15 +353,15 @@ fn duration_to_tick_stop_does_not_advance() {
     };
     let player = Player::new(chart);
 
-    // Before stop: 240 ticks = 0.5s at 120 BPM
+    // 停止前：240 个脉冲在 120 BPM 下 = 0.5s
     assert_eq!(player.duration_to_tick(Duration::from_secs_f64(0.5)), 240);
 
-    // During stop: tick should not advance.
+    // 停止期间：脉冲不应推进。
     assert_eq!(player.duration_to_tick(Duration::from_secs_f64(0.75)), 240);
     assert_eq!(player.duration_to_tick(Duration::from_secs_f64(1.0)), 240);
 
-    // After stop: 480 ticks worth of time consumes the stop duration
-    // 0.5s (to stop) + 1.0s (stop at 120 BPM) = 1.5s, then continues
+    // 停止后：480 个脉冲的时间先消耗掉停止时长
+    // 0.5s（到停止点）+ 1.0s（120 BPM 下的停止）= 1.5s，随后继续
     assert_eq!(player.duration_to_tick(Duration::from_secs_f64(1.5)), 240);
     assert_eq!(player.duration_to_tick(Duration::from_secs_f64(2.0)), 480);
 }

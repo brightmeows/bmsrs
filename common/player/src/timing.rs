@@ -1,43 +1,42 @@
-//! Pre-computed timing cache for O(log n) tick-to-Duration conversion.
+//! 用于实现 O(log n) 的脉冲到 [`Duration`] 换算的预计算计时缓存。
 //!
-//! [`TimingCache`] is constructed from a [`TimingTrack`] at Player creation
-//! time and avoids rebuilding the event list on every query. Internal
-//! computation uses `f64`; the public API returns [`Duration`].
+//! [`TimingCache`] 在 [`Player`](crate::Player) 创建时由 [`TimingTrack`]
+//! 构造，避免每次查询时重建事件列表。内部计算使用 `f64`；公开 API 返回
+//! [`Duration`]。
 
 use std::time::Duration;
 
 use bmsrs_chart::TimingTrack;
 
-/// A segment of constant BPM in the timing track.
+/// 计时轨中 BPM 恒定的一段。
 struct BpmSegment {
-    /// Tick at which this segment starts.
+    /// 本段起始的脉冲位置。
     start_tick: u64,
-    /// Wall-clock seconds at `start_tick` (excluding stops).
+    /// `start_tick` 处的实际时间秒数（不含停止）。
     start_seconds: f64,
-    /// BPM during this segment.
+    /// 本段内的 BPM。
     bpm: f64,
 }
 
-/// Pre-computed timing data for fast tick-to-Duration conversion.
+/// 预计算的计时数据，用于快速进行脉冲到 [`Duration`] 的换算。
 ///
-/// The conversion is split into two parts:
+/// 换算分为两部分：
 ///
-/// 1. **Base time** — linear interpolation within constant-BPM segments.
-/// 2. **Stop pauses** — cumulative pause time from all stops strictly before
-///    the target tick.
+/// 1. **基准时间** —— 在恒定 BPM 段内进行线性插值。
+/// 2. **停止暂停** —— 由目标脉冲之前（不含）的所有停止累积的暂停时间。
 ///
-/// Both parts use binary search, giving O(log n) per query.
+/// 两部分均使用二分查找，每次查询为 O(log n)。
 pub struct TimingCache {
-    /// Sorted BPM segments (by `start_tick`).
+    /// 按 `start_tick` 排序的 BPM 段。
     bpm_segments: Vec<BpmSegment>,
-    /// Sorted `(stop_tick, cumulative_pause_seconds)` pairs.
+    /// 已排序的 `(stop_tick, cumulative_pause_seconds)` 配对。
     stop_cumsum: Vec<(u64, f64)>,
-    /// Ticks per quarter note.
+    /// 每个四分音符的脉冲数（节拍分辨率）。
     resolution: u64,
 }
 
 impl TimingCache {
-    /// Build the cache from a [`TimingTrack`] and resolution.
+    /// 由 [`TimingTrack`] 与节拍分辨率构造缓存。
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     pub(crate) fn new(timing: &TimingTrack, resolution: u64) -> Self {
         debug_assert!(resolution > 0, "resolution must be positive");
@@ -45,7 +44,7 @@ impl TimingCache {
 
         let res = resolution as f64;
 
-        // Build BPM segments (cumulative seconds without stops).
+        // 构造 BPM 段（不含停止的累积秒数）。
         let mut bpm_segments = vec![BpmSegment {
             start_tick: 0,
             start_seconds: 0.0,
@@ -69,7 +68,7 @@ impl TimingCache {
             });
         }
 
-        // Build stop cumulative pauses (sorted by tick).
+        // 构造停止累积暂停（按脉冲排序）。
         let mut sorted_stops = timing.stops.clone();
         sorted_stops.sort_by_key(|s| s.tick);
 
@@ -88,10 +87,10 @@ impl TimingCache {
         }
     }
 
-    /// Convert a tick position to wall-clock [`Duration`].
+    /// 将脉冲位置换算为实际时间 [`Duration`]。
     ///
-    /// Stops at the target tick itself are NOT counted (matching
-    /// [`TimingTrack::tick_to_duration`] semantics).
+    /// 不计入目标脉冲处的停止（与
+    /// [`TimingTrack::tick_to_duration`] 语义一致）。
     #[expect(clippy::cast_precision_loss, reason = "tick fits in f64")]
     #[expect(
         clippy::indexing_slicing,
@@ -100,7 +99,7 @@ impl TimingCache {
     pub(crate) fn tick_to_duration(&self, tick: u64) -> Duration {
         let res = self.resolution as f64;
 
-        // Base time from BPM segments.
+        // 由 BPM 段得到的基准时间。
         let idx = self
             .bpm_segments
             .partition_point(|s| s.start_tick <= tick)
@@ -108,7 +107,7 @@ impl TimingCache {
         let seg = &self.bpm_segments[idx];
         let base = seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm;
 
-        // Add cumulative stop pauses strictly before tick.
+        // 加上目标脉冲之前（不含）的累积停止暂停。
         let stop_idx = self.stop_cumsum.partition_point(|(t, _)| *t < tick);
         let stop_pause = if stop_idx > 0 {
             self.stop_cumsum[stop_idx - 1].1
@@ -119,19 +118,19 @@ impl TimingCache {
         Duration::from_secs_f64(base + stop_pause)
     }
 
-    /// Return the BPM active at `tick`.
+    /// 返回 `tick` 处生效的 BPM。
     pub(crate) fn bpm_at_tick(&self, tick: u64) -> f64 {
         segment_bpm_at_tick(&self.bpm_segments, tick)
     }
 
-    /// Convert wall-clock [`Duration`] to the nearest tick position.
+    /// 将实际时间 [`Duration`] 换算为最接近的脉冲位置。
     ///
-    /// This is the inverse of [`tick_to_duration`](Self::tick_to_duration).
-    /// Time spent in stops does not advance the tick.
+    /// 这是 [`tick_to_duration`](Self::tick_to_duration) 的逆运算。
+    /// 停止期间的时间不会推进脉冲。
     ///
-    /// Uses binary search on [`tick_to_duration`](Self::tick_to_duration)
-    /// for O(log² n) complexity.  The search upper bound is generous
-    /// (1000 measures past the last BPM segment) to cover any valid time.
+    /// 在 [`tick_to_duration`](Self::tick_to_duration) 上执行二分查找，
+    /// 复杂度为 O(log² n)。搜索上界取得很宽裕（超出最后一个 BPM 段
+    /// 1000 个小节），以覆盖任意有效时间。
     #[must_use]
     pub(crate) fn duration_to_tick(&self, duration: Duration) -> u64 {
         let target = duration.as_secs_f64();
@@ -139,11 +138,11 @@ impl TimingCache {
             return 0;
         }
 
-        // Upper bound: 1000 measures past the last known BPM segment.
+        // 上界：超出最后一个已知 BPM 段 1000 个小节。
         let last_segment_tick = self.bpm_segments.last().map_or(0, |s| s.start_tick);
         let upper = last_segment_tick + self.resolution * 4 * 1000;
 
-        // Binary search: find the last tick whose time ≤ target.
+        // 二分查找：找出时间 ≤ target 的最后一个脉冲。
         let mut lo = 0u64;
         let mut hi = upper.max(1);
 
@@ -160,7 +159,7 @@ impl TimingCache {
     }
 }
 
-/// Binary-search BPM segments for the active BPM at `tick`.
+/// 二分查找 BPM 段，返回 `tick` 处生效的 BPM。
 #[expect(
     clippy::indexing_slicing,
     reason = "idx from saturating_sub on partition_point, always valid"
@@ -217,7 +216,7 @@ mod tests {
         };
         let cache = TimingCache::new(&timing, RES);
 
-        // 0-240 at 120 BPM = 0.5s, 240-480 at 60 BPM = 1.0s.
+        // 0-240 在 120 BPM 下 = 0.5s，240-480 在 60 BPM 下 = 1.0s。
         let result = cache.tick_to_duration(480);
         assert_eq!(result, Duration::from_millis(1500));
     }
@@ -234,7 +233,7 @@ mod tests {
         };
         let cache = TimingCache::new(&timing, RES);
 
-        // Stop at 240 is strictly before 241, so pause is included.
+        // 240 处的停止严格在 241 之前，因此暂停被计入。
         let result = cache.tick_to_duration(241);
         let expected = 0.5 + 0.5 + 1.0 / 480.0;
         assert!((result.as_secs_f64() - expected).abs() < 1e-9);

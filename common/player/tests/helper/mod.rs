@@ -2,7 +2,7 @@ use bmsrs_chart::{
     Chart, ChartData, ChartInfo, Event, Lane, NoteKind, NoteSide, SongInfo, TimingTrack,
 };
 
-/// Event type with default params for tests.
+/// 测试用的默认参数事件类型。
 type Evt = Event<()>;
 
 pub fn make_chart(events: Vec<Evt>) -> Chart {

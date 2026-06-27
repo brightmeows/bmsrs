@@ -1,10 +1,9 @@
-//! Pure simulation layer for rhythm game charts.
+//! 音乐游戏谱面的纯仿真层。
 //!
-//! [`Player<T, C>`] wraps a [`Chart<T, C>`] and provides time-based queries
-//! for gameplay rendering and scheduling. It is a pure simulation layer with
-//! no I/O, rendering, judgement, or scoring.
+//! [`Player<T, C>`] 包装一个 [`Chart<T, C>`]，提供基于时间的查询接口，
+//! 供游戏渲染与调度使用。它是纯仿真层，无 I/O、渲染、判定或计分。
 //!
-//! # Usage
+//! # 用法
 //!
 //! ```
 //! use std::num::NonZeroU8;
@@ -57,26 +56,24 @@ use bmsrs_chart::{
 
 use crate::timing::TimingCache;
 
-/// Stateful simulator that tracks playback position over a [`Chart`].
+/// 跟踪 [`Chart`] 播放进度的有状态仿真器。
 ///
-/// The player maintains a current tick position and provides queries for
-/// notes, BGM, and visual events within ranges. All time advances are in
-/// wall-clock [`Duration`]; tick positions are derived via an internal
-/// pre-computed timing cache.
+/// 播放器维护当前脉冲位置，提供对给定范围内音符、BGM 与视觉事件的查询。
+/// 所有时间推进均以实际时间 [`Duration`] 表示；脉冲位置通过内部预计算的
+/// 计时缓存派生得到。
 ///
-/// The player is a pure simulation layer: no audio playback, rendering,
-/// input handling, judgement, or scoring.
+/// 播放器是纯仿真层：无音频播放、渲染、输入处理、判定或计分。
 pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// The chart being played.
+    /// 正在播放的谱面。
     chart: Chart<T, C>,
-    /// Pre-computed timing cache for O(log n) queries.
+    /// 预计算的计时缓存，用于 O(log n) 查询。
     cache: TimingCache,
-    /// Current playback position in ticks.
+    /// 当前播放位置（脉冲）。
     current_tick: u64,
 }
 
 impl<T: NoteExt, C: CustomEvent> Player<T, C> {
-    /// Create a new player from a chart, starting at tick 0.
+    /// 由谱面创建一个新播放器，从脉冲 0 开始。
     #[must_use]
     pub fn new(chart: Chart<T, C>) -> Self {
         let resolution = chart.data.resolution;
@@ -88,12 +85,12 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         }
     }
 
-    // Time control
+    // 时间控制
 
-    /// Advance playback by `delta` of wall-clock time.
+    /// 按实际时间增量 `delta` 推进播放。
     ///
-    /// The player's tick position is updated to the tick corresponding to
-    /// `current_time + delta`. Time spent in stops does not advance the tick.
+    /// 播放器的脉冲位置更新为 `current_time + delta` 所对应的脉冲。
+    /// 停止（STOP）期间的时间不会推进脉冲。
     pub fn advance(&mut self, delta: Duration) {
         let new_time = self.current_time() + delta;
         self.current_tick = self
@@ -103,7 +100,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .duration_to_tick(new_time, self.chart.data.resolution);
     }
 
-    /// Seek to an absolute wall-clock time.
+    /// 跳转到指定的绝对实际时间。
     pub fn seek(&mut self, target: Duration) {
         self.current_tick = self
             .chart
@@ -112,61 +109,60 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .duration_to_tick(target, self.chart.data.resolution);
     }
 
-    /// Reset playback to tick 0.
+    /// 将播放重置到脉冲 0。
     pub const fn reset(&mut self) {
         self.current_tick = 0;
     }
 
-    // Time queries
+    // 时间查询
 
-    /// Current playback position in ticks.
+    /// 当前播放位置（脉冲）。
     #[must_use]
     pub const fn current_tick(&self) -> u64 {
         self.current_tick
     }
 
-    /// Current playback position as wall-clock [`Duration`].
+    /// 以实际时间 [`Duration`] 表示的当前播放位置。
     #[must_use]
     pub fn current_time(&self) -> Duration {
         self.cache.tick_to_duration(self.current_tick)
     }
 
-    /// Convert a tick position to wall-clock [`Duration`] using the cached
-    /// timing data.
+    /// 使用缓存的计时数据将脉冲位置换算为实际时间 [`Duration`]。
     ///
-    /// This is faster than calling
+    /// 比直接调用
     /// [`TimingTrack::tick_to_duration`](bmsrs_chart::TimingTrack::tick_to_duration)
-    /// directly, using O(log n) binary search instead of O(n) iteration.
+    /// 更快：使用 O(log n) 二分查找而非 O(n) 遍历。
     #[must_use]
     pub fn tick_to_duration(&self, tick: u64) -> Duration {
         self.cache.tick_to_duration(tick)
     }
 
-    /// Convert wall-clock [`Duration`] to the nearest tick position.
+    /// 将实际时间 [`Duration`] 换算为最接近的脉冲位置。
     ///
-    /// Uses the pre-computed timing cache for O(log² n) performance.
+    /// 使用预计算的计时缓存，性能为 O(log² n)。
     #[must_use]
     pub fn duration_to_tick(&self, duration: Duration) -> u64 {
         self.cache.duration_to_tick(duration)
     }
 
-    /// Total chart duration.
+    /// 谱面总时长。
     #[must_use]
     pub fn duration(&self) -> Duration {
         self.chart.data.duration()
     }
 
-    /// Current BPM at the playback position.
+    /// 播放位置处的当前 BPM。
     #[must_use]
     pub fn current_bpm(&self) -> f64 {
         self.cache.bpm_at_tick(self.current_tick)
     }
 
-    // Event queries
+    // 事件查询
 
-    /// Return all events within `range`.
+    /// 返回 `range` 范围内的全部事件。
     ///
-    /// Events are sorted by tick ascending (guaranteed by the chart).
+    /// 事件按脉冲升序排列（由谱面保证）。
     #[expect(
         clippy::indexing_slicing,
         reason = "indices from partition_point on same vector"
@@ -177,7 +173,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         &self.chart.data.events[start..end]
     }
 
-    /// Return an iterator over Note events within `range`.
+    /// 返回 `range` 范围内 Note 事件的迭代器。
     pub fn notes_in_range(
         &self,
         range: impl RangeBounds<u64>,
@@ -187,7 +183,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .filter(|e| matches!(e, Event::Note { .. }))
     }
 
-    /// Return an iterator over Note events at `(side, lane)` within `range`.
+    /// 返回 `range` 范围内位于 `(side, lane)` 的 Note 事件的迭代器。
     pub fn notes_in_lane(
         &self,
         side: NoteSide,
@@ -199,11 +195,10 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         )
     }
 
-    /// Return an iterator over judgement-relevant Note events within
-    /// `range`.
+    /// 返回 `range` 范围内与判定相关的 Note 事件的迭代器。
     ///
-    /// Judgement-relevant notes are normal and long notes (not invisible
-    /// or mines, which have different handling).
+    /// 与判定相关的音符为普通音符与长音（不含不可见音符与地雷，
+    /// 它们的处理方式不同）。
     pub fn notes_for_judgement(
         &self,
         range: impl RangeBounds<u64>,
@@ -219,25 +214,25 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         })
     }
 
-    /// Return an iterator over BGM events within `range`.
+    /// 返回 `range` 范围内 BGM 事件的迭代器。
     pub fn bgm_in_range(&self, range: impl RangeBounds<u64>) -> impl Iterator<Item = &Event<T, C>> {
         self.events_in_range(range)
             .iter()
             .filter(|e| matches!(e, Event::Bgm { .. }))
     }
 
-    /// Return the audio assets table.
+    /// 返回音频素材表。
     #[must_use]
     pub fn audio_assets(&self) -> &[AudioAsset] {
         &self.chart.data.audio_assets
     }
 
-    // Visual queries
+    // 视觉查询
 
-    /// Return the scroll-speed multiplier at `tick`.
+    /// 返回 `tick` 处的滚动速度倍率。
     ///
-    /// If multiple scroll events exist at the same tick, the last one wins.
-    /// Returns `1.0` if no scroll event has occurred.
+    /// 若同一脉冲上存在多个滚动事件，取最后一个生效。
+    /// 若此前未发生任何滚动事件，返回 `1.0`。
     #[expect(
         clippy::indexing_slicing,
         reason = "indices from partition_point on same vector"
@@ -254,7 +249,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         rate
     }
 
-    /// Return an iterator over Bar events within `range`.
+    /// 返回 `range` 范围内 Bar 事件的迭代器。
     pub fn bar_lines_in_range(
         &self,
         range: impl RangeBounds<u64>,
@@ -264,9 +259,9 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .filter(|e| matches!(e, Event::Bar { .. }))
     }
 
-    /// Return an iterator over BGA events within `range`.
+    /// 返回 `range` 范围内 BGA 事件的迭代器。
     ///
-    /// The caller can further filter by [`bmsrs_chart::BgaLayer`] if needed.
+    /// 如有需要，调用方可进一步按 [`bmsrs_chart::BgaLayer`] 过滤。
     pub fn bga_events_in_range(
         &self,
         range: impl RangeBounds<u64>,
@@ -276,30 +271,30 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .filter(|e| matches!(e, Event::Bga { .. }))
     }
 
-    /// Return BGA resources.
+    /// 返回 BGA 资源。
     #[must_use]
     pub fn bga_resources(&self) -> &[BgaResource] {
         &self.chart.chart.bga_resources
     }
 
-    // Chart access
+    // 谱面访问
 
-    /// Borrow the underlying chart.
+    /// 借用底层谱面。
     #[must_use]
     pub const fn chart(&self) -> &Chart<T, C> {
         &self.chart
     }
 
-    /// Consume the player and return the chart.
+    /// 消费播放器并返回谱面。
     #[must_use]
     pub fn into_chart(self) -> Chart<T, C> {
         self.chart
     }
 
-    // Private helpers
+    // 私有辅助
 
-    /// Map a [`RangeBounds<u64>`] to `(start_index, end_index)` into
-    /// `self.chart.data.events`.
+    /// 将 [`RangeBounds<u64>`] 映射为 `self.chart.data.events` 中的
+    /// `(起始下标, 结束下标)`。
     fn event_range_indices(&self, range: impl RangeBounds<u64>) -> (usize, usize) {
         let start_tick = match range.start_bound() {
             Bound::Included(t) => *t,
