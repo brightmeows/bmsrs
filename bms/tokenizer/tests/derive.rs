@@ -1,10 +1,10 @@
-//! Tests for `#[derive(BmsTokenAttr)]` — compiled as part of the library
-//! so that `crate::` paths in generated code resolve correctly.
-//! Covers all three modes: command, literal, dispatch.
+//! Tests for `#[derive(BmsTokenAttr)]` — covers all three modes:
+//! command, literal, dispatch.
 
 use std::fmt;
 
-use crate::{BmsTokenAttr, BmsValue, WavIndex};
+use bms_tokenizer::*;
+use bms_tokenizer_derive::BmsTokenAttr;
 
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum SimpleHeaders<'a> {

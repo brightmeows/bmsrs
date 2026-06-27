@@ -30,12 +30,10 @@ mod index;
 mod message;
 mod preprocess;
 
-#[cfg(test)]
-mod derive_tests;
-
 pub use bms_tokenizer_derive::BmsTokenAttr;
 pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
+pub use header::parse_header_line;
 pub use header::{
     ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
     ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams,
@@ -50,6 +48,7 @@ pub use index::{
     WavIndex,
 };
 pub use message::BmsMessage;
+pub use message::parse_message_line;
 pub use preprocess::preprocess;
 
 /// Unified trait for BMS header values.
@@ -128,9 +127,6 @@ impl<C> TryFrom<(NonZeroUsize, Result<Self, BmsTokenizeError<C>>)> for BmsToken<
         result.map_err(|error| BmsTryFromError::TokenizationError { line, error })
     }
 }
-
-use header::parse_header_line;
-use message::parse_message_line;
 
 /// A single token produced by tokenizing a BMS file.
 #[derive(Debug, Clone, PartialEq, derive_more::From)]

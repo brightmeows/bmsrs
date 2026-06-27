@@ -5,8 +5,8 @@
 
 use bms_parser::*;
 use bms_tokenizer::{
-    BmpIndex, BmsBase, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, Rank,
-    ScrollIndex, SpeedIndex, StopIndex, WavIndex,
+    BmpIndex, BmsBase, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
+    Rank, ScrollIndex, SpeedIndex, StopIndex, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -741,4 +741,220 @@ fn bmspec_timesig_positioning() {
     assert_eq!(bms.messages.measure_lengths[0].measure, 1);
     // Verify notes parsed: 2 events (01 and 04).
     assert_eq!(bms.messages.note_events.len(), 2);
+}
+
+// Tests adapted from `lib.rs` `#[cfg(test)] mod tests` (public API only).
+// The 4 `merge_channel` tests that use `crate::messages::merge_channel` are
+// left inline in the source file and not duplicated here.
+
+#[test]
+fn header_override_last_wins() {
+    let bms = parse("#TITLE First\n#TITLE Second");
+    assert_eq!(bms.metadata.title.as_deref(), Some("Second"));
+}
+
+#[test]
+fn wav_definitions_stored() {
+    let bms = parse("#WAV01 a.wav\n#WAV02 b.wav");
+    let id1: WavIndex = "01".try_into().unwrap();
+    let id2: WavIndex = "02".try_into().unwrap();
+    assert_eq!(
+        bms.audio.wav_files.get(&id1).map(String::as_str),
+        Some("a.wav")
+    );
+    assert_eq!(
+        bms.audio.wav_files.get(&id2).map(String::as_str),
+        Some("b.wav")
+    );
+}
+
+#[test]
+fn message_storage() {
+    let bms = parse("#00101:1122");
+    let ch = BmsChannel::from_raw("01").unwrap();
+    let measure_map = bms.messages.raw.get(&1);
+    assert!(measure_map.is_some());
+    assert_eq!(
+        measure_map
+            .and_then(|m| m.get(&ch))
+            .and_then(|v| v.first().map(String::as_str)),
+        Some("1122")
+    );
+    assert_eq!(measure_map.and_then(|m| m.get(&ch).map(Vec::len)), Some(1));
+}
+
+#[test]
+fn message_concat_same_channel() {
+    let bms = parse("#00101:1122\n#00101:3344");
+    let ch = BmsChannel::from_raw("01").unwrap();
+    let measure_map = bms.messages.raw.get(&1);
+    let lines = measure_map.and_then(|m| m.get(&ch));
+    assert_eq!(lines, Some(&vec!["1122".to_owned(), "3344".to_owned()]));
+    assert_eq!(bms.messages.bgm_events.len(), 4);
+    assert_eq!(bms.messages.bgm_events[0].position.denom, 2);
+    assert_eq!(bms.messages.bgm_events[2].position.denom, 2);
+}
+
+#[test]
+fn fallback_headers_stored() {
+    let bms = parse("#MYEXT abc123");
+    assert_eq!(bms.fallback_headers.len(), 1);
+    assert_eq!(
+        bms.fallback_headers[0],
+        ("MYEXT".to_owned(), "abc123".to_owned())
+    );
+}
+
+#[test]
+fn lib_mixed_headers_and_messages() {
+    let bms = parse("#TITLE My Song\n#ARTIST composer\n#BPM 180\n#WAV01 kick.wav\n#00111:11223344");
+    assert_eq!(bms.metadata.title.as_deref(), Some("My Song"));
+    assert_eq!(bms.metadata.artist.as_deref(), Some("composer"));
+    assert_eq!(bms.timing.bpm, Some(180.0));
+    let wav_id: WavIndex = "01".try_into().unwrap();
+    assert_eq!(
+        bms.audio.wav_files.get(&wav_id).map(String::as_str),
+        Some("kick.wav")
+    );
+    let ch = BmsChannel::from_raw("11").unwrap();
+    assert_eq!(
+        bms.messages
+            .raw
+            .get(&1)
+            .and_then(|m| m.get(&ch))
+            .and_then(|v| v.first().map(String::as_str)),
+        Some("11223344")
+    );
+}
+
+#[test]
+fn bpm_and_bpm_def_separate_fields() {
+    let bms = parse("#BPM 120\n#BPM01 180.0\n#EXBPM02 200.0");
+    assert_eq!(bms.timing.bpm, Some(120.0));
+    let id1: BpmIndex = "01".try_into().unwrap();
+    let id2: BpmIndex = "02".try_into().unwrap();
+    assert_eq!(bms.timing.bpm_defs.get(&id1), Some(&180.0));
+    assert_eq!(bms.timing.bpm_defs.get(&id2), Some(&200.0));
+}
+
+#[test]
+fn default_is_all_none_empty() {
+    let bms = Bms::default();
+    assert!(bms.metadata.title.is_none());
+    assert!(bms.metadata.artist.is_none());
+    assert!(bms.timing.bpm.is_none());
+    assert!(bms.audio.wav_files.is_empty());
+    assert!(bms.messages.raw.is_empty());
+    assert!(bms.fallback_headers.is_empty());
+}
+
+#[test]
+fn oct_fp_stored() {
+    let bms = parse("#OCT 1");
+    assert_eq!(bms.gameplay.oct_fp, Some(true));
+}
+
+#[test]
+fn option_stored() {
+    let bms = parse("#OPTION -R");
+    assert_eq!(bms.gameplay.option.as_deref(), Some("-R"));
+}
+
+#[test]
+fn wavcmd_stored() {
+    let bms = parse("#WAVCMD some-command");
+    assert_eq!(bms.audio.wav_cmd.as_deref(), Some("some-command"));
+}
+
+#[test]
+fn cdda_stored() {
+    let bms = parse("#CDDA track01.bin");
+    assert_eq!(bms.audio.cdda.as_deref(), Some("track01.bin"));
+}
+
+#[test]
+fn midifile_stored() {
+    let bms = parse("#MIDIFILE song.mid");
+    assert_eq!(bms.audio.midifile.as_deref(), Some("song.mid"));
+}
+
+#[test]
+fn ext_chr_stored() {
+    let bms = parse("#ExtChr extra");
+    assert_eq!(bms.visual.ext_chr.as_deref(), Some("extra"));
+}
+
+#[test]
+fn poor_bga_stored() {
+    let bms = parse("#POORBGA 0");
+    assert_eq!(bms.visual.poor_bga_mode, Some(PoorBgaMode::Default));
+}
+
+#[test]
+fn ex_bmp_stored() {
+    let bms = parse("#EXBMP01 255,0,128,64 overlay.png");
+    let id: BmpIndex = "01".try_into().unwrap();
+    let entry = bms.visual.ex_bmp_defs.get(&id);
+    assert!(entry.is_some());
+    let params = entry.unwrap();
+    assert_eq!(params.a, 255);
+    assert_eq!(params.r, 0);
+    assert_eq!(params.filename, "overlay.png");
+}
+
+#[test]
+fn bga_def_stored() {
+    let bms = parse("#BGA01 02 0 0 100 100 10 20");
+    let id: BmpIndex = "01".try_into().unwrap();
+    assert!(bms.visual.crop_defs.contains_key(&id));
+}
+
+#[test]
+fn at_bga_stored() {
+    let bms = parse("#@BGA01 03 5 10 200 150 0 0");
+    let id: BmpIndex = "01".try_into().unwrap();
+    assert!(bms.visual.alt_crop_defs.contains_key(&id));
+}
+
+#[test]
+fn sw_bga_stored() {
+    let bms = parse("#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp");
+    let id: BmpIndex = "01".try_into().unwrap();
+    assert!(bms.visual.sw_bga_defs.contains_key(&id));
+}
+
+#[test]
+fn argb_stored() {
+    let bms = parse("#ARGB01 128,255,0,64");
+    let id: BmpIndex = "01".try_into().unwrap();
+    assert!(bms.visual.argb_defs.contains_key(&id));
+}
+
+#[test]
+fn stp_event_parsed_from_header() {
+    let bms = parse("#STP 001.128 500");
+    assert_eq!(bms.messages.stp_events.len(), 1);
+    let ev = &bms.messages.stp_events[0];
+    assert_eq!(ev.position.measure, 1);
+    assert_eq!(ev.position.numer, 128);
+    assert_eq!(ev.position.denom, 1000);
+    assert!((ev.duration_ms - 500.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn video_fps_stored() {
+    let bms = parse("#VIDEOf/s 30");
+    assert_eq!(bms.visual.video_fps, Some(30.0));
+}
+
+#[test]
+fn video_colors_stored() {
+    let bms = parse("#VIDEOCOLORS 16");
+    assert_eq!(bms.visual.video_colors, Some(16.0));
+}
+
+#[test]
+fn video_dly_stored() {
+    let bms = parse("#VIDEODLY 1.5");
+    assert_eq!(bms.visual.video_dly, Some(1.5));
 }
