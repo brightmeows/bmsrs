@@ -1,44 +1,53 @@
 # bmson-processor
 
-Converts `bmson_def::Bmson` (v2 root schema) → `Chart<NoteData>`
-via a [`BmsonLayout`] mode family (defined in this crate's [`layout`] module).
+## 定位
 
-## Pipeline
+`bmson_def::Bmson` (v2 root schema) → `Chart` 的转换处理器。
+通过 `BmsonLayout` 模式族解耦键位映射。
 
-```text
-bmson_def::Bmson → BmsonProcessor::process::<L>(bmson) → Chart<NoteData>
+## 管道位置
+
+```mermaid
+flowchart LR
+    Bmson["bmson_def::Bmson (v2)"] --> Proc[bmson-processor]
+    BmsonV01["bmson v0/v1"] --> Conv["From/Bmson::from"]
+    Conv --> Bmson
+    Proc --> Chart["bmsrs_chart::Chart"]
 ```
 
-where `L: BmsonLayout` is a stateless mode family ([`Beat`] or [`Pms`]).
-For stateful n-keys, use `process_nkeys(bmson, keys)`.
+v0/v1 文件先通过 `Bmson::from` 升版到 v2 schema。
 
-For v0/v1 files, convert to the root schema first via `Bmson::from`.
+## 模式族
 
-## Sound-channel slicing
+| 类型 | 实现 | 用途 |
+|------|------|------|
+| 无状态 ZST | `impl BmsonLayout` | 简单模式，`process::<T>(bmson)` |
+| 有状态 decoder | 不实现 `BmsonLayout` | 运行时配置（键数），`process_nkeys(bmson, keys)` |
 
-Each `SoundChannel` is pre-sliced into `AudioAsset`s at every unique note
-pulse so the player looks up a pre-sized asset by index at runtime.
-See the internal `slice` module.
+`process_default` 根据 `mode_hint` 分发：
 
-## Non-obvious rules
+| mode_hint | 模式族 |
+|-----------|--------|
+| beat / dj | `Beat` |
+| popn | `Pms` |
+| 通用 | `GenericLayout` |
 
-- BGM notes (`x: 0`) are discarded when the same pulse has playable notes.
-- Event ordering at the same tick: Note/BGA → BPM change → Stop.
+## 声音通道切片
 
-## Mode families
+每个 `SoundChannel` 在启动时预先切片为 `AudioAsset` 数组，
+每一切片以唯一 Note 脉冲为边界。运行时的音符事件通过索引查预切好的 asset。
 
-Two kinds of families:
+见内部 `slice` 模块。
 
-1. **Stateless ZST** (implements `BmsonLayout`) — a `match` on `x` that
-   produces `Option<NoteData>`. Used via `process::<T>(bmson)`.
-2. **Stateful decoder** (does NOT implement `BmsonLayout`) — carries
-   runtime config (key count). Used via `process_nkeys(bmson, keys)`.
+## 非显而易见的规则
 
-`process_default` dispatches on `mode_hint`: beat/dj → `Beat`, popn → `Pms`,
-generic → `GenericLayout`. See the `layout` module for the current set of
-families and their x-to-lane tables.
+| 规则 | 说明 |
+|------|------|
+| BGM 音符丢弃 | 同脉冲有可演奏音符时，BGM 音符 (`x: 0`) 被丢弃 |
+| 事件排序 | Note/BGA → BPM → Stop |
+| v0/v1 必须先升版 | 不支持直接处理 |
 
-## Tests
+## 测试
 
 ```bash
 cargo test -p bmson-processor

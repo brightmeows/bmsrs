@@ -1,23 +1,33 @@
 # bmson-def
 
-bmson format type definitions (v0/v1/v2).
+## 定位
 
-## Module Layout
+bmson JSON 格式类型定义（v0/v1/v2）。纯数据模型。
 
-- `v0` and `v1` are **independent modules** — each with its own `Bmson`,
-  `BmsonInfo`, `SoundChannel`. Import from `bmson_def::v0` or `bmson_def::v1`.
-- Common types (`NoteEvent`, `BpmEvent`, `BGA`, `ModeHint`, …) are
-  defined in `common.rs` and re-exported from the crate root.
-- Version-specific types and conversion traits (`From`/`TryFrom`) live
-  in each version submodule (`v0.rs`, `v1.rs`), not in `common.rs`.
+## 模块结构
 
-## Version Detection
+| 路径 | 内容 |
+|------|------|
+| `common.rs` | 通用类型（`NoteEvent`、`BpmEvent`、`BGA`、`ModeHint` 等）——从 crate 根 re-export |
+| `v0.rs` / `v1.rs` | 版本特有类型 + `From`/`TryFrom` 转换 trait |
+| `v2` 目录 | v2 版本的特有类型（作为独立 mod）|
 
-- `detect_version()` returns `DetectedVersion` (V0/V1/V2) by scanning
-  the JSON `"version"` field (lightweight, no `serde_json` needed).
+`v0` 和 `v1` 是**独立模块**——各有自己的 `Bmson`、`BmsonInfo`、`SoundChannel`。
+从 `bmson_def::v0` 或 `bmson_def::v1` 导入。
 
-## Dependency Usage
+## 版本检测
 
-- `serde_json` is a **dev-only** dependency — the lib itself does not
-  depend on any JSON library.  Tests use `serde_json::from_str`/`to_string`
-  directly with the version-specific types.
+`detect_version()` → `DetectedVersion`（V0/V1/V2）——扫描 JSON `"version"` 字段。
+轻量实现，无需 `serde_json`。
+
+## 依赖
+
+`serde_json` 是 **dev-only** 依赖——lib 本身不依赖任何 JSON 库。
+测试直接用 `serde_json::from_str`/`to_string` 与版本特有类型交互。
+
+## 非显而易见的规则
+
+| 规则 | 说明 |
+|------|------|
+| v2 的独立 mod 结构 | 与 v0/v1 不同，v2 是目录而非单个文件 |
+| 版本间转换通过 `From` | `Bmson::from(v0_bmson)` 统一升版到 v2 schema |

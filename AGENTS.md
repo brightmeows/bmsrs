@@ -1,41 +1,11 @@
 # bmsrs
 
-## Commands
+## 项目定位
 
-### Pre-commit (auto on commit)
+BMS（Be-Music Script）/ BMSON 谱面格式解析、转换与模拟播放的 Rust 工作空间。
+输出统一的 `Chart<T>` 中间表示，供渲染层/播放器消费。
 
-```bash
-pre-commit run --all-files            # manually trigger all hooks at once
-```
-
-Hooks configured: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`, `no-comment-decorations` (rejects decorative comment blocks), `no-confusable-unicode` (detects confusable Unicode dashes/spaces).
-
-### CI / manual only
-
-```bash
-cargo test --workspace --quiet
-cargo deny check
-```
-
-## Crates
-
-| Crate | Directory | Summary |
-|---|---|---|
-| `bmsrs` | `bmsrs/` | Re-export facade |
-| `bms-tokenizer` | `bms/tokenizer` | First stage of `tokenizer → control-flow → parser` |
-| `bms-tokenizer-derive` | `bms/tokenizer-derive` | Proc-macro for `#[derive(BmsTokenAttr)]` |
-| `bms-control-flow` | `bms/control-flow` | Generic `FlowDoc<P>` control-flow tree, branch selection, roundtrip, payload mapping |
-| `bms-parser` | `bms/parser` | Structured `Bms` model from flat token stream |
-| `bms-processor` | `bms/processor` | `Bms` → `Chart` conversion processor |
-| `bmson-def` | `bmson/def` | bmson format type definitions (v0/v1/v2) |
-| `bmson-de-chumsky` | `bmson/de-chumsky` | bmson JSON deserializer (chumsky) |
-| `bmson-processor` | `bmson/processor` | `Bmson` → `Chart` conversion processor |
-| `bmsrs-chart` | `common/chart` | Format-agnostic chart data model |
-| `bmsrs-player` | `common/player` | Pure simulation layer for `Chart<T>` |
-
-All dependencies (local and external) use `workspace = true` — see `[workspace.dependencies]` in root `Cargo.toml`.
-
-## Pipeline
+## 管道图
 
 ```mermaid
 flowchart LR
@@ -53,52 +23,128 @@ flowchart LR
     Chart --> Player[bmsrs-player]
 ```
 
-## Commit format
+## Crate 职责矩阵
 
-Conventional Commits matching `release-plz.toml` changelog groups:
-`feat:` / `fix:` / `refactor:` / `perf:` / `test:` / `docs:` / `ci:` / `security:` / `deprecated:` / `revert:`
+| Crate | 定位 | 输入 → 输出 | 零依赖？ |
+|-------|------|-------------|---------|
+| `bms-tokenizer` | BMS 语法分析第一关：原始文本 → 结构化 token 流 | `&str` → `BmsToken<C>` | 否（proc-macro）|
+| `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 | — |
+| `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` | 否（rand）|
+| `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` | 否（bms-tokenizer）|
+| `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` | 否（bms-parser + chart）|
+| `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 | 是（dev-only serde_json）|
+| `bmson-de-chumsky` | bmson JSON 反序列化（chumsky 实现） | 替代 serde 的自定义 parser | 否 |
+| `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` | 否 |
+| `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR | **是** |
+| `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 | **是** |
+| `bmsrs` | 公共 re-export facade | `pub use` 聚合 | 是 |
 
-- Title/body in English.
-- Use `()` for scope, e.g. `feat(bms-parser):`.
-- Use `!` for BREAKING CHANGE, e.g. `feat!:` or `feat(scope)!:`.
+外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 
-## Release
+## 命令
 
-Versions, CHANGELOG.md, and git tags are managed by release-plz CI —
-do not manually bump versions, create changelogs, or tag releases.
+### 提交前自动执行（pre-commit hooks）
 
-## Comment style
+```bash
+pre-commit run --all-files          # 手动触发全部 hook
+```
 
-- Use doc comments (`///` for items, `//!` for modules) for all API
-  documentation — clippy enforces docs on all items.
+Hook 配置于 `.pre-commit-config.yaml`：
 
-## Lint convention
+| Hook | 作用 | 失败意味着 |
+|------|------|-----------|
+| `cargo fmt --check` | 格式未格式化 | 运行 `cargo fmt` |
+| `cargo clippy --workspace --all-targets -- -D warnings` | Lint 不通过 | 修复警告 |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | API doc 有 warning | 修复 doc 问题 |
+| `no-comment-decorations` | 装饰性注释块 | 移除 `// ===`、`// ---` 等装饰 |
+| `no-confusable-unicode` | Unicode 混淆字符 | 替换为 ASCII 等价字符 |
 
-Workspace enforces `allow_attributes = "deny"`. Use
-`#[expect(clippy::lint, reason = "...")]` to suppress — never `#[allow]`.
+### 手动执行
 
-## API convention
+```bash
+cargo test --workspace --quiet        # 全工作区测试
+cargo deny check                       # 依赖审计（CI）
+```
 
-Expose public operations through associated functions on a relevant type
-(typically a domain struct or a zero-sized `*Builder`). Avoid free functions
-as public API — namespacing on a type is mandatory for consistency.
-Prefer a `*Builder` only when the API has configurable parameters; a
-bare struct with methods is sufficient when there is no state to configure.
+## 约定
 
-## MSRV & edition
+### 提交格式
 
-- Minimum Rust version: **1.88**.
-- Edition: **2024** (`resolver = "3"`).
+Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下表：
 
-## Testing
+| 类型 | changelog 分组 | scope 示例 |
+|------|---------------|-----------|
+| `feat:` | 🚀 Features | `feat(bms-parser):` |
+| `fix:` | 🐛 Bug Fixes | `fix(tokenizer):` |
+| `refactor:` | 💅 Code Refactoring | `refactor(processor)!:` |
+| `perf:` | ⚡ Performance | `perf(player):` |
+| `test:` | ✅ Tests | `test(parser):` |
+| `docs:` | 📚 Documentation | `docs(chart):` |
+| `ci:` | 👷 CI | — |
+| `security:` | 🔒 Security | — |
+| `deprecated:` | 🗑️ Deprecated | — |
+| `revert:` | ⏪ Revert | — |
 
-- Test naming: `<scenario>_<expectation>`.
-- One assertion per test. Prefer testing edge cases through public types
-  over internal `Wrap` structs.
+- Title/body 用英文
+- breaking change 用 `!`：`feat!:` 或 `feat(scope)!:`
+- `!` 放在冒号前
 
-### Test placement
+### MSRV 与 Edition
 
-| Tests for | Location |
-|---|---|
-| Public API | `<crate>/tests/*.rs` (integration) |
-| `pub(crate)` / private | `src/*.rs` `#[cfg(test)] mod` (inline) |
+| 项目 | 值 |
+|------|-----|
+| MSRV | 1.88 |
+| Edition | 2024（`resolver = "3"`）|
+
+### Lint 约定
+
+- 工作区统一 `[lints]` 配置：`allow_attributes = "deny"`
+- **禁止** `#[allow]`，始终用 `#[expect(clippy::lint, reason = "...")]`
+- clippy `all` + `pedantic` 默认启用
+
+### API 设计
+
+公开操作通过类型的关联函数暴露（结构体或零大小 `*Builder`），**禁止**自由函数作为公开 API。
+仅当 API 有可配置参数时使用 `*Builder`；无状态时直接用结构体方法。
+
+### 注释风格
+
+- 公开项用 `///`，模块用 `//!`（clippy 强制）
+- `//` 用于实现内部说明，不用来写文档
+
+### 测试规范
+
+| 方面 | 规则 |
+|------|------|
+| 命名 | `<场景>_<期望>`，如 `empty_input_returns_empty_bms` |
+| 断言数 | 每个 test 一个断言 |
+| 公开 API 测试 | 放 `tests/*.rs`（集成测试）|
+| `pub(crate)`/ 私有测试 | 放 `src/*.rs` 内 `#[cfg(test)] mod` |
+| 优先测试公开类型 | 避免测试内部 `Wrap` 结构体 |
+
+### 版本发布
+
+- 由 release-plz CI 管理版本、CHANGELOG.md、git tag
+- **禁止**手动修改版本号、创建 changelog、打 tag
+
+## Always / Ask / Never
+
+### Always
+
+- 修改后运行 `pre-commit run --all-files`（或等 hook 自动触发）
+- commit message 符合 Conventional Commits + scope
+- 每个提交只做一个逻辑变更，`feat:` + `fix:` 不混入同提交
+- 新增 crate 时在 `bmsrs/` 和根 AGENTS.md 中添加对应的 `pub use` 和记录
+
+### Ask
+
+- 新增非 workspace 的外部依赖
+- 修改 `.pre-commit-config.yaml` 或 CI 配置
+- 跨 crate 的架构性重构（移动模块、重命名公开类型）
+
+### Never
+
+- 手动修改 `Cargo.toml` 中的版本号
+- 创建或修改 CHANGELOG.md
+- force push 到 main 分支
+- 引入 `serde` / `serde_json` 等序列化依赖到 `bmsrs-chart` 或 `bmsrs-player`

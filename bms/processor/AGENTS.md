@@ -1,51 +1,90 @@
 # bms-processor
 
-Converts `bms_parser::Bms` → `Chart<NoteData>` via a [`BmsLayout`]
-mode family (defined in this crate's [`layout`] module).
+## 定位
 
-## Pipeline
+`Bms` → 格式无关 `Chart` 的转换处理器。
+通过 `BmsLayout` 模式族解耦 BMS 的玩家/键位映射。
 
-```text
-bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<NoteData>
+## 管道位置
+
+```mermaid
+flowchart LR
+    Bms["bms_parser::Bms"] --> Proc["bms-processor"]
+    Proc --> Chart["bmsrs_chart::Chart"]
+    Chart --> Player[bmsrs-player]
 ```
 
-where `L: BmsLayout` is a stateless mode family (e.g. `Bme`, `Pms`, `Nanasi`).
+## 关键转换
 
-## Long-note modes
+| 转换 | 输入 | 输出 | 说明 |
+|------|------|------|------|
+| 音符 | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | LNOBJ 消耗的 note 从普通音符中排除 |
+| 时序 | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | 小节长通过 `length_ratio` (f64) 计算 |
+| BGM | `BgmEvent` | `Event::Bgm` | LNOBJ 终点标记也作为 BGM 播放 |
+| BGA | `BgaEvent` | `Event::Bga` | 四层（Base / Poor / Layer / Layer2）|
+| SCROLL | `ScrollEvent` | `Event::Scroll` | 卷轴速度倍率 |
+| SPEED | `SpeedEvent` | `Event::Speed` | 视觉间距关键帧，线性插值 |
 
-Three LN notations, auto-detected:
+## 长音模式（自动检测）
 
-- **LNOBJ**: `#LNOBJ` designates a WAV index; regular notes paired by
-  that index form LNs.
-- **LNTYPE 2 (MGQ)**: channels 51–69 per `(player, lane)`. A `"00"`
-  entry acts as a release for any active LN on that channel.
-- **LNTYPE 1 (RDM)**: channels 51–69 per `(player, lane)`. `"00"`
-  entries are skipped; remaining events form consecutive start-end pairs.
+| 模式 | 检测条件 | 配对算法 |
+|------|----------|----------|
+| LNOBJ | `#LNOBJ` 已定义 | 常规音符与 LNOBJ 标记配对的起止对 |
+| LNTYPE 1 (RDM) | 默认（或 `#LNTYPE 1`） | ch 51–69，过滤 `"00"`，连续配对 |
+| LNTYPE 2 (MGQ) | `#LNTYPE 2` | ch 51–69，`"00"` = LN 终点 |
 
-The `as_str()` method bridges `BmsIndex<LnObjTag>` to `NoteEvent.wav_id`
-(`BmsIndex<WavTag>`) since they are distinct phantom-typed indices.
+## 定位转换
 
-## Position conversion
+`MeasureTable` 预计算每小节的累计 tick 偏移，以处理变拍子：
 
-`MeasureTable` pre-computes cumulative tick offsets per measure to handle
-variable meter (`#XXX` measure length changes). Tick at `Position{measure,
-numer, denom}` = `measure_starts[measure] + numer * measure_len / denom`.
+```text
+tick = measure_starts[measure] + numer * measure_len / denom
+```
 
-## Stop conversion
+每小节长度 = `resolution * 4 * length_ratio`，其中 `length_ratio` 为 `#xxx02` 值。
 
-- `#STOP` raw value = fraction of 1/192 measure → `raw/192 * res * 4` ticks.
-- `#STP` = milliseconds → ticks via `bpm_at_tick` helper.
+## 停止转换
 
-## Mode families
+| 来源 | 转换公式 |
+|------|----------|
+| `#STOP` (ch 09) | `raw / 192.0 * resolution * 4` ticks |
+| `#STP` (header) | `ms → ticks via bpm_at_tick` |
 
-A mode family is a ZST implementing `BmsLayout` (stateless trait).
-Each family is a single-table mapping: a `match` on `BmsChannel::lane()`
-or `(player(), lane())` that produces `Option<NoteData>`.
+## 模式族
 
-Standard families cover BMS play modes — see the `layout` module for the
-current catalogue of families and their channel-to-lane tables.
+模式族是零大小类型，实现 `BmsLayout` trait。每个族是一个 `(player, lane) → Option<NoteData>` 的映射表。
 
-## Tests
+标准族见 `layout` 模块。`Bme` 族覆盖 5K/7K/10K/14K——`#PLAYER` 不影响映射（与主流引擎一致）。
+
+## 非显而易见的规则
+
+| 规则 | 说明 |
+|------|------|
+| 默认 BPM 130 | 符合 BMS 规范，非 `0.0` |
+| 事件排序 | Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) |
+| LNOBJ 终点 BGM | 终点标记过判定线时播放定义的 WAV |
+| 地雷 `damage: 1.0` | 已修复为实际伤害值（见 `MineEvent.damage`）|
+| `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
+
+## Always / Ask / Never
+
+### Always
+
+- 新事件类型在 `collect_*` 函数中注册 + 在 `process` 中调用
+- 更新 `Event::tick()` match 表达式以包含新变体
+
+### Ask
+
+- 新增模式族（修改 `layout` 模块的通道映射）
+- 修改事件优先级顺序（影响同 tick 事件排序）
+
+### Never
+
+- 在处理器中引入 I/O、渲染、判定逻辑
+- 修改 `Chart` 的数据模型（属于 `bmsrs-chart` crate）
+- 引入 `serde` / 序列化依赖
+
+## 测试
 
 ```bash
 cargo test -p bms-processor

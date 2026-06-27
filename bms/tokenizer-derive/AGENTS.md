@@ -1,55 +1,69 @@
 # bms-tokenizer-derive
 
-Proc-macro crate for `#[derive(BmsTokenAttr)]` — handles all
-`#[bms_token("...")]` patterns via three auto-detected modes.
+## 定位
 
-## Modes
+`#[derive(BmsTokenAttr)]` proc-macro crate。自动处理所有 `#[bms_token("...")]` 模式。
 
-| Mode | Detection | Generated items |
-|---|---|---|
-| **Command** | `#[bms_token("#BPM{id} {value}")]` or `#[bms_token("#TITLE {}")]` | `try_match_header`, `format_header` |
-| **Literal** | `#[bms_token("0")]` (no `#`/`%` prefix) | `FromStr`, `Display` |
-| **Dispatch** | no `#[bms_token]`, all single-tuple | `BmsHeader::try_match_header` |
+纯编译时逻辑，无运行时依赖。
 
-## Module layout
+## 三种模式
 
-- `lib.rs` — derive macro entry point, mode detection
-- `parse.rs` — template string parser (`"#BPM{id} {value}"` or `"#TITLE {}"` → `BmsTokenTemplate`)
-- `codegen.rs` — generates `try_match_header` / `format_header` (command mode)
-  and `BmsHeader::try_match_header` (dispatch mode)
-- `value_codegen.rs` — generates `FromStr` / `Display` (literal mode)
+| 模式 | 检测条件 | 生成内容 |
+|------|----------|----------|
+| **Command** | `#[bms_token("#BPM{id} {value}")]` 或 `#[bms_token("#TITLE {}")]` | `try_match_header` + `format_header` |
+| **Literal** | `#[bms_token("0")]`（无 `#`/`%` 前缀）| `FromStr` + `Display` |
+| **Dispatch** | 无 `#[bms_token]`，全部是单 tuple 变体 | `BmsHeader::try_match_header` |
 
-## Generated functions
+## 模块结构
 
-- `try_match_header` — per-sub-enum parsing (command mode)
-- `format_header` — formats an enum variant back to `(command, value)`
-- `BmsHeader::try_match_header` — top-level dispatch (dispatch mode)
-- `FromStr` / `Display` — value-to-string mapping (literal mode)
+| 文件 | 职责 |
+|------|------|
+| `lib.rs` | derive macro 入口，模式检测 |
+| `parse.rs` | template 字符串解析（`"#BPM{id} {value}"` → `BmsTokenTemplate`）|
+| `codegen.rs` | 生成 `try_match_header` / `format_header`（command 模式 + dispatch 模式）|
+| `value_codegen.rs` | 生成 `FromStr` / `Display`（literal 模式）|
 
-## Attributes
+## 生成的函数
 
-- `#[bms_token("...")]` — command pattern or literal value
-- `#[bms_fallback]` — in command mode: parse failure → `Ok(None)`;
-  in dispatch mode: skip this variant
-- `#[doc(hidden)]` — skip variant in codegen (used for phantom variants)
+| 函数 | 模式 | 作用 |
+|------|------|------|
+| `try_match_header` | Command | 子 enum 级解析入口 |
+| `format_header` | Command | enum 变体 → `(command, value)` |
+| `BmsHeader::try_match_header` | Dispatch | 顶层调度 |
+| `FromStr` / `Display` | Literal | 值 ↔ 字符串映射 |
 
-## `C` field detection
+## 属性
 
-First type param on enum = string container.  Fields matching that ident are
-parsed via `<C as From<&str>>::from(value)` instead of `FromStr`/`BmsValue`.
-`#[doc(hidden)]` variants are always skipped.
+| 属性 | 效果 |
+|------|------|
+| `#[bms_token("...")]` | command pattern 或 literal value |
+| `#[bms_fallback]` | Command 模式：失败 → `Ok(None)`；Dispatch 模式：跳过此变体 |
+| `#[doc(hidden)]` | 跳过 codegen（用于 phantom 变体）|
 
-## Error mapping
+## `C` 字段检测
 
-The macro converts every `FromStr::Err` into a [`BmsTokenizeError`] via
-[`IntoTokensError`].  Built-in impls exist for `ParseIntError`/`ParseFloatError`
-and common BMS errors (`ParseBmsValueError`, `BmsChannelIdError`,
-`ParseDifficultyError`).  Custom `FromStr` types implement `IntoTokensError`
-to control which error variant is produced — no attributes needed on the
-header variant.
+enum 的第一个类型参数 = 字符串容器。匹配该 ident 的字段通过 `<C as From<&str>>::from(value)` 解析，而非 `FromStr`/`BmsValue`。
 
-## Testing
+## 错误映射
 
-Tested indirectly via `bms-tokenizer`'s roundtrip tests (`bms_token.rs`).
-Polymorphism tests live in `bms/tokenizer/tests/generic.rs`.
-Proc-macro unit tests live in `parse.rs` (use `proc_macro2` types).
+macro 将每个 `FromStr::Err` 通过 `IntoTokensError` 转换为 `BmsTokenizeError`。
+
+| 内置实现 | 说明 |
+|----------|------|
+| `ParseIntError` / `ParseFloatError` | 标准库整数/浮点解析错误 |
+| `ParseBmsValueError` | BMS 通用值解析错误 |
+| `BmsChannelIdError` | 通道号解析错误 |
+| `ParseDifficultyError` | 难度等级解析错误 |
+
+自定义 `FromStr` 类型实现 `IntoTokensError` 以控制错误变体。
+
+## 测试
+
+```bash
+# 通过 bms-tokenizer 的 roundtrip 测试间接测试
+cargo test -p bms-tokenizer --test bms_token
+# 多态测试
+cargo test -p bms-tokenizer --test generic
+```
+
+proc-macro 单元测试在 `parse.rs` 中（使用 `proc_macro2` 类型）。

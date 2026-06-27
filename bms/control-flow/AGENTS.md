@@ -1,77 +1,73 @@
 # bms-control-flow
 
-Second stage: tokenizer → **control-flow** → parser.
-Builds `FlowDoc<TokenPayload<C>>` from tokens, selects branches via RNG,
-roundtrips, and derives payload views via `map_payload`.
+## 定位
 
-## Core model
+`#RANDOM`/`#SWITCH` 分支选择与 roundtrip。
+属于 `tokenizer → control-flow → parser` 管道的第二阶段。
 
-`FlowDoc<P>` carries payload type `P` at each content span. Consecutive
-non-control-flow tokens are packed into a single payload node; control-flow
-commands become structured `FlowBlock` nodes.
+## 管道位置
 
 ```mermaid
 flowchart LR
-    Tokens["(NonZeroUsize, BmsToken) pairs"]
-    Tree["FlowDoc&lt;TokenPayload&lt;C&gt;&gt;"]
-    Flat["Vec&lt;BmsToken&gt;"]
-    Other["FlowDoc&lt;Q&gt;"]
-
-    Tokens -- from_tokens --> Tree
-    Tree -- select_branches(rng) --> Flat
-    Tree -- to_tokens --> Flat
-    Tree -- map_payload(f) --> Other
+    Tok["BmsToken[]"] --> CF[bms-control-flow]
+    CF --> FlowDoc["FlowDoc&lt;TokenPayload&gt;"]
+    FlowDoc --> Flat["BmsToken[] (selected)"]
+    Flat --> Par[bms-parser]
 ```
+
+## 核心模型
+
+`FlowDoc<P>` 携带泛型负载类型 `P`。连续的非控制流 token 打包为单个 payload 节点；控制流命令成为结构化 `FlowBlock` 节点。
 
 ```rust
 let tree = FlowDoc::from_tokens(tokens)?;
 let (flat, sel) = tree.select_branches(&mut rng);
-let tree2 = FlowDoc::from_tokens(tokens)?;
-let flat2 = tree2.to_tokens();
+let flat2 = tree.to_tokens();
 ```
 
-`from_tokens` input bundles line numbers. Caller filters `Result` from
-tokenizer first. `FlowDoc<TokenPayload<C>>` is the token-level source of
-truth (editable, roundtrippable).
+## Payload 泛型
 
-## Payload generality
+| 类型 | 用途 | 可编辑？ | 可 roundtrip？ |
+|------|------|----------|----------------|
+| `FlowDoc<TokenPayload<C>>` | token 级真相源 | ✅ | ✅ |
+| `FlowDoc<Bms>`（下游构建） | parser 级只读视图 | ❌ | ❌ |
 
-`FlowDoc<P>` is generic over the payload type `P`. `TokenPayload<C>` is the
-built-in token-level payload. Use `map_payload` / `try_map_payload` to derive
-other payload views while preserving the control-flow skeleton — e.g. a
-downstream crate builds `FlowDoc<Bms>` from `FlowDoc<TokenPayload<C>>`:
+通过 `map_payload` / `try_map_payload` 派生其他 payload 视图，同时保留控制流骨架。
 
-```rust
-let bms_tree: FlowDoc<Bms> = token_tree.map_payload(|TokenPayload { tokens }| {
-    Bms::from_flat_tokens(tokens.into_iter().map(|(_, t)| t))
-});
-```
+## 分支选择
 
-`FlowDoc<Bms>` is a read-only view: `to_tokens` / `select_branches` are only
-available on `FlowDoc<TokenPayload<C>>`. This crate does **not** depend on
-`bms-parser`; the `Bms` view is constructed downstream.
+| 命令 | 选择策略 | 无匹配时 |
+|------|----------|----------|
+| `#RANDOM n` | 首匹配分支 | 静默空（无错误）|
+| `#SWITCH n` | 首匹配 case，fall-through 到 `#SKIP` | 同左 |
 
-## Selection
+- `BranchValue::Max(n)` → 调用 RNG
+- `BranchValue::Set(n)` → 固定值（用于 `#SETRANDOM`/`#SETSWITCH`）
 
-- **`#RANDOM`**: first matching branch wins. No match → silent empty (no error).
-- **`#SWITCH`**: first matching case → fall-through output until `has_skip` stops chain.
-- **`BranchValue::Max(n)`** calls RNG; **`BranchValue::Set(n)`** uses fixed value.
+## 嵌套规则
 
-## Nesting
+| 场景 | 行为 |
+|------|------|
+| `#IF`/`#ENDIF` | 路由到最近的 `RandomBlock` |
+| `#CASE`/`#SKIP` | 路由到最近的 `SwitchBlock` |
+| 分支内开新块（如 `#SWITCH` 在 `#IF 1` 内）| 保持包含 |
+| 缺失 `#ENDRANDOM` | 块静默丢弃（栈未刷新）|
+| 开嵌套块前 | 刷新当前作用域待定 token 到 payload 节点 |
 
-`#IF`/`#ENDIF` route to nearest `RandomBlock`; `#CASE`/`#SKIP` to nearest `SwitchBlock`.
-Blocks opened inside a branch (e.g. `#SWITCH` inside `#IF 1`) stay contained.
-Missing `#ENDRANDOM` → block silently discarded (stack not flushed).
+## 非显而易见的规则
 
-Opening a nested block flushes the current scope's pending tokens into a
-payload node first, so span ordering is preserved across block boundaries.
+| 规则 | 说明 |
+|------|------|
+| 独立于 `bms-parser` | 本 crate 不依赖 parser；`FlowDoc<Bms>` 由下游构建 |
+| `#SWITCH` 中的 `#SKIP` | fall-through 控制；无 `#SKIP` = 继续执行下一个 case |
+| `SequenceRng` | 测试用确定性 RNG，预定义返回值序列 |
+| `StdRng` 或 `ThreadRng` | 自动满足 `BranchRng`（blanket impl）|
 
-## Tests
+## 测试
 
 ```bash
 cargo test -p bms-control-flow
 ```
 
-Helpers `SequenceRng`, `find_seed`, `build_doc` defined in test files.
-Any `rand::RngExt` automatically satisfies `BranchRng` via a blanket impl, so `StdRng`, `ThreadRng`, etc. work out of the box; tests use `StdRng::seed_from_u64` for deterministic seeding.
-`map_payload_tests` covers payload transformation and skeleton preservation.
+`SequenceRng`、`find_seed`、`build_doc` 定义在测试文件中。
+`map_payload_tests` 覆盖 payload 转换和骨架保留。

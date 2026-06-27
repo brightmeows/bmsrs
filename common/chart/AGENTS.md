@@ -1,39 +1,54 @@
 # bmsrs-chart
 
-Format-agnostic chart data model — the central IR between format
-processors and the player.
+## 定位
 
-## Time model
+格式无关的谱面数据模型——格式处理器与播放器之间的中央 IR。
 
-Two domains, converted only at API boundaries:
+**零外部依赖。** 纯 `std`，无 `serde`、`thiserror`、`serde_json`。
 
-- **Tick domain** (`u64`): all event positions, stop durations, LN durations.
-- **Time domain** (`Duration`): `AudioAsset.start`, `Chart::duration()`.
+## 时间模型
 
-[`TimingTrack`] bridges the two via `tick_to_duration` / `duration_to_tick`.
-Internal computation uses `f64`; conversion happens via
-`Duration::from_secs_f64` / `as_secs_f64`.
+| 域 | 类型 | 用途 |
+|------|------|------|
+| Tick | `u64` | 所有事件位置、停止时长、LN 时长 |
+| Time | `Duration` | `AudioAsset.start`、`Chart::duration()` |
 
-`resolution` defines ticks per quarter note (default 240).
+`TimingTrack` 通过 `tick_to_duration` / `duration_to_tick` 桥接两域。
+`resolution` 定义每四分音符的 tick 数（默认 240）。
 
-## Generic note data
+## 泛型参数
 
-`Chart<T>` is parameterised by a `NoteData` type `T`. The default is
-`NoteData` (position triple: side, lane, kind). Custom types carry format-specific
-extensions (volume, pan, LN mode, etc.).
+`Chart<T, C>` — 两个泛型参数，均有默认值：
 
-## Mode families — processor-owned
+| 参数 | 默认值 | 用途 |
+|------|--------|------|
+| `T: NoteExt` | `()` | 每音符扩展数据（音量、pan、LN 模式等）|
+| `C: CustomEvent` | `NoCustomEvent` | 格式特有自定义事件类型 |
 
-Mapping is **not** defined here. Each format processor owns its own layout
-module with its own trait + families. `Chart` stores no mode info — every
-note already carries `(PlayerSide, Lane)` at rest; families exist only
-during conversion and live in the processor that produced the chart.
+## 事件优先级
 
-## Zero external dependencies
+`Event` 枚举变体按优先级排序：
 
-This crate is pure data model — no `serde`, no `thiserror`. Only `std`.
+```
+Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
+```
 
-## Tests
+稳定排序保留同 tick 的插入顺序。
+
+## 数据所有者
+
+模式族（mode families）**不在此定义**。每个格式处理器拥有自己的 `layout` 模块。
+`Chart` 不存储模式信息——音符已携带 `(PlayerSide, Lane)`。
+
+## 非显而易见的规则
+
+| 规则 | 说明 |
+|------|------|
+| `Chart::duration()` = `last_tick` 的渲染时长 | 最后事件之后无额外尾音 |
+| `AudioAsset.start` 是 Time 域 | 用于定义音频素材的触发起点 |
+| `Event` 的 `tick()` 方法 | 统一访问所有变体的 tick 字段 |
+
+## 测试
 
 ```bash
 cargo test -p bmsrs-chart
