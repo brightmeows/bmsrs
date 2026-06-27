@@ -1,9 +1,8 @@
-//! Control-flow tree construction, branch selection, and roundtrip conversion for BMS.
+//! BMS 的控制流树构建、分支选择与 roundtrip 转换。
 //!
-//! This crate takes the flat token stream from [`bms_tokenizer`] and builds a
-//! structured tree ([`FlowDoc`]) that preserves all control-flow branches.
-//! It can then select a single branch per block using an RNG, or convert the
-//! tree back to a flat token sequence.
+//! 本 crate 接收来自 [`bms_tokenizer`] 的扁平 token 流，构建一棵保留所有
+//! 控制流分支的结构化树（[`FlowDoc`]）。随后可借助随机数生成器为每个块
+//! 选择单个分支，或将树转换回扁平 token 序列。
 //!
 //! # Usage
 //!

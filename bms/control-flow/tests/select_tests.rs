@@ -1,4 +1,4 @@
-//! Integration tests for `FlowDocument::select_branches` (Task 3).
+//! `FlowDocument::select_branches`（任务 3）的集成测试。
 
 #![expect(
     clippy::panic_in_result_fn,
@@ -15,7 +15,7 @@ use rand::rngs::StdRng;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize BMS text and build a `FlowDoc<TokenPayload<&str>>`.
+/// 辅助函数：对 BMS 文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
 fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
@@ -25,8 +25,8 @@ fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, Co
     FlowDoc::from_tokens(tokens)
 }
 
-/// Helper: find a seed that makes `StdRng` produce `target` on first
-/// `gen_range(max)` call.
+/// 辅助函数：寻找一个种子，使 `StdRng` 在首次调用 `gen_range(max)` 时
+/// 产生 `target`。
 fn find_seed(target: u64, max: u64) -> Option<u64> {
     for seed in 0..1000 {
         let mut rng = StdRng::seed_from_u64(seed);
@@ -37,7 +37,7 @@ fn find_seed(target: u64, max: u64) -> Option<u64> {
     None
 }
 
-/// Extract WAV filenames from tokens.
+/// 从 token 中提取 WAV 文件名。
 fn wav_filenames<'a>(tokens: &'a [BmsToken<&str>]) -> Vec<&'a str> {
     tokens
         .iter()
@@ -51,7 +51,7 @@ fn wav_filenames<'a>(tokens: &'a [BmsToken<&str>]) -> Vec<&'a str> {
         .collect()
 }
 
-/// Extract the control-flow headers from a token list.
+/// 从 token 列表中提取控制流头部命令。
 fn cf_headers(tokens: &[BmsToken<&str>]) -> Vec<BmsHeaderControlFlow> {
     tokens
         .iter()
@@ -296,9 +296,9 @@ fn cf_headers_not_in_selected_output() -> TestResult {
     Ok(())
 }
 
-// BMS spec-derived tests (bmspec-4, memo/13-control-flow)
+// 源自 BMS 规范的测试（bmspec-4、memo/13-control-flow）
 
-// bmspec-4 Scenario 2: RNG yields 2 → #IF 2 branch selected.
+// bmspec-4 场景 2：RNG 产生 2 → 选择 #IF 2 分支。
 #[test]
 fn random_selects_second_branch() -> TestResult {
     let items = build_doc(
@@ -323,7 +323,7 @@ fn random_selects_second_branch() -> TestResult {
     Ok(())
 }
 
-// bmspec-4 Scenario 3: two sequential #RANDOM blocks, each selected independently.
+// bmspec-4 场景 3：两个连续的 #RANDOM 块，各自独立选择。
 #[test]
 fn multiple_sequential_random_blocks_select() -> TestResult {
     let items = build_doc(
@@ -345,7 +345,7 @@ fn multiple_sequential_random_blocks_select() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    // First RANDOM → 2 (b.wav), second RANDOM → 1 (c.wav)
+    // 第一个 RANDOM → 2（b.wav），第二个 RANDOM → 1（c.wav）
     let mut rng = SequenceRng::new(&[2, 1]);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
@@ -356,7 +356,7 @@ fn multiple_sequential_random_blocks_select() -> TestResult {
     Ok(())
 }
 
-// memo/13-control-flow: #IF 1 / #ELSEIF 2 / #ELSEIF 3 / #ELSE, RNG = 2 → first match (#ELSEIF 2).
+// memo/13-control-flow：#IF 1 / #ELSEIF 2 / #ELSEIF 3 / #ELSE，RNG = 2 → 首匹配（#ELSEIF 2）。
 #[test]
 fn elseif_first_match_wins() -> TestResult {
     let items = build_doc(
@@ -386,7 +386,7 @@ fn elseif_first_match_wins() -> TestResult {
     Ok(())
 }
 
-// memo/13-control-flow: RNG = 4 (no match in ELSEIF chain) → #ELSE selected.
+// memo/13-control-flow：RNG = 4（ELSEIF 链中无匹配）→ 选择 #ELSE。
 #[test]
 fn elseif_no_match_falls_to_else() -> TestResult {
     let items = build_doc(
@@ -415,7 +415,7 @@ fn elseif_no_match_falls_to_else() -> TestResult {
     Ok(())
 }
 
-// memo/13-control-flow: #DEF selected when no #CASE matches.
+// memo/13-control-flow：无 #CASE 匹配时选择 #DEF。
 #[test]
 fn switch_def_fallback() -> TestResult {
     let items = build_doc(
@@ -441,7 +441,7 @@ fn switch_def_fallback() -> TestResult {
     Ok(())
 }
 
-// Edge case: RNG value that doesn't match any branch → nothing selected.
+// 边界情况：RNG 值不匹配任何分支 → 不选出任何内容。
 #[test]
 fn random_no_branch_matches_yields_no_output() -> TestResult {
     let items = build_doc(
@@ -457,13 +457,13 @@ fn random_no_branch_matches_yields_no_output() -> TestResult {
     let (tokens, decisions) = items.select_branches(&mut rng);
 
     assert!(wav_filenames(&tokens).is_empty());
-    assert_eq!(decisions.decisions[0].selected_index, 1); // no match (branches.len())
+    assert_eq!(decisions.decisions[0].selected_index, 1); // 无匹配（branches.len()）
     Ok(())
 }
 
-// Reference-derived tests (bms-rs control-flow semantics)
+// 源自参考实现的测试（bms-rs control-flow 语义）
 
-// #SWITCH with only #DEF — the simplest switch block.
+// 只含 #DEF 的 #SWITCH —— 最简单的 switch 块。
 #[test]
 fn switch_only_def_selected_when_no_case() -> TestResult {
     let items = build_doc(
@@ -483,7 +483,7 @@ fn switch_only_def_selected_when_no_case() -> TestResult {
     Ok(())
 }
 
-// Empty #RANDOM block (no branches at all) produces no output.
+// 空的 #RANDOM 块（完全没有分支）不产出任何输出。
 #[test]
 fn empty_random_block_select_yields_nothing() -> TestResult {
     let items = build_doc("#RANDOM 2\n#ENDRANDOM")?;
@@ -495,7 +495,7 @@ fn empty_random_block_select_yields_nothing() -> TestResult {
     Ok(())
 }
 
-// #RANDOM with a single #IF branch.
+// 含单个 #IF 分支的 #RANDOM。
 #[test]
 fn random_single_branch_selected() -> TestResult {
     let items = build_doc(
@@ -515,7 +515,7 @@ fn random_single_branch_selected() -> TestResult {
     Ok(())
 }
 
-// Three-level nesting: RANDOM inside SWITCH inside RANDOM.
+// 三层嵌套：RANDOM 内嵌 SWITCH 再内嵌 RANDOM。
 #[test]
 fn nested_three_levels_selection() -> TestResult {
     let items = build_doc(
@@ -542,8 +542,8 @@ fn nested_three_levels_selection() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    // Outer → 2 (switch branch), Switch → 2 (case2 w/ inner random),
-    // Inner → 1 (innermost.wav)
+    // 外层 → 2（switch 分支），Switch → 2（含内层 random 的 case2），
+    // 内层 → 1（innermost.wav）
     let mut rng = SequenceRng::new(&[2, 2, 1]);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
@@ -552,7 +552,7 @@ fn nested_three_levels_selection() -> TestResult {
     Ok(())
 }
 
-// Headers and messages around control flow are preserved in selection output.
+// 控制流前后的头部命令与 message 在选择输出中保持不变。
 #[test]
 fn headers_around_control_flow_preserved_in_selection() -> TestResult {
     let items = build_doc(
@@ -576,9 +576,9 @@ fn headers_around_control_flow_preserved_in_selection() -> TestResult {
     Ok(())
 }
 
-// Nested control-flow tests ported from bms-rs (nested_switch.rs)
+// 从 bms-rs 移植的嵌套控制流测试（nested_switch.rs）
 
-/// RNG with pre-determined values (ignores max).
+/// 使用预定义值的 RNG（忽略 max）。
 struct SequenceRng {
     values: Vec<u64>,
     pos: usize,
@@ -605,8 +605,8 @@ impl BranchRng for SequenceRng {
     }
 }
 
-// Ported from nested_switch.rs → nested_switch_simpler / nested_switch
-// SWITCH → CASE 1 → SWITCH → CASE 1, with note content.
+// 移植自 nested_switch.rs → nested_switch_simpler / nested_switch
+// SWITCH → CASE 1 → SWITCH → CASE 1，含音符内容。
 #[test]
 fn switch_in_switch_select() -> TestResult {
     let items = build_doc(
@@ -628,25 +628,25 @@ fn switch_in_switch_select() -> TestResult {
          #ENDSW",
     )?;
 
-    // RNG [1, 1]: outer→1 (CASE 1), inner→1 (CASE 1) → a.wav, b.wav
+    // RNG [1, 1]：外层→1（CASE 1），内层→1（CASE 1）→ a.wav, b.wav
     let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
-    // RNG [1, 2]: outer→1, inner→2 (CASE 2) → a.wav, c.wav
+    // RNG [1, 2]：外层→1，内层→2（CASE 2）→ a.wav, c.wav
     let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(dec_12.decisions.len(), 2);
     assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
-    // RNG [2]: outer→2 (CASE 2) → d.wav
+    // RNG [2]：外层→2（CASE 2）→ d.wav
     let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(dec_2.decisions.len(), 1);
     assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
     Ok(())
 }
 
-// Ported from nested_switch.rs → nested_random_in_switch
-// SWITCH → CASE 1 → RANDOM 2 (IF 1 / ELSEIF 2).
+// 移植自 nested_switch.rs → nested_random_in_switch
+// SWITCH → CASE 1 → RANDOM 2（IF 1 / ELSEIF 2）。
 #[test]
 fn nested_random_in_switch_select() -> TestResult {
     let items = build_doc(
@@ -668,25 +668,25 @@ fn nested_random_in_switch_select() -> TestResult {
          #ENDSW",
     )?;
 
-    // RNG [1, 1]: SWITCH→1, RANDOM→1 (IF 1) → a.wav, b.wav
+    // RNG [1, 1]：SWITCH→1，RANDOM→1（IF 1）→ a.wav, b.wav
     let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
-    // RNG [1, 2]: SWITCH→1, RANDOM→2 (ELSEIF 2) → a.wav, c.wav
+    // RNG [1, 2]：SWITCH→1，RANDOM→2（ELSEIF 2）→ a.wav, c.wav
     let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(dec_12.decisions.len(), 2);
     assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
-    // RNG [2]: SWITCH→2 (CASE 2) → d.wav
+    // RNG [2]：SWITCH→2（CASE 2）→ d.wav
     let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(dec_2.decisions.len(), 1);
     assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
     Ok(())
 }
 
-// Ported from nested_switch.rs → nested_switch_in_random
-// RANDOM 2 → IF 1 → SWITCH 2, with ELSE fallback.
+// 移植自 nested_switch.rs → nested_switch_in_random
+// RANDOM 2 → IF 1 → SWITCH 2，含 ELSE 回退。
 #[test]
 fn nested_switch_in_random_select() -> TestResult {
     let items = build_doc(
@@ -707,25 +707,25 @@ fn nested_switch_in_random_select() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    // RNG [1, 1]: RANDOM→1 (IF 1), SWITCH→1 (CASE 1) → a.wav, b.wav
+    // RNG [1, 1]：RANDOM→1（IF 1），SWITCH→1（CASE 1）→ a.wav, b.wav
     let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
-    // RNG [1, 2]: RANDOM→1, SWITCH→2 (CASE 2) → a.wav, c.wav
+    // RNG [1, 2]：RANDOM→1，SWITCH→2（CASE 2）→ a.wav, c.wav
     let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(dec_12.decisions.len(), 2);
     assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
-    // RNG [2]: RANDOM→2 (ELSE) → d.wav
+    // RNG [2]：RANDOM→2（ELSE）→ d.wav
     let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(dec_2.decisions.len(), 1);
     assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
     Ok(())
 }
 
-// Ported from nested_switch.rs → test_switch_insane (BMIIDXView2010 test case).
-// Complex multi-level nesting with 5-level SWITCH, RANDOM, and inner SWITCH.
+// 移植自 nested_switch.rs → test_switch_insane（BMIIDXView2010 测试用例）。
+// 含 5 层 SWITCH、RANDOM 与内层 SWITCH 的复杂多层嵌套。
 #[test]
 fn switch_insane_multi_level_select() -> TestResult {
     let items = build_doc(
@@ -757,32 +757,32 @@ fn switch_insane_multi_level_select() -> TestResult {
          #ENDSW",
     )?;
 
-    // RNG [1, 1]: SWITCH→1 (CASE 1), RANDOM→1 (IF 1) → a.wav, b.wav
+    // RNG [1, 1]：SWITCH→1（CASE 1），RANDOM→1（IF 1）→ a.wav, b.wav
     let (tokens, decisions) = items.select_branches(&mut SequenceRng::new(&[1, 1]));
     assert_eq!(decisions.decisions.len(), 2);
     assert_eq!(wav_filenames(&tokens), vec!["a.wav", "b.wav"]);
 
-    // RNG [1, 2]: SWITCH→1, RANDOM→2 (ELSE) → a.wav, c.wav
+    // RNG [1, 2]：SWITCH→1，RANDOM→2（ELSE）→ a.wav, c.wav
     let (result_12, dec_12) = items.select_branches(&mut SequenceRng::new(&[1, 2]));
     assert_eq!(dec_12.decisions.len(), 2);
     assert_eq!(wav_filenames(&result_12), vec!["a.wav", "c.wav"]);
 
-    // RNG [2]: SWITCH→2 (CASE 2) → d.wav
+    // RNG [2]：SWITCH→2（CASE 2）→ d.wav
     let (result_2, dec_2) = items.select_branches(&mut SequenceRng::new(&[2]));
     assert_eq!(dec_2.decisions.len(), 1);
     assert_eq!(wav_filenames(&result_2), vec!["d.wav"]);
 
-    // RNG [3, 1]: SWITCH→3 (CASE 3), inner SWITCH→1 → e.wav, f.wav
+    // RNG [3, 1]：SWITCH→3（CASE 3），内层 SWITCH→1 → e.wav, f.wav
     let (result_31, dec_31) = items.select_branches(&mut SequenceRng::new(&[3, 1]));
     assert_eq!(dec_31.decisions.len(), 2);
     assert_eq!(wav_filenames(&result_31), vec!["e.wav", "f.wav"]);
 
-    // RNG [3, 2]: SWITCH→3, inner SWITCH→2 → e.wav, g.wav
+    // RNG [3, 2]：SWITCH→3，内层 SWITCH→2 → e.wav, g.wav
     let (result_32, dec_32) = items.select_branches(&mut SequenceRng::new(&[3, 2]));
     assert_eq!(dec_32.decisions.len(), 2);
     assert_eq!(wav_filenames(&result_32), vec!["e.wav", "g.wav"]);
 
-    // RNG [4]: SWITCH→4 (no CASE 4, nothing selected) → empty
+    // RNG [4]：SWITCH→4（无 CASE 4，不选出任何内容）→ 空
     let (result_4, dec_4) = items.select_branches(&mut SequenceRng::new(&[4]));
     assert_eq!(dec_4.decisions.len(), 1);
     assert!(wav_filenames(&result_4).is_empty());
@@ -791,9 +791,8 @@ fn switch_insane_multi_level_select() -> TestResult {
 
 #[test]
 fn random_zero_yields_empty_branch_without_panicking() -> TestResult {
-    // `#RANDOM 0` is malformed (empty range); select_branches must not
-    // panic — it uses value 0, which matches no `#IF`, so the block is a
-    // silent empty.
+    // `#RANDOM 0` 是格式错误的（空范围）；select_branches 不得 panic ——
+    // 它使用值 0，不匹配任何 `#IF`，因此该块为静默空块。
     let doc = build_doc("#RANDOM 0\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#ENDRANDOM")?;
     let (tokens, decisions) = doc.select_branches(&mut SequenceRng::new(&[]));
     assert_eq!(decisions.decisions.len(), 1);
@@ -804,7 +803,7 @@ fn random_zero_yields_empty_branch_without_panicking() -> TestResult {
 
 #[test]
 fn switch_zero_yields_empty_branch_without_panicking() -> TestResult {
-    // `#SWITCH 0` is malformed (empty range); same graceful-empty contract.
+    // `#SWITCH 0` 是格式错误的（空范围）；遵循同样的优雅空块约定。
     let doc = build_doc("#SWITCH 0\n#CASE 1\n#WAV01 a.wav\n#SKIP 0\n#ENDSW")?;
     let (tokens, decisions) = doc.select_branches(&mut SequenceRng::new(&[]));
     assert_eq!(decisions.decisions.len(), 1);

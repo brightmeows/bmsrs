@@ -1,24 +1,23 @@
-//! RNG abstraction for branch selection.
+//! 用于分支选择的随机数生成器抽象。
 
 use rand::RngExt;
 
-/// A random number generator that produces values in `[1, max]`.
+/// 生成 `[1, max]` 范围内随机值的随机数生成器。
 ///
-/// This trait encapsulates the BMS-spec semantics of `#RANDOM N` (uniform
-/// selection from `1..=N`). Any [`rand::RngExt`] automatically satisfies this
-/// via the blanket impl below, so callers can pass in `StdRng`, `ThreadRng`,
-/// or any other `rand` generator directly.
+/// 此 trait 封装了 `#RANDOM N` 的 BMS 规范语义（从 `1..=N` 中均匀选取）。
+/// 任意 [`rand::RngExt`] 通过下方的 blanket impl 自动满足此 trait，
+/// 因此调用者可直接传入 `StdRng`、`ThreadRng` 或任何其他 `rand` 生成器。
 pub trait BranchRng {
-    /// Generate a random value in `[1, max]` (inclusive).
+    /// 生成 `[1, max]`（含两端）范围内的随机值。
     ///
     /// # Panics
     ///
-    /// May panic if `max` is zero (empty range).
+    /// 当 `max` 为零（空范围）时可能 panic。
     fn gen_range(&mut self, max: u64) -> u64;
 }
 
-/// Any [`rand::RngExt`] is a [`BranchRng`]: delegates to
-/// [`rand::RngExt::random_range`] over the inclusive range `1..=max`.
+/// 任意 [`rand::RngExt`] 都是一个 [`BranchRng`]：委托给
+/// [`rand::RngExt::random_range`]，作用于闭区间 `1..=max`。
 impl<R: RngExt + ?Sized> BranchRng for R {
     fn gen_range(&mut self, max: u64) -> u64 {
         self.random_range(1..=max)

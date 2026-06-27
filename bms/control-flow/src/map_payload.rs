@@ -1,39 +1,37 @@
-//! Generic payload transformation for [`FlowDoc`].
+//! [`FlowDoc`] 的通用载荷转换。
 //!
-//! These operations walk the control-flow skeleton and rewrite every payload
-//! span via a caller-supplied closure, leaving the branch/case structure
-//! untouched. They let downstream code derive payload views the control-flow
-//! crate itself does not know about (e.g. `FlowDoc<Bms>` built from
-//! `FlowDoc<TokenPayload<C>>`).
+//! 这些操作遍历控制流骨架，并通过调用者提供的闭包重写每个载荷片段，
+//! 保留分支/case 结构不变。下游代码可借此派生控制流 crate 自身并不知晓
+//! 的载荷视图（例如由 `FlowDoc<TokenPayload<C>>` 构建出
+//! `FlowDoc<Bms>`）。
 
 use crate::{FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch, SwitchBlock, SwitchCase};
 
 impl<P> FlowDoc<P> {
-    /// Transform every payload span by `f`, preserving the control-flow skeleton.
+    /// 用 `f` 转换每个载荷片段，保留控制流骨架。
     ///
-    /// Each [`FlowNode::Payload`] is replaced by `Payload(f(p))`; block nodes
-    /// keep their branches/cases and only their nested payloads are mapped.
-    /// The closure runs once per payload span in tree order.
+    /// 每个 [`FlowNode::Payload`] 被替换为 `Payload(f(p))`；块节点保留其
+    /// 分支/case，仅其内嵌的载荷会被映射。闭包按树的顺序对每个载荷片段
+    /// 调用一次。
     #[must_use]
     pub fn map_payload<Q>(self, mut f: impl FnMut(P) -> Q) -> FlowDoc<Q> {
-        // The mapping closure is infallible, so wrap it with `Infallible` and
-        // exhaustively match the impossible error — no `expect`/`unwrap` needed.
+        // 映射闭包不会失败，因此用 `Infallible` 包装并对不可能出现的错误
+        // 做穷尽匹配 —— 无需 `expect`/`unwrap`。
         match self.try_map_payload(|p| Ok::<Q, std::convert::Infallible>(f(p))) {
             Ok(tree) => tree,
             Err(void) => match void {},
         }
     }
 
-    /// Fallible variant of [`FlowDoc::map_payload`].
+    /// [`FlowDoc::map_payload`] 的可失败变体。
     ///
-    /// Stops at the first span whose closure returns `Err`, propagating that
-    /// error immediately. Useful when payload construction can fail (e.g.
-    /// parsing a token span into a structured type).
+    /// 一旦某个片段的闭包返回 `Err` 即停止，并立即传播该错误。适用于
+    /// 载荷构造可能失败的情况（例如将 token 片段解析为结构化类型）。
     ///
     /// # Errors
     ///
-    /// Returns `Err(e)` if `f` returns `Err(e)` for any span; iteration stops
-    /// at the first failing span.
+    /// 若 `f` 对任一片段返回 `Err(e)`，则返回 `Err(e)`；遇到第一个失败
+    /// 片段即停止迭代。
     pub fn try_map_payload<Q, E>(
         self,
         mut f: impl FnMut(P) -> Result<Q, E>,
@@ -43,7 +41,7 @@ impl<P> FlowDoc<P> {
     }
 }
 
-/// Map a sequence of nodes, short-circuiting on the first error.
+/// 映射节点序列，遇到第一个错误即短路。
 fn map_nodes<P, Q, E>(
     nodes: Vec<FlowNode<P>>,
     f: &mut impl FnMut(P) -> Result<Q, E>,
@@ -51,7 +49,7 @@ fn map_nodes<P, Q, E>(
     nodes.into_iter().map(|node| map_node(node, f)).collect()
 }
 
-/// Map a single node: apply `f` to a payload, or recurse into a block.
+/// 映射单个节点：对载荷应用 `f`，或递归进入块。
 fn map_node<P, Q, E>(
     node: FlowNode<P>,
     f: &mut impl FnMut(P) -> Result<Q, E>,
@@ -62,7 +60,7 @@ fn map_node<P, Q, E>(
     })
 }
 
-/// Map every payload nested within a control-flow block.
+/// 映射控制流块内嵌套的所有载荷。
 fn map_block<P, Q, E>(
     block: FlowBlock<P>,
     f: &mut impl FnMut(P) -> Result<Q, E>,
@@ -88,7 +86,7 @@ fn map_block<P, Q, E>(
     })
 }
 
-/// Map payloads inside a single `RandomBranch`.
+/// 映射单个 `RandomBranch` 内的载荷。
 fn map_random_branch<P, Q, E>(
     branch: RandomBranch<P>,
     f: &mut impl FnMut(P) -> Result<Q, E>,
@@ -99,7 +97,7 @@ fn map_random_branch<P, Q, E>(
     })
 }
 
-/// Map payloads inside a single `SwitchCase`.
+/// 映射单个 `SwitchCase` 内的载荷。
 fn map_switch_case<P, Q, E>(
     case: SwitchCase<P>,
     f: &mut impl FnMut(P) -> Result<Q, E>,

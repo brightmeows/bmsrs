@@ -1,4 +1,4 @@
-//! Build a control-flow tree from a flat token stream.
+//! 从扁平 token 流构建控制流树。
 
 use std::num::NonZeroUsize;
 
@@ -10,59 +10,59 @@ use crate::{
     RandomBranchKind, SwitchBlock, SwitchCase, SwitchCaseKind, TokenPayload,
 };
 
-/// Pending `(line, token)` pairs not yet packed into a payload node.
+/// 尚未打包为载荷节点的待定 `(line, token)` 对。
 type Pending<C> = Vec<(NonZeroUsize, BmsToken<C>)>;
 
-/// Internal state for building a `RandomBlock`.
+/// 构建 `RandomBlock` 的内部状态。
 struct RandomState<C: Clone + PartialEq> {
-    /// How the branch value is determined.
+    /// 分支值的确定方式。
     value: BranchValue,
-    /// Whether `#ENDRANDOM` was seen.
+    /// 是否已遇到 `#ENDRANDOM`。
     has_end_random: bool,
-    /// Completed branches.
+    /// 已完成的分支。
     branches: Vec<RandomBranch<TokenPayload<C>>>,
-    /// Branch currently being built.
+    /// 正在构建的分支。
     current_branch: Option<RandomBranch<TokenPayload<C>>>,
-    /// Tokens accumulated for the current branch, not yet packed.
+    /// 当前分支累积、尚未打包的 token。
     pending: Pending<C>,
 }
 
-/// Internal state for building a `SwitchBlock`.
+/// 构建 `SwitchBlock` 的内部状态。
 struct SwitchState<C: Clone + PartialEq> {
-    /// How the branch value is determined.
+    /// 分支值的确定方式。
     value: BranchValue,
-    /// Completed cases.
+    /// 已完成的 case。
     cases: Vec<SwitchCase<TokenPayload<C>>>,
-    /// Case currently being built.
+    /// 正在构建的 case。
     current_case: Option<SwitchCase<TokenPayload<C>>>,
-    /// Tokens accumulated for the current case, not yet packed.
+    /// 当前 case 累积、尚未打包的 token。
     pending: Pending<C>,
 }
 
-/// Stack entry for nested block construction.
+/// 嵌套块构造的栈条目。
 enum StackEntry<C: Clone + PartialEq> {
-    /// Currently building a `#RANDOM` block.
+    /// 正在构建一个 `#RANDOM` 块。
     Random(RandomState<C>),
-    /// Currently building a `#SWITCH` block.
+    /// 正在构建一个 `#SWITCH` 块。
     Switch(SwitchState<C>),
 }
 
-/// Accumulator packing a flat token stream into a [`FlowDoc`].
+/// 将扁平 token 流打包为 [`FlowDoc`] 的累加器。
 ///
-/// Consecutive non-control-flow tokens are buffered in a per-scope `pending`
-/// list and flushed into a [`FlowNode::Payload`] whenever a control-flow
-/// boundary is crossed (branch/case switch, block close, or end of stream).
+/// 连续的非控制流 token 缓存在按作用域划分的 `pending` 列表中，每当越过
+/// 控制流边界（分支/case 切换、块闭合或流结束）时，就刷新为一个
+/// [`FlowNode::Payload`]。
 struct Builder<C: Clone + PartialEq> {
-    /// Completed top-level nodes.
+    /// 已完成的顶层节点。
     top_level: Vec<FlowNode<TokenPayload<C>>>,
-    /// Tokens accumulated at top level, not yet packed.
+    /// 顶层累积、尚未打包的 token。
     top_pending: Pending<C>,
-    /// Nested block stack.
+    /// 嵌套块栈。
     stack: Vec<StackEntry<C>>,
 }
 
 impl<C: Clone + PartialEq> Builder<C> {
-    /// Create an empty builder.
+    /// 创建一个空的构建器。
     const fn new() -> Self {
         Self {
             top_level: Vec::new(),
@@ -71,13 +71,13 @@ impl<C: Clone + PartialEq> Builder<C> {
         }
     }
 
-    /// Flush any remaining pending tokens and yield the finished tree.
+    /// 刷新所有剩余待定 token 并产出完成的树。
     fn finish(mut self) -> FlowDoc<TokenPayload<C>> {
         self.flush();
         FlowDoc(self.top_level)
     }
 
-    /// Buffer a non-control-flow token into the current scope's pending list.
+    /// 将非控制流 token 缓存到当前作用域的待定列表。
     fn push_token(&mut self, line: NonZeroUsize, token: BmsToken<C>) {
         match self.stack.last_mut() {
             Some(StackEntry::Random(state)) => state.pending.push((line, token)),
@@ -86,7 +86,7 @@ impl<C: Clone + PartialEq> Builder<C> {
         }
     }
 
-    /// Pack the current scope's pending tokens into a payload node, if non-empty.
+    /// 若待定 token 非空，则将当前作用域的待定 token 打包为载荷节点。
     fn flush(&mut self) {
         let pending = match self.stack.last_mut() {
             Some(StackEntry::Random(state)) => std::mem::take(&mut state.pending),
@@ -98,7 +98,7 @@ impl<C: Clone + PartialEq> Builder<C> {
         }
     }
 
-    /// Push an already-built node to the current scope's body.
+    /// 将已构建好的节点压入当前作用域的 body。
     fn push_node(&mut self, node: FlowNode<TokenPayload<C>>) {
         match self.stack.last_mut() {
             Some(StackEntry::Random(state)) => {
@@ -115,7 +115,7 @@ impl<C: Clone + PartialEq> Builder<C> {
         }
     }
 
-    /// Route a control-flow header to the appropriate structural operation.
+    /// 将一个控制流头部命令路由到对应的结构化操作。
     fn handle_control_flow(
         &mut self,
         line: NonZeroUsize,
@@ -207,7 +207,7 @@ impl<C: Clone + PartialEq> Builder<C> {
         Ok(())
     }
 
-    /// Start a new branch in the nearest `Random` block.
+    /// 在最近的 `Random` 块中开启一个新分支。
     fn start_branch(
         &mut self,
         line: NonZeroUsize,
@@ -226,7 +226,7 @@ impl<C: Clone + PartialEq> Builder<C> {
         Ok(())
     }
 
-    /// Start a new case in the nearest `Switch` block.
+    /// 在最近的 `Switch` 块中开启一个新 case。
     fn start_case(
         &mut self,
         line: NonZeroUsize,
@@ -246,7 +246,7 @@ impl<C: Clone + PartialEq> Builder<C> {
         Ok(())
     }
 
-    /// Pack pending tokens into the current branch and move it to `branches`.
+    /// 将待定 token 打包到当前分支中，并将其移入 `branches`。
     fn finalize_random_branch(&mut self, idx: usize) {
         if let Some(StackEntry::Random(state)) = self.stack.get_mut(idx) {
             flush_into(
@@ -259,7 +259,7 @@ impl<C: Clone + PartialEq> Builder<C> {
         }
     }
 
-    /// Pack pending tokens into the current case and move it to `cases`.
+    /// 将待定 token 打包到当前 case 中，并将其移入 `cases`。
     fn finalize_switch_case(&mut self, idx: usize) {
         if let Some(StackEntry::Switch(state)) = self.stack.get_mut(idx) {
             flush_into(
@@ -272,21 +272,21 @@ impl<C: Clone + PartialEq> Builder<C> {
         }
     }
 
-    /// Index of the nearest `Random` entry searching from stack top.
+    /// 从栈顶向下搜索，返回最近的 `Random` 条目的索引。
     fn find_random(&self) -> Option<usize> {
         self.stack
             .iter()
             .rposition(|e| matches!(e, StackEntry::Random(_)))
     }
 
-    /// Index of the nearest `Switch` entry searching from stack top.
+    /// 从栈顶向下搜索，返回最近的 `Switch` 条目的索引。
     fn find_switch(&self) -> Option<usize> {
         self.stack
             .iter()
             .rposition(|e| matches!(e, StackEntry::Switch(_)))
     }
 
-    /// Pop entries from `idx` to the top, building `FlowBlock`s into the parent scope.
+    /// 弹出从 `idx` 到栈顶的所有条目，将构建好的 `FlowBlock` 压入父作用域。
     fn pop_and_build(&mut self, idx: usize) {
         let removed: Vec<StackEntry<C>> = self.stack.drain(idx..).collect();
         for entry in removed {
@@ -324,9 +324,10 @@ impl<C: Clone + PartialEq> Builder<C> {
     }
 }
 
-/// Pack `pending` into a payload node appended to `body_owner`, if non-empty.
+/// 若 `pending` 非空，将其打包为载荷节点并追加到 `body_owner`。
 ///
-/// Generic over `RandomBranch` / `SwitchCase` (both carry `body: Vec<FlowNode<_>>`).
+/// 对 `RandomBranch` / `SwitchCase` 泛型化（两者都持有
+/// `body: Vec<FlowNode<_>>`）。
 fn flush_into<C: Clone + PartialEq>(
     pending: &mut Pending<C>,
     body_owner: Option<&mut Vec<FlowNode<TokenPayload<C>>>>,
@@ -340,16 +341,15 @@ fn flush_into<C: Clone + PartialEq>(
 }
 
 impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
-    /// Build a [`FlowDoc`] from an iterator of `(line, token)` pairs.
+    /// 从 `(line, token)` 对的迭代器构建 [`FlowDoc`]。
     ///
-    /// Non-control-flow tokens are packed into consecutive payload spans.
-    /// Control-flow tokens (`#RANDOM`, `#SWITCH`, etc.) are structured into
-    /// nested [`FlowBlock`] trees.
+    /// 非控制流 token 被打包为连续的载荷片段。控制流 token（`#RANDOM`、
+    /// `#SWITCH` 等）被组织为嵌套的 [`FlowBlock`] 树。
     ///
     /// # Errors
     ///
-    /// Returns [`ControlFlowError`] when control-flow commands are mis-nested
-    /// (e.g., `#IF` without `#RANDOM`, `#ENDRANDOM` without matching open).
+    /// 当控制流命令嵌套错误时（例如 `#IF` 没有 `#RANDOM`、`#ENDRANDOM`
+    /// 没有匹配的起始命令），返回 [`ControlFlowError`]。
     pub fn from_tokens(
         tokens: impl IntoIterator<Item = (NonZeroUsize, BmsToken<C>)>,
     ) -> Result<Self, ControlFlowError> {

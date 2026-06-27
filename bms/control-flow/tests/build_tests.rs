@@ -1,4 +1,4 @@
-//! Integration tests for `FlowDoc::from_tokens`.
+//! `FlowDoc::from_tokens` 的集成测试。
 
 #![expect(
     clippy::panic_in_result_fn,
@@ -15,7 +15,7 @@ use bms_tokenizer::{BmsToken, BmsTokenizer};
 
 type TestResult = std::result::Result<(), ControlFlowError>;
 
-/// Helper: tokenize BMS text and filter to successful tokens only.
+/// 辅助函数：对 BMS 文本分词，仅保留成功的 token。
 fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<&str>)> {
     BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
@@ -24,13 +24,13 @@ fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<&str>)> {
         .collect()
 }
 
-/// Helper: tokenize and build a `FlowDoc<TokenPayload<&str>>`.
+/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
 fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens = tokenize(input);
     FlowDoc::from_tokens(tokens)
 }
 
-/// Extract the first root node as a `Random` block reference, or panic.
+/// 将首个根节点作为 `Random` 块引用提取出来，否则 panic。
 fn as_random<'a>(
     root: &'a [FlowNode<TokenPayload<&'a str>>],
 ) -> &'a RandomBlock<TokenPayload<&'a str>> {
@@ -40,7 +40,7 @@ fn as_random<'a>(
     r
 }
 
-/// Extract the first root node as a `Switch` block reference, or panic.
+/// 将首个根节点作为 `Switch` 块引用提取出来，否则 panic。
 fn as_switch<'a>(
     root: &'a [FlowNode<TokenPayload<&'a str>>],
 ) -> &'a SwitchBlock<TokenPayload<&'a str>> {
@@ -201,7 +201,7 @@ fn nested_random_in_switch_builds_tree() -> TestResult {
     let switch = as_switch(&tree);
     assert_eq!(switch.cases.len(), 2);
 
-    // Case 1 body should contain a nested Random block
+    // Case 1 的 body 应包含一个嵌套的 Random 块
     let case1 = switch.cases.first().expect("case 1");
     assert_eq!(case1.body.len(), 1);
     assert!(matches!(
@@ -209,7 +209,7 @@ fn nested_random_in_switch_builds_tree() -> TestResult {
         Some(FlowNode::Block(FlowBlock::Random(_)))
     ));
 
-    // Case 2 body should contain a single payload (the message)
+    // Case 2 的 body 应包含单个载荷（该 message）
     let case2 = switch.cases.get(1).expect("case 2");
     assert_eq!(case2.body.len(), 1);
     assert!(matches!(case2.body.first(), Some(FlowNode::Payload(_))));
@@ -333,14 +333,14 @@ fn branch_body_packs_consecutive_tokens_into_payload() -> TestResult {
     )?;
 
     let block = as_random(&tree);
-    // Branch 1 has two consecutive tokens packed into one payload node.
+    // 分支 1 有两个连续 token 被打包为一个载荷节点。
     let branch1 = block.branches.first().expect("branch 1");
     assert_eq!(branch1.body.len(), 1);
     let Some(FlowNode::Payload(p1)) = branch1.body.first() else {
         panic!("expected payload in branch 1");
     };
     assert_eq!(p1.tokens.len(), 2);
-    // Branch 2 has a single token in one payload node.
+    // 分支 2 有单个 token 被打包为一个载荷节点。
     let branch2 = block.branches.get(1).expect("branch 2");
     assert_eq!(branch2.body.len(), 1);
     Ok(())
@@ -359,14 +359,14 @@ fn switch_case_bodies_pack_consecutive_tokens() -> TestResult {
     )?;
 
     let block = as_switch(&tree);
-    // Case 1 has two consecutive tokens packed into one payload node.
+    // Case 1 有两个连续 token 被打包为一个载荷节点。
     let case1 = block.cases.first().expect("case 1");
     assert_eq!(case1.body.len(), 1);
     let Some(FlowNode::Payload(p1)) = case1.body.first() else {
         panic!("expected payload in case 1");
     };
     assert_eq!(p1.tokens.len(), 2);
-    // Case 2 has a single token in one payload node.
+    // Case 2 有单个 token 被打包为一个载荷节点。
     let case2 = block.cases.get(1).expect("case 2");
     assert_eq!(case2.body.len(), 1);
     Ok(())

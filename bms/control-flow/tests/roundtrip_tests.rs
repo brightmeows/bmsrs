@@ -1,4 +1,4 @@
-//! Integration tests for `FlowDoc::to_tokens` roundtrip.
+//! `FlowDoc::to_tokens` roundtrip 的集成测试。
 
 #![expect(
     clippy::panic_in_result_fn,
@@ -11,7 +11,7 @@ use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizer};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize and build a `FlowDoc<TokenPayload<&str>>`.
+/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
 fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
@@ -21,7 +21,7 @@ fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, Co
     FlowDoc::from_tokens(tokens)
 }
 
-/// Helper: tokenize and build with `C = String` for polymorphism coverage.
+/// 辅助函数：以 `C = String` 分词并构建，用于多态覆盖测试。
 fn build_doc_string(
     input: &str,
 ) -> std::result::Result<FlowDoc<TokenPayload<String>>, ControlFlowError> {
@@ -33,7 +33,7 @@ fn build_doc_string(
     FlowDoc::from_tokens(tokens)
 }
 
-/// Extract control-flow headers from a token list as debug strings.
+/// 从 token 列表中提取控制流头部命令，作为 Debug 字符串返回。
 fn cf_debug(tokens: &[BmsToken<&str>]) -> Vec<String> {
     tokens
         .iter()
@@ -376,7 +376,7 @@ fn random_empty_block_roundtrip() -> TestResult {
     Ok(())
 }
 
-/// Verify control-flow roundtrip works with `C = String`.
+/// 验证控制流 roundtrip 在 `C = String` 时也能工作。
 #[test]
 fn random_block_roundtrip_with_string_container() -> TestResult {
     let items = build_doc_string(

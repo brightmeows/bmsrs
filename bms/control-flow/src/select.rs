@@ -1,4 +1,4 @@
-//! RNG-based branch selection for [`FlowDoc`].
+//! 基于 RNG 的 [`FlowDoc`] 分支选择。
 
 use bms_tokenizer::BmsToken;
 
@@ -9,17 +9,15 @@ use crate::{
 };
 
 impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
-    /// Select one branch per control-flow block using `rng`.
+    /// 使用 `rng` 为每个控制流块选择一个分支。
     ///
-    /// Returns a flat token stream with only the chosen branches, plus a
-    /// [`BranchSelection`] recording every decision.
+    /// 返回仅含已选分支的扁平 token 流，以及记录每次决策的
+    /// [`BranchSelection`]。
     ///
-    /// - `#SETRANDOM` / `#SETSWITCH` blocks use their `max` value directly
-    ///   without calling `rng`.
-    /// - `#RANDOM` blocks: the first branch whose condition matches the RNG
-    ///   value is selected.
-    /// - `#SWITCH` blocks: the first `#CASE` matching the value is selected,
-    ///   with fall-through to subsequent cases until `#SKIP` is hit.
+    /// - `#SETRANDOM` / `#SETSWITCH` 块直接使用其 `max` 值，不调用 `rng`。
+    /// - `#RANDOM` 块：选择条件与 RNG 值匹配的第一个分支。
+    /// - `#SWITCH` 块：选择与值匹配的第一个 `#CASE`，并 fall-through 到
+    ///   后续 case，直到遇到 `#SKIP`。
     #[must_use]
     pub fn select_branches(&self, rng: &mut impl BranchRng) -> (Vec<BmsToken<C>>, BranchSelection) {
         let mut output = Vec::new();
@@ -33,7 +31,7 @@ impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
     }
 }
 
-/// Process a single [`FlowNode`], appending tokens to `output`.
+/// 处理单个 [`FlowNode`]，将 token 追加到 `output`。
 fn select_node<C: Clone + PartialEq>(
     node: &FlowNode<TokenPayload<C>>,
     rng: &mut impl BranchRng,
@@ -50,7 +48,7 @@ fn select_node<C: Clone + PartialEq>(
     }
 }
 
-/// Select branches within a [`FlowBlock`].
+/// 在 [`FlowBlock`] 内选择分支。
 fn select_block<C: Clone + PartialEq>(
     block: &FlowBlock<TokenPayload<C>>,
     rng: &mut impl BranchRng,
@@ -59,10 +57,9 @@ fn select_block<C: Clone + PartialEq>(
 ) {
     match block {
         FlowBlock::Random(r) => {
-            // `#RANDOM 0` is malformed (an empty range would panic in the
-            // RNG). Treat it as a value matching no `#IF` branch, yielding a
-            // silent empty block — consistent with how unmatched branches
-            // are handled below.
+            // `#RANDOM 0` 是格式错误的（空范围会让 RNG panic）。将值视为
+            // 不匹配任何 `#IF` 分支，产生一个静默空块 —— 与下方未匹配分支
+            // 的处理方式一致。
             let value = match r.value {
                 BranchValue::Max(0) => 0,
                 BranchValue::Max(max) => rng.gen_range(max),
@@ -89,8 +86,8 @@ fn select_block<C: Clone + PartialEq>(
             });
         }
         FlowBlock::Switch(s) => {
-            // `#SWITCH 0` is malformed (see the Random arm above): avoid the
-            // empty-range panic by using a value that matches no `#CASE`.
+            // `#SWITCH 0` 是格式错误的（参见上方 Random 分支）：使用一个
+            // 不匹配任何 `#CASE` 的值，避免空范围 panic。
             let value = match s.value {
                 BranchValue::Max(0) => 0,
                 BranchValue::Max(max) => rng.gen_range(max),

@@ -1,4 +1,4 @@
-//! Reverse conversion: tree → flat token stream.
+//! 反向转换：树 → 扁平 token 流。
 
 use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsToken};
 
@@ -7,11 +7,10 @@ use crate::{
 };
 
 impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
-    /// Convert the tree back to a flat token stream.
+    /// 将树转换回扁平 token 流。
     ///
-    /// Reconstructs the control-flow header commands (`#RANDOM`, `#IF`, etc.)
-    /// around the structured branches and unpacks each payload span, producing
-    /// a sequence that can be re-tokenized to an equivalent document.
+    /// 在结构化分支周围重建控制流头部命令（`#RANDOM`、`#IF` 等），并解包
+    /// 每个载荷片段，产出的序列可被重新分词为等价的文档。
     #[must_use]
     pub fn to_tokens(&self) -> Vec<BmsToken<C>> {
         let mut output = Vec::new();
@@ -22,7 +21,7 @@ impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
     }
 }
 
-/// Push tokens for a single [`FlowNode`].
+/// 压入单个 [`FlowNode`] 的 token。
 fn push_node_tokens<C: Clone + PartialEq>(
     node: &FlowNode<TokenPayload<C>>,
     output: &mut Vec<BmsToken<C>>,
@@ -37,7 +36,7 @@ fn push_node_tokens<C: Clone + PartialEq>(
     }
 }
 
-/// Push tokens for a [`FlowBlock`], including all control-flow headers.
+/// 压入 [`FlowBlock`] 的 token，包含所有控制流头部命令。
 fn push_block_tokens<C: Clone + PartialEq>(
     block: &FlowBlock<TokenPayload<C>>,
     output: &mut Vec<BmsToken<C>>,

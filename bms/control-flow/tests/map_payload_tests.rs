@@ -1,4 +1,4 @@
-//! Integration tests for `FlowDoc::map_payload` and `try_map_payload`.
+//! `FlowDoc::map_payload` 与 `try_map_payload` 的集成测试。
 
 #![expect(
     clippy::panic_in_result_fn,
@@ -11,7 +11,7 @@ use bms_tokenizer::BmsTokenizer;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// Helper: tokenize and build a `FlowDoc<TokenPayload<&str>>`.
+/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
 fn build_doc(input: &str) -> Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(input)
@@ -36,10 +36,10 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    // Map each payload span to its token count.
+    // 将每个载荷片段映射为其 token 数量。
     let counted: FlowDoc<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
 
-    // Root carries the top-level payload (1 token: #TITLE) then the Random block.
+    // 根节点先携带顶层载荷（1 个 token：#TITLE），随后是 Random 块。
     assert_eq!(counted.len(), 2);
     let Some(FlowNode::Payload(top_n)) = counted.first() else {
         panic!("expected top-level payload");
@@ -51,7 +51,7 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
     };
     assert_eq!(r.branches.len(), 2);
 
-    // Branch 1 body: one payload span of 2 tokens.
+    // 分支 1 的 body：一个含 2 个 token 的载荷片段。
     let b1 = r.branches.first().expect("branch 1");
     assert_eq!(b1.body.len(), 1);
     let Some(FlowNode::Payload(n)) = b1.body.first() else {
@@ -59,7 +59,7 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
     };
     assert_eq!(*n, 2);
 
-    // Branch 2 body: one payload span of 1 token.
+    // 分支 2 的 body：一个含 1 个 token 的载荷片段。
     let b2 = r.branches.get(1).expect("branch 2");
     assert_eq!(b2.body.len(), 1);
     let Some(FlowNode::Payload(n2)) = b2.body.first() else {
@@ -81,14 +81,14 @@ fn map_payload_handles_switch_skeleton() -> TestResult {
          #ENDSW",
     )?;
 
-    // Collect each span's token count.
+    // 收集每个片段的 token 数量。
     let spans: FlowDoc<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
 
     let Some(FlowNode::Block(FlowBlock::Switch(s))) = spans.first() else {
         panic!("expected Switch block");
     };
     assert_eq!(s.cases.len(), 2);
-    // Case 1: 1 token; Case 2: 2 consecutive tokens packed.
+    // Case 1：1 个 token；Case 2：2 个连续 token 被打包。
     let c1 = s.cases.first().expect("case 1");
     let Some(FlowNode::Payload(n1)) = c1.body.first() else {
         panic!("expected payload in case 1");
@@ -102,13 +102,13 @@ fn map_payload_handles_switch_skeleton() -> TestResult {
     Ok(())
 }
 
-/// Error used by the `try_map_payload` failure test.
+/// `try_map_payload` 失败测试所用的错误类型。
 #[derive(Debug, PartialEq, Eq)]
 struct SpanError;
 
 #[test]
 fn try_map_payload_propagates_first_error() -> TestResult {
-    // Two spans: top-level payload + a payload inside the Random branch.
+    // 两个片段：顶层载荷 + Random 分支内的一个载荷。
     let tree = build_doc(
         "#TITLE a\n\
          #RANDOM 2\n\
@@ -118,7 +118,7 @@ fn try_map_payload_propagates_first_error() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    // Fail on the second span by counting calls.
+    // 通过计数调用次数，让第二个片段失败。
     let mut calls = 0;
     let result: Result<FlowDoc<usize>, SpanError> =
         tree.try_map_payload(|p: TokenPayload<&str>| {
