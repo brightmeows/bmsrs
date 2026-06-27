@@ -159,7 +159,7 @@ pub struct StopEvent {
 
 // Scroll
 
-/// A scroll-speed multiplier event (channel `0A`).
+/// A scroll-speed multiplier event (channel `SC`).
 ///
 /// References a `#SCROLLxx` definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,6 +181,10 @@ pub enum BgaLayer {
     Poor,
     /// Overlay layer (channel `07`).
     Layer,
+    /// Secondary overlay layer (channel `0A`, nanasi extension).
+    ///
+    /// LAYER2 is composited on top of LAYER.
+    Layer2,
 }
 
 /// A BGA display event (channels `04`, `05`, `06`, `07`).
@@ -243,7 +247,7 @@ pub struct Messages {
     pub bpm_changes: Vec<BpmChange>,
     /// Stop events from channel `09`.
     pub stop_events: Vec<StopEvent>,
-    /// Scroll-speed events from channel `0A`.
+    /// Scroll-speed events from channel `SC`.
     pub scroll_events: Vec<ScrollEvent>,
     /// BGA display events from channels `04`–`07`.
     pub bga_events: Vec<BgaEvent>,
@@ -309,7 +313,7 @@ impl Messages {
                     BmsChannel::BgaBase => {
                         self.push_bga_full(values, measure, BgaLayer::Base, total_objects);
                     }
-                    BmsChannel::Seek | BmsChannel::BgaPoor => {
+                    BmsChannel::BgaPoor => {
                         self.push_bga_full(values, measure, BgaLayer::Poor, total_objects);
                     }
                     BmsChannel::BgaLayer => {
@@ -322,6 +326,9 @@ impl Messages {
                         self.push_stop_full(values, measure, total_objects);
                     }
                     BmsChannel::BgaLayer2 => {
+                        self.push_bga_full(values, measure, BgaLayer::Layer2, total_objects);
+                    }
+                    BmsChannel::Scroll => {
                         self.push_scroll_full(values, measure, total_objects);
                     }
                     BmsChannel::Note(note_ch) => {
@@ -344,8 +351,8 @@ impl Messages {
                     | BmsChannel::BgaArgbPoor
                     | BmsChannel::BgaKeyBound
                     | BmsChannel::Option
-                    | BmsChannel::Scroll
                     | BmsChannel::Speed
+                    | BmsChannel::Seek
                     | BmsChannel::Unknown(_) => { /* kept only in raw storage */ }
                 }
             }
@@ -461,7 +468,7 @@ impl Messages {
         }
     }
 
-    /// Parse scroll events (ch 0A) from full concatenated values.
+    /// Parse scroll events (ch SC) from full concatenated values.
     fn push_scroll_full(&mut self, values: &str, measure: u16, total_objects: u32) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
             let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
@@ -722,6 +729,7 @@ mod tests {
         assert!(matches!(BgaLayer::Base, BgaLayer::Base));
         assert!(matches!(BgaLayer::Poor, BgaLayer::Poor));
         assert!(matches!(BgaLayer::Layer, BgaLayer::Layer));
+        assert!(matches!(BgaLayer::Layer2, BgaLayer::Layer2));
     }
 
     #[test]
@@ -855,9 +863,17 @@ mod tests {
 
     #[test]
     fn scroll_event_parsed() {
-        let msgs = parse_one("#0010A:ZZ");
+        let msgs = parse_one("#000SC:ZZ");
         assert_eq!(msgs.scroll_events.len(), 1);
         assert_eq!(msgs.scroll_events[0].scroll_id, "ZZ".try_into().unwrap());
+    }
+
+    #[test]
+    fn bga_event_layer2_parsed() {
+        let msgs = parse_one("#0010A:03");
+        assert_eq!(msgs.bga_events.len(), 1);
+        assert_eq!(msgs.bga_events[0].layer, BgaLayer::Layer2);
+        assert_eq!(msgs.bga_events[0].bmp_id, "03".try_into().unwrap());
     }
 
     #[test]

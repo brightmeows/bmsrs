@@ -378,7 +378,7 @@ fn stop_messages_parsed() {
 
 #[test]
 fn scroll_messages_parsed() {
-    let bms = parse("#0010A:ZZ");
+    let bms = parse("#000SC:ZZ");
     assert_eq!(bms.messages.scroll_events.len(), 1);
     assert_eq!(
         bms.messages.scroll_events[0].scroll_id,
@@ -388,8 +388,8 @@ fn scroll_messages_parsed() {
 
 #[test]
 fn bga_messages_parsed() {
-    let bms = parse("#00104:AA\n#00106:BB\n#00107:CC\n");
-    assert_eq!(bms.messages.bga_events.len(), 3);
+    let bms = parse("#00104:AA\n#00106:BB\n#00107:CC\n#0010A:DD\n");
+    assert_eq!(bms.messages.bga_events.len(), 4);
     assert!(
         bms.messages
             .bga_events
@@ -407,6 +407,12 @@ fn bga_messages_parsed() {
             .bga_events
             .iter()
             .any(|e| e.layer == BgaLayer::Layer)
+    );
+    assert!(
+        bms.messages
+            .bga_events
+            .iter()
+            .any(|e| e.layer == BgaLayer::Layer2)
     );
 }
 
