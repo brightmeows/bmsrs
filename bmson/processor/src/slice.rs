@@ -1,26 +1,23 @@
-//! Sound-channel slicing algorithm.
+//! 音频通道切片算法。
 //!
-//! Each [`SoundChannel`](bmson_def::SoundChannel) bundles one audio file
-//! with all its [`NoteEvent`]s. The processor pre-computes audio slices
-//! so that the player can simply look up a pre-sized [`AudioAsset`] by
-//! index at runtime.
+//! 每个 [`SoundChannel`](bmson_def::SoundChannel) 将一个音频文件与其全部
+//! [`NoteEvent`] 打包在一起。处理器预先计算音频切片，使播放器在运行时
+//! 只需按索引查表即可拿到预设好长度的 [`AudioAsset`]。
 //!
-//! # Algorithm
+//! # 算法
 //!
-//! 1. Collect unique pulse (`y`) positions from all note events.
-//! 2. Sort ascending.
-//! 3. For each pulse, determine whether it is a **restart point**:
-//!    a pulse is a restart if *any* note at that pulse has
-//!    `c: false` (mixed `c` flags at the same pulse → treat as restart).
-//! 4. Convert each pulse to chart time via [`TimingTrack`].
-//! 5. For each pulse *P<sub>i</sub>* create an [`AudioAsset`] whose
-//!    `start` depends on the continuation flag:
-//!    - **Restart** (`c: false`): `start = 0` (play from beginning of file).
-//!    - **Continue** (`c: true`): `start` = chart time at *P<sub>i</sub>*
-//!      minus chart time at the most recent restart point (play from where
-//!      the audio would be without restarting).
-//! 6. `duration` is the chart-time difference to the next pulse, or `None`
-//!    for the final slice.
+//! 1. 从所有音符事件中收集唯一的脉冲（`y`）位置。
+//! 2. 升序排序。
+//! 3. 对每个脉冲，判断它是否为**重启点**：若该脉冲上*任意*音符的
+//!    `c: false`，则视为重启（同一脉冲上 `c` 标志混合 → 视为重启）。
+//! 4. 通过 [`TimingTrack`] 将每个脉冲换算为谱面时间。
+//! 5. 为每个脉冲 *P<sub>i</sub>* 创建一个 [`AudioAsset`]，其 `start`
+//!    取决于延续标志：
+//!    - **重启**（`c: false`）：`start = 0`（从文件开头播放）。
+//!    - **延续**（`c: true`）：`start` = *P<sub>i</sub>* 处的谱面时间
+//!      减去最近一次重启点处的谱面时间（从音频在不重启情况下的应有位置
+//!      开始播放）。
+//! 6. `duration` 为到下一个脉冲的谱面时间差；最后一片为 `None`。
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -29,26 +26,26 @@ use std::time::Duration;
 use bmson_def::SoundChannel;
 use bmsrs_chart::{AudioAsset, TimingTrack};
 
-/// Output of slicing one sound channel.
+/// 对单条音频通道切片的输出。
 ///
-/// `pulse_to_index` maps a note-event pulse to the index of its
-/// [`AudioAsset`] within the slice's `assets` vector.
+/// `pulse_to_index` 将音符事件脉冲映射到其 [`AudioAsset`] 在本切片
+/// `assets` 向量中的索引。
 pub struct SlicedChannel {
-    /// Audio assets in pulse-ascending order.
+    /// 音频素材，按脉冲升序排列。
     pub assets: Vec<AudioAsset>,
-    /// Pulse → asset-index lookup.
+    /// 脉冲 → 音频素材索引的查找表。
     pub pulse_to_index: BTreeMap<u64, usize>,
 }
 
-/// Slice a sound channel into pre-computed [`AudioAsset`]s.
+/// 将一条音频通道切片为预计算的 [`AudioAsset`]。
 ///
-/// See the [module docs](self) for the algorithm.
+/// 算法详见[模块文档](self)。
 pub fn slice_channel(
     channel: &SoundChannel<'_>,
     timing: &TimingTrack,
     resolution: u64,
 ) -> SlicedChannel {
-    // 1. Collect unique pulse positions in ascending order.
+    // 1. 收集唯一的脉冲位置，按升序排列。
     let mut pulses: Vec<u64> = channel
         .note_events
         .iter()
@@ -59,8 +56,8 @@ pub fn slice_channel(
 
     pulses.sort_unstable();
 
-    // 2. Identify restart points: pulses where *any* note has c:false.
-    //    (Mixed c flags at the same pulse → treat as restart, per spec.)
+    // 2. 标记重启点：即 *任意* 音符 c:false 的脉冲。
+    //    （按规范，同一脉冲上 c 标志混合 → 视为重启。）
     let restart_pulses: BTreeSet<u64> = channel
         .note_events
         .iter()
@@ -68,21 +65,20 @@ pub fn slice_channel(
         .map(|n| n.y)
         .collect();
 
-    // 3. Convert each pulse to chart time.
+    // 3. 将每个脉冲换算为谱面时间。
     let pulse_times: Vec<(u64, Duration)> = pulses
         .iter()
         .map(|&p| (p, timing.tick_to_duration(p, resolution)))
         .collect();
 
-    // 4. Build AudioAssets with correct audio-start offsets.
+    // 4. 构建带有正确音频起始偏移的 AudioAsset。
     let mut assets = Vec::with_capacity(pulse_times.len());
     let mut pulse_to_index = BTreeMap::new();
-    // Tracks chart time of the most recent restart point.
+    // 记录最近一次重启点处的谱面时间。
     let mut last_restart_time = Duration::ZERO;
 
     for (i, &(pulse, chart_time)) in pulse_times.iter().enumerate() {
-        // The first pulse is always treated as a restart (no prior audio
-        // context to continue from).
+        // 首个脉冲始终视为重启（此前没有可延续的音频上下文）。
         let is_restart = i == 0 || restart_pulses.contains(&pulse);
 
         let audio_start = if is_restart {
@@ -181,13 +177,13 @@ mod tests {
 
         assert_eq!(result.assets.len(), 3);
         assert_eq!(result.pulse_to_index.len(), 3);
-        // Pulse 0: first pulse → restart → start=0
+        // 脉冲 0：首个脉冲 → 重启 → start=0
         assert!(result.assets[0].start.is_zero());
         assert_eq!(result.assets[0].duration, Some(Duration::from_millis(500)));
-        // Pulse 240: c:true → continue from last restart (0) → start = chart(240) - chart(0) = 0.5s
+        // 脉冲 240：c:true → 从最近重启点（0）延续 → start = chart(240) - chart(0) = 0.5s
         assert_eq!(result.assets[1].start, Duration::from_millis(500));
         assert_eq!(result.assets[1].duration, Some(Duration::from_millis(500)));
-        // Pulse 480: c:false → restart → start=0
+        // 脉冲 480：c:false → 重启 → start=0
         assert!(result.assets[2].start.is_zero());
         assert!(result.assets[2].duration.is_none());
     }
@@ -230,7 +226,7 @@ mod tests {
 
         assert_eq!(result.assets.len(), 1);
         assert_eq!(result.pulse_to_index.get(&240), Some(&0));
-        // First pulse → restart → start=0
+        // 首个脉冲 → 重启 → start=0
         assert!(result.assets[0].start.is_zero());
     }
 
@@ -295,11 +291,11 @@ mod tests {
 
         let result = slice_channel(&channel, &timing_120(), RES);
 
-        // At 120 BPM, resolution 240: pulse 0→0s, pulse 240→0.5s
+        // 120 BPM、节拍分辨率 240：脉冲 0→0s，脉冲 240→0.5s
         assert!(result.assets[0].start.is_zero());
         let d0 = result.assets[0].duration.expect("first slice has duration");
         assert_eq!(d0, Duration::from_millis(500));
-        // Second pulse is a restart → start=0
+        // 第二个脉冲为重启 → start=0
         assert!(result.assets[1].start.is_zero());
     }
 
@@ -344,8 +340,8 @@ mod tests {
 
     #[test]
     fn continuation_pulse_offsets_from_last_restart() {
-        // Pulses at 0 (c:false, restart), 240 (c:true, continue),
-        // 480 (c:true, continue), 720 (c:false, restart), 840 (c:true, continue).
+        // 脉冲序列：0（c:false，重启）、240（c:true，延续）、
+        // 480（c:true，延续）、720（c:false，重启）、840（c:true，延续）。
         let channel = SoundChannel {
             name: Path::new("demo.wav"),
             note_events: vec![
@@ -419,24 +415,24 @@ mod tests {
 
         let result = slice_channel(&channel, &timing_120(), RES);
 
-        // 5 unique pulses → 5 assets
+        // 5 个唯一脉冲 → 5 个音频素材
         assert_eq!(result.assets.len(), 5);
 
-        // Asset 0 (pulse 0, restart): start=0
+        // 素材 0（脉冲 0，重启）：start=0
         assert!(result.assets[0].start.is_zero());
-        // Asset 1 (pulse 240, c:true): offset from last restart (0) → 0.5s
+        // 素材 1（脉冲 240，c:true）：相对最近重启点（0）的偏移 → 0.5s
         assert_eq!(result.assets[1].start, Duration::from_millis(500));
-        // Asset 2 (pulse 480, c:true): offset from last restart (0) → 1.0s
+        // 素材 2（脉冲 480，c:true）：相对最近重启点（0）的偏移 → 1.0s
         assert_eq!(result.assets[2].start, Duration::from_secs(1));
-        // Asset 3 (pulse 720, restart): start=0
+        // 素材 3（脉冲 720，重启）：start=0
         assert!(result.assets[3].start.is_zero());
-        // Asset 4 (pulse 840, c:true): offset from last restart (720) → chart(840) - chart(720) = 0.25s
+        // 素材 4（脉冲 840，c:true）：相对最近重启点（720）的偏移 → chart(840) - chart(720) = 0.25s
         assert_eq!(result.assets[4].start, Duration::from_millis(250));
     }
 
     #[test]
     fn mixed_c_at_same_pulse_treated_as_restart() {
-        // Two notes at pulse 240: one c:true, one c:false → treat as restart.
+        // 脉冲 240 上有两个音符：一个 c:true，一个 c:false → 视为重启。
         let channel = SoundChannel {
             name: Path::new("demo.wav"),
             note_events: vec![
@@ -470,7 +466,7 @@ mod tests {
         };
 
         let result = slice_channel(&channel, &timing_120(), RES);
-        // First pulse → always treated as restart
+        // 首个脉冲 → 始终视为重启
         assert!(result.assets[0].start.is_zero());
     }
 }

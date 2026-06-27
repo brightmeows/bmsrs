@@ -1,24 +1,23 @@
-//! BMSON → `Chart` conversion processor.
+//! BMSON → `Chart` 转换处理器。
 //!
-//! [`BmsonProcessor`] converts a `bmson_def::Bmson` (v2 root schema) into
-//! a format-agnostic `Chart<BmsonNoteExt>` by applying a [`BmsonLayout`] mode
-//! family ([`Beat`], [`Pms`], or [`GenericLayout`] for n-keys).
+//! [`BmsonProcessor`] 将一个 `bmson_def::Bmson`（v2 根 schema）转换为
+//! 格式无关的 `Chart<BmsonNoteExt>`，转换时套用一个 [`BmsonLayout`] 模式族
+//! （[`Beat`]、[`Pms`]，或用于 n-keys 的 [`GenericLayout`]）。
 //!
-//! Mode families and the [`BmsonLayout`] trait live in the [`layout`] module.
+//! 模式族与 [`BmsonLayout`] trait 位于 [`layout`] 模块中。
 //!
-//! # Pipeline
+//! # 管道
 //!
 //! ```text
 //! bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<BmsonNoteExt>
 //! ```
 //!
-//! For v0/v1 files, convert to the root schema first via `Bmson::from`.
+//! 对于 v0/v1 文件，请先通过 `Bmson::from` 转换为根 schema。
 //!
-//! # Slicing
+//! # 切片
 //!
-//! Each `bmson_def::SoundChannel` is sliced into pre-computed
-//! `AudioAsset`s at every unique note pulse (see the internal `slice`
-//! module for details).
+//! 每个 `bmson_def::SoundChannel` 会在每个唯一的音符脉冲处切片为预计算的
+//! `AudioAsset`（详见内部 `slice` 模块）。
 
 mod slice;
 
@@ -38,51 +37,49 @@ use crate::layout::{Beat, BmsonLayout, GenericLayout, Pms};
 
 use crate::slice::slice_channel;
 
-/// Per-note extension data for BMSON format.
+/// BMSON 格式的每音符扩展数据。
 ///
-/// Carries optional fields from `bmson_def::NoteEvent` that are not part
-/// of the core chart model.
+/// 携带来自 `bmson_def::NoteEvent` 的可选字段，这些字段不属于核心谱面模型。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BmsonNoteExt {
-    /// Note volume (percent, DJ.NEXT extension).
+    /// 音符音量（百分比，DJ.NEXT 扩展）。
     pub vol: Option<i8>,
-    /// Note pan (DJ.NEXT extension).
+    /// 音符声像（pan，DJ.NEXT 扩展）。
     pub pan: Option<i8>,
-    /// Release-sound / BSS flag (bmson `up`).
+    /// 释放音 / BSS 标志（bmson `up`）。
     pub release_sound: Option<bool>,
-    /// beatoraja long-note mode (bmson `t`, 1=LN/2=CN/3=HCN).
+    /// beatoraja 长音模式（bmson `t`，1=LN/2=CN/3=HCN）。
     pub beatoraja_ln_mode: Option<u64>,
-    /// Per-note LN type hint override (bmson v2).
+    /// 每音符的 LN 类型提示覆盖（bmson v2）。
     pub ln_type_hint: Option<String>,
-    /// Per-note LN judgement hint override (bmson v2).
+    /// 每音符的 LN 判定提示覆盖（bmson v2）。
     pub ln_judge_hint: Option<String>,
-    /// Per-note LN life hint override (bmson v2).
+    /// 每音符的 LN 血量提示覆盖（bmson v2）。
     pub ln_life_hint: Option<String>,
 }
 
 impl NoteExt for BmsonNoteExt {}
 
-/// Errors that can occur during BMSON processing.
+/// BMSON 处理过程中可能出现的错误。
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// `init_bpm` must be strictly positive.
+    /// `init_bpm` 必须严格为正。
     #[error("init_bpm must be positive, got {0}")]
     InvalidBpm(f64),
 }
 
-/// Zero-sized processor that converts [`bmson_def::Bmson`] into
-/// [`Chart<BmsonNoteExt>`].
+/// 将 [`bmson_def::Bmson`] 转换为 [`Chart<BmsonNoteExt>`] 的零大小处理器。
 ///
-/// Call [`process`](Self::process) with a mode-family layout, or
-/// [`process_default`](Self::process_default) to select one from `mode_hint`.
+/// 调用 [`process`](Self::process) 时传入一个模式族布局，或调用
+/// [`process_default`](Self::process_default) 从 `mode_hint` 中自动选择。
 pub struct BmsonProcessor;
 
 impl BmsonProcessor {
-    /// Process a BMSON chart with a stateless mode-family layout.
+    /// 使用无状态模式族布局处理 BMSON 谱面。
     ///
     /// # Errors
     ///
-    /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
+    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
     pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<BmsonNoteExt>, ProcessError>
     where
         L: BmsonLayout,
@@ -90,14 +87,14 @@ impl BmsonProcessor {
         Self::process_body(bmson, &|x| L::map_x(x))
     }
 
-    /// Process a BMSON chart with a generic-nkeys layout.
+    /// 使用 generic-nkeys 布局处理 BMSON 谱面。
     ///
-    /// This is the only stateful layout family — call this directly instead
-    /// of [`process`](Self::process) when the mode hint is `generic-nkeys`.
+    /// 这是唯一有状态的布局族——当模式提示为 `generic-nkeys` 时，请直接调用
+    /// 本方法，而不是 [`process`](Self::process)。
     ///
     /// # Errors
     ///
-    /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
+    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
         keys: u16,
@@ -106,15 +103,15 @@ impl BmsonProcessor {
         Self::process_body(bmson, &|x| layout.map_x(x))
     }
 
-    /// Process a BMSON chart, selecting the mode family from `mode_hint`.
+    /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族。
     ///
-    /// `beat-*` and `dj-*` hints map to [`Beat`]; `popn-*` to [`Pms`];
-    /// `generic-nkeys` to [`GenericLayout`] with the given key count; anything
-    /// else falls back to [`Beat`] (the BMSON default).
+    /// `beat-*` 与 `dj-*` 提示映射到 [`Beat`]；`popn-*` 映射到 [`Pms`]；
+    /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；其它情况
+    /// 回退到 [`Beat`]（BMSON 默认值）。
     ///
     /// # Errors
     ///
-    /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
+    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_default(
         bmson: &bmson_def::Bmson<'_>,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
@@ -130,7 +127,7 @@ impl BmsonProcessor {
         }
     }
 
-    /// Public entry point for custom decode logic (internal use).
+    /// 自定义解码逻辑的公开入口（内部使用）。
     #[expect(
         clippy::cast_possible_truncation,
         reason = "BGA header/event ids are in the u32 range for practical charts"
@@ -219,7 +216,7 @@ impl BmsonProcessor {
     }
 }
 
-/// Collect all pulse positions that have at least one playable note.
+/// 收集所有至少包含一个可演奏音符的脉冲位置。
 fn collect_playable_pulses(channels: &[bmson_def::SoundChannel<'_>]) -> BTreeSet<u64> {
     channels
         .iter()
@@ -229,7 +226,7 @@ fn collect_playable_pulses(channels: &[bmson_def::SoundChannel<'_>]) -> BTreeSet
         .collect()
 }
 
-/// Build [`TimingTrack`] from BMSON chart data.
+/// 从 BMSON 谱面数据构建 [`TimingTrack`]。
 fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
     TimingTrack {
         init_bpm: data.init_bpm,
@@ -238,7 +235,7 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
     }
 }
 
-/// Process sound channels: slicing, note/BGM event creation.
+/// 处理音频通道：切片、创建音符/BGM 事件。
 #[expect(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
@@ -299,7 +296,7 @@ fn process_sound_channels(
     (audio_assets, events)
 }
 
-/// Build [`BmsonNoteExt`] from a BMSON [`NoteEvent`](bmson_def::NoteEvent).
+/// 从 BMSON [`NoteEvent`](bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。
 fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
     BmsonNoteExt {
         vol: ne.vol,
@@ -312,7 +309,7 @@ fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
     }
 }
 
-/// Convert a `LnMode` discriminant to a numeric beatoraja LN-mode value.
+/// 将 `LnMode` 判别值转换为 beatoraja 的数值型 LN 模式值。
 const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
     match m {
         bmson_def::LnMode::Cn => 2,
@@ -321,7 +318,7 @@ const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
     }
 }
 
-/// Convert `LnType` to its bmson v2 string representation.
+/// 将 `LnType` 转换为其 bmson v2 字符串表示。
 fn ln_type_to_str(lt: bmson_def::LnType) -> String {
     match lt {
         bmson_def::LnType::Cn => "cn",
@@ -330,7 +327,7 @@ fn ln_type_to_str(lt: bmson_def::LnType) -> String {
     .to_owned()
 }
 
-/// Convert `LnJudge` to its bmson v2 string representation.
+/// 将 `LnJudge` 转换为其 bmson v2 字符串表示。
 fn ln_judge_to_str(lj: bmson_def::LnJudge) -> String {
     match lj {
         bmson_def::LnJudge::Ticks => "ticks",
@@ -339,7 +336,7 @@ fn ln_judge_to_str(lj: bmson_def::LnJudge) -> String {
     .to_owned()
 }
 
-/// Convert `LnLife` to its bmson v2 string representation.
+/// 将 `LnLife` 转换为其 bmson v2 字符串表示。
 fn ln_life_to_str(ll: bmson_def::LnLife) -> String {
     match ll {
         bmson_def::LnLife::Ticks => "ticks",
@@ -348,7 +345,7 @@ fn ln_life_to_str(ll: bmson_def::LnLife) -> String {
     .to_owned()
 }
 
-/// Process mine channels: each channel contributes one whole-file `AudioAsset`.
+/// 处理地雷通道：每个通道贡献一个整文件 `AudioAsset`。
 #[expect(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
@@ -383,7 +380,7 @@ fn process_mine_channels(
     }
 }
 
-/// Process key (invisible) channels: same structure as mine channels.
+/// 处理按键（不可见）通道：结构与地雷通道相同。
 #[expect(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
@@ -418,7 +415,7 @@ fn process_key_channels(
     }
 }
 
-/// Build [`SongInfo`] from BMSON song info.
+/// 从 BMSON 乐曲信息构建 [`SongInfo`]。
 fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
     SongInfo {
         title: bmson.song_info.title.to_owned(),
@@ -433,7 +430,7 @@ fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
     }
 }
 
-/// Build [`ChartInfo`] from BMSON chart info.
+/// 从 BMSON 谱面信息构建 [`ChartInfo`]。
 fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> ChartInfo {
     let bga = &bmson.chart_info.bga;
     let bga_resources: Vec<BgaResource> = bga
@@ -475,7 +472,7 @@ fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> ChartInfo {
     }
 }
 
-/// Build a [`BpmChange`] from a BMSON [`BpmEvent`].
+/// 从 BMSON [`BpmEvent`] 构建 [`BpmChange`]。
 const fn build_bpm_change(e: &BpmEvent) -> BpmChange {
     BpmChange {
         tick: e.y,
@@ -483,7 +480,7 @@ const fn build_bpm_change(e: &BpmEvent) -> BpmChange {
     }
 }
 
-/// Build a [`StopEvent`] from a BMSON stop event.
+/// 从 BMSON 停止事件构建 [`StopEvent`]。
 const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
     StopEvent {
         tick: e.y,
@@ -491,10 +488,10 @@ const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
     }
 }
 
-/// Build bar line events from the BMSON `lines` field.
+/// 从 BMSON `lines` 字段构建小节线事件。
 ///
-/// `None` → auto-generate 4/4 bar lines (every `resolution * 4` pulses)
-/// from 0 to the last event tick.
+/// `None` → 自动生成 4/4 拍小节线（每隔 `resolution * 4` 个脉冲一条），
+/// 范围从 0 到最后一个事件的脉冲位置。
 fn build_bar_lines(
     lines: Option<&[bmson_def::BarLine]>,
     resolution: u64,
