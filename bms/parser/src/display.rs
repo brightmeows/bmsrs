@@ -1,32 +1,32 @@
-//! Display and difficulty fields.
+//! 显示与难度字段。
 //!
-//! Corresponds to [`BmsHeaderDisplay`] from the tokenizer.
+//! 对应分词器的 [`BmsHeaderDisplay`]。
 
 use bms_tokenizer::{BmsHeaderDisplay, DifficultyLevel};
 
-/// Display assets and difficulty markers.
+/// 显示资源与难度标记。
 ///
-/// All fields use last-wins semantics.
+/// 所有字段均使用最后胜出（last-wins）语义。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Display {
-    /// Splash-screen image (`#STAGEFILE`).
+    /// 开场画面图片（`#STAGEFILE`）。
     pub stage_file: Option<String>,
-    /// Banner image (`#BANNER`).
+    /// 横幅图片（`#BANNER`）。
     pub banner: Option<String>,
-    /// Background image (`#BACKBMP`).
+    /// 背景图片（`#BACKBMP`）。
     pub back_bmp: Option<String>,
-    /// Character animation file (`#CHARFILE`).
+    /// 角色动画文件（`#CHARFILE`）。
     pub char_file: Option<String>,
-    /// Difficulty number (`#PLAYLEVEL`).
+    /// 难度数值（`#PLAYLEVEL`）。
     pub play_level: Option<f64>,
-    /// Difficulty category 1–5 (`#DIFFICULTY`).
+    /// 难度类别 1–5（`#DIFFICULTY`）。
     pub difficulty: Option<DifficultyLevel>,
-    /// Preview audio file (`#PREVIEW`).
+    /// 预览音频文件（`#PREVIEW`）。
     pub preview: Option<String>,
 }
 
 impl Display {
-    /// Apply a display header to this struct.
+    /// 将一个显示头部命令应用到此结构体。
     pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderDisplay<C>) {
         match header {
             BmsHeaderDisplay::StageFile(s) => self.stage_file = Some(s.as_ref().to_owned()),

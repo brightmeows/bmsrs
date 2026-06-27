@@ -1,49 +1,49 @@
-//! Audio resource definitions.
+//! 音频资源定义。
 //!
-//! Corresponds to [`BmsHeaderResDefAudio`] from the tokenizer.
+//! 对应分词器的 [`BmsHeaderResDefAudio`]。
 
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{BmsBase, BmsHeaderResDefAudio, WavIndex};
 
-/// Extended audio effect parameters for `#EXWAV`.
+/// `#EXWAV` 的扩展音频效果参数。
 ///
-/// Each flag character (`p`/`v`/`f`) has a corresponding numeric value:
-/// - **pan** (`p`): `-10000` to `10000`, default `0`.
-/// - **volume** (`v`): `-10000` to `0`, default `0` (original).
-/// - **frequency** (`f`): `100` to `100000` Hz.
+/// 每个标志字符（`p`/`v`/`f`）都有一个对应的数值：
+/// - **pan（声像）**（`p`）：`-10000` 到 `10000`，默认 `0`。
+/// - **volume（音量）**（`v`）：`-10000` 到 `0`，默认 `0`（原始音量）。
+/// - **frequency（频率）**（`f`）：`100` 到 `100000` Hz。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ExWavParams {
-    /// Flag characters (e.g. `"pvf"`).
+    /// 标志字符（例如 `"pvf"`）。
     pub flags: String,
-    /// Numeric values, one per flag character in order.
+    /// 数值，按标志字符的顺序一一对应。
     pub values: Vec<f64>,
 }
 
-/// Audio resource definitions.
+/// 音频资源定义。
 ///
-/// Indexed definitions use `BTreeMap`; scalar fields use `Option`.
+/// 索引定义使用 `BTreeMap`；标量字段使用 `Option`。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Audio {
-    /// Sound effect / BGM file definitions (`#WAV`, `#EXWAV`).
+    /// 音效 / BGM 文件定义（`#WAV`、`#EXWAV`）。
     pub wav_files: BTreeMap<WavIndex, String>,
-    /// Per-index `#EXWAV` effect parameters (pvf/pan/vol/freq).
+    /// 按索引存储的 `#EXWAV` 效果参数（pvf/pan/vol/freq）。
     pub ex_wav_params: BTreeMap<WavIndex, ExWavParams>,
-    /// Audio playback command (`#WAVCMD`).
+    /// 音频播放命令（`#WAVCMD`）。
     pub wav_cmd: Option<String>,
-    /// CD audio track reference (`#CDDA`).
+    /// CD 音轨引用（`#CDDA`）。
     pub cdda: Option<String>,
-    /// MIDI file reference (`#MIDIFILE`).
+    /// MIDI 文件引用（`#MIDIFILE`）。
     pub midifile: Option<String>,
-    /// Directory prefix for audio file lookup (`#PATH_WAV`).
+    /// 音频文件查找的目录前缀（`#PATH_WAV`）。
     pub path_wav: Option<String>,
 }
 
 impl Audio {
-    /// Apply an audio resource header to this struct.
+    /// 将一个音频资源头部命令应用到此结构体。
     ///
-    /// Indexed keys (`WavIndex`) are normalized using `base` to ensure
-    /// case-insensitive comparison in standard (Base36) BMS files.
+    /// 索引键（`WavIndex`）使用 `base` 归一化，以便在标准（Base36）
+    /// BMS 文件中进行不区分大小写的比较。
     pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefAudio<C>, base: BmsBase) {
         match header {
             BmsHeaderResDefAudio::Wav { id, filename } => {

@@ -1,6 +1,6 @@
-//! Gameplay behaviour fields.
+//! 游玩行为字段。
 //!
-//! Corresponds to [`BmsHeaderGameplay`] from the tokenizer.
+//! 对应分词器的 [`BmsHeaderGameplay`]。
 
 use std::collections::BTreeMap;
 
@@ -9,42 +9,42 @@ use bms_tokenizer::{
     PlayerMode, Rank,
 };
 
-/// Gameplay behaviour settings.
+/// 游玩行为设置。
 ///
-/// Scalar fields use last-wins semantics; indexed fields use
-/// `BTreeMap` (last-wins per ID).
+/// 标量字段使用最后胜出语义；索引字段使用 `BTreeMap`（按 ID 最后
+/// 胜出）。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Gameplay {
-    /// Game mode (`#PLAYER`).
+    /// 游戏模式（`#PLAYER`）。
     pub player: Option<PlayerMode>,
-    /// Judgment difficulty (`#RANK`).
+    /// 判定难度（`#RANK`）。
     pub rank: Option<Rank>,
-    /// Fine-grained judgment difficulty as percentage (`#DEFEXRANK`).
+    /// 以百分比表示的精细判定难度（`#DEFEXRANK`）。
     pub def_ex_rank: Option<f64>,
-    /// Maximum groove gauge increase (`#TOTAL`).
+    /// 血量槽最大增量（`#TOTAL`）。
     pub total: Option<f64>,
-    /// Master volume percentage (`#VOLWAV`).
+    /// 主音量百分比（`#VOLWAV`）。
     pub vol_wav: Option<f64>,
-    /// Long-note notation (`#LNTYPE`).
+    /// 长音记法（`#LNTYPE`）。
     pub ln_type: Option<LnType>,
-    /// WAV index used as LN termination marker (`#LNOBJ`).
+    /// 用作长音终止标记的 WAV 索引（`#LNOBJ`）。
     pub ln_obj: Option<LnObjIndex>,
-    /// Forced LN / CN / HCN mode (`#LNMODE`).
+    /// 强制 LN / CN / HCN 模式（`#LNMODE`）。
     pub ln_mode: Option<LnMode>,
-    /// Numbering base for indexed commands (`#BASE`).
+    /// 索引命令的进制基数（`#BASE`）。
     pub base: Option<BmsBase>,
-    /// Per-position judgment width overrides (`#EXRANKxx`).
+    /// 按位置的判定宽度覆盖（`#EXRANKxx`）。
     pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
-    /// Dynamic option-change definitions (`#CHANGEOPTIONxx`).
+    /// 动态选项变更定义（`#CHANGEOPTIONxx`）。
     pub change_option_defs: BTreeMap<ChangeOptionIndex, String>,
-    /// Octave / Folding-point flag (`#OCT` / `#FP` / `#OCT/FP`).
+    /// 八度 / 折叠点标志（`#OCT` / `#FP` / `#OCT/FP`）。
     pub oct_fp: Option<bool>,
-    /// Engine-specific option string (`#OPTION`).
+    /// 引擎特有的选项字符串（`#OPTION`）。
     pub option: Option<String>,
 }
 
 impl Gameplay {
-    /// Apply a gameplay header to this struct.
+    /// 将一个游玩头部命令应用到此结构体。
     pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderGameplay<C>) {
         match header {
             BmsHeaderGameplay::Player(m) => self.player = Some(*m),

@@ -1,6 +1,6 @@
-//! Visual / BGA resource definitions.
+//! 视觉 / BGA 资源定义。
 //!
-//! Corresponds to [`BmsHeaderResDefVisual`] from the tokenizer.
+//! 对应分词器的 [`BmsHeaderResDefVisual`]。
 
 use std::collections::BTreeMap;
 
@@ -9,23 +9,23 @@ use bms_tokenizer::{
     PoorBgaMode, SeekIndex, SwBgaParams,
 };
 
-// Owned parameter types
+// 拥有型参数类型
 //
-// The tokenizer's ExBmpParams<'_> and SwBgaParams<'_> borrow from the input
-// string.  Since Bms owns all its data, we convert to owned equivalents here.
+// 分词器的 ExBmpParams<'_> 与 SwBgaParams<'_> 借用自输入字符串。由于
+// Bms 拥有全部数据，此处转换为对应的拥有型等价类型。
 
-/// Owned version of [`ExBmpParams`] with a `String` filename.
+/// [`ExBmpParams`] 的拥有型版本，文件名为 `String`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedExBmpParams {
-    /// Alpha component (0–255).
+    /// Alpha 分量（0–255）。
     pub a: u8,
-    /// Red component (0–255).
+    /// 红色分量（0–255）。
     pub r: u8,
-    /// Green component (0–255).
+    /// 绿色分量（0–255）。
     pub g: u8,
-    /// Blue component (0–255).
+    /// 蓝色分量（0–255）。
     pub b: u8,
-    /// Path or name of the resource file.
+    /// 资源文件的路径或名称。
     pub filename: String,
 }
 
@@ -41,26 +41,26 @@ impl<C: AsRef<str>> From<&ExBmpParams<C>> for OwnedExBmpParams {
     }
 }
 
-/// Owned version of [`SwBgaParams`] with a `String` pattern.
+/// [`SwBgaParams`] 的拥有型版本，模式（pattern）为 `String`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedSwBgaParams {
-    /// Frame rate.
+    /// 帧率。
     pub fr: u32,
-    /// Transition time in frames.
+    /// 过渡时间（以帧为单位）。
     pub time: u32,
-    /// Scanline direction.
+    /// 扫描线方向。
     pub line: u8,
-    /// Whether to loop the transition.
+    /// 是否循环过渡。
     pub r#loop: bool,
-    /// Alpha component.
+    /// Alpha 分量。
     pub a: u8,
-    /// Red component.
+    /// 红色分量。
     pub r: u8,
-    /// Green component.
+    /// 绿色分量。
     pub g: u8,
-    /// Blue component.
+    /// 蓝色分量。
     pub b: u8,
-    /// Transition pattern name or path.
+    /// 过渡模式的名称或路径。
     pub pattern: String,
 }
 
@@ -80,49 +80,49 @@ impl<C: AsRef<str>> From<&SwBgaParams<C>> for OwnedSwBgaParams {
     }
 }
 
-// Visual
+// 视觉资源
 
-/// Visual / BGA resource definitions.
+/// 视觉 / BGA 资源定义。
 ///
-/// Corresponds to [`BmsHeaderResDefVisual`] from the tokenizer.
-/// Indexed definitions use `BTreeMap`; scalar fields use `Option`.
+/// 对应分词器的 [`BmsHeaderResDefVisual`]。索引定义使用 `BTreeMap`；
+/// 标量字段使用 `Option`。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Visual {
-    /// Image / BGA file definitions (`#BMP`).
+    /// 图片 / BGA 文件定义（`#BMP`）。
     pub bmp_files: BTreeMap<BmpIndex, String>,
-    /// Video seek position definitions (`#SEEKxx`).
+    /// 视频跳转位置定义（`#SEEKxx`）。
     pub seek_defs: BTreeMap<SeekIndex, f64>,
-    /// Extended BMP definitions with ARGB tint (`#EXBMPxx`).
+    /// 带 ARGB 着色的扩展 BMP 定义（`#EXBMPxx`）。
     pub ex_bmp_defs: BTreeMap<BmpIndex, OwnedExBmpParams>,
-    /// BGA crop-and-place definitions (`#BGAxx`).
+    /// BGA 裁剪并放置定义（`#BGAxx`）。
     pub crop_defs: BTreeMap<BmpIndex, BgaParams>,
-    /// BGA crop-and-place (width/height form) (`#@BGAxx`).
+    /// BGA 裁剪并放置（宽高形式）（`#@BGAxx`）。
     pub alt_crop_defs: BTreeMap<BmpIndex, AtBgaParams>,
-    /// Key-bound BGA animation definitions (`#SWBGAxx`).
+    /// 按键绑定的 BGA 动画定义（`#SWBGAxx`）。
     pub sw_bga_defs: BTreeMap<BmpIndex, OwnedSwBgaParams>,
-    /// Per-layer colour / alpha overlay definitions (`#ARGBxx`).
+    /// 按图层的颜色 / Alpha 叠加定义（`#ARGBxx`）。
     pub argb_defs: BTreeMap<BmpIndex, ArgbParams>,
-    /// Video file as BGA (`#VIDEOFILE`).
+    /// 作为 BGA 的视频文件（`#VIDEOFILE`）。
     pub video_file: Option<String>,
-    /// Video file as BGA, no loop (`#MOVIE`).
+    /// 作为 BGA 的视频文件，不循环（`#MOVIE`）。
     pub movie: Option<String>,
-    /// External character animation file (`#EXTCHR`).
+    /// 外部角色动画文件（`#EXTCHR`）。
     pub ext_chr: Option<String>,
-    /// Video frame rate override (`#VIDEOf/s`).
+    /// 视频帧率覆盖（`#VIDEOf/s`）。
     pub video_fps: Option<f64>,
-    /// Video colour count override (`#VIDEOCOLORS`).
+    /// 视频颜色数覆盖（`#VIDEOCOLORS`）。
     pub video_colors: Option<f64>,
-    /// Video start delay (`#VIDEODLY`).
+    /// 视频开始延迟（`#VIDEODLY`）。
     pub video_dly: Option<f64>,
-    /// Poor / miss BGA display mode (`#POORBGA`).
+    /// POOR / miss 时 BGA 显示模式（`#POORBGA`）。
     pub poor_bga_mode: Option<PoorBgaMode>,
 }
 
 impl Visual {
-    /// Apply a visual resource header to this struct.
+    /// 将一个视觉资源头部命令应用到此结构体。
     ///
-    /// Indexed keys (`BmpIndex`, `SeekIndex`, etc.) are normalized using
-    /// `base` for case-insensitive comparison in standard BMS.
+    /// 索引键（`BmpIndex`、`SeekIndex` 等）使用 `base` 归一化，以便在
+    /// 标准 BMS 中进行不区分大小写的比较。
     pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefVisual<C>, base: BmsBase) {
         macro_rules! norm_as {
             ($id:expr, $ty:ident) => {

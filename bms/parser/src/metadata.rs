@@ -1,42 +1,42 @@
-//! Song-level metadata fields.
+//! 乐曲级元数据字段。
 //!
-//! Corresponds to [`BmsHeaderMetadata`] from the tokenizer.
+//! 对应分词器的 [`BmsHeaderMetadata`]。
 
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{BmsHeaderMetadata, TextIndex};
 
-/// Song / chart identification metadata.
+/// 乐曲 / 谱面识别元数据。
 ///
-/// All fields use last-wins semantics.
+/// 所有字段均使用最后胜出语义。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Metadata {
-    /// Song title (`#TITLE`).
+    /// 乐曲标题（`#TITLE`）。
     pub title: Option<String>,
-    /// Song subtitle (`#SUBTITLE`).
+    /// 乐曲副标题（`#SUBTITLE`）。
     pub subtitle: Option<String>,
-    /// Primary artist / composer (`#ARTIST`).
+    /// 主要艺术家 / 作曲者（`#ARTIST`）。
     pub artist: Option<String>,
-    /// Co-creators (`#SUBARTIST`).
+    /// 合作创作者（`#SUBARTIST`）。
     pub sub_artist: Option<String>,
-    /// Music genre (`#GENRE` / `#GENLE`).
+    /// 音乐流派（`#GENRE` / `#GENLE`）。
     pub genre: Option<String>,
-    /// BMS chart author name (`#MAKER`).
+    /// BMS 谱面作者名（`#MAKER`）。
     pub maker: Option<String>,
-    /// Text shown in song-selection list (`#COMMENT`).
+    /// 选曲列表中显示的文本（`#COMMENT`）。
     pub comment: Option<String>,
-    /// Character encoding hint (`#CHARSET`).
+    /// 字符编码提示（`#CHARSET`）。
     pub charset: Option<String>,
-    /// Author's website URL (`%URL`).
+    /// 作者网站 URL（`%URL`）。
     pub url: Option<String>,
-    /// Author's email address (`%EMAIL`).
+    /// 作者邮箱地址（`%EMAIL`）。
     pub email: Option<String>,
-    /// Timed on-screen text definitions (`#TEXTxx`, `#SONGxx`).
+    /// 定时屏幕文本定义（`#TEXTxx`、`#SONGxx`）。
     pub text_defs: BTreeMap<TextIndex, String>,
 }
 
 impl Metadata {
-    /// Apply a metadata header to this struct.
+    /// 将一个元数据头部命令应用到此结构体。
     pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderMetadata<C>) {
         match header {
             BmsHeaderMetadata::Title(s) => self.title = Some(s.as_ref().to_owned()),

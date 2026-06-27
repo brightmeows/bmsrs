@@ -1,13 +1,13 @@
-//! Integration tests for `Messages` (event parsing via public API).
+//! `Messages` 的集成测试（通过公开 API 进行事件解析）。
 //!
-//! These tests consume the `Messages` struct through its public API only,
-//! using `concat_raw` + `finalize`.
+//! 这些测试仅通过公开 API 消费 `Messages` 结构体，使用
+//! `concat_raw` + `finalize`。
 
 use bms_parser::*;
 use bms_tokenizer::{BmsBase, BmsChannel, BmsToken, BmsTokenizer, BpmIndex, WavIndex};
 use bmsrs_chart::BgaLayer;
 
-/// Helper: parse a single standard message line (`#xxxYY:body`) via Messages.
+/// 辅助函数：通过 Messages 解析单条标准消息行（`#xxxYY:body`）。
 fn parse_one(line: &str) -> Messages {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(line)
@@ -47,7 +47,7 @@ fn position_at_measure_start() {
 
 #[test]
 fn position_at_measure_end() {
-    // 3/3 is at the measure boundary; fraction is 1.0
+    // 3/3 位于小节边界上；fraction 为 1.0
     let pos = Position::new(1, 3, 3);
     assert!((pos.fraction() - 1.0).abs() < f64::EPSILON);
 }
@@ -158,7 +158,7 @@ fn measure_length_fields() {
     assert!((ml.length_ratio - 2.0).abs() < f64::EPSILON);
 }
 
-// Event parsing integration tests
+// 事件解析集成测试
 
 #[test]
 fn bgm_events_parsed() {
@@ -188,7 +188,7 @@ fn long_note_events_parsed() {
     assert_eq!(msgs.long_note_events.len(), 2);
     assert_eq!(msgs.long_note_events[0].player, 1);
     assert_eq!(msgs.long_note_events[0].lane, 1);
-    assert_eq!(msgs.long_note_events[1].lane, 1); // same lane, different position
+    assert_eq!(msgs.long_note_events[1].lane, 1); // 同一轨道，不同位置
     assert_eq!(msgs.long_note_events[0].position.numer, 0);
     assert_eq!(msgs.long_note_events[1].position.numer, 1);
 }
@@ -217,7 +217,7 @@ fn mine_damage_half_health() {
 
 #[test]
 fn mine_damage_instant_kill() {
-    // ZZ = 1295 → damage = inf (instant kill)
+    // ZZ = 1295 → damage = inf（即死）
     let msgs = parse_one("#001D1:ZZ");
     assert!(msgs.mine_events[0].damage.is_infinite());
 }
@@ -287,7 +287,7 @@ fn speed_event_multiple_values() {
 
 #[test]
 fn speed_event_zero_values_preserved() {
-    // SPEED channel does NOT filter "00" — it follows non-BGM merge semantics.
+    // SPEED 通道不过滤 "00" —— 它遵循非 BGM 的合并语义。
     let msgs = parse_one("#001SP:AA00BB");
     assert_eq!(msgs.speed_events.len(), 3);
     assert_eq!(msgs.speed_events[0].speed_id, "AA".try_into().unwrap());
@@ -344,7 +344,7 @@ fn measure_length_fractional() {
 
 #[test]
 fn measure_length_default_on_invalid() {
-    // Invalid values are silently dropped.
+    // 无效值被静默忽略。
     let msgs = parse_one("#00102:notanumber");
     assert!(msgs.measure_lengths.is_empty());
 }
@@ -369,7 +369,7 @@ fn unknown_channel_raw_only() {
             .and_then(|v| v.first().map(String::as_str)),
         Some("AA")
     );
-    // Single line stored.
+    // 单行存储。
     assert_eq!(
         msgs.raw.get(&1).and_then(|m| m.get(&ch).map(Vec::len)),
         Some(1)
@@ -393,14 +393,14 @@ fn note_events_only_zero_entries_produces_nothing() {
 
 #[test]
 fn two_player_notes_parsed() {
-    // Channel 21 = 2P visible key 1
+    // 通道 21 = 2P 可见按键 1
     let msgs = parse_one("#00121:1122");
     assert_eq!(msgs.note_events.len(), 2);
     assert_eq!(msgs.note_events[0].player, 2);
     assert_eq!(msgs.note_events[0].lane, 1);
     assert_eq!(msgs.note_events[0].key_type, KeyType::Visible);
 
-    // Channel 41 = 2P invisible key 1
+    // 通道 41 = 2P 不可见按键 1
     let msgs_41 = parse_one("#00141:3344");
     assert_eq!(msgs_41.note_events.len(), 2);
     assert_eq!(msgs_41.note_events[0].player, 2);
@@ -408,7 +408,7 @@ fn two_player_notes_parsed() {
     assert_eq!(msgs_41.note_events[0].key_type, KeyType::Invisible);
 }
 
-// BPM 00 filtering (ch 03)
+// BPM 00 过滤（通道 03）
 
 #[test]
 fn bpm_00_rest_skipped() {
@@ -419,7 +419,7 @@ fn bpm_00_rest_skipped() {
 
 #[test]
 fn bpm_00_only_all_filtered() {
-    // All "00" values → no BPM changes.
+    // 全部为 "00" 值 → 无 BPM 变更。
     let msgs = parse_one("#00103:00000000");
     assert_eq!(msgs.bpm_changes.len(), 0);
 }
