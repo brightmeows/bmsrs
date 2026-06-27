@@ -43,6 +43,7 @@
 //! assert_eq!(player.current_time(), Duration::from_secs(1));
 //! ```
 
+pub(crate) mod scroll_cache;
 mod timing;
 
 use std::ops::Bound;
@@ -54,6 +55,7 @@ use bmsrs_chart::{
     NoteSide,
 };
 
+use crate::scroll_cache::ScrollCache;
 use crate::timing::TimingCache;
 
 /// 跟踪 [`Chart`] 播放进度的有状态仿真器。
@@ -68,6 +70,8 @@ pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     chart: Chart<T, C>,
     /// 预计算的计时缓存，用于 O(log n) 查询。
     cache: TimingCache,
+    /// 预计算的滚动速度缓存，用于 O(log n) 查询。
+    scroll_cache: ScrollCache,
     /// 当前播放位置（脉冲）。
     current_tick: u64,
 }
@@ -78,9 +82,11 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     pub fn new(chart: Chart<T, C>) -> Self {
         let resolution = chart.data.resolution;
         let cache = TimingCache::new(&chart.data.timing, resolution);
+        let scroll_cache = ScrollCache::build(&chart.data.events);
         Self {
             chart,
             cache,
+            scroll_cache,
             current_tick: 0,
         }
     }
@@ -233,20 +239,11 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     ///
     /// 若同一脉冲上存在多个滚动事件，取最后一个生效。
     /// 若此前未发生任何滚动事件，返回 `1.0`。
-    #[expect(
-        clippy::indexing_slicing,
-        reason = "indices from partition_point on same vector"
-    )]
+    ///
+    /// 使用预计算的滚动速度缓存，查询复杂度为 O(log n)。
     #[must_use]
     pub fn scroll_rate_at(&self, tick: u64) -> f64 {
-        let end = self.chart.data.events.partition_point(|e| e.tick() <= tick);
-        let mut rate = 1.0;
-        for event in &self.chart.data.events[..end] {
-            if let Event::Scroll { rate: sc_rate, .. } = event {
-                rate = *sc_rate;
-            }
-        }
-        rate
+        self.scroll_cache.rate_at(tick)
     }
 
     /// 返回 `range` 范围内 Bar 事件的迭代器。
