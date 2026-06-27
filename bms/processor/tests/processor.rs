@@ -398,3 +398,86 @@ fn bms_channel_rejects_invalid_input() {
     assert_eq!(BmsChannel::new(1, 0), None);
     assert_eq!(BmsChannel::new(1, 10), None);
 }
+
+#[test]
+fn lnobj_end_marker_plays_bgm() {
+    // LNOBJ end markers should produce BGM events (per spec).
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    // Register the start WAV and the LNOBJ WAV.
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio
+        .wav_files
+        .insert("FF".parse().unwrap(), "ln_end.wav".to_owned());
+    let ln_obj: LnObjIndex = "FF".parse().unwrap();
+    bms.gameplay.ln_obj = Some(ln_obj);
+    // LN start (visible note with WAV 01)
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "01".parse().unwrap(),
+    });
+    // LN end marker (LNOBJ WAV FF at measure 1)
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "FF".parse().unwrap(),
+    });
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    // Collect BGM events from the chart.
+    let bgm_ticks: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let Event::Bgm { tick, audio_index } = e {
+                Some((*tick, *audio_index))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // The LNOBJ end marker at measure 1 → tick 960 (240 res × 4 beats).
+    // Audio index should be 1 (second registered WAV: ln_end.wav).
+    assert_eq!(bgm_ticks, vec![(960, 1)]);
+}
+
+#[test]
+fn lnobj_bgm_no_event_for_unmatched_lno() {
+    // When the LNOBJ marker has no preceding note on the same lane,
+    // no pair is formed and thus no LNOBJ BGM should be emitted.
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("FF".parse().unwrap(), "orphan.wav".to_owned());
+    let ln_obj: LnObjIndex = "FF".parse().unwrap();
+    bms.gameplay.ln_obj = Some(ln_obj);
+    // An LNOBJ marker with no predecessor on the same (player, lane).
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "FF".parse().unwrap(),
+    });
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    let bgm_count = chart
+        .data
+        .events
+        .iter()
+        .filter(|e| matches!(e, Event::Bgm { .. }))
+        .count();
+    assert_eq!(bgm_count, 0, "orphan LNOBJ marker should not emit BGM");
+}

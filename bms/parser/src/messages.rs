@@ -527,9 +527,17 @@ impl Messages {
     }
 
     /// Parse absolute BPM changes (ch 03) from hex values.
+    ///
+    /// Values of `"00"` represent a rest (no BPM change) and are **skipped**
+    /// per BMS spec — passing `BpmValue::Absolute(0.0)` downstream would
+    /// cause division-by-zero in the timing track.
     fn push_bpm_absolute_full(&mut self, values: &str, measure: u16, total_objects: u32) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // Channel 03 values are hex integers (00-FF)
+            // "00" = rest / no BPM change — skip entirely.
+            if val == "00" {
+                continue;
+            }
+            // Channel 03 values are hex integers (01-FF)
             let Ok(bpm_val) = u8::from_str_radix(val, 16) else {
                 continue;
             };
@@ -1061,5 +1069,30 @@ mod tests {
         assert_eq!(msgs_41.note_events[0].player, 2);
         assert_eq!(msgs_41.note_events[0].lane, 1);
         assert_eq!(msgs_41.note_events[0].key_type, KeyType::Invisible);
+    }
+
+    // BPM 00 filtering (ch 03)
+
+    #[test]
+    fn bpm_00_rest_skipped() {
+        // "00" in channel 03 = rest — no BPM change emitted.
+        let msgs = parse_one("#00103:00");
+        assert_eq!(msgs.bpm_changes.len(), 0);
+    }
+
+    #[test]
+    fn bpm_00_only_all_filtered() {
+        // All "00" values → no BPM changes.
+        let msgs = parse_one("#00103:00000000");
+        assert_eq!(msgs.bpm_changes.len(), 0);
+    }
+
+    #[test]
+    fn bpm_00_mixed_with_real() {
+        // "00" in between: 7F (127) 00 AA (170) → only 2 BPM changes.
+        let msgs = parse_one("#00103:7F00AA");
+        assert_eq!(msgs.bpm_changes.len(), 2);
+        assert_eq!(msgs.bpm_changes[0].value, BpmValue::Absolute(127.0));
+        assert_eq!(msgs.bpm_changes[1].value, BpmValue::Absolute(170.0));
     }
 }
