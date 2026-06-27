@@ -539,33 +539,30 @@ fn find_max_measure(bms: &Bms) -> u16 {
     for ml in &bms.messages.measure_lengths {
         max_m = max_m.max(ml.measure);
     }
-    for ne in &bms.messages.note_events {
-        max_m = max_m.max(ne.position.measure);
+
+    // 遍历所有事件类型，统一提取 position.measure。
+    macro_rules! track_positions {
+        ($($events:expr),+ $(,)?) => {
+            $(
+                for ev in $events {
+                    max_m = max_m.max(ev.position.measure);
+                }
+            )+
+        };
     }
-    for le in &bms.messages.long_note_events {
-        max_m = max_m.max(le.position.measure);
-    }
-    for be in &bms.messages.bgm_events {
-        max_m = max_m.max(be.position.measure);
-    }
-    for me in &bms.messages.mine_events {
-        max_m = max_m.max(me.position.measure);
-    }
-    for bc in &bms.messages.bpm_changes {
-        max_m = max_m.max(bc.position.measure);
-    }
-    for se in &bms.messages.stop_events {
-        max_m = max_m.max(se.position.measure);
-    }
-    for se in &bms.messages.scroll_events {
-        max_m = max_m.max(se.position.measure);
-    }
-    for be in &bms.messages.bga_events {
-        max_m = max_m.max(be.position.measure);
-    }
-    for stp in &bms.messages.stp_events {
-        max_m = max_m.max(stp.position.measure);
-    }
+
+    track_positions!(
+        &bms.messages.note_events,
+        &bms.messages.long_note_events,
+        &bms.messages.bgm_events,
+        &bms.messages.mine_events,
+        &bms.messages.bpm_changes,
+        &bms.messages.stop_events,
+        &bms.messages.scroll_events,
+        &bms.messages.speed_events,
+        &bms.messages.bga_events,
+        &bms.messages.stp_events,
+    );
 
     max_m.max(1) + 1
 }
