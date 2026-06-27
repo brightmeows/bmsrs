@@ -1,35 +1,34 @@
-//! BMS mode-family layouts: channel-to-lane mapping using [`BmsLayout`].
+//! BMS 模式族布局：使用 [`BmsLayout`] 进行通道到轨道的映射。
 //!
-//! Each family is expressed as a zero-sized newtype that maps a decoded
-//! [`BmsChannel`] `(player, lane)` pair to a `(NoteSide, Lane)` position.
+//! 每个族表示为一个零大小 newtype，将解码后的 [`BmsChannel`]
+//! `(player, lane)` 对映射到 `(NoteSide, Lane)` 位置。
 //!
-//! Families do **not** carry a key count: whether a chart is 5K or 7K is a
-//! property of which lanes its notes actually use, not of the family.
+//! 族**不**携带按键数：一张谱面是 5K 还是 7K 取决于其音符实际使用的
+//! 轨道，而非族本身。
 
 use std::num::NonZeroU8;
 
 use bmsrs_chart::mode::{Lane, NoteSide};
 
-/// A decoded BMS channel identifier: the `(player, lane)` pair extracted
-/// from a raw BMS channel byte (e.g. `"19"` → `{ player: 1, lane: 9 }`).
+/// 解码后的 BMS 通道标识符：从原始 BMS 通道字节中提取的 `(player, lane)`
+/// 对（例如 `"19"` → `{ player: 1, lane: 9 }`）。
 ///
-/// Construction validates `player ∈ {1, 2}` and `lane ∈ {1..=9}`, so
-/// downstream code can safely call [`note_side`](Self::note_side) and
-/// [`lane`](Self::lane) without extra checks.  The lane value is the decoded
-/// number (1–9), **not** the raw channel byte.
-/// A validated BMS `(player, lane)` channel pair.
+/// 构造时校验 `player ∈ {1, 2}` 与 `lane ∈ {1..=9}`，因此下游代码可以
+/// 安全地调用 [`note_side`](Self::note_side) 与 [`lane`](Self::lane) 而
+/// 无需额外检查。轨道值为解码后的数字（1–9），**而非**原始通道字节。
+/// 已校验的 BMS `(player, lane)` 通道对。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BmsChannel {
-    /// Player number (1 or 2).
+    /// 玩家编号（1 或 2）。
     player: u8,
-    /// Lane number (1–9).
+    /// 轨道编号（1–9）。
     lane: u8,
 }
 
 impl BmsChannel {
-    /// Create a new `BmsChannel` from a decoded `(player, lane)`.
+    /// 从解码后的 `(player, lane)` 创建新的 `BmsChannel`。
     ///
-    /// Returns `None` if `player` is not 1 or 2, or if `lane` is not 1–9.
+    /// 若 `player` 不为 1 或 2，或 `lane` 不在 1–9 范围内，返回 `None`。
     #[must_use]
     pub const fn new(player: u8, lane: u8) -> Option<Self> {
         if (player == 1 || player == 2) && lane >= 1 && lane <= 9 {
@@ -39,19 +38,19 @@ impl BmsChannel {
         }
     }
 
-    /// Player side (1 or 2).
+    /// 玩家侧（1 或 2）。
     #[must_use]
     pub const fn player(self) -> u8 {
         self.player
     }
 
-    /// Lane number (1–9).
+    /// 轨道编号（1–9）。
     #[must_use]
     pub const fn lane(self) -> u8 {
         self.lane
     }
 
-    /// Return the player side as a [`NoteSide`].
+    /// 以 [`NoteSide`] 返回玩家侧。
     #[must_use]
     pub const fn note_side(self) -> NoteSide {
         match self.player {
@@ -61,27 +60,26 @@ impl BmsChannel {
     }
 }
 
-/// BMS-side mapping: decodes a [`BmsChannel`] into a `(NoteSide, Lane)`
-/// position pair, or `None` if the channel should be discarded.
+/// BMS 侧映射：将 [`BmsChannel`] 解码为 `(NoteSide, Lane)` 位置对，若
+/// 通道应被丢弃则返回 `None`。
 ///
-/// Note kind (normal/LN/mine/invisible) is set by the processor after this
-/// mapping.
+/// 音符种类（普通 / 长音 / 地雷 / 不可见）由处理器在此映射之后设置。
 pub trait BmsLayout {
-    /// Map a decoded BMS channel to the note's position.
+    /// 将解码后的 BMS 通道映射到音符的位置。
     #[must_use]
     fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)>;
 }
 
-/// Construct a `NonZeroU8` from a value known to be ≥ 1 at the call site.
+/// 从调用处已知 ≥ 1 的值构造 `NonZeroU8`。
 const fn nz(n: u8) -> Option<NonZeroU8> {
     NonZeroU8::new(n)
 }
 
-/// BME family: covers `beat-5k`, `beat-7k`, `beat-10k`, `beat-14k` (and the
-/// `dj-*` aliases). One mapping table serves all of them; the key count of a
-/// given chart is whatever its notes happen to use.
+/// BME 族：覆盖 `beat-5k`、`beat-7k`、`beat-10k`、`beat-14k`（及 `dj-*`
+/// 别名）。一张映射表服务全部；特定谱面的按键数由其音符实际使用情况
+/// 决定。
 ///
-/// Physical layout (left → right): `KEY1-5 | SC | KEY6-7` per side.
+/// 物理布局（左 → 右）：每侧 `KEY1-5 | SC | KEY6-7`。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Bme;
 
@@ -103,9 +101,9 @@ impl BmsLayout for Bme {
     }
 }
 
-/// Nanasi family: BME keys plus a foot pedal on channel `17`/`27`. Covers the
-/// nanasi and Angolmois pedal variants (their channel mapping is identical;
-/// the SC-rendering-side difference is a renderer concern, not a mapping one).
+/// Nanasi 族：BME 按键加上通道 `17`/`27` 上的脚踏板。覆盖 nanasi 与
+/// Angolmois 踏板变体（它们的通道映射完全相同；SC 渲染侧差异属于渲染器
+/// 关注范围，而非映射）。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Nanasi;
 
@@ -128,9 +126,8 @@ impl BmsLayout for Nanasi {
     }
 }
 
-/// Native PMS family: a single-player 9-key layout whose KEY6-9 reuse the 2P
-/// channels `22-25`. Covers `popn-9k`, `popn-5k` (subset), and the
-/// `pomu-battle` 3K subset.
+/// 原生 PMS 族：单人 9 按键布局，其 KEY6-9 复用 2P 通道 `22-25`。覆盖
+/// `popn-9k`、`popn-5k`（子集）及 `pomu-battle` 3K 子集。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Pms;
 
@@ -152,10 +149,9 @@ impl BmsLayout for Pms {
     }
 }
 
-/// PMS BME-type family: 9 keys per side using the BME channel shape
-/// (`KEY6=18 KEY7=19 KEY8=16 KEY9=17`). Note that channels `16`/`17`, which
-/// the BME family reads as scratch/free, here carry `KEY8`/`KEY9` — this is
-/// why a separate family exists.
+/// PMS BME 型族：每侧 9 按键，采用 BME 通道形状
+/// （`KEY6=18 KEY7=19 KEY8=16 KEY9=17`）。注意：BME 族读取为 Scratch /
+/// 空闲的通道 `16`/`17`，在此承载 `KEY8`/`KEY9` —— 这正是需要独立族的原因。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PmsBme;
 
@@ -178,9 +174,9 @@ impl BmsLayout for PmsBme {
     }
 }
 
-/// DSC/FPP + OCT/FP family: a dual-side layout with up to two scratches and a
-/// foot pedal. DSC/FPP (dual scratch, no pedal) and OCT/FP (13 keys + 2nd
-/// scratch + pedal) are both subsets of this family's key set.
+/// DSC/FPP + OCT/FP 族：双侧布局，最多两个 Scratch 与一个脚踏板。
+/// DSC/FPP（双 Scratch，无踏板）与 OCT/FP（13 按键 + 第二 Scratch + 踏板）
+/// 均为该族按键集的子集。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DscOctFp;
 

@@ -1,34 +1,30 @@
-//! BMS → `Chart` conversion processor.
+//! BMS → `Chart` 转换处理器。
 //!
-//! [`BmsProcessor`] converts a `bms_parser::Bms` into a format-agnostic
-//! `Chart` by applying a [`BmsLayout`] mode family (e.g. [`Bme`], `Pms`,
-//! `Nanasi`).
+//! [`BmsProcessor`] 通过应用 [`BmsLayout`] 模式族（例如 [`Bme`]、`Pms`、
+//! `Nanasi`）将 `bms_parser::Bms` 转换为格式无关的 `Chart`。
 //!
-//! Mode families and the [`BmsLayout`] trait live in this crate's `layout`
-//! module.
+//! 模式族与 [`BmsLayout`] trait 位于本 crate 的 `layout` 模块中。
 //!
-//! # Pipeline
+//! # 管道
 //!
 //! ```text
 //! bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<(), NoCustomEvent>
 //! ```
 //!
-//! # Mode families
+//! # 模式族
 //!
-//! The layout type selects how BMS `(player, lane)` channel bytes decode
-//! into note positions. [`Bme`] covers beat-5k/7k/10k/14k uniformly (the key
-//! count of a chart is whatever its notes use). Other families (`Pms`,
-//! `PmsBme`, `Nanasi`, `DscOctFp`) cover their eponymous modes.
-//! [`BmsProcessor::process_default`] uses [`Bme`].
+//! 布局类型决定 BMS `(player, lane)` 通道字节如何解码为音符位置。[`Bme`]
+//! 统一覆盖 beat-5k/7k/10k/14k（一张谱面的按键数由其音符实际使用的轨道
+//! 决定）。其他族（`Pms`、`PmsBme`、`Nanasi`、`DscOctFp`）各自覆盖同名
+//! 模式。[`BmsProcessor::process_default`] 使用 [`Bme`]。
 //!
-//! # Long-note modes
+//! # 长音模式
 //!
-//! BMS supports two LN notations, selected automatically:
+//! BMS 支持两种 LN（长音）记法，自动选择：
 //!
-//! - **LNOBJ**: when `#LNOBJ` is defined, regular notes paired by the
-//!   designated WAV index form LNs.
-//! - **LNTYPE 1 (RDM)**: events on channels 51–69 are paired consecutively
-//!   per `(player, lane)`.
+//! - **LNOBJ**：当定义了 `#LNOBJ` 时，由指定 WAV 索引配对的常规音符
+//!   构成长音。
+//! - **LNTYPE 1 (RDM)**：通道 51–69 上的事件按 `(player, lane)` 连续配对。
 
 mod long_note;
 mod position;
@@ -51,31 +47,29 @@ use crate::layout::{Bme, BmsChannel, BmsLayout};
 use crate::long_note::{PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
 
-/// Errors that can occur during BMS processing.
+/// BMS 处理期间可能发生的错误。
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// Initial BPM is missing or invalid.
+    /// 初始 BPM 缺失或无效。
     #[error("init_bpm must be positive, got {0}")]
     InvalidBpm(f64),
 }
 
-/// Zero-sized processor that converts [`Bms`] into [`Chart`].
+/// 将 [`Bms`] 转换为 [`Chart`] 的零大小处理器。
 pub struct BmsProcessor;
 
-/// Default resolution (ticks per quarter note) for BMS charts.
+/// BMS 谱面的默认节拍分辨率（每四分音符的脉冲数）。
 const RESOLUTION: u64 = 240;
 
 impl BmsProcessor {
-    /// Process a BMS chart with an explicit mode-family layout.
+    /// 使用显式模式族布局处理 BMS 谱面。
     ///
-    /// The layout type determines how each BMS `(player, lane)` channel byte
-    /// decodes into a note position. See the `layout` module for the
-    /// available families.
+    /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
+    /// 位置。可用族见 `layout` 模块。
     ///
     /// # Errors
     ///
-    /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
-    /// or not positive.
+    /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
     pub fn process<L>(bms: &Bms) -> Result<Chart<(), bmsrs_chart::NoCustomEvent>, ProcessError>
     where
         L: BmsLayout,
@@ -112,25 +106,25 @@ impl BmsProcessor {
         let (paired_lns, consumed) = pair_long_notes(bms, &table);
         let mut events = Vec::new();
 
-        // Bar lines first (priority 0).
+        // 小节线优先（优先级 0）。
         events.extend(build_bar_events(max_measure));
 
-        // Notes (priority 1).
+        // 音符（优先级 1）。
         collect_notes::<L>(bms, &table, &wav_map, &paired_lns, &consumed, &mut events);
 
-        // BGM (priority 1).
+        // BGM（优先级 1）。
         collect_bgm(bms, &table, &wav_map, &mut events);
 
-        // LNOBJ end markers play as BGM (per BMS spec).
+        // LNOBJ 终点标记作为 BGM 播放（按 BMS 规范）。
         collect_lnobj_bgm(bms, &table, &wav_map, &consumed, &mut events);
 
-        // BGA (priority 1).
+        // BGA（优先级 1）。
         collect_bga(bms, &table, &bmp_map, &mut events);
 
-        // BPM changes (priority 2).
+        // BPM 变更（优先级 2）。
         collect_bpm_events(bms, &table, &mut events);
 
-        // Stop events (priority 3) — re-iterate timing stops.
+        // 停止事件（优先级 3）—— 重新遍历计时停止事件。
         for se in &timing.stops {
             events.push(Event::Stop {
                 tick: se.tick,
@@ -138,13 +132,13 @@ impl BmsProcessor {
             });
         }
 
-        // Scroll events (priority 4).
+        // SCROLL 事件（优先级 4）。
         collect_scroll_events(bms, &table, &mut events);
 
-        // Speed events (priority 5).
+        // SPEED 事件（优先级 5）。
         collect_speed_events(bms, &table, &mut events);
 
-        // Stable sort preserves insertion order at the same tick.
+        // 稳定排序保留同一脉冲上的插入顺序。
         events.sort_by_key(bmsrs_chart::Event::tick);
 
         let (song, chart_info) = build_metadata(bms);
@@ -166,20 +160,18 @@ impl BmsProcessor {
         })
     }
 
-    /// Process a BMS chart with the default [`Bme`] layout.
+    /// 使用默认的 [`Bme`] 布局处理 BMS 谱面。
     ///
-    /// `Bme` covers beat-5k/7k/10k/14k uniformly — both player sides are
-    /// mapped, so single-player charts simply leave the 2P lanes unused and
-    /// dual-player charts populate them. The `#PLAYER` header does not affect
-    /// the mapping (consistent with modern engines, which ignore it).
+    /// `Bme` 统一覆盖 beat-5k/7k/10k/14k —— 两侧玩家均被映射，因此单人
+    /// 谱面只是让 2P 轨道空置，双人谱面则填充它们。`#PLAYER` 头部命令不
+    /// 影响映射（与现代引擎一致，均忽略该字段）。
     ///
-    /// For PMS, nanasi, or other families, call
-    /// [`process::<Nanasi>`](Self::process) with the relevant layout type.
+    /// 若需 PMS、nanasi 或其他族，请以相应布局类型调用
+    /// [`process::<Nanasi>`](Self::process)。
     ///
     /// # Errors
     ///
-    /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
-    /// or not positive.
+    /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_default(
         bms: &Bms,
     ) -> Result<Chart<(), bmsrs_chart::NoCustomEvent>, ProcessError> {
@@ -187,9 +179,9 @@ impl BmsProcessor {
     }
 }
 
-// Builder helpers
+// 构建辅助函数
 
-/// Determine LN mode and pair LNs. Returns paired LNs and consumed note indices.
+/// 判定 LN 模式并配对长音。返回配对后的长音与已消耗的音符索引。
 fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<usize>) {
     if let Some(ln_obj) = bms.gameplay.ln_obj {
         return pair_lnobj(&bms.messages.note_events, ln_obj, table);
@@ -206,7 +198,7 @@ fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<
     )
 }
 
-/// Collect all playable notes into the events vec.
+/// 收集全部可玩音符到事件向量中。
 fn collect_notes<L: BmsLayout>(
     bms: &Bms,
     table: &MeasureTable,
@@ -233,7 +225,7 @@ fn collect_notes<L: BmsLayout>(
         }
     };
 
-    // Visible notes (skip consumed LNOBJ pairs).
+    // 可见音符（跳过已消耗的 LNOBJ 配对）。
     for (i, ne) in bms.messages.note_events.iter().enumerate() {
         if consumed.contains(&i) {
             continue;
@@ -250,7 +242,7 @@ fn collect_notes<L: BmsLayout>(
         }
     }
 
-    // Invisible notes (keysounds).
+    // 不可见音符（按键音）。
     for ne in &bms.messages.note_events {
         if ne.key_type == KeyType::Invisible {
             push_note(
@@ -264,7 +256,7 @@ fn collect_notes<L: BmsLayout>(
         }
     }
 
-    // Paired long notes.
+    // 已配对的长音。
     for ln in paired_lns {
         push_note(
             ln.tick,
@@ -278,7 +270,7 @@ fn collect_notes<L: BmsLayout>(
         );
     }
 
-    // Mines.
+    // 地雷。
     for me in &bms.messages.mine_events {
         push_note(
             table.position_to_tick(me.position),
@@ -291,7 +283,7 @@ fn collect_notes<L: BmsLayout>(
     }
 }
 
-/// Collect BGM events into the events vec.
+/// 收集 BGM 事件到事件向量中。
 fn collect_bgm(
     bms: &Bms,
     table: &MeasureTable,
@@ -308,12 +300,12 @@ fn collect_bgm(
     }
 }
 
-/// Collect LNOBJ end-marker BGM events.
+/// 收集 LNOBJ 终点标记的 BGM 事件。
 ///
-/// Per the BMS spec, when an [`#LNOBJ`](bms_tokenizer::BmsHeaderGameplay::LnObj)
-/// end marker passes the judgment line, its WAV file is played as BGM.
-/// This function iterates the `consumed` note indices from
-/// [`pair_lnobj`] and emits a BGM event for each end marker.
+/// 按 BMS 规范，当 [`#LNOBJ`](bms_tokenizer::BmsHeaderGameplay::LnObj)
+/// 终点标记经过判定线时，其 WAV 文件作为 BGM 播放。此函数遍历
+/// [`pair_lnobj`] 返回的 `consumed` 音符索引，为每个终点标记生成一个
+/// BGM 事件。
 fn collect_lnobj_bgm(
     bms: &Bms,
     table: &MeasureTable,
@@ -337,7 +329,7 @@ fn collect_lnobj_bgm(
     }
 }
 
-/// Build BPM events (for the unified timeline).
+/// 构建 BPM 事件（用于统一时间线）。
 fn collect_bpm_events(
     bms: &Bms,
     table: &MeasureTable,
@@ -351,7 +343,7 @@ fn collect_bpm_events(
     }
 }
 
-/// Build scroll-speed change events.
+/// 构建 SCROLL 变更事件。
 fn collect_scroll_events(
     bms: &Bms,
     table: &MeasureTable,
@@ -367,7 +359,7 @@ fn collect_scroll_events(
     }
 }
 
-/// Build visual note-spacing (SPEED) keyframe events.
+/// 构建 SPEED（视觉音符间距）关键帧事件。
 fn collect_speed_events(
     bms: &Bms,
     table: &MeasureTable,
@@ -383,7 +375,7 @@ fn collect_speed_events(
     }
 }
 
-/// Build BGA events from BGA events and BMP file definitions.
+/// 从 BGA 事件与 BMP 文件定义构建 BGA 事件。
 fn collect_bga(
     bms: &Bms,
     table: &MeasureTable,
@@ -401,7 +393,7 @@ fn collect_bga(
     }
 }
 
-/// Build WAV audio assets and return lookup map + assets vec.
+/// 构建 WAV 音频素材并返回查找表与素材向量。
 fn build_audio_assets(
     wav_files: &BTreeMap<WavIndex, String>,
 ) -> (BTreeMap<WavIndex, u32>, Vec<AudioAsset>) {
@@ -420,7 +412,7 @@ fn build_audio_assets(
     (wav_map, audio_assets)
 }
 
-/// Build BMP index to (`resource_id`, file path) map.
+/// 构建 BMP 索引到（`resource_id`、文件路径）的映射。
 fn build_bmp_map(bmp_files: &BTreeMap<BmpIndex, String>) -> BTreeMap<BmpIndex, (u32, String)> {
     let mut map = BTreeMap::new();
     #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
@@ -430,7 +422,7 @@ fn build_bmp_map(bmp_files: &BTreeMap<BmpIndex, String>) -> BTreeMap<BmpIndex, (
     map
 }
 
-/// Build BPM change events for timing track.
+/// 为计时轨构建 BPM 变更事件。
 fn build_bpm_changes(bms: &Bms, table: &MeasureTable) -> Vec<BpmChange> {
     bms.messages
         .bpm_changes
@@ -442,8 +434,7 @@ fn build_bpm_changes(bms: &Bms, table: &MeasureTable) -> Vec<BpmChange> {
         .collect()
 }
 
-/// Resolve a [`BpmValue`] to a concrete BPM, using the BPM definition table
-/// for reference values.
+/// 将 [`BpmValue`] 解析为具体 BPM 值，对引用值使用 BPM 定义表。
 fn resolve_bpm(value: BpmValue, bms: &Bms) -> f64 {
     match value {
         BpmValue::Absolute(bpm) => bpm,
@@ -451,7 +442,7 @@ fn resolve_bpm(value: BpmValue, bms: &Bms) -> f64 {
     }
 }
 
-/// Find the BPM active at a given tick (last BPM change at or before `tick`).
+/// 查找给定脉冲处生效的 BPM（不晚于 `tick` 的最后一次 BPM 变更）。
 fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
     let mut bpm = init_bpm;
     for bc in bpm_changes {
@@ -464,7 +455,7 @@ fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
     bpm
 }
 
-/// Building stop events from `#STOPxx` definitions (channel `09`).
+/// 从 `#STOPxx` 定义（通道 `09`）构建停止事件。
 #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
 #[expect(clippy::cast_sign_loss, reason = "raw is non-negative")]
 #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
@@ -481,7 +472,7 @@ fn build_stops_from_defs(bms: &Bms, table: &MeasureTable) -> Vec<StopEvent> {
         .collect()
 }
 
-/// Build stop events from `#STP` headers (duration in milliseconds).
+/// 从 `#STP` 头部命令构建停止事件（时长以毫秒计）。
 #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
 #[expect(clippy::cast_sign_loss, reason = "duration_ms is non-negative")]
 #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
@@ -506,7 +497,7 @@ fn build_stops_from_stp(
         .collect()
 }
 
-/// Build auto 4/4 bar events (one per measure).
+/// 构建自动 4/4 拍小节事件（每小节一个）。
 fn build_bar_events(max_measure: u16) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
     let step = RESOLUTION * 4;
     (0..=u64::from(max_measure))
@@ -514,7 +505,7 @@ fn build_bar_events(max_measure: u16) -> Vec<Event<(), bmsrs_chart::NoCustomEven
         .collect()
 }
 
-/// Build [`SongInfo`] and [`ChartInfo`] from BMS metadata.
+/// 从 BMS 元数据构建 [`SongInfo`] 与 [`ChartInfo`]。
 #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
 #[expect(clippy::cast_sign_loss, reason = "play level is non-negative")]
 fn build_metadata(bms: &Bms) -> (SongInfo, ChartInfo) {
@@ -543,7 +534,7 @@ fn build_metadata(bms: &Bms) -> (SongInfo, ChartInfo) {
     )
 }
 
-/// Find the maximum measure number referenced by any event.
+/// 查找任意事件所引用的最大小节号。
 fn find_max_measure(bms: &Bms) -> u16 {
     let mut max_m = 0u16;
 

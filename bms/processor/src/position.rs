@@ -1,28 +1,27 @@
-//! BMS Position → absolute tick conversion.
+//! BMS Position → 绝对脉冲转换。
 //!
-//! BMS uses fractional positions within measures. Each measure has a
-//! configurable length (ratio of a standard 4/4 measure). This module builds
-//! a cumulative tick table to convert [`Position`] to absolute ticks.
+//! BMS 在小节内使用分数位置。每个小节有一个可配置长度（相对标准 4/4 拍
+//! 小节的比率）。本模块构建累计脉冲表，将 [`Position`] 转换为绝对脉冲。
 
 use bms_parser::Position;
 
-/// Table mapping measure numbers to cumulative tick positions.
+/// 将小节号映射到累计脉冲位置的表。
 ///
-/// Built from `#XXX` measure-length changes. Measures not explicitly listed
-/// default to `1.0` (standard 4/4 = `resolution * 4` ticks).
+/// 由 `#XXX` 小节长度变更构建。未显式列出的小节默认为 `1.0`（标准 4/4 拍
+/// = `resolution * 4` 脉冲）。
 pub struct MeasureTable {
-    /// Cumulative tick at the start of each measure (index = measure number).
+    /// 每个小节起点的累计脉冲（索引 = 小节号）。
     starts: Vec<u64>,
 }
 
 impl MeasureTable {
-    /// Build a measure table from BMS measure-length definitions.
+    /// 从 BMS 小节长度定义构建小节表。
     ///
-    /// `resolution` is ticks per quarter note (e.g. 240).
-    /// `measure_lengths` is the `bms.messages.measure_lengths` vector.
+    /// `resolution` 为每四分音符的脉冲数（如 240）。
+    /// `measure_lengths` 为 `bms.messages.measure_lengths` 向量。
     ///
-    /// Each measure's length in ticks is `resolution * 4 * length_ratio`,
-    /// where `length_ratio` is the BMS `#xxx02` value (`1.0` = 4/4).
+    /// 每个小节的脉冲长度为 `resolution * 4 * length_ratio`，其中
+    /// `length_ratio` 为 BMS `#xxx02` 值（`1.0` = 4/4 拍）。
     pub(crate) fn new(
         max_measure: u16,
         measure_lengths: &[bms_parser::MeasureLength],
@@ -30,7 +29,7 @@ impl MeasureTable {
     ) -> Self {
         let ticks_per_measure = resolution * 4;
 
-        // Build a lookup: measure → length_ratio (default 1.0).
+        // 构建查找表：小节 → length_ratio（默认 1.0）。
         let mut ratios: std::collections::BTreeMap<u16, f64> = std::collections::BTreeMap::new();
         for ml in measure_lengths {
             ratios.insert(ml.measure, ml.length_ratio);
@@ -56,10 +55,9 @@ impl MeasureTable {
         Self { starts }
     }
 
-    /// Convert a BMS [`Position`] to an absolute tick.
+    /// 将 BMS [`Position`] 转换为绝对脉冲。
     ///
-    /// The position within a measure is `numer / denom` of that measure's
-    /// tick length.
+    /// 小节内位置占该小节脉冲长度的 `numer / denom`。
     pub(crate) fn position_to_tick(&self, pos: Position) -> u64 {
         let m = usize::from(pos.measure);
         let Some(&measure_start) = self.starts.get(m) else {
@@ -95,14 +93,14 @@ mod tests {
 
     #[test]
     fn variable_meter_preserves_measure_lengths() {
-        // Measure 0 = 1.0 (4/4), measure 1 = 0.5 (2/4), measure 2 = 1.0 (4/4).
+        // 小节 0 = 1.0（4/4 拍），小节 1 = 0.5（2/4 拍），小节 2 = 1.0（4/4 拍）。
         let lengths = vec![MeasureLength {
             measure: 1,
             length_ratio: 0.5,
         }];
         let table = MeasureTable::new(3, &lengths, RES);
 
-        // Measure 0 = 960 ticks, measure 1 = 480 ticks, measure 2 = 960 ticks.
+        // 小节 0 = 960 脉冲，小节 1 = 480 脉冲，小节 2 = 960 脉冲。
         assert_eq!(table.position_to_tick(Position::new(0, 0, 1)), 0);
         assert_eq!(table.position_to_tick(Position::new(1, 0, 1)), 960);
         assert_eq!(table.position_to_tick(Position::new(2, 0, 1)), 1440);
@@ -117,20 +115,20 @@ mod tests {
         }];
         let table = MeasureTable::new(1, &lengths, RES);
 
-        // Measure 0 is 480 ticks. Position 1/2 = tick 240.
+        // 小节 0 为 480 脉冲。位置 1/2 = 脉冲 240。
         assert_eq!(table.position_to_tick(Position::new(0, 1, 2)), 240);
     }
 
     #[test]
     fn three_four_time() {
-        // 3/4 time: length_ratio = 0.75 → 720 ticks per measure.
+        // 3/4 拍：length_ratio = 0.75 → 每小节 720 脉冲。
         let lengths = vec![MeasureLength {
             measure: 0,
             length_ratio: 0.75,
         }];
         let table = MeasureTable::new(2, &lengths, RES);
 
-        // Measure 0 = 720 ticks total. Position 3/4 means 540 ticks in.
+        // 小节 0 总计 720 脉冲。位置 3/4 表示进入 540 脉冲。
         assert_eq!(table.position_to_tick(Position::new(0, 3, 4)), 540);
         assert_eq!(table.position_to_tick(Position::new(0, 4, 4)), 720);
         assert_eq!(table.position_to_tick(Position::new(1, 0, 1)), 720);
