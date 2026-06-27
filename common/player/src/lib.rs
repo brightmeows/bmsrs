@@ -40,6 +40,7 @@
 //! ```
 
 pub(crate) mod scroll_cache;
+mod speed_cache;
 mod timing;
 
 use std::ops::Bound;
@@ -52,6 +53,7 @@ use bmsrs_chart::{
 };
 
 use crate::scroll_cache::ScrollCache;
+use crate::speed_cache::SpeedCache;
 use crate::timing::TimingCache;
 
 /// 跟踪 [`Chart`] 播放进度的有状态仿真器。
@@ -68,6 +70,8 @@ pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     cache: TimingCache,
     /// 预计算的滚动速度缓存，用于 O(log n) 查询。
     scroll_cache: ScrollCache,
+    /// 预计算的 SPEED 间距插值缓存。
+    speed_cache: SpeedCache,
     /// 当前播放位置（脉冲）。
     current_tick: u64,
 }
@@ -78,11 +82,13 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     pub fn new(chart: Chart<T, C>) -> Self {
         let resolution = chart.data.resolution;
         let cache = TimingCache::new(&chart.data.timing, resolution);
-        let scroll_cache = ScrollCache::build(&chart.data.events);
+        let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
+        let speed_cache = SpeedCache::build(&chart.data.events);
         Self {
             chart,
             cache,
             scroll_cache,
+            speed_cache,
             current_tick: 0,
         }
     }
@@ -240,6 +246,24 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     #[must_use]
     pub fn scroll_rate_at(&self, tick: u64) -> f64 {
         self.scroll_cache.rate_at(tick)
+    }
+
+    /// 返回 `tick` 处的累积滚动位置（以节拍为单位）。
+    ///
+    /// 位置 = 滚动速度对时间的积分。默认无 SCROLL 事件时，
+    /// 位置 = `tick / resolution`（标准节拍对齐）。
+    #[must_use]
+    pub fn scroll_position_at(&self, tick: u64) -> f64 {
+        self.scroll_cache.position_at(tick)
+    }
+
+    /// 返回 `tick` 处的 SPEED 插值间距倍率。
+    ///
+    /// 在相邻 `Event::Speed` 关键帧之间执行线性插值。
+    /// 首个关键帧之前 → `1.0`；最后一个之后 → 最后一个关键帧的值。
+    #[must_use]
+    pub fn spacing_at(&self, tick: u64) -> f64 {
+        self.speed_cache.spacing_at(tick)
     }
 
     /// 返回 `range` 范围内 Bar 事件的迭代器。

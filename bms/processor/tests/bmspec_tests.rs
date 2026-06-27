@@ -6,11 +6,13 @@
 //!
 //! 节拍（beat）换算：1 beat = resolution（240）个脉冲。
 
+use bms_control_flow::FlowDoc;
 use bms_parser::Bms;
 use bms_processor::BmsProcessor;
 use bms_processor::layout::Bme;
 use bms_tokenizer::BmsTokenizer;
 use bmsrs_chart::{Event, NoteKind};
+use bmsrs_player::Player;
 
 /// 管道辅助：BMS 原文 → `Chart`。
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
@@ -463,6 +465,19 @@ fn bmspec_3_scroll_basic() {
         (scrolls[0].1 - 0.5).abs() < 1e-9,
         "scroll rate should be 0.5"
     );
+
+    // Verify scroll position via Player
+    let player = Player::new(chart);
+    // Before scroll: rate 1.0, position = ticks / resolution
+    assert!((player.scroll_rate_at(0) - 1.0).abs() < 1e-9);
+    assert!((player.scroll_position_at(0) - 0.0).abs() < 1e-9);
+    // At beat 4 (tick 960): scroll just changed to 0.5, position = 4 (no delay yet)
+    assert!((player.scroll_position_at(960) - 4.0).abs() < 1e-9);
+    // At beat 6 (tick 1440): 2 beats at 0.5 → position advances 1 → cum = 5
+    assert!(
+        (player.scroll_position_at(1440) - 5.0).abs() < 1e-9,
+        "expected scroll position 5 at beat 6 (tick 1440)"
+    );
 }
 
 /// SCROLL 初始速度：第 0 小节指定。
@@ -477,16 +492,136 @@ fn bmspec_3_scroll_initial_speed() {
         (scrolls[0].1 - 0.5).abs() < 1e-9,
         "scroll rate should be 0.5"
     );
+
+    // Verify position: scroll at tick 0 with rate 0.5
+    let player = Player::new(chart);
+    assert!((player.scroll_rate_at(0) - 0.5).abs() < 1e-9);
+    // At tick 0: position = 0, but rate = 0.5 from start
+    // At beat -1 (negative beat, tick -240): position = 0.5 * (-1) = -0.5
+    // But we can't test negative ticks...
+    // At beat 4 (tick 960): 4 beats at 0.5 = position 2.0
+    assert!(
+        (player.scroll_position_at(960) - 2.0).abs() < 1e-9,
+        "expected position 2.0 at beat 4 with 0.5x scroll"
+    );
 }
 
-/// RANDOM 选择分支。
+/// 辅助函数：走完整控制流管道的 BMS 处理。
+/// 用 `SETRANDOM` / `SETSWITCH` 固定分支值。
+/// 测试用确定性 RNG（总是返回 0，适合 SETRANDOM 固定值场景）。
+struct TestRng;
+impl bms_control_flow::BranchRng for TestRng {
+    fn gen_range(&mut self, _max: u64) -> u64 {
+        0
+    }
+}
+
+fn process_with_cf(bms_text: &str) -> bmsrs_chart::Chart {
+    let tokens: Vec<_> = BmsTokenizer::new()
+        .tokenize::<Vec<_>, &str>(bms_text)
+        .into_iter()
+        .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
+        .collect();
+    #[expect(clippy::expect_used, reason = "test helper panics on build failure")]
+    let tree = FlowDoc::from_tokens(tokens).expect("build FlowDoc");
+    let (flat, _) = tree.select_branches(&mut TestRng);
+    let bms = Bms::from_flat_tokens(flat);
+    #[expect(clippy::expect_used, reason = "test helper panics on failure")]
+    BmsProcessor::process::<Bme>(&bms).expect("process should succeed")
+}
+
+/// RANDOM: SETRANDOM 固定值选择分支。
 #[test]
-fn bmspec_4_random_basic() {
-    // 使用 SETRANDOM 代替 RANDOM 以绕过随机数生成器
-    // 但当前管道（tokenizer → parser）不处理控制流——
-    // 需要先通过 bms-control-flow 展平。
-    // RANDOM 处理需要 FlowDoc::from_tokens + select_branches，
-    // 这里跳过，由 select_tests.rs 覆盖。
+fn bmspec_4_random_setrandom() {
+    // SETRANDOM 1 → 始终选中 #IF 1
+    let chart = process_with_cf(
+        "#SETRANDOM 1\n\
+         #IF 1\n\
+         #WAV01 a.wav\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #WAV02 b.wav\n\
+         #ENDIF\n\
+         #ENDRANDOM\n\
+         #BPM 120\n",
+    );
+    // 应只有 WAV01 (a.wav) 出现在 audio_assets 中
+    assert_eq!(chart.data.audio_assets.len(), 1);
+    assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "a.wav");
+}
+
+/// RANDOM: SETRANDOM 选中第二个分支。
+#[test]
+fn bmspec_4_random_setrandom_second() {
+    let chart = process_with_cf(
+        "#SETRANDOM 2\n\
+         #IF 1\n\
+         #WAV01 a.wav\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #WAV01 b.wav\n\
+         #ENDIF\n\
+         #ENDRANDOM\n\
+         #BPM 120\n",
+    );
+    assert_eq!(chart.data.audio_assets.len(), 1);
+    assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "b.wav");
+}
+
+/// RANDOM: 多个连续块各自独立选择。
+#[test]
+fn bmspec_4_random_multiple_blocks() {
+    // 第一个块选中 #IF 2，第二个块选中 #IF 1（顺序不重要）
+    let chart = process_with_cf(
+        "#SETRANDOM 2\n\
+         #IF 1\n\
+         #WAV01 a.wav\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #WAV01 b.wav\n\
+         #ENDIF\n\
+         #ENDRANDOM\n\
+         #SETRANDOM 1\n\
+         #IF 1\n\
+         #WAV02 c.wav\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #WAV02 d.wav\n\
+         #ENDIF\n\
+         #ENDRANDOM\n",
+    );
+    assert_eq!(chart.data.audio_assets.len(), 2);
+    let paths: Vec<_> = chart
+        .data
+        .audio_assets
+        .iter()
+        .map(|a| a.path.to_string_lossy().to_string())
+        .collect();
+    assert!(
+        paths.contains(&"b.wav".to_owned()),
+        "first block picks branch 2"
+    );
+    assert!(
+        paths.contains(&"c.wav".to_owned()),
+        "second block picks branch 1"
+    );
+}
+
+/// RANDOM: 无匹配时不出 WAV。
+#[test]
+fn bmspec_4_random_no_match() {
+    let chart = process_with_cf(
+        "#SETRANDOM 3\n\
+         #IF 1\n\
+         #WAV01 a.wav\n\
+         #ENDIF\n\
+         #IF 2\n\
+         #WAV01 b.wav\n\
+         #ENDIF\n\
+         #ENDRANDOM\n",
+    );
+    // RNG=3 不匹配任何 IF → 不产出 WAV
+    assert!(chart.data.audio_assets.is_empty());
 }
 
 /// 基本副标题。
@@ -592,4 +727,46 @@ fn bmspec_6_speed_multiple() {
     assert!((speeds[1].1 - 1.5).abs() < 1e-9);
     assert_eq!(speeds[2].0, 1920, "speed 03 at beat 8");
     assert!((speeds[2].1 - 1.0).abs() < 1e-9);
+}
+
+/// SPEED 间距插值（通过 `Player::spacing_at` 验证）。
+#[test]
+fn bmspec_6_speed_interpolation() {
+    let chart = process(
+        "#SPEED01 0.5\n\
+         #SPEED02 1.5\n\
+         #SPEED03 1\n\
+         #001SP:0102\n\
+         #002SP:03\n",
+    );
+    let player = Player::new(chart);
+
+    // 首个关键帧之前 → 1.0（默认）
+    assert!((player.spacing_at(0) - 1.0).abs() < 1e-9, "before first kf");
+
+    // keyframe 01: tick 960 (beat 4), rate 0.5
+    assert!((player.spacing_at(960) - 0.5).abs() < 1e-9, "kf 01");
+
+    // keyframe 01→02 plateau: still 0.5
+    assert!((player.spacing_at(1200) - 0.5).abs() < 1e-9, "plateau");
+
+    // keyframe 02: tick 1440 (beat 6), rate 1.5
+    assert!((player.spacing_at(1440) - 1.5).abs() < 1e-9, "kf 02");
+
+    // keyframe 02→03 插值: tick 1680 (beat 7), 75% between 1440 and 1920
+    // 1.5 + (1.0 - 1.5) * (1680 - 1440) / (1920 - 1440)
+    // = 1.5 + (-0.5) * 0.5 = 1.25
+    assert!(
+        (player.spacing_at(1680) - 1.25).abs() < 1e-9,
+        "interpolation at beat 7"
+    );
+
+    // keyframe 03: tick 1920 (beat 8), rate 1.0
+    assert!((player.spacing_at(1920) - 1.0).abs() < 1e-9, "kf 03");
+
+    // 最后一个关键帧之后 → 保持 1.0
+    assert!(
+        (player.spacing_at(2400) - 1.0).abs() < 1e-9,
+        "after last kf"
+    );
 }

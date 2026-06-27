@@ -97,9 +97,11 @@ dependencies = [
 name = "bms-processor"
 version = "0.1.0"
 dependencies = [
+ "bms-control-flow",
  "bms-parser",
  "bms-tokenizer",
  "bmsrs-chart",
+ "bmsrs-player",
  "thiserror",
 ]
 

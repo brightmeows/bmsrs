@@ -1,0 +1,154 @@
+//! 预计算的 SPEED 关键帧插值缓存。
+//!
+//! [`SpeedCache`] 存储已排序的 SPEED 关键帧，在查询时对相邻关键帧
+//! 之间的间距值进行线性插值。
+
+use bmsrs_chart::{CustomEvent, Event, NoteExt};
+
+/// SPEED 关键帧：脉冲位置与间距倍率。
+#[derive(Clone, Copy, Debug)]
+struct SpeedKeyframe {
+    /// 关键帧的绝对脉冲位置。
+    tick: u64,
+    /// 此关键帧处的间距倍率。
+    rate: f64,
+}
+
+/// SPEED 间距插值缓存。
+///
+/// 构建时从 [`Event::Speed`] 事件收集关键帧。`spacing_at(tick)` 在
+/// 相邻关键帧之间执行线性插值；若查询位置在首个关键帧之前，返回 `1.0`
+/// （默认间距值）。
+pub struct SpeedCache {
+    /// 按 tick 升序排列的关键帧。
+    keyframes: Vec<SpeedKeyframe>,
+}
+
+impl SpeedCache {
+    /// 从已排序事件列表构建缓存。
+    ///
+    /// 仅遍历 `Speed` 变体，跳过其他事件类型。
+    /// 输入 `events` 必须按 [`Event::tick`] 升序排列（由谱面保证）。
+    pub fn build<T: NoteExt, C: CustomEvent>(events: &[Event<T, C>]) -> Self {
+        let keyframes: Vec<SpeedKeyframe> = events
+            .iter()
+            .filter_map(|e| {
+                if let Event::Speed { tick, rate } = e {
+                    Some(SpeedKeyframe {
+                        tick: *tick,
+                        rate: *rate,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Self { keyframes }
+    }
+
+    /// 返回 `tick` 处的插值间距倍率。
+    ///
+    /// 无关键帧或查询在首个关键帧之前 → 返回 `1.0`。
+    /// 查询在最后一个关键帧之后 → 返回最后一个关键帧的间距。
+    /// 两关键帧之间 → 线性插值。
+    #[expect(clippy::indexing_slicing, reason = "idx checks bounds before access")]
+    pub fn spacing_at(&self, tick: u64) -> f64 {
+        if self.keyframes.is_empty() || tick <= self.keyframes[0].tick {
+            return 1.0;
+        }
+
+        // 找出首个 tick > 查询位置的关键帧。
+        let next_idx = self.keyframes.partition_point(|k| k.tick <= tick);
+        if next_idx == 0 {
+            return 1.0;
+        }
+        if next_idx >= self.keyframes.len() {
+            #[expect(clippy::indexing_slicing, reason = "len > 0 && next_idx >= len")]
+            return self.keyframes[self.keyframes.len() - 1].rate;
+        }
+
+        // 在 keyframes[next_idx - 1] 与 keyframes[next_idx] 之间插值。
+        let prev = &self.keyframes[next_idx - 1];
+        let next = &self.keyframes[next_idx];
+        #[expect(clippy::cast_precision_loss, reason = "tick offsets fit in f64")]
+        let t = (tick - prev.tick) as f64 / (next.tick - prev.tick) as f64;
+        (next.rate - prev.rate).mul_add(t, prev.rate)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_speed_events(pairs: &[(u64, f64)]) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
+        pairs
+            .iter()
+            .map(|&(tick, rate)| Event::Speed { tick, rate })
+            .collect()
+    }
+
+    #[test]
+    fn no_events_returns_default() {
+        let events: Vec<Event<(), bmsrs_chart::NoCustomEvent>> = vec![];
+        let cache = SpeedCache::build(&events);
+        assert!((cache.spacing_at(0) - 1.0).abs() < 1e-9);
+        assert!((cache.spacing_at(9999) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn before_first_keyframe_returns_default() {
+        let events = make_speed_events(&[(480, 0.5)]);
+        let cache = SpeedCache::build(&events);
+        assert!((cache.spacing_at(0) - 1.0).abs() < 1e-9);
+        assert!((cache.spacing_at(479) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn after_last_keyframe_returns_last_rate() {
+        let events = make_speed_events(&[(480, 0.5)]);
+        let cache = SpeedCache::build(&events);
+        assert!((cache.spacing_at(480) - 0.5).abs() < 1e-9);
+        assert!((cache.spacing_at(9999) - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn at_keyframe_exact() {
+        let events = make_speed_events(&[(480, 0.5)]);
+        let cache = SpeedCache::build(&events);
+        assert!((cache.spacing_at(480) - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn interpolation_between_keyframes() {
+        // 关键帧：tick 0 at 0.5, tick 960 at 1.5
+        // tick 480: midpoint, expected 1.0
+        let events = make_speed_events(&[(0, 0.5), (960, 1.5)]);
+        let cache = SpeedCache::build(&events);
+        assert!((cache.spacing_at(0) - 0.5).abs() < 1e-9);
+        assert!((cache.spacing_at(480) - 1.0).abs() < 1e-9);
+        assert!((cache.spacing_at(960) - 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bmspec_6_multiple_speed_interpolation() {
+        // 模拟 bmspec-6 多值场景：
+        // SPEED01=0.5 at tick 960 (beat 4)
+        // SPEED02=1.5 at tick 1440 (beat 6)
+        // SPEED03=1.0 at tick 1920 (beat 8)
+        let events = make_speed_events(&[(960, 0.5), (1440, 1.5), (1920, 1.0)]);
+        let cache = SpeedCache::build(&events);
+        assert!((cache.spacing_at(960) - 0.5).abs() < 1e-9, "keyframe 01");
+        assert!(
+            (cache.spacing_at(1200) - 0.5).abs() < 1e-9,
+            "still 0.5 before next kf"
+        );
+        assert!((cache.spacing_at(1440) - 1.5).abs() < 1e-9, "keyframe 02");
+        // beat 7 = tick 1680: 75% between 1440(1.5) and 1920(1.0)
+        // 1.5 + (1.0 - 1.5) * (1680-1440)/(1920-1440) = 1.5 + (-0.5 * 0.5) = 1.25
+        assert!(
+            (cache.spacing_at(1680) - 1.25).abs() < 1e-9,
+            "interpolation at beat 7"
+        );
+        assert!((cache.spacing_at(1920) - 1.0).abs() < 1e-9, "keyframe 03");
+    }
+}

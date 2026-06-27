@@ -18,6 +18,10 @@ bms-tokenizer.workspace = true
 bmsrs-chart.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+bms-control-flow.workspace = true
+bmsrs-player.workspace = true
+
 [lib]
 
 [lints]
