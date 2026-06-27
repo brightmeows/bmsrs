@@ -3,6 +3,20 @@
 Third stage: tokenizer → control-flow → **parser**.
 Builds owned `Bms` struct from flat tokens (no control-flow commands).
 
+## Design philosophy
+
+**Preserving original information.** The parser stores raw metadata values
+exactly as they appear in the BMS file — no inference, no transformation.
+
+For example, implicit subtitle parsing (extracting a subtitle from
+`#TITLE` delimiters like `-`, `～`, `()`, `[]`, `<>`) is intentionally
+**not** implemented.  The parser faithfully preserves the original
+`#TITLE` and `#SUBTITLE` values; any implicit-subtitle logic belongs
+upplayerv (where the engine can choose its own separator rules).
+
+Similarly, `#COMMENT`, `#URL`, `#EMAIL`, and other string-valued
+headers are stored without interpretation or modification.
+
 ## Lifecycle
 
 `Messages` uses a two-phase design: `concat_raw` collects data, `finalize`
