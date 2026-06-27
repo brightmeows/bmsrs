@@ -1,53 +1,52 @@
-//! Re-export facade for the bmsrs workspace.
+//! bmsrs 工作区的重新导出门面。
 //!
-//! This crate aggregates and re-exports public APIs from sub-crates
-//! under a unified module hierarchy mirroring the workspace directory
-//! structure.
+//! 本 crate 聚合并重新导出各子 crate 的公共 API，
+//! 模块层级统一镜像工作区的目录结构。
 
-/// BMS format parsing and processing.
+/// BMS 格式的解析与处理。
 pub mod bms {
-    /// BMS tokenizer — low-level line-by-line parsing.
+    /// BMS 分词器——底层逐行解析。
     pub mod tokenizer {
         pub use bms_tokenizer::*;
     }
 
-    /// Control-flow tree construction, branch selection, and roundtrip conversion.
+    /// 控制流树构建、分支选择与往返转换。
     pub mod control_flow {
         pub use bms_control_flow::*;
     }
 
-    /// BMS parser — structured document model from flat token streams.
+    /// BMS 解析器——从扁平 token 流构建结构化文档模型。
     pub mod parser {
         pub use bms_parser::*;
     }
 
-    /// BMS processor — converts `Bms` into a format-agnostic `Chart`.
+    /// BMS 处理器——将 `Bms` 转换为格式无关的 `Chart`。
     pub mod processor {
         pub use bms_processor::*;
     }
 }
 
-/// BMSON format type definitions and converters.
+/// BMSON 格式的类型定义与转换器。
 pub mod bmson {
-    /// BMSON type system (v0/v1/v2).
+    /// BMSON 类型系统（v0/v1/v2）。
     pub mod def {
         pub use bmson_def::v0;
         pub use bmson_def::v1;
         pub use bmson_def::*;
     }
 
-    /// BMSON processor — converts bmson data into a format-agnostic `Chart`.
+    /// BMSON 处理器——将 bmson 数据转换为格式无关的 `Chart`。
     pub mod processor {
         pub use bmson_processor::*;
     }
 }
 
-/// Format-agnostic chart data model.
+/// 格式无关的谱面数据模型。
 pub mod chart {
     pub use bmsrs_chart::*;
 }
 
-/// Pure simulation / playback layer.
+/// 纯仿真 / 播放层。
 pub mod player {
     pub use bmsrs_player::*;
 }
