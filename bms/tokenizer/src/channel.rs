@@ -1,106 +1,103 @@
-//! Typed BMS channel enumeration.
+//! 类型化的 BMS 通道枚举。
 //!
-//! Categorizes channel numbers from BMS message lines (`#xxxYY:values`)
-//! into known semantic variants, note channels, and unknown/reserved
-//! channels.
+//! 将 BMS 消息行（`#xxxYY:values`）中的通道号归类为
+//! 已知的语义变体、音符通道，以及未知/保留通道。
 
 use std::fmt;
 
 use crate::index::ChannelIndex;
 
-/// Categorized BMS channel identifier.
+/// 已分类的 BMS 通道标识符。
 ///
-/// Each known non-note channel is a unit variant.  Note channels carry
-/// their raw [`ChannelIndex`] for downstream interpretation (player, type,
-/// and key number are the parser's concern).  Unknown channels also
-/// carry the raw index so that custom / engine-specific channels are
-/// preserved in the token stream.
+/// 每个已知的非音符通道是一个单元变体。音符通道携带其原始
+/// [`ChannelIndex`] 供下游解析（玩家侧、类型、按键号是
+/// 解析器关心的事）。未知通道也携带原始索引，使自定义 /
+/// 引擎特有的通道能在 token 流中被保留。
 ///
-/// The inner [`ChannelIndex`] validates as Base36 (`0-9A-Z`) — input is
-/// normalized to uppercase on construction.
+/// 内部 [`ChannelIndex`] 按 Base36（`0-9A-Z`）校验——构造时
+/// 输入被规范化为大写。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BmsChannel {
-    // Known non-note channels (hex, 01–0E)
-    /// Channel `01` — BGM.
+    // 已知非音符通道（十六进制，01–0E）
+    /// 通道 `01`——BGM。
     Bgm,
-    /// Channel `02` — Measure length.
+    /// 通道 `02`——小节长度。
     MeasureLength,
-    /// Channel `03` — BPM change (hex integer `01`–`FF`).
+    /// 通道 `03`——BPM 变更（十六进制整数 `01`–`FF`）。
     BpmChange,
-    /// Channel `04` — BGA BASE layer.
+    /// 通道 `04`——BGA BASE 图层。
     BgaBase,
-    /// Channel `05` — Extended Object / SEEK.
+    /// 通道 `05`——扩展对象 / SEEK。
     Seek,
-    /// Channel `06` — BGA POOR (miss) layer.
+    /// 通道 `06`——BGA POOR（miss）图层。
     BgaPoor,
-    /// Channel `07` — BGA LAYER overlay.
+    /// 通道 `07`——BGA LAYER 叠加层。
     BgaLayer,
-    /// Channel `08` — Extended BPM (references `#BPMxx` / `#EXBPMxx`).
+    /// 通道 `08`——扩展 BPM（引用 `#BPMxx` / `#EXBPMxx`）。
     ExtendedBpm,
-    /// Channel `09` — STOP sequence (references `#STOPxx`).
+    /// 通道 `09`——STOP 序列（引用 `#STOPxx`）。
     Stop,
-    /// Channel `0A` — BGA LAYER2.
+    /// 通道 `0A`——BGA LAYER2。
     BgaLayer2,
-    /// Channel `0B` — BGA BASE opacity.
+    /// 通道 `0B`——BGA BASE 不透明度。
     BgaBaseOpacity,
-    /// Channel `0C` — BGA LAYER opacity.
+    /// 通道 `0C`——BGA LAYER 不透明度。
     BgaLayerOpacity,
-    /// Channel `0D` — BGA LAYER2 opacity.
+    /// 通道 `0D`——BGA LAYER2 不透明度。
     BgaLayer2Opacity,
-    /// Channel `0E` — BGA POOR opacity.
+    /// 通道 `0E`——BGA POOR 不透明度。
     BgaPoorOpacity,
 
-    // Known non-note channels (hex, 97–A6)
-    /// Channel `97` — BGM volume.
+    // 已知非音符通道（十六进制，97–A6）
+    /// 通道 `97`——BGM 音量。
     BgmVolume,
-    /// Channel `98` — KEY volume.
+    /// 通道 `98`——KEY 音量。
     KeyVolume,
-    /// Channel `99` — TEXT (references `#TEXTxx`).
+    /// 通道 `99`——TEXT（引用 `#TEXTxx`）。
     Text,
-    /// Channel `A0` — JUDGE / EXRANK.
+    /// 通道 `A0`——JUDGE / EXRANK。
     Judge,
-    /// Channel `A1` — BGA BASE aRGB.
+    /// 通道 `A1`——BGA BASE aRGB。
     BgaArgbBase,
-    /// Channel `A2` — BGA LAYER aRGB.
+    /// 通道 `A2`——BGA LAYER aRGB。
     BgaArgbLayer,
-    /// Channel `A3` — BGA LAYER2 aRGB.
+    /// 通道 `A3`——BGA LAYER2 aRGB。
     BgaArgbLayer2,
-    /// Channel `A4` — BGA POOR aRGB.
+    /// 通道 `A4`——BGA POOR aRGB。
     BgaArgbPoor,
-    /// Channel `A5` — BGA KEYBOUND.
+    /// 通道 `A5`——BGA KEYBOUND。
     BgaKeyBound,
-    /// Channel `A6` — OPTION.
+    /// 通道 `A6`——OPTION。
     Option,
 
-    // Extended non-note channels (non-hex)
-    /// Channel `SC` — SCROLL (scroll speed multiplier).
+    // 扩展非音符通道（非十六进制）
+    /// 通道 `SC`——SCROLL（滚动速度倍率）。
     Scroll,
-    /// Channel `SP` — SPEED (visual note spacing).
+    /// 通道 `SP`——SPEED（视觉音符间距）。
     Speed,
 
-    // Note channels
-    /// A note channel in one of the known playable ranges:
-    /// `11–1Z`, `21–2Z`, `31–3Z`, `41–4Z`, `51–5Z`, `61–6Z`,
-    /// `D1–D9`, `E1–E9`.
+    // 音符通道
+    /// 处于某一已知可玩范围内的音符通道：
+    /// `11–1Z`、`21–2Z`、`31–3Z`、`41–4Z`、`51–5Z`、`61–6Z`、
+    /// `D1–D9`、`E1–E9`。
     ///
-    /// The raw [`ChannelIndex`] carries the full channel string so the
-    /// parser can extract player, note type, and key number.
+    /// 原始 [`ChannelIndex`] 携带完整通道字符串，使解析器能
+    /// 提取玩家侧、音符类型与按键号。
     Note(ChannelIndex),
 
-    // Unknown / reserved
-    /// An unknown or reserved channel (e.g. `00`, `0F`, `10`, `20`,
-    /// `70–96`, `ZZ`, etc.).
+    // 未知 / 保留
+    /// 未知或保留通道（如 `00`、`0F`、`10`、`20`、
+    /// `70–96`、`ZZ` 等）。
     Unknown(ChannelIndex),
 }
 
-// Construction
+// 构造
 
 impl BmsChannel {
-    /// Create a `BmsChannel` from a raw channel string.
+    /// 从原始通道字符串创建 `BmsChannel`。
     ///
-    /// The input is normalized to uppercase before parsing.  Returns
-    /// `None` if the string is not a valid 1–2 character Base36
-    /// identifier.
+    /// 输入在解析前规范化为大写。若字符串不是有效的
+    /// 1–2 字符 Base36 标识符则返回 `None`。
     #[must_use]
     pub fn from_raw(s: &str) -> Option<Self> {
         let upper = s.to_ascii_uppercase();
@@ -109,14 +106,13 @@ impl BmsChannel {
     }
 }
 
-/// Classify a validated [`ChannelIndex`] into a
-/// [`BmsChannel`] variant.
+/// 将一个已校验的 [`ChannelIndex`] 归类为
+/// [`BmsChannel`] 变体。
 ///
-/// Every valid `ChannelIndex` maps to exactly one variant — there is no
-/// fallible path.
+/// 每个有效的 `ChannelIndex` 都恰好映射到一个变体——不存在
+/// 可能失败路径。
 ///
-/// The input index is expected to contain uppercase characters (callers
-/// should normalise before constructing the index).
+/// 输入索引应包含大写字符（调用方应在构造索引前规范化）。
 #[must_use]
 #[expect(
     clippy::unreachable,
@@ -127,8 +123,8 @@ pub fn classify_channel(ch: ChannelIndex) -> BmsChannel {
 
     match bytes.len() {
         1 => {
-            // Single-character channel: a hex digit 0–F.
-            // Input is already uppercase (normalised by caller).
+            // 单字符通道：一个十六进制位 0–F。
+            // 输入已为大写（由调用方规范化）。
             let &[b] = bytes else {
                 unreachable!("bytes.len() == 1 confirmed by match")
             };
@@ -147,18 +143,18 @@ pub fn classify_channel(ch: ChannelIndex) -> BmsChannel {
                 b'C' => BmsChannel::BgaLayerOpacity,
                 b'D' => BmsChannel::BgaLayer2Opacity,
                 b'E' => BmsChannel::BgaPoorOpacity,
-                // '0' (reserved), 'F' (no defined channel), and any
-                // other value go to Unknown.
+                // '0'（保留）、'F'（无定义通道）以及其他
+                // 任何值都归入 Unknown。
                 _ => BmsChannel::Unknown(ch),
             }
         }
         2 => {
-            // Input is already uppercase (normalised by caller).
+            // 输入已为大写（由调用方规范化）。
             let &[first, second] = bytes else {
                 unreachable!("bytes.len() == 2 confirmed by match")
             };
 
-            // Exact known channel matches.
+            // 精确的已知通道匹配。
             match (first, second) {
                 (b'0', b'1') => return BmsChannel::Bgm,
                 (b'0', b'2') => return BmsChannel::MeasureLength,
@@ -189,11 +185,11 @@ pub fn classify_channel(ch: ChannelIndex) -> BmsChannel {
                 _ => {}
             }
 
-            // Note channel detection.
+            // 音符通道检测。
             //
-            // Ranges:
-            //   '1'..='6' + second != '0' → playable / long note
-            //   'D'/'E'   + '1'..='9'     → landmine
+            // 范围：
+            //   '1'..='6' + second != '0' → 可玩 / 长音
+            //   'D'/'E'   + '1'..='9'     → 地雷
             if first.is_ascii_digit() && (b'1'..=b'6').contains(&first) && second != b'0' {
                 return BmsChannel::Note(ch);
             }
@@ -207,22 +203,22 @@ pub fn classify_channel(ch: ChannelIndex) -> BmsChannel {
             BmsChannel::Unknown(ch)
         }
         _ => {
-            // `as_bytes()` guarantees 1 or 2 bytes; this arm is unreachable.
+            // `as_bytes()` 保证返回 1 或 2 字节；此分支不可达。
             unreachable!("ChannelIndex::as_bytes() returns 1 or 2 bytes")
         }
     }
 }
 
-// Accessors
+// 访问器
 
 impl BmsChannel {
-    /// Return the hexadecimal `u8` value of this channel, if applicable.
+    /// 返回此通道的十六进制 `u8` 值（若适用）。
     ///
-    /// Unit variants return their canonical hex value (e.g.
-    /// [`BmsChannel::Bgm`] → `Some(0x01)`).  Non-hex channels
-    /// ([`Scroll`](Self::Scroll), [`Speed`](Self::Speed)) return `None`.
-    /// [`Note`](Self::Note) and [`Unknown`](Self::Unknown) delegate to
-    /// the inner [`crate::index::BmsIndex::as_u8_hex`].
+    /// 单元变体返回其规范十六进制值（例如
+    /// [`BmsChannel::Bgm`] → `Some(0x01)`）。非十六进制通道
+    /// （[`Scroll`](Self::Scroll)、[`Speed`](Self::Speed)）返回 `None`。
+    /// [`Note`](Self::Note) 与 [`Unknown`](Self::Unknown) 委托给
+    /// 内部的 [`crate::index::BmsIndex::as_u8_hex`]。
     #[must_use]
     pub fn as_u8_hex(&self) -> Option<u8> {
         match self {

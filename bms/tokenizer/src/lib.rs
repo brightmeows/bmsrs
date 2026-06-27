@@ -1,24 +1,24 @@
-//! Tokenizer for BMS (Be-Music Script) format.
+//! BMS（Be-Music Script）格式的分词器。
 //!
-//! This crate provides the first stage of the BMS parsing pipeline:
-//! converting raw BMS text into a structured token stream.
+//! 本 crate 提供 BMS 解析管道的第一阶段：
+//! 将原始 BMS 文本转换为结构化的 token 流。
 //!
-//! # Architecture
+//! # 架构
 //!
-//! - [`enum@BmsToken`] represents a single meaningful line in a BMS file.
-//! - [`BmsHeader`] covers all header commands, categorized by semantic domain.
-//! - [`BmsMessage`] covers channel data lines (`#xxxYY:values`).
-//! - [`BmsTokenizer`] is the main entry point with configurable error strategy.
+//! - [`enum@BmsToken`] 表示 BMS 文件中一行有意义的内容。
+//! - [`BmsHeader`] 涵盖所有头部命令，按语义域分类。
+//! - [`BmsMessage`] 涵盖通道数据行（`#xxxYY:values`）。
+//! - [`BmsTokenizer`] 是主入口，可配置错误处理策略。
 //!
-//! Submodules are private; all public types are re-exported from the crate root.
+//! 子模块为私有；所有公开类型均从 crate 根重新导出。
 //!
-//! # String storage
+//! # 字符串存储
 //!
-//! String data uses the type parameter `C` (defaults to `&str` for zero-copy,
-//! or `String` for owned). Typed values (numeric conversions, parsed enums)
-//! are always owned.
-//! [`ErrorStrategy::FailFast`] stops at the first error — useful for
-//! interactive validation where immediate feedback is preferred.
+//! 字符串数据使用类型参数 `C`（默认为 `&str` 实现零拷贝，
+//! 或 `String` 为 owned）。类型化值（数值转换、解析出的枚举）
+//! 始终为 owned。
+//! [`ErrorStrategy::FailFast`] 在首个错误处停止——适用于
+//! 偏好即时反馈的交互式校验场景。
 
 use std::fmt;
 use std::num::NonZeroUsize;
@@ -51,45 +51,43 @@ pub use message::BmsMessage;
 pub use message::parse_message_line;
 pub use preprocess::preprocess;
 
-/// Unified trait for BMS header values.
+/// BMS 头部值的统一 trait。
 ///
-/// Combines parsing (from an input string) and formatting (back to a BMS value
-/// string) into a single contract.  Types that implement [`std::str::FromStr`] +
-/// [`std::fmt::Display`] get a blanket implementation — no manual work needed for simple
-/// numeric or identifier types.
+/// 将解析（从输入字符串）与格式化（还原为 BMS 值字符串）
+/// 合并为单一契约。实现了 [`std::str::FromStr`] +
+/// [`std::fmt::Display`] 的类型可获得 blanket 实现——简单的数值或
+/// 标识符类型无需手动实现。
 ///
-/// # Lifetimes
+/// # 生命周期
 ///
-/// The `'a` lifetime is the input string's lifetime — implementations may
-/// borrow from it without allocating (e.g., `ExBmpParams<'a>`).  Owned-only
-/// types can safely implement the trait with any `'a`.
+/// `'a` 生命周期是输入字符串的生命周期——实现可以
+/// 借用它而无需分配（例如 `ExBmpParams<'a>`）。仅 owned 的
+/// 类型可以用任意 `'a` 安全地实现此 trait。
 ///
-/// # Type parameters
+/// # 类型参数
 ///
-/// `C` is the string container type used downstream (e.g., `&str`, `String`,
-/// `Cow<'_, str>`).  The parameter exists so that consumers can choose between
-/// zero-copy and owned storage.
+/// `C` 是下游使用的字符串容器类型（例如 `&str`、`String`、
+/// `Cow<'_, str>`）。该参数的存在使消费方可以在
+/// 零拷贝与 owned 存储之间选择。
 ///
-/// # Formatting
+/// # 格式化
 ///
-/// This trait uses [`std::fmt::Display`] as a supertrait instead of providing its own
-/// format method.  Callers use `.to_string()` to obtain the BMS
-/// representation; this keeps the trait compatible with the standard library's
-/// formatting infrastructure.
+/// 此 trait 以 [`std::fmt::Display`] 作为父 trait，而非提供自己的
+/// 格式化方法。调用方使用 `.to_string()` 获取 BMS
+/// 表示；这使该 trait 与标准库的格式化基础设施保持兼容。
 pub trait BmsValue<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a = &'a str>:
     fmt::Display + Sized
 {
-    /// Parse `s` into `Self`.
+    /// 将 `s` 解析为 `Self`。
     ///
-    /// Return `None` to signal that parsing failed — the caller may allow the
-    /// input to fall through to `BmsHeaderFallback` instead of treating the
-    /// failure as a hard error.
+    /// 返回 `None` 表示解析失败——调用方可以让输入
+    /// 回退到 `BmsHeaderFallback`，而非将失败视为硬错误。
     #[must_use]
     fn parse(s: &'a str) -> Option<Self>;
 }
 
-// Covers primitives (f64, u8, i32), BmsIndex, PoorBgaMode, DifficultyLevel,
-// and any other type that already implements FromStr + Display.
+// 覆盖基本类型（f64、u8、i32）、BmsIndex、PoorBgaMode、DifficultyLevel，
+// 以及任何已实现 FromStr + Display 的类型。
 
 impl<'a, C, T> BmsValue<'a, C> for T
 where
@@ -102,7 +100,7 @@ where
     }
 }
 
-// From / TryFrom conversions
+// From / TryFrom 转换
 
 impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
     type Error = BmsTryFromError<C>;
@@ -128,33 +126,32 @@ impl<C> TryFrom<(NonZeroUsize, Result<Self, BmsTokenizeError<C>>)> for BmsToken<
     }
 }
 
-/// A single token produced by tokenizing a BMS file.
+/// 分词 BMS 文件产生的单个 token。
 #[derive(Debug, Clone, PartialEq, derive_more::From)]
 pub enum BmsToken<C> {
-    /// A header command (metadata, gameplay, timing, resources, etc.).
+    /// 头部命令（元数据、游玩、计时、资源等）。
     Header(BmsHeader<C>),
-    /// A channel data line (`#xxxYY:values`).
+    /// 通道数据行（`#xxxYY:values`）。
     Message(BmsMessage<C>),
 }
 
-/// Error strategy for BMS tokenization.
+/// BMS 分词的错误处理策略。
 ///
-/// Controls how the tokenizer handles lines that fail to parse.
+/// 控制分词器如何处理解析失败的行。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ErrorStrategy {
-    /// Process every line; each line's result is wrapped individually.
-    /// Tokenization continues past errors so the caller can inspect all
-    /// failures at once.
+    /// 处理每一行；每行的结果单独包装。
+    /// 分词会越过错误继续，使调用方可以一次检视所有失败。
     #[default]
     CollectAll,
-    /// Stop at the first error and return results up to (and including)
-    /// that line. Subsequent lines are not inspected.
+    /// 在首个错误处停止，返回至（并包含）
+    /// 该行的结果。后续行不被检视。
     FailFast,
 }
 
-/// BMS tokenizer with builder-style configuration.
+/// 采用 builder 风格配置的 BMS 分词器。
 ///
-/// # Examples
+/// # 示例
 ///
 /// ```
 /// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy};
@@ -164,9 +161,9 @@ pub enum ErrorStrategy {
 /// ```
 #[derive(Debug, Clone)]
 pub struct BmsTokenizer {
-    /// Controls how parse errors are handled.
+    /// 控制如何处理解析错误。
     error_strategy: ErrorStrategy,
-    /// Allowed prefix characters for header commands.
+    /// 允许的头部命令前缀字符。
     header_prefixes: Vec<char>,
 }
 
@@ -180,50 +177,49 @@ impl Default for BmsTokenizer {
 }
 
 impl BmsTokenizer {
-    /// Create a new `BmsTokenizer` with default configuration
-    /// ([`ErrorStrategy::CollectAll`], prefixes `#` and `%`).
+    /// 创建一个使用默认配置
+    /// （[`ErrorStrategy::CollectAll`]、前缀 `#` 和 `%`）的 `BmsTokenizer`。
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the error strategy.
+    /// 设置错误处理策略。
     #[must_use]
     pub const fn error_strategy(mut self, strategy: ErrorStrategy) -> Self {
         self.error_strategy = strategy;
         self
     }
 
-    /// Set the allowed header prefix characters.
+    /// 设置允许的头部前缀字符。
     ///
-    /// Only lines starting with one of these characters will be treated as
-    /// potential header commands.  Default: `['#', '%']`.
+    /// 仅以这些字符之一开头的行才会被视为
+    /// 潜在的头部命令。默认：`['#', '%']`。
     #[must_use]
     pub fn header_prefixes(mut self, prefixes: &[char]) -> Self {
         self.header_prefixes = prefixes.to_vec();
         self
     }
 
-    /// Tokenize a BMS string into a collection of line-numbered results.
+    /// 将 BMS 字符串分词为带行号的结果集合。
     ///
-    /// Each element is a tuple of `(1-based line number, result)`.
-    /// Empty lines and comments are skipped (no output entry).
+    /// 每个元素是一个 `(从 1 开始的行号, 结果)` 元组。
+    /// 空行与注释被跳过（不产生输出项）。
     ///
-    /// Supports LF (`\n`), CRLF (`\r\n`), and standalone CR (`\r`) line
-    /// endings.
+    /// 支持 LF（`\n`）、CRLF（`\r\n`）以及独立的 CR（`\r`）行尾。
     ///
-    /// # Type parameters
+    /// # 类型参数
     ///
-    /// - `Out` — the output collection type (e.g., `Vec`, `Box<[_]>`).
-    /// - `C` — the string container type.  Defaults to `&'a str` for
-    ///   zero-copy tokenization.
+    /// - `Out` —— 输出集合类型（例如 `Vec`、`Box<[_]>`）。
+    /// - `C` —— 字符串容器类型。默认为 `&'a str`
+    ///   以实现零拷贝分词。
     ///
-    /// # Error strategy
+    /// # 错误策略
     ///
-    /// - [`ErrorStrategy::CollectAll`] (default): all lines are processed.
-    ///   Errors are embedded in per-element [`Result::Err`].
-    /// - [`ErrorStrategy::FailFast`]: stops at the first error. The
-    ///   collection contains results up to (and including) the error line.
+    /// - [`ErrorStrategy::CollectAll`]（默认）：处理所有行。
+    ///   错误以逐元素的 [`Result::Err`] 嵌入。
+    /// - [`ErrorStrategy::FailFast`]：在首个错误处停止。集合
+    ///   包含至（并包含）错误行为止的结果。
     #[must_use]
     pub fn tokenize<'a, Out, C>(&self, input: &'a str) -> Out
     where
@@ -242,8 +238,8 @@ impl BmsTokenizer {
                     continue;
                 }
 
-                // line_number is always >= 1 here (incremented from 0
-                // before first use); the fallback is unreachable.
+                // 此处 line_number 始终 >= 1（首次使用前
+                // 从 0 自增）；回退分支不可达。
                 let nz_line = NonZeroUsize::new(line_number).unwrap_or(NonZeroUsize::MAX);
 
                 let result: Result<BmsToken<C>, BmsTokenizeError<C>> =

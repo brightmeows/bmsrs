@@ -1,97 +1,93 @@
-//! `#RANDOM` / `#SWITCH` control-flow commands.
+//! `#RANDOM` / `#SWITCH` 控制流命令。
 //!
-//! These commands allow a single BMS file to contain multiple chart
-//! variations.  The tokenizer preserves all branches verbatim; selecting
-//! which branch to keep is the responsibility of a later pipeline stage
-//! (parser/processor).
+//! 这些命令允许单个 BMS 文件包含多个谱面变体。
+//! 分词器原样保留所有分支；选择保留哪个分支是
+//! 后续管道阶段（解析器/处理器）的职责。
 
 use crate::BmsTokenAttr;
 use crate::{BmsHeader, BmsTryFromError};
 
-/// Control-flow headers for random chart branching.
+/// 用于随机谱面分支的控制流头部。
 ///
-/// BMS supports two branching constructs:
+/// BMS 支持两种分支构造：
 ///
-/// - **`#RANDOM` block**: `#RANDOM N` → `#IF k` … `#ENDIF` × N → `#ENDRANDOM`.
-///   At parse time, one integer in `[1, N]` is chosen; only the matching
-///   `#IF` branch is retained.
-/// - **`#SWITCH` block**: `#SWITCH N` → `#CASE k` … `#DEF` … `#ENDSW`.
-///   Similar to `#RANDOM`, but `#CASE` matches an integer value and `#DEF`
-///   provides a default fallback.
+/// - **`#RANDOM` 块**：`#RANDOM N` → `#IF k` … `#ENDIF` × N → `#ENDRANDOM`。
+///   解析时，在 `[1, N]` 中选择一个整数；仅保留匹配的
+///   `#IF` 分支。
+/// - **`#SWITCH` 块**：`#SWITCH N` → `#CASE k` … `#DEF` … `#ENDSW`。
+///   类似于 `#RANDOM`，但 `#CASE` 匹配一个整数值，而 `#DEF`
+///   提供默认回退。
 ///
-/// `#SETRANDOM` / `#SETSWITCH` force a specific branch (used in tools and
-/// tests).  `#RONDAM` is a common typo accepted as an alias for `#RANDOM`.
+/// `#SETRANDOM` / `#SETSWITCH` 强制指定分支（用于工具与
+/// 测试）。`#RONDAM` 是被接受的 `#RANDOM` 拼写错误的常见别名。
 ///
-/// Nesting and engine compatibility are complex — see the BMS command memo
-/// for full details.
+/// 嵌套与引擎兼容性较为复杂——完整细节见 BMS 命令备忘录。
 #[derive(Debug, Clone, PartialEq, Eq, BmsTokenAttr)]
 pub enum BmsHeaderControlFlow {
-    /// `#RANDOM N` (or `#RONDAM`) — start a random branch block.
+    /// `#RANDOM N`（或 `#RONDAM`）——开始一个随机分支块。
     ///
-    /// `N` is the number of branches; the engine picks a value in `[1, N]`.
-    /// `#RONDAM` is a historical typo that some players recognise.
+    /// `N` 是分支数；引擎在 `[1, N]` 中取一个值。
+    /// `#RONDAM` 是某些播放器识别的历史拼写错误。
     #[bms_token("#RANDOM {}")]
     #[bms_token("#RONDAM {}")]
     Random(u64),
-    /// `#SETRANDOM N` — force a specific random value instead of rolling.
+    /// `#SETRANDOM N`——强制指定随机值而非随机滚动。
     ///
-    /// Used by tools (e.g., preview, IR replay) to deterministically
-    /// select a branch.
+    /// 供工具（如预览、IR 回放）用于确定性地选择分支。
     #[bms_token("#SETRANDOM {}")]
     SetRandom(u64),
-    /// `#ENDRANDOM` — close the current `#RANDOM` block.
+    /// `#ENDRANDOM`——关闭当前 `#RANDOM` 块。
     ///
-    /// Recommended when nesting `#RANDOM` blocks, as some players
-    /// (nanasi) require it for correct behaviour.
+    /// 在嵌套 `#RANDOM` 块时推荐使用，因为某些播放器
+    /// （nanasi）需要它才能正确工作。
     #[bms_token("#ENDRANDOM")]
     EndRandom,
-    /// `#IF N` — begin a branch that activates when the random value equals `N`.
+    /// `#IF N`——当随机值等于 `N` 时激活的分支。
     #[bms_token("#IF {}")]
     If(u64),
-    /// `#ELSEIF N` — an alternative branch (like `else if`).
+    /// `#ELSEIF N`——替代分支（类似 `else if`）。
     #[bms_token("#ELSEIF {}")]
     ElseIf(u64),
-    /// `#ELSE` — default branch when no `#IF` / `#ELSEIF` matched.
+    /// `#ELSE`——当无 `#IF` / `#ELSEIF` 匹配时的默认分支。
     #[bms_token("#ELSE")]
     Else,
-    /// `#ENDIF` — close the current `#IF` / `#ELSEIF` / `#ELSE` chain.
+    /// `#ENDIF`——关闭当前 `#IF` / `#ELSEIF` / `#ELSE` 链。
     ///
-    /// Common typos from various engines:
-    /// - `#END IF` (IIDXv/HDX, misunderstood spacing)
-    /// - `#END` (Angolmois/Sonorous, partial match)
-    /// - `#IFEND` (alternative order)
+    /// 来自各引擎的常见拼写错误：
+    /// - `#END IF`（IIDXv/HDX，误解的空格）
+    /// - `#END`（Angolmois/Sonorous，部分匹配）
+    /// - `#IFEND`（另一种顺序）
     #[bms_token("#ENDIF")]
     #[bms_token("#END IF")]
     #[bms_token("#END")]
     #[bms_token("#IFEND")]
     EndIf,
-    /// `#SWITCH N` — start a switch block with `N` cases.
+    /// `#SWITCH N`——开始一个含 `N` 个 case 的 switch 块。
     ///
-    /// The engine picks a value in `[1, N]`; `#CASE k` activates when the
-    /// value equals `k`.
+    /// 引擎在 `[1, N]` 中取一个值；当值等于 `k` 时 `#CASE k` 激活。
     #[bms_token("#SWITCH {}")]
     Switch(u64),
-    /// `#SETSWITCH N` — force a specific switch value (analogous to
-    /// `#SETRANDOM`).
+    /// `#SETSWITCH N`——强制指定 switch 值（类似
+    /// `#SETRANDOM`）。
     #[bms_token("#SETSWITCH {}")]
     SetSwitch(u64),
-    /// `#ENDSW` / `#ENDSWITCH` — close the current `#SWITCH` block.
+    /// `#ENDSW` / `#ENDSWITCH`——关闭当前 `#SWITCH` 块。
     #[bms_token("#ENDSW")]
     #[bms_token("#ENDSWITCH")]
     EndSwitch,
-    /// `#CASE N` — a branch that activates when the switch value equals `N`.
+    /// `#CASE N`——当 switch 值等于 `N` 时激活的分支。
     #[bms_token("#CASE {}")]
     Case(u64),
-    /// `#SKIP N` — skip `N` lines (used inside `#SWITCH` blocks to jump
-    /// past unwanted cases).
+    /// `#SKIP N`——跳过 `N` 行（在 `#SWITCH` 块内用于跳过
+    /// 不需要的 case）。
     #[bms_token("#SKIP {}")]
     Skip(u64),
-    /// `#DEF` — default branch inside a `#SWITCH` block.
+    /// `#DEF`——`#SWITCH` 块内的默认分支。
     #[bms_token("#DEF")]
     Def,
 }
 
-// From / TryFrom conversions
+// From / TryFrom 转换
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderControlFlow {
     type Error = BmsTryFromError<C>;

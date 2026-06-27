@@ -1,17 +1,17 @@
-//! Audio resource definition headers: `#WAV`, `#EXWAV`, `#WAVCMD`,
-//! `#CDDA`, `#MIDIFILE`, `#PATH_WAV`.
+//! 音频资源定义头部：`#WAV`、`#EXWAV`、`#WAVCMD`、
+//! `#CDDA`、`#MIDIFILE`、`#PATH_WAV`。
 
 use std::fmt;
 
 use crate::index::WavIndex;
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
-/// Parameters for `#EXWAV{id}` — extended WAV with pan/volume/frequency
-/// control (nanasi extension).
+/// `#EXWAV{id}` 的参数——带声相/音量/频率控制的扩展 WAV
+/// （nanasi 扩展）。
 ///
-/// `flags` is a string of characters from `{p, v, f}` indicating which
-/// sound parameters follow. The number of values equals the number of
-/// flag characters.  Flag order determines value order:
+/// `flags` 是由 `{p, v, f}` 中的字符组成的字符串，指示
+/// 后续的音频参数。值的数量等于 flag 字符数。flag 顺序决定
+/// 值的顺序：
 ///
 /// ```text
 /// #EXWAV01 vfp -50 100 -10000 sound.wav
@@ -22,20 +22,20 @@ use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 ///           └─ flags: volume, frequency, pan
 /// ```
 ///
-/// Parameter ranges:
-/// - **pan** (`p`): `-10000` to `10000` (left ↔ right; default `0`).
-///   Decreases the volume of one channel rather than boosting the other.
-/// - **volume** (`v`): `-10000` to `0` (attenuation; `0` = original).
-/// - **frequency** (`f`): `100` to `100000` Hz (pitch control).
+/// 参数范围：
+/// - **pan**（`p`）：`-10000` 到 `10000`（左 ↔ 右；默认 `0`）。
+///   降低一个声道的音量而非提升另一声道。
+/// - **volume**（`v`）：`-10000` 到 `0`（衰减；`0` = 原始）。
+/// - **frequency**（`f`）：`100` 到 `100000` Hz（音高控制）。
 ///
-/// The `#EXWAV` index shares the same namespace as `#WAV`.
+/// `#EXWAV` 索引与 `#WAV` 共享同一命名空间。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExWavParams<C> {
-    /// Flag characters (e.g., `"pvf"`).
+    /// flag 字符（例如 `"pvf"`）。
     pub flags: C,
-    /// Parsed numeric values, one per flag character.
+    /// 解析出的数值，每个 flag 字符一个值。
     pub values: Vec<f64>,
-    /// Path or name of the resource file.
+    /// 资源文件路径或名称。
     pub filename: C,
 }
 
@@ -64,7 +64,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 
         if is_flags {
             let flag_count = first.len();
-            // Collect exactly `flag_count` numeric values after the flags.
+            // 在 flags 之后收集恰好 `flag_count` 个数值。
             let values: Vec<f64> = parts
                 .take(flag_count)
                 .map(|p| p.parse().ok())
@@ -88,8 +88,8 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
     }
 }
 
-/// Return the substring of `s` starting at the Nth whitespace-separated field
-/// (0-indexed), trimmed of leading whitespace.
+/// 返回 `s` 中从第 N 个空白分隔字段（0 起索引）开始的子串，
+/// 去除引导空白。
 fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
     let mut start = 0;
     let mut field = 0;
@@ -112,73 +112,73 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
     s.get(start..).unwrap_or("")
 }
 
-/// Audio resource definition headers.
+/// 音频资源定义头部。
 ///
-/// These commands define the sound files used by the chart.  WAV and OGG
-/// are the most widely supported formats; MP3 introduces audible latency
-/// in most players and is generally avoided.
+/// 这些命令定义谱面使用的音频文件。WAV 与 OGG 是
+/// 受支持最广的格式；MP3 在大多数播放器中引入可感知的延迟，
+/// 通常避免使用。
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderResDefAudio<C> {
-    /// `#WAV{id}` — sound effect or BGM file definition.
+    /// `#WAV{id}`——音效或 BGM 文件定义。
     ///
-    /// Referenced by channels `#xxx01` (BGM), `#xxx11-19` / `#xxx21-29`
-    /// (visible notes), `#xxx31-39` / `#xxx41-49` (invisible notes),
-    /// `#xxx51-69` (long notes), `#xxxD1-E9` (landmines), and others.
+    /// 被通道 `#xxx01`（BGM）、`#xxx11-19` / `#xxx21-29`
+    /// （可见音符）、`#xxx31-39` / `#xxx41-49`（不可见音符）、
+    /// `#xxx51-69`（长音）、`#xxxD1-E9`（地雷）等引用。
     ///
-    /// **Multi-definition trick**: assigning the same file to multiple
-    /// `#WAV` indices increases polyphony.  E.g., `#WAV01 kick.wav` and
-    /// `#WAV02 kick.wav` allows two simultaneous playbacks of the same
-    /// sound without one cutting off the other.
+    /// **多重定义技巧**：将同一文件分配给多个
+    /// `#WAV` 索引可增加复音数。例如 `#WAV01 kick.wav` 和
+    /// `#WAV02 kick.wav` 允许同一声音同时播放两次，
+    /// 而不会互相打断。
     ///
-    /// `#WAV00` is special: it defines the landmine explosion sound
-    /// (referenced by channels `#xxxD1-E9`).
+    /// `#WAV00` 较特殊：它定义地雷爆炸音
+    /// （被通道 `#xxxD1-E9` 引用）。
     #[bms_token("#WAV{id} {filename}")]
     Wav {
-        /// The 2-character index (e.g., `"01"`, `"2A"`).
+        /// 2 字符索引（例如 `"01"`、`"2A"`）。
         id: WavIndex,
-        /// Path or name of the resource file.
+        /// 资源文件路径或名称。
         filename: C,
     },
-    /// `#EXWAV{id}` — extended WAV with pan/volume/frequency (nanasi).
+    /// `#EXWAV{id}`——带声相/音量/频率控制的扩展 WAV（nanasi）。
     ///
-    /// Shares the `#WAV` index namespace.  Only nanasi processes the
-    /// effects; other players fall back to playing the file as-is.
+    /// 共享 `#WAV` 索引命名空间。仅 nanasi 处理其
+    /// 效果；其他播放器回退为原样播放文件。
     #[bms_token("#EXWAV{id} {params}")]
     #[bms_fallback]
     ExWav {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: WavIndex,
-        /// Parsed EXWAV parameters.
+        /// 解析出的 EXWAV 参数。
         params: ExWavParams<C>,
     },
-    /// `#WAVCMD` — pitch/volume/duration overrides (`MacBeat` extension).
+    /// `#WAVCMD`——音高/音量/时长覆盖（`MacBeat` 扩展）。
     ///
-    /// Format: `commandID wavIndex value`.  Commands: `00` = pitch,
-    /// `01` = volume, `02` = duration.  Only `MacBeat` processes these;
-    /// Sonorous parses but ignores them.
+    /// 格式：`commandID wavIndex value`。命令：`00` = 音高、
+    /// `01` = 音量、`02` = 时长。仅 `MacBeat` 处理这些；
+    /// Sonorous 解析但忽略。
     #[bms_token("#WAVCMD {}")]
     WavCmd(C),
-    /// `#CDDA` — CD-DA track as BGM (DDR only).
+    /// `#CDDA`——以 CD-DA 音轨作为 BGM（仅 DDR）。
     ///
-    /// Specifies a CD track number to play as background music.
+    /// 指定一个 CD 音轨号作为背景音乐播放。
     #[bms_token("#CDDA {}")]
     Cdda(C),
-    /// `#MIDIFILE` — MIDI file as BGM (BM98 origin).
+    /// `#MIDIFILE`——以 MIDI 文件作为 BGM（BM98 起源）。
     ///
-    /// Hardware-dependent with audible latency.  Not recommended for
-    /// new charts.  Supported by BM98, DDR, `IIDXv`, HDX, Sonorous.
+    /// 依赖硬件且有可感知延迟。不推荐用于
+    /// 新谱面。受 BM98、DDR、`IIDXv`、HDX、Sonorous 支持。
     #[bms_token("#MIDIFILE {}")]
     Midifile(C),
-    /// `#PATH_WAV` — directory prefix for audio file lookup (BMEV origin).
+    /// `#PATH_WAV`——音频文件查找的目录前缀（BMEV 起源）。
     ///
-    /// When present, `#WAV` filenames are resolved relative to this
-    /// directory.  **Should be commented out before distribution** to
-    /// avoid path issues on other systems.
+    /// 存在时，`#WAV` 文件名相对于此
+    /// 目录解析。**分发前应注释掉**以
+    /// 避免在其他系统上的路径问题。
     #[bms_token("#PATH_WAV {}")]
     PathWav(C),
 }
 
-// From / TryFrom conversions
+// From / TryFrom 转换
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefAudio<C> {
     type Error = BmsTryFromError<C>;

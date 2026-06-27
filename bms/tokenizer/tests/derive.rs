@@ -1,5 +1,5 @@
-//! Tests for `#[derive(BmsTokenAttr)]` — covers all three modes:
-//! command, literal, dispatch.
+//! `#[derive(BmsTokenAttr)]` 的测试——覆盖三种模式：
+//! command、literal、dispatch。
 
 use std::fmt;
 

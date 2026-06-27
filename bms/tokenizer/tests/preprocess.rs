@@ -1,6 +1,6 @@
-//! Integration tests for [`bms_tokenizer::preprocess`].
+//! [`bms_tokenizer::preprocess`] 的集成测试。
 //!
-//! All tests exercise only the public API `bms_tokenizer::preprocess()`.
+//! 所有测试仅行使公共 API `bms_tokenizer::preprocess()`。
 
 use bms_tokenizer::preprocess;
 

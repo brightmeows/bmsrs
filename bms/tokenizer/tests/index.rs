@@ -1,8 +1,8 @@
-//! Integration tests for [`BmsIndex`] and index newtypes.
+//! [`BmsIndex`] 与索引 newtype 的集成测试。
 
 use bms_tokenizer::*;
 
-// BmsIndex tests
+// BmsIndex 测试
 
 #[test]
 fn bms_index_valid_two_char() {
@@ -100,7 +100,7 @@ fn size_of_bms_index() {
     assert_eq!(std::mem::size_of::<BmsIndex>(), 2);
 }
 
-// BmsBase tests
+// BmsBase 测试
 
 #[test]
 fn is_valid_for_base62() {
@@ -126,15 +126,15 @@ fn is_valid_for_base16() {
     assert!(id.is_valid_for(BmsBase::Base16));
 }
 
-// Newtype tests
+// Newtype 测试
 
 #[test]
 fn newtypes_are_distinct_types() {
     let wav: WavIndex = "01".parse().unwrap();
     let bmp: BmpIndex = "01".parse().unwrap();
-    // Same string, same underlying value, different types.
+    // 相同字符串、相同底层值、不同类型。
     assert_eq!(wav.as_str(), bmp.as_str());
-    // This line would not compile:
+    // 此行无法编译：
     // let _: WavIndex = bmp;
 }
 
@@ -189,7 +189,7 @@ fn error_display() {
 #[test]
 fn deref_provides_bms_index_methods() {
     let wav: WavIndex = "2A".parse().unwrap();
-    // Via Deref<Target = BmsIndex>
+    // 通过 Deref<Target = BmsIndex>
     assert_eq!(wav.as_str(), "2A");
     assert_eq!(wav.as_bytes(), b"2A");
     assert_eq!(wav.to_string(), "2A");

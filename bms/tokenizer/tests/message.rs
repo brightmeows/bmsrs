@@ -1,8 +1,8 @@
-//! Integration tests for [`parse_message_line`] and [`BmsMessage`] parsing.
+//! [`parse_message_line`] 与 [`BmsMessage`] 解析的集成测试。
 
 use bms_tokenizer::{BmsChannel, BmsMessage, BmsTokenizeError, ChannelIndex, parse_message_line};
 
-/// Helper to avoid turbofish in test calls.
+/// 避免测试调用中 turbofish 的辅助函数。
 fn parse_msg(s: &str) -> Result<Option<BmsMessage<&str>>, BmsTokenizeError<&str>> {
     parse_message_line(s)
 }
@@ -13,7 +13,7 @@ fn idx(s: &str) -> ChannelIndex {
     upper.as_str().try_into().unwrap()
 }
 
-// Basic parsing
+// 基础解析
 
 #[test]
 fn parse_basic_message() {
@@ -80,7 +80,7 @@ fn parse_extended_channel_sc() {
     let msg = result.expect("should parse");
     assert_eq!(msg.track, 0);
     assert_eq!(msg.channel, BmsChannel::Scroll);
-    // SC is not hex → as_u8_hex returns None
+    // SC 非十六进制 → as_u8_hex 返回 None
     assert_eq!(msg.channel.as_u8_hex(), None);
 }
 
@@ -93,13 +93,13 @@ fn parse_extended_channel_sp() {
     assert_eq!(msg.channel.as_u8_hex(), None);
 }
 
-// Body & Track edge cases
+// 正文与小节边界情况
 
 #[test]
 fn track_empty_prefix_is_zero() {
     let result = parse_msg("#01:1122").unwrap();
     let msg = result.expect("should parse");
-    assert_eq!(msg.track, 0); // no prefix before channel "01"
+    assert_eq!(msg.track, 0); // 通道 "01" 前无 prefix
     assert_eq!(msg.channel, BmsChannel::Bgm);
 }
 
@@ -107,7 +107,7 @@ fn track_empty_prefix_is_zero() {
 fn track_single_char_addr() {
     let result = parse_msg("#1:1122").unwrap();
     let msg = result.expect("should parse");
-    assert_eq!(msg.track, 0); // prefix empty
+    assert_eq!(msg.track, 0); // prefix 为空
     assert_eq!(msg.channel, BmsChannel::Bgm);
 }
 
@@ -115,12 +115,12 @@ fn track_single_char_addr() {
 fn track_uses_only_digits_from_prefix() {
     let result = parse_msg("#0A01:1122").unwrap();
     let msg = result.expect("should parse");
-    // addr="0A01", last 2="01"=channel, prefix="0A" → digits="0" → 0
+    // addr="0A01"，最后 2 位="01"=通道，prefix="0A" → 数字="0" → 0
     assert_eq!(msg.track, 0);
     assert_eq!(msg.channel, BmsChannel::Bgm);
 }
 
-// Return-Ok(None) cases
+// 返回 Ok(None) 的情况
 
 #[test]
 fn empty_line_returns_none() {
@@ -158,11 +158,11 @@ fn no_colon_returns_none() {
     assert_eq!(parse_msg("#00101").unwrap(), None);
 }
 
-// Error cases
+// 错误情况
 
 #[test]
 fn non_base62_last_char_returns_err() {
-    // addr="001.." — last char '.' is not valid Base62
+    // addr="001.."——最后一个字符 '.' 不是有效的 Base62
     let result = parse_msg("#001..:1122");
     assert!(result.is_err());
 }

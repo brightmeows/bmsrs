@@ -1,51 +1,50 @@
-//! BMS comment-stripping pre-processor.
+//! BMS 去注释预处理器。
 //!
-//! This module provides a lexer-level pass that removes BMS comment syntax
-//! before tokenization.  It handles the three comment forms specified in
-//! the BMS control-flow document:
+//! 本模块提供一个词法级 pass，在分词前移除 BMS 注释语法。
+//! 它处理 BMS 控制流文档中规定的三种注释形式：
 //!
-//! - `//` — single-line comment (strips from marker to end-of-line).
-//! - `;` — single-line comment, **line-start only** (after optional whitespace).
-//! - `/* ... */` — block comment (non-nesting, may span multiple lines).
+//! - `//` —— 单行注释（从标记处剥离到行尾）。
+//! - `;` —— 单行注释，**仅限行首**（在可选空白之后）。
+//! - `/* ... */` —— 块注释（不可嵌套，可跨多行）。
 //!
-//! Comment markers inside double-quoted strings (`"..."`) are preserved,
-//! matching the `IIDXv` / HDX string-escape behavior.
+//! 双引号字符串（`"..."`）内的注释标记会被保留，
+//! 与 `IIDXv` / HDX 的字符串转义行为一致。
 
-/// State for the character-by-character comment scanner.
+/// 逐字符注释扫描器的状态。
 enum State {
-    /// Outside any comment or string.
+    /// 不在任何注释或字符串中。
     Normal,
-    /// Inside a `//` single-line comment.
+    /// 在 `//` 单行注释中。
     LineComment,
-    /// Inside a `/*` block comment.
+    /// 在 `/*` 块注释中。
     BlockComment,
-    /// After seeing `*` inside a block comment (potential `*/`).
+    /// 在块注释中遇到 `*` 之后（可能是 `*/`）。
     BlockMaybeEnd,
-    /// Inside a `"..."` quoted string — comment markers are literal.
+    /// 在 `"..."` 引号字符串中——注释标记为字面字符。
     InString(u8),
 }
 
-/// Strip BMS comments from source text, returning an owned [`String`].
+/// 从源文本中剥离 BMS 注释，返回 owned 的 [`String`]。
 ///
-/// # What is removed
+/// # 移除内容
 ///
-/// | Syntax | Scope | Example |
+/// | 语法 | 范围 | 示例 |
 /// |--------|-------|---------|
-/// | `//` to EOL | Anywhere on a line | `#TITLE foo // comment` => `#TITLE foo ` |
-/// | `;` to EOL | Line-start only (after trim) | `; debug` => _(whole line removed)_ |
-/// | `/* ... */` | Multi-line, non-nesting | `/* block */#TITLE x` => `#TITLE x` |
+/// | `//` 到行尾 | 行中任意位置 | `#TITLE foo // comment` => `#TITLE foo ` |
+/// | `;` 到行尾 | 仅限行首（trim 后）| `; debug` => _（整行移除）_ |
+/// | `/* ... */` | 多行，不可嵌套 | `/* block */#TITLE x` => `#TITLE x` |
 ///
-/// # String escaping
+/// # 字符串转义
 ///
-/// Comment markers inside double-quoted strings (`"..."`) are treated as
-/// ordinary characters, matching the `IIDXv` / HDX string-escape convention.
+/// 双引号字符串（`"..."`）内的注释标记被视为普通字符，
+/// 与 `IIDXv` / HDX 的字符串转义约定一致。
 ///
-/// Backslash-prefixed characters inside strings are treated as escapes
-/// (e.g. `\"` produces a literal quote, `\\` produces a literal backslash).
+/// 字符串内反斜杠前缀的字符被视为转义
+/// （例如 `\"` 产生字面引号，`\\` 产生字面反斜杠）。
 ///
-/// # Usage
+/// # 用法
 ///
-/// Call this **before** tokenization, then tokenize with `C = String`:
+/// 在分词**之前**调用此函数，然后以 `C = String` 分词：
 ///
 /// ```ignore
 /// let cleaned = bms_tokenizer::preprocess(raw_bms);
@@ -146,8 +145,8 @@ pub fn preprocess(input: &str) -> String {
     out
 }
 
-/// Check if position `i` in `bytes` is at the start of a line (or after
-/// leading whitespace only), for `;` comment detection.
+/// 检查 `bytes` 中位置 `i` 是否位于行首（或仅在引导空白之后），
+/// 用于 `;` 注释检测。
 fn at_line_start(bytes: &[u8], mut i: usize) -> bool {
     loop {
         i = match i.checked_sub(1) {

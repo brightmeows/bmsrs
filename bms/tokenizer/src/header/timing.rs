@@ -1,5 +1,5 @@
-//! Timing definition headers: `#BPM`, `#BPMxx`/`#EXBPMxx`, `#BASEBPM`,
-//! `#STOPxx`, `#SCROLLxx`, `#SPEEDxx`, `#STP`.
+//! 计时定义头部：`#BPM`、`#BPMxx`/`#EXBPMxx`、`#BASEBPM`、
+//! `#STOPxx`、`#SCROLLxx`、`#SPEEDxx`、`#STP`。
 
 use std::fmt;
 
@@ -8,32 +8,32 @@ use crate::BmsValue;
 use crate::index::{BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
 use crate::{BmsHeader, BmsTryFromError};
 
-/// Parameters for `#STP` — bemaniaDX-style stop (absolute time, in ms).
+/// `#STP` 的参数——bemaniaDX 式停止（绝对时间，毫秒）。
 ///
-/// Value format: `xxx[.yyy] zzzz`
-/// - `xxx` = measure number (0–999, 3-digit zero-padded)
-/// - `.yyy` = position within measure (0–999, optional; interpreted as
-///   `yyy/1000` of a measure)
-/// - `zzzz` = stop duration in milliseconds
+/// 值格式：`xxx[.yyy] zzzz`
+/// - `xxx` = 小节号（0–999，3 位零填充）
+/// - `.yyy` = 小节内位置（0–999，可选；解释为
+///   一个小节的 `yyy/1000`）
+/// - `zzzz` = 停止时长（毫秒）
 ///
-/// Unlike `#STOPxx` (which is in 192nd-note units and thus BPM-dependent),
-/// `#STP` always stops for a fixed wall-clock duration regardless of BPM.
+/// 与 `#STOPxx`（以 192 分音符为单位，因此依赖 BPM）不同，
+/// `#STP` 始终按固定的 wall-clock 时长停止，与 BPM 无关。
 ///
-/// Multiple `#STP` lines at the same position are additive.
+/// 同一位置的多行 `#STP` 是累加的。
 ///
-/// **Caveats**: bemaniaDX ignores `#STP` lines beyond a certain count
-/// (limit unspecified).  Values of `yyy ≥ 960` may be ignored or cause
-/// freezes in bemaniaDX.  Angolmois and Sonorous have fewer quirks.
+/// **注意**：bemaniaDX 会忽略超过一定数量（限制未指定）的
+/// `#STP` 行。`yyy ≥ 960` 的值可能在 bemaniaDX 中被忽略或导致
+/// 冻结。Angolmois 与 Sonorous 的怪癖更少。
 #[derive(Debug, Clone, PartialEq)]
 pub struct StpParams {
-    /// Measure number.
+    /// 小节号。
     pub measure: u16,
-    /// Position within the measure (0–999, as `yyy` in `xxx.yyy`).
+    /// 小节内位置（0–999，即 `xxx.yyy` 中的 `yyy`）。
     ///
-    /// Interpreted as `yyy/1000` of a measure.  Values ≥ 960 may be
-    /// ignored or cause freezes in bemaniaDX.
+    /// 解释为一个小节的 `yyy/1000`。≥ 960 的值可能
+    /// 在 bemaniaDX 中被忽略或导致冻结。
     pub position: u16,
-    /// Duration in milliseconds.
+    /// 时长（毫秒）。
     pub duration_ms: f64,
 }
 
@@ -78,119 +78,117 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
     }
 }
 
-/// Timing definition headers.
+/// 计时定义头部。
 ///
-/// These commands control *when* events happen — tempo, stops, and scroll
-/// gimmicks.
+/// 这些命令控制事件*何时*发生——节拍、停止，以及滚动
+/// 技巧。
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderTiming {
-    /// `#BPM` — global initial BPM.
+    /// `#BPM`——全局初始 BPM。
     ///
-    /// Default when omitted: `130` (spec), but players vary (nanasi:
-    /// `150`; nazo/BMSE: `120`; fgt++: `30`; fgt#/pomu2: `0`).
-    /// Supports fractional values in most players.
+    /// 省略时默认：`130`（规范），但播放器各异（nanasi：
+    /// `150`；nazo/BMSE：`120`；fgt++：`30`；fgt#/pomu2：`0`）。
+    /// 在大多数播放器中支持小数值。
     #[bms_token("#BPM {}")]
     Bpm(f64),
-    /// `#BPM{id}` — extended BPM definition (bemaniaDX origin).
+    /// `#BPM{id}`——扩展 BPM 定义（bemaniaDX 起源）。
     ///
-    /// Referenced by channel `#xxx08`.  Supports fractional and
-    /// out-of-255 BPM values that the basic `#xxx03` channel (hex integer)
-    /// cannot represent.
+    /// 被通道 `#xxx08` 引用。支持小数与
+    /// 超出 255 的 BPM 值，这是基本 `#xxx03` 通道（十六进制整数）
+    /// 无法表示的。
     ///
-    /// Negative values cause reverse scrolling in some players, but
-    /// this is a de-facto convention — the spec does not define them.
+    /// 负值在某些播放器中导致反向滚动，但
+    /// 这是事实约定——规范未定义。
     ///
-    /// `#EXBPM{id}` is a functional alias (nanasi, to work around a
-    /// BMSC parsing bug).
+    /// `#EXBPM{id}` 是功能等价的别名（nanasi，为绕过
+    /// BMSC 的一个解析 bug）。
     #[bms_token("#BPM{id} {value}")]
     BpmDef {
-        /// The 2-character index (e.g., `"01"`, `"2A"`).
+        /// 2 字符索引（例如 `"01"`、`"2A"`）。
         id: BpmIndex,
-        /// The BPM value (may be fractional or negative).
+        /// BPM 值（可为小数或负数）。
         value: f64,
     },
-    /// `#BASEBPM` — reference BPM for auto HI-SPEED calculation (LR origin).
+    /// `#BASEBPM`——用于自动 HI-SPEED 计算的参考 BPM（LR 起源）。
     ///
-    /// Used when the chart has short extreme BPM spikes.  Normally the
-    /// player's auto-speed uses the max BPM, but `#BASEBPM` lets the
-    /// charter specify a more practical reference value.
+    /// 在谱面有短暂极端 BPM 尖峰时使用。通常
+    /// 播放器的自动速度使用最大 BPM，但 `#BASEBPM` 让谱师
+    /// 指定更实用的参考值。
     #[bms_token("#BASEBPM {}")]
     BaseBpm(f64),
-    /// `#STOP{id}` — DDR-type stop (192nd-note units).
+    /// `#STOP{id}`——DDR 式停止（192 分音符单位）。
     ///
-    /// Referenced by channel `#xxx09`.  The value is in 192nd-note
-    /// units of a 4/4 measure, so the actual wall-clock stop duration
-    /// depends on the BPM at that position: `duration = value * 60 /
-    /// (BPM * 192)`.
+    /// 被通道 `#xxx09` 引用。值以 4/4 小节的
+    /// 192 分音符为单位，因此实际的 wall-clock 停止时长
+    /// 取决于该位置的 BPM：`duration = value * 60 /
+    /// (BPM * 192)`。
     ///
-    /// When a STOP and a BPM change occur at the same position, the BPM
-    /// change is applied first, then the stop is evaluated against the
-    /// new BPM.
+    /// 当 STOP 与 BPM 变更发生在同一位置时，先应用
+    /// BPM 变更，再依据新 BPM 计算停止。
     ///
-    /// Negative values cause forward skipping in some players (LR2,
-    /// nanasi, etc.) and are ignored by others.  Fractional values are
-    /// truncated (floor) by most players; only a few accept them.
+    /// 负值在某些播放器（LR2、
+    /// nanasi 等）中导致前跳，另一些则忽略。小数值
+    /// 被大多数播放器截断（floor）；仅少数接受。
     #[bms_token("#STOP{id} {value}")]
     StopDef {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: StopIndex,
-        /// Stop duration in 192nd-note units (may be fractional).
+        /// 停止时长（192 分音符单位，可为小数）。
         value: f64,
     },
-    /// `#SCROLL{id}` — scroll speed multiplier (beatoraja extension).
+    /// `#SCROLL{id}`——滚动速度倍率（beatoraja 扩展）。
     ///
-    /// Referenced by channel `#xxxSC`.  Multiplies the visual scroll
-    /// speed independently of BPM.  Default is `1.0`.  Negative values
-    /// cause reverse scrolling.
+    /// 被通道 `#xxxSC` 引用。独立于 BPM 倍率
+    /// 放大视觉滚动速度。默认为 `1.0`。负值
+    /// 导致反向滚动。
     #[bms_token("#SCROLL{id} {value}")]
     ScrollDef {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: ScrollIndex,
-        /// Scroll speed multiplier.
+        /// 滚动速度倍率。
         value: f64,
     },
-    /// `#SPEED{id}` — speed/spacing multiplier (pomu2 origin).
+    /// `#SPEED{id}`——速度/间距倍率（pomu2 起源）。
     ///
-    /// Referenced by channel `#xxxSP`.  Unlike `#SCROLL` (which scales
-    /// scroll speed), `#SPEED` changes the visual spacing between notes
-    /// without affecting scroll speed — similar to "sudden+" / "hidden+"
-    /// adjustments.  Supports interpolation between positions.
+    /// 被通道 `#xxxSP` 引用。与 `#SCROLL`（缩放
+    /// 滚动速度）不同，`#SPEED` 改变音符间的视觉间距
+    /// 而不影响滚动速度——类似 "sudden+" / "hidden+"
+    /// 调整。支持位置间插值。
     #[bms_token("#SPEED{id} {value}")]
     SpeedDef {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: SpeedIndex,
-        /// Speed multiplier value.
+        /// 速度倍率值。
         value: f64,
     },
-    /// `#EXBPM{id}` — alias of `#BPM{id}` (nanasi origin).
+    /// `#EXBPM{id}`——`#BPM{id}` 的别名（nanasi 起源）。
     ///
-    /// Identical in function to `#BPM{id}`.  Exists because BMSC had a
-    /// bug where it confused `#BPMxx` with the global `#BPM`.  Also
-    /// referenced by channel `#xxx08`.
+    /// 功能上与 `#BPM{id}` 相同。存在是因为 BMSC 有个
+    /// bug，会把 `#BPMxx` 与全局 `#BPM` 混淆。也
+    /// 被通道 `#xxx08` 引用。
     #[bms_token("#EXBPM{id} {value}")]
     ExBpm {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: BpmIndex,
-        /// The BPM value.
+        /// BPM 值。
         value: f64,
     },
-    /// `#STP` — bemaniaDX-style stop (absolute milliseconds).
+    /// `#STP`——bemaniaDX 式停止（绝对毫秒）。
     ///
-    /// Unlike `#STOPxx` (BPM-dependent 192nd-note units), this defines
-    /// a stop with a fixed wall-clock duration at a specific measure
-    /// position.
+    /// 与 `#STOPxx`（依赖 BPM 的 192 分音符单位）不同，它定义了
+    /// 在指定小节位置上具有固定 wall-clock 时长的停止。
     ///
-    /// Parse failures fall through to the `Fallback` header because the
-    /// value format `xxx[.yyy] zzzz` is non-standard.
+    /// 解析失败会回退到 `Fallback` 头部，因为值
+    /// 格式 `xxx[.yyy] zzzz` 是非标准的。
     #[bms_token("#STP {params}")]
     #[bms_fallback]
     Stp {
-        /// Parsed step timing parameters.
+        /// 解析出的步进计时参数。
         params: StpParams,
     },
 }
 
-// From / TryFrom conversions
+// From / TryFrom 转换
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderTiming {
     type Error = BmsTryFromError<C>;

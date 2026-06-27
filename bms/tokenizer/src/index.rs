@@ -1,26 +1,26 @@
-//! Type-safe BMS index wrappers.
+//! 类型安全的 BMS 索引包装类型。
 //!
-//! BMS uses 1–2 character indices to reference resources (WAV, BMP),
-//! timing definitions (BPM, STOP, SCROLL, SPEED), channel numbers, and
-//! other indexed commands.
+//! BMS 使用 1–2 字符索引来引用资源（WAV、BMP）、
+//! 计时定义（BPM、STOP、SCROLL、SPEED）、通道号，
+//! 以及其他索引命令。
 //!
-//! [`BmsIndex`] is the raw storage type with Base62 character validation.
-//! Each semantic kind of index is a newtype wrapper around `BmsIndex`
-//! (e.g., [`WavIndex`], [`BpmIndex`]) providing compile-time type safety.
+//! [`BmsIndex`] 是带 Base62 字符校验的原始存储类型。
+//! 每种语义索引是对 `BmsIndex` 的 newtype 包装
+//! （例如 [`WavIndex`]、[`BpmIndex`]），提供编译期类型安全。
 //!
-//! # Character sets
+//! # 字符集
 //!
-//! Most indices accept Base62 characters (`0-9A-Za-z`). The [`ChannelIndex`]
-//! type is special — it validates as Base36 (`0-9A-Z`) because channel
-//! numbers in BMS message lines use hexadecimal.
+//! 大多数索引接受 Base62 字符（`0-9A-Za-z`）。[`ChannelIndex`]
+//! 类型较特殊——它按 Base36（`0-9A-Z`）校验，因为 BMS 消息行中的
+//! 通道号使用十六进制。
 //!
-//! The [`BmsBase`] enum and [`BmsIndex::is_valid_for`] method enable
-//! runtime charset checking when needed.
+//! [`BmsBase`] 枚举与 [`BmsIndex::is_valid_for`] 方法支持
+//! 在需要时进行运行时字符集校验。
 //!
-//! # Storage
+//! # 存储
 //!
-//! The ID is stored as `[u8; 2]` where each byte is the raw ASCII character.
-//! For single-character IDs (e.g., `"A"`), the second byte is `0`.
+//! ID 以 `[u8; 2]` 存储，每个字节为原始 ASCII 字符。
+//! 对于单字符 ID（如 `"A"`），第二个字节为 `0`。
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -32,78 +32,77 @@ use thiserror::Error;
 
 use crate::{BmsTokenAttr, IntoTokensError};
 
-// Charset check helpers
+// 字符集校验辅助函数
 
-/// Base-62 chars: `0`–`9`, `A`–`Z`, `a`–`z`.
+/// Base-62 字符：`0`–`9`、`A`–`Z`、`a`–`z`。
 #[inline]
 pub const fn is_base62(b: u8) -> bool {
     matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
 }
 
-/// Base-36 uppercase chars: `0`–`9`, `A`–`Z`.
+/// Base-36 大写字符：`0`–`9`、`A`–`Z`。
 #[inline]
 const fn is_base36(b: u8) -> bool {
     matches!(b, b'0'..=b'9' | b'A'..=b'Z')
 }
 
-/// Base-16 hex chars: `0`–`9`, `A`–`F`, `a`–`f`.
+/// Base-16 十六进制字符：`0`–`9`、`A`–`F`、`a`–`f`。
 #[inline]
 const fn is_base16(b: u8) -> bool {
     b.is_ascii_hexdigit()
 }
 
-// BmsBase — runtime charset enum
+// BmsBase —— 运行时字符集枚举
 
-/// Character set for BMS index validation.
+/// BMS 索引校验用的字符集。
 ///
-/// This replaces the previous compile-time `BmsCharset` type parameter.
-/// Use [`BmsIndex::is_valid_for`] for runtime checks.
+/// 它取代了此前编译期的 `BmsCharset` 类型参数。
+/// 运行时校验请使用 [`BmsIndex::is_valid_for`]。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 #[non_exhaustive]
 pub enum BmsBase {
-    /// Hexadecimal (`0`–`9`, `A`–`F`, `a`–`f`; 16 values per position).
+    /// 十六进制（`0`–`9`、`A`–`F`、`a`–`f`；每位置 16 个值）。
     #[bms_token("16")]
     Base16,
-    /// Base-36 uppercase (`0`–`9`, `A`–`Z`; 36 values per position).
+    /// Base-36 大写（`0`–`9`、`A`–`Z`；每位置 36 个值）。
     #[bms_token("36")]
     Base36,
-    /// Base-62 (`0`–`9`, `A`–`Z`, `a`–`z`; 62 values per position).
-    /// This is the default charset for most BMS indices.
+    /// Base-62（`0`–`9`、`A`–`Z`、`a`–`z`；每位置 62 个值）。
+    /// 这是大多数 BMS 索引的默认字符集。
     #[bms_token("62")]
     Base62,
 }
 
-// BmsIndex — raw storage (no generics)
+// BmsIndex —— 原始存储（无泛型）
 
-/// A validated 1–2 character BMS index, stored as raw ASCII bytes.
+/// 已校验的 1–2 字符 BMS 索引，以原始 ASCII 字节存储。
 ///
-/// Construction via [`TryFrom<&str>`] / [`FromStr`] validates with Base62
-/// (`0-9A-Za-z`), the most permissive charset.  See [`BmsBase`] and
-/// [`is_valid_for`](Self::is_valid_for) for runtime charset checking.
+/// 通过 [`TryFrom<&str>`] / [`FromStr`] 构造时以最宽松的 Base62
+/// （`0-9A-Za-z`）字符集校验。运行时字符集校验见 [`BmsBase`] 与
+/// [`is_valid_for`](Self::is_valid_for)。
 ///
-/// # Storage
+/// # 存储
 ///
-/// `[u8; 2]` — when the ID is a single character, `bytes[1]` is `0`.
+/// `[u8; 2]`——当 ID 为单字符时，`bytes[1]` 为 `0`。
 #[derive(Clone, Copy, Debug)]
 pub struct BmsIndex {
-    /// Raw ASCII bytes of the characters.
+    /// 字符的原始 ASCII 字节。
     ///
-    /// # Invariant
+    /// # 不变式
     ///
-    /// When the ID is a single character (e.g., `"A"`), `bytes[1]` is `0`.
-    /// Two-character IDs store both bytes — neither is ever `0` because
-    /// all charset validators exclude `NUL`.
+    /// 当 ID 为单字符（如 `"A"`）时，`bytes[1]` 为 `0`。
+    /// 双字符 ID 同时存储两个字节——两者都不会是 `0`，因为
+    /// 所有字符集校验器都排除了 `NUL`。
     bytes: [u8; 2],
 }
 
-// Custom comparison traits: case-sensitive.
+// 自定义比较 trait：大小写敏感。
 //
-// Standard BMS (36-ary) normalises indices to uppercase in the parser
-// (`BmsIndex::normalize(BmsBase::Base36)`), so all stored keys are
-// uppercase.  Base62 mode preserves the original case.  Since all
-// insertion and lookup paths normalise consistently, the comparison
-// here is always **case-sensitive** — this is required for `#BASE 62`
-// where `"aa"` and `"AA"` must be distinct keys.
+// 标准 BMS（36 进制）在解析器中将索引规范化为大写
+// （`BmsIndex::normalize(BmsBase::Base36)`），因此所有存储的键均为
+// 大写。Base62 模式保留原始大小写。由于所有插入与查找路径都
+// 一致地规范化，此处的比较始终**大小写敏感**——这对
+// `#BASE 62`（`"aa"` 与 `"AA"` 必须是不同键）是必需的。
 
 impl PartialEq for BmsIndex {
     fn eq(&self, other: &Self) -> bool {
@@ -136,12 +135,12 @@ impl Hash for BmsIndex {
     reason = "guarded by match on bytes.len() or bytes[1] sentinel check"
 )]
 impl BmsIndex {
-    /// Return the ASCII string representation of this ID (borrows from self).
+    /// 返回此 ID 的 ASCII 字符串表示（借用自 self）。
     ///
     /// # Panics
     ///
-    /// Never panics in practice — the bytes are validated as ASCII on
-    /// construction, so the UTF-8 conversion is infallible.
+    /// 实际上永不 panic——字节在构造时已校验为 ASCII，
+    /// 因此 UTF-8 转换不会失败。
     #[must_use]
     #[expect(
         clippy::expect_used,
@@ -152,20 +151,20 @@ impl BmsIndex {
         std::str::from_utf8(&self.bytes[..len]).expect("bytes validated ASCII on construction")
     }
 
-    /// Return the raw ASCII bytes (1 or 2 bytes).
+    /// 返回原始 ASCII 字节（1 或 2 字节）。
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         let len = if self.bytes[1] == 0 { 1 } else { 2 };
         &self.bytes[..len]
     }
 
-    /// Convert the base-36 characters to a numeric index.
+    /// 将 Base-36 字符转换为数值索引。
     ///
-    /// `"00"` → `0`, `"ZZ"` → `1295`.  For a single-character ID like
-    /// `"A"` returns `10` (no multiply).
+    /// `"00"` → `0`，`"ZZ"` → `1295`。单字符 ID 如
+    /// `"A"` 返回 `10`（不乘进位）。
     ///
-    /// Returns `None` if the characters cannot be decoded (should not happen
-    /// when the ID was constructed through [`TryFrom`] / [`FromStr`]).
+    /// 若字符无法解码则返回 `None`（当 ID 通过
+    /// [`TryFrom`] / [`FromStr`] 构造时不应发生）。
     #[must_use]
     pub fn to_index(&self) -> Option<u16> {
         let hi = base36_digit_value(self.bytes[0])?;
@@ -177,12 +176,12 @@ impl BmsIndex {
         }
     }
 
-    /// Convert the hexadecimal characters to a `u8` value.
+    /// 将十六进制字符转换为 `u8` 值。
     ///
-    /// For a two-character ID like `"0A"` returns `10`.  For a
-    /// single-character ID like `"A"` returns `10` (no shift).
+    /// 双字符 ID 如 `"0A"` 返回 `10`。单字符 ID 如
+    /// `"A"` 返回 `10`（不位移）。
     ///
-    /// Returns `None` if either byte is not a valid hex character.
+    /// 若任一字节不是有效的十六进制字符则返回 `None`。
     #[must_use]
     pub fn as_u8_hex(&self) -> Option<u8> {
         let hi = hex_digit_value(self.bytes[0])?;
@@ -194,8 +193,7 @@ impl BmsIndex {
         }
     }
 
-    /// Check whether all characters in this index are valid for the given
-    /// character set.
+    /// 检查此索引中所有字符对于给定字符集是否有效。
     #[must_use]
     pub fn is_valid_for(&self, base: BmsBase) -> bool {
         let check: fn(u8) -> bool = match base {
@@ -206,19 +204,19 @@ impl BmsIndex {
         check(self.bytes[0]) && (self.bytes[1] == 0 || check(self.bytes[1]))
     }
 
-    /// Create from already-validated bytes (internal use by newtypes).
+    /// 从已校验字节创建（供 newtype 内部使用）。
     #[inline]
     #[must_use]
     const fn from_valid(bytes: [u8; 2]) -> Self {
         Self { bytes }
     }
 
-    /// Return a copy normalized for the given base.
+    /// 返回针对给定进制规范化后的副本。
     ///
-    /// For [`BmsBase::Base16`] and [`BmsBase::Base36`] (the standard BMS
-    /// charsets), this uppercases the bytes so that `"AA"` and `"aa"` map
-    /// to the same index.  For [`BmsBase::Base62`], the original case is
-    /// preserved (case-sensitive).
+    /// 对于 [`BmsBase::Base16`] 和 [`BmsBase::Base36`]（标准 BMS
+    /// 字符集），这会将字节转为大写，使 `"AA"` 与 `"aa"` 映射到
+    /// 同一索引。对于 [`BmsBase::Base62`]，保留原始大小写
+    /// （大小写敏感）。
     #[must_use]
     #[expect(
         clippy::missing_const_for_fn,
@@ -273,9 +271,9 @@ impl FromStr for BmsIndex {
     }
 }
 
-// Digit decoding helpers
+// 数位解码辅助函数
 
-/// Decode a single hex ASCII byte to its numeric value (0–15).
+/// 将单个十六进制 ASCII 字节解码为数值（0–15）。
 const fn hex_digit_value(b: u8) -> Option<u8> {
     match b {
         b'0'..=b'9' => Some(b - b'0'),
@@ -285,7 +283,7 @@ const fn hex_digit_value(b: u8) -> Option<u8> {
     }
 }
 
-/// Decode a single base-36 ASCII byte to its numeric value (0–35).
+/// 将单个 Base-36 ASCII 字节解码为数值（0–35）。
 fn base36_digit_value(b: u8) -> Option<u16> {
     match b {
         b'0'..=b'9' => Some(u16::from(b - b'0')),
@@ -295,14 +293,14 @@ fn base36_digit_value(b: u8) -> Option<u16> {
     }
 }
 
-// Error type
+// 错误类型
 
-/// Error returned when a BMS index string is not a valid 1–2 character
-/// sequence for the required charset.
+/// 当 BMS 索引字符串不是所需字符集下有效的 1–2 字符序列时
+/// 返回的错误。
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("invalid BMS index: {input}")]
 pub struct BmsIndexError {
-    /// The raw string that failed validation.
+    /// 校验失败的原始字符串。
     pub input: String,
 }
 
@@ -313,15 +311,15 @@ impl<C> IntoTokensError<C> for BmsIndexError {
     }
 }
 
-// Newtype wrappers — one per semantic index kind
+// Newtype 包装——每种语义索引类型一个
 
-// Each newtype:
-//   - wraps BmsIndex
-//   - provides Deref<Target = BmsIndex> for transparent method access
-//   - validates its required charset on construction
-//   - implements Display, FromStr, TryFrom<&str>, Clone, Copy, etc.
+// 每个 newtype：
+//   - 包装 BmsIndex
+//   - 提供 Deref<Target = BmsIndex> 以透明地访问方法
+//   - 构造时校验所需的字符集
+//   - 实现 Display、FromStr、TryFrom<&str>、Clone、Copy 等
 
-/// Generate a `TryFrom<&str>` impl that delegates to `FromStr`.
+/// 生成一个委托给 `FromStr` 的 `TryFrom<&str>` 实现。
 macro_rules! impl_try_from_str {
     ($ty:ty) => {
         impl TryFrom<&str> for $ty {
@@ -335,9 +333,9 @@ macro_rules! impl_try_from_str {
     };
 }
 
-// Standard Base62 newtypes
+// 标准 Base62 newtype
 
-/// Index for `#WAV{id}` / `#EXWAV{id}` — sound definition references.
+/// `#WAV{id}` / `#EXWAV{id}` 的索引——音频定义引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -345,8 +343,8 @@ macro_rules! impl_try_from_str {
 pub struct WavIndex(pub BmsIndex);
 impl_try_from_str!(WavIndex);
 
-/// Index for `#BMP{id}` / `#BGA{id}` / `#@BGA{id}` / `#SWBGA{id}` /
-/// `#ARGB{id}` / `#EXBMP{id}` — image / BGA definition references.
+/// `#BMP{id}` / `#BGA{id}` / `#@BGA{id}` / `#SWBGA{id}` /
+/// `#ARGB{id}` / `#EXBMP{id}` 的索引——图片 / BGA 定义引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -354,7 +352,7 @@ impl_try_from_str!(WavIndex);
 pub struct BmpIndex(pub BmsIndex);
 impl_try_from_str!(BmpIndex);
 
-/// Index for `#BPM{id}` / `#EXBPM{id}` — extended BPM definition references.
+/// `#BPM{id}` / `#EXBPM{id}` 的索引——扩展 BPM 定义引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -362,7 +360,7 @@ impl_try_from_str!(BmpIndex);
 pub struct BpmIndex(pub BmsIndex);
 impl_try_from_str!(BpmIndex);
 
-/// Index for `#STOP{id}` — stop definition references.
+/// `#STOP{id}` 的索引——停止定义引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -370,7 +368,7 @@ impl_try_from_str!(BpmIndex);
 pub struct StopIndex(pub BmsIndex);
 impl_try_from_str!(StopIndex);
 
-/// Index for `#SCROLL{id}` — scroll speed definition references.
+/// `#SCROLL{id}` 的索引——滚动速度定义引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -378,7 +376,7 @@ impl_try_from_str!(StopIndex);
 pub struct ScrollIndex(pub BmsIndex);
 impl_try_from_str!(ScrollIndex);
 
-/// Index for `#SPEED{id}` — speed/spacing definition references.
+/// `#SPEED{id}` 的索引——速度/间距定义引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -386,7 +384,7 @@ impl_try_from_str!(ScrollIndex);
 pub struct SpeedIndex(pub BmsIndex);
 impl_try_from_str!(SpeedIndex);
 
-/// Index for `#EXRANK{id}` — per-position judgment override references.
+/// `#EXRANK{id}` 的索引——逐位置判定覆盖引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -394,7 +392,7 @@ impl_try_from_str!(SpeedIndex);
 pub struct ExRankIndex(pub BmsIndex);
 impl_try_from_str!(ExRankIndex);
 
-/// Index for `#SEEK{id}` — video seek position references.
+/// `#SEEK{id}` 的索引——视频定位位置引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -402,7 +400,7 @@ impl_try_from_str!(ExRankIndex);
 pub struct SeekIndex(pub BmsIndex);
 impl_try_from_str!(SeekIndex);
 
-/// Index for `#LNOBJ` — WAV index used as LN terminator marker.
+/// `#LNOBJ` 的索引——用作长音终止标记的 WAV 索引。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -410,7 +408,7 @@ impl_try_from_str!(SeekIndex);
 pub struct LnObjIndex(pub BmsIndex);
 impl_try_from_str!(LnObjIndex);
 
-/// Index for `#TEXT{id}` / `#SONG{id}` — timed on-screen text references.
+/// `#TEXT{id}` / `#SONG{id}` 的索引——定时屏幕文字引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -418,7 +416,7 @@ impl_try_from_str!(LnObjIndex);
 pub struct TextIndex(pub BmsIndex);
 impl_try_from_str!(TextIndex);
 
-/// Index for `#CHANGEOPTION{id}` — dynamic option-change references.
+/// `#CHANGEOPTION{id}` 的索引——动态选项变更引用。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -426,11 +424,10 @@ impl_try_from_str!(TextIndex);
 pub struct ChangeOptionIndex(pub BmsIndex);
 impl_try_from_str!(ChangeOptionIndex);
 
-/// Index for 2-character object IDs in message body values.
+/// 消息正文值中 2 字符对象 ID 的索引。
 ///
-/// These are the leniently-parsed object indices in [`BmsMessage`](crate::BmsMessage)
-/// body strings — every consecutive pair of valid Base62 characters forms
-/// an object ID.
+/// 这是 [`BmsMessage`](crate::BmsMessage) 正文字符串中以宽松方式
+/// 解析的对象索引——每对连续的有效 Base62 字符构成一个对象 ID。
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
 )]
@@ -438,12 +435,12 @@ impl_try_from_str!(ChangeOptionIndex);
 pub struct ObjectIndex(pub BmsIndex);
 impl_try_from_str!(ObjectIndex);
 
-// Special newtype: ChannelIndex (Base36 validation)
+// 特殊 newtype：ChannelIndex（Base36 校验）
 
-/// Channel number in BMS message lines (`#xxxYY:values`).
+/// BMS 消息行中的通道号（`#xxxYY:values`）。
 ///
-/// Validates as Base36 (`0-9A-Z`) instead of the default Base62.
-/// Use [`as_u8_hex`](BmsIndex::as_u8_hex) to convert to a byte value.
+/// 按默认 Base62 不同，它按 Base36（`0-9A-Z`）校验。
+/// 使用 [`as_u8_hex`](BmsIndex::as_u8_hex) 转换为字节值。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display)]
 #[display("{}", _0)]
 pub struct ChannelIndex(pub BmsIndex);
@@ -468,4 +465,4 @@ impl FromStr for ChannelIndex {
 
 impl_try_from_str!(ChannelIndex);
 
-// Tests
+// 测试

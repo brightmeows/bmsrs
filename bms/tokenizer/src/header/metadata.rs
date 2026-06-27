@@ -1,99 +1,99 @@
-//! Song/chart metadata headers: `#TITLE`, `#SUBTITLE`, `#ARTIST`,
-//! `#SUBARTIST`, `#GENRE`, `#MAKER`, `#COMMENT`, `#TEXT`/`#SONG`,
-//! `#CHARSET`, `%URL`, `%EMAIL`.
+//! 乐曲/谱面元数据头部：`#TITLE`、`#SUBTITLE`、`#ARTIST`、
+//! `#SUBARTIST`、`#GENRE`、`#MAKER`、`#COMMENT`、`#TEXT`/`#SONG`、
+//! `#CHARSET`、`%URL`、`%EMAIL`。
 
 use crate::BmsTokenAttr;
 use crate::index::TextIndex;
 use crate::{BmsHeader, BmsTryFromError};
 
-/// Song/chart metadata headers.
+/// 乐曲/谱面元数据头部。
 ///
-/// These commands identify the chart and its authors.  They carry no
-/// gameplay effect — they are purely informational.
+/// 这些命令标识谱面及其作者。它们不携带任何
+/// 游玩效果——纯粹是信息性的。
 #[derive(Debug, Clone, PartialEq, Eq, BmsTokenAttr)]
 pub enum BmsHeaderMetadata<C> {
-    /// `#TITLE` — song title.
+    /// `#TITLE`——乐曲标题。
     ///
-    /// **Should not be omitted** — some players crash when it is absent
-    /// (nanasi).  No length limit in the spec, but some players truncate
-    /// or crash on very long titles (DDR: 500 byte limit).  May contain
-    /// multi-byte characters depending on the file's encoding.
+    /// **不应省略**——某些播放器在缺失时会崩溃
+    /// （nanasi）。规范中无长度限制，但某些播放器会截断
+    /// 或在过长标题时崩溃（DDR：500 字节限制）。可能根据
+    /// 文件编码含有多字节字符。
     #[bms_token("#TITLE {}")]
     Title(C),
-    /// `#SUBTITLE` — explicit subtitle (nanasi extension).
+    /// `#SUBTITLE`——显式副标题（nanasi 扩展）。
     ///
-    /// Preferred over the legacy "implicit subtitle" parsing where
-    /// delimiters (`-`, `~`, `()`, `[]`, `<>`) inside `#TITLE` are used
-    /// to split the title.  Implicit subtitle handling varies by player.
+    /// 优于传统的“隐式副标题”解析——后者使用 `#TITLE` 内的
+    /// 分隔符（`-`、`~`、`()`、`[]`、`<>`）来拆分标题。
+    /// 隐式副标题处理因播放器而异。
     ///
-    /// Multiple `#SUBTITLE` lines are supported by Sonorous.
+    /// Sonorous 支持多行 `#SUBTITLE`。
     #[bms_token("#SUBTITLE {}")]
     Subtitle(C),
-    /// `#ARTIST` — song artist / composer.
+    /// `#ARTIST`——乐曲艺术家 / 作曲者。
     #[bms_token("#ARTIST {}")]
     Artist(C),
-    /// `#SUBARTIST` — co-creators (LR2 extension).
+    /// `#SUBARTIST`——联合作者（LR2 扩展）。
     ///
-    /// Typically used for BGA authors, charter, etc.  Displayed
-    /// differently from `#ARTIST` in supporting players.
-    /// Multiple `#SUBARTIST` lines are supported by `TechnicalGroove`.
+    /// 通常用于 BGA 作者、谱师等。在支持的播放器中与
+    /// `#ARTIST` 显示方式不同。
+    /// `TechnicalGroove` 支持多行 `#SUBARTIST`。
     #[bms_token("#SUBARTIST {}")]
     SubArtist(C),
-    /// `#GENRE` or `#GENLE` — music genre.
+    /// `#GENRE` 或 `#GENLE`——音乐流派。
     ///
-    /// `#GENLE` is a typo alias (uBMplay); both map to the same variant.
-    /// Default when omitted: empty string.
+    /// `#GENLE` 是拼写错误别名（uBMplay）；两者映射到同一变体。
+    /// 省略时默认：空字符串。
     #[bms_token("#GENRE {}")]
     #[bms_token("#GENLE {}")]
     Genre(C),
-    /// `#MAKER` — BMS chart author name (bemaniaDX extension).
+    /// `#MAKER`——BMS 谱面作者名（bemaniaDX 扩展）。
     ///
-    /// Distinguishes the charter from the music composer.  Not displayed
-    /// during gameplay — pure metadata.
+    /// 区分谱师与音乐作曲者。游玩时不显示——
+    /// 纯元数据。
     #[bms_token("#MAKER {}")]
     Maker(C),
-    /// `#COMMENT` — text shown in the song-selection list (pomu extension).
+    /// `#COMMENT`——在选曲列表中显示的文本（pomu 扩展）。
     ///
-    /// May be wrapped in double quotes for empty strings, but parsers
-    /// should not rely on the quotes being present (legacy charts omit
-    /// them).  Multiple `#COMMENT` lines are supported by Sonorous.
+    /// 可以用双引号包裹以表示空字符串，但解析器
+    /// 不应依赖引号存在（旧谱面会省略它们）。
+    /// Sonorous 支持多行 `#COMMENT`。
     #[bms_token("#COMMENT {}")]
     Comment(C),
-    /// `#TEXT[00-ZZ]` or `#SONG[01-ZZ]` — timed on-screen text (pomu extension).
+    /// `#TEXT[00-ZZ]` 或 `#SONG[01-ZZ]`——定时屏幕文字（pomu 扩展）。
     ///
-    /// Referenced by channel `#xxx99`.  `#TEXT00` is displayed on miss
-    /// in nanasi.  `#SONG` is an obsolete alias — prefer `#TEXT`.
+    /// 被通道 `#xxx99` 引用。nanasi 在 miss 时显示 `#TEXT00`。
+    /// `#SONG` 是过时的别名——优先使用 `#TEXT`。
     ///
-    /// The value may optionally be wrapped in double quotes, but parsers
-    /// should not rely on the quotes being present.
+    /// 值可以选择性地用双引号包裹，但解析器
+    /// 不应依赖引号存在。
     #[bms_token("#TEXT{id} {value}")]
     #[bms_token("#SONG{id} {value}")]
     Text {
-        /// The 2-character index (e.g., `"00"`, `"aa"`).
+        /// 2 字符索引（例如 `"00"`、`"aa"`）。
         id: TextIndex,
-        /// The text content.
+        /// 文本内容。
         value: C,
     },
-    /// `#CHARSET` — character encoding hint (ruvit extension, now obsolete).
+    /// `#CHARSET`——字符编码提示（ruvit 扩展，现已废弃）。
     ///
-    /// Values: `EUC-KR`, `SHIFT-JIS`, `UTF-8`.  Modern ruvit (2.0b5p2+)
-    /// auto-detects encoding and ignores this command.  For new charts,
-    /// save as UTF-8 (with or without BOM).
+    /// 取值：`EUC-KR`、`SHIFT-JIS`、`UTF-8`。现代 ruvit
+    /// （2.0b5p2+）会自动检测编码并忽略此命令。对于新谱面，
+    /// 请保存为 UTF-8（带或不带 BOM）。
     #[bms_token("#CHARSET {}")]
     Charset(C),
-    /// `%URL` — author's website URL (BMS Manager extension).
+    /// `%URL`——作者网站 URL（BMS Manager 扩展）。
     ///
-    /// **Caveat**: BMSE and iBMSC delete `%URL` on save.
+    /// **注意**：BMSE 与 iBMSC 在保存时会删除 `%URL`。
     #[bms_token("%URL {}")]
     Url(C),
-    /// `%EMAIL` — author's email address (BMS Manager extension).
+    /// `%EMAIL`——作者邮箱地址（BMS Manager 扩展）。
     ///
-    /// **Caveat**: BMSE and iBMSC delete `%EMAIL` on save.
+    /// **注意**：BMSE 与 iBMSC 在保存时会删除 `%EMAIL`。
     #[bms_token("%EMAIL {}")]
     Email(C),
 }
 
-// From / TryFrom conversions
+// From / TryFrom 转换
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderMetadata<C> {
     type Error = BmsTryFromError<C>;

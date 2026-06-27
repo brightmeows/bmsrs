@@ -1,7 +1,7 @@
-//! Polymorphism tests for the generic string container `C`.
+//! 泛型字符串容器 `C` 的多态性测试。
 //!
-//! Verifies that tokenization with different `C` types produces semantically
-//! equivalent results, and that `C = String` produces owned tokens.
+//! 验证用不同 `C` 类型分词产生语义
+//! 等价的结果，且 `C = String` 产生 owned token。
 
 use std::num::NonZeroUsize;
 
@@ -11,10 +11,10 @@ use bms_tokenizer::{
     BmsHeader, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsToken, BmsTokenizeError, BmsTokenizer,
 };
 
-/// `Vec<(line, result)>` with explicit C type.
+/// 带显式 C 类型的 `Vec<(line, result)>`。
 type TokenVec<C> = Vec<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>)>;
 
-/// Tokenize with `&str` and `String` — verify same line numbers and Ok status.
+/// 用 `&str` 与 `String` 分词——验证行号与 Ok 状态相同。
 #[test]
 fn different_c_containers_same_content() {
     let input = "#TITLE My Song\n#ARTIST Composer\n#WAV01 kick.wav\n#00101:1122";
@@ -31,7 +31,7 @@ fn different_c_containers_same_content() {
     }
 }
 
-/// `C = String` tokens own their string data (no borrow from input).
+/// `C = String` 的 token 拥有自身的字符串数据（不借用输入）。
 #[test]
 fn string_container_owned_values() {
     let input = "#TITLE My Song";
@@ -45,7 +45,7 @@ fn string_container_owned_values() {
     }
 }
 
-/// Derive macro correctly identifies C fields vs numeric fields.
+/// derive 宏正确区分 C 字段与数值字段。
 #[test]
 fn c_fields_parsed_correctly() {
     let input = "#WAV01 kick.wav";
@@ -64,6 +64,6 @@ proptest! {
         let input = format!("#{title}");
         let _tokens: Vec<_> = BmsTokenizer::new()
             .tokenize::<Vec<_>, &str>(&input);
-        // Should always produce some result, never panic
+        // 应始终产生某种结果，绝不 panic
     }
 }

@@ -1,6 +1,6 @@
-//! Visual resource definition headers: `#BMP`, `#EXBMP`, `#BGA`,
-//! `#@BGA`, `#POORBGA`, `#SWBGA`, `#ARGB`, `#VIDEOFILE`, `#MOVIE`,
-//! `#SEEK`, `#ExtChr`.
+//! 视觉资源定义头部：`#BMP`、`#EXBMP`、`#BGA`、
+//! `#@BGA`、`#POORBGA`、`#SWBGA`、`#ARGB`、`#VIDEOFILE`、`#MOVIE`、
+//! `#SEEK`、`#ExtChr`。
 
 use std::fmt;
 
@@ -8,29 +8,29 @@ use crate::header::display::PoorBgaMode;
 use crate::index::{BmpIndex, SeekIndex};
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
-/// Parameters for `#BGA{id}` — image crop-and-place definition.
+/// `#BGA{id}` 的参数——图片裁剪与放置定义。
 ///
-/// Crops a rectangular region from a `#BMP` image and places it on the
-/// BGA canvas.  All coordinates are in pixels.
+/// 从 `#BMP` 图片裁剪一个矩形区域并放置到
+/// BGA 画布上。所有坐标均为像素。
 ///
-/// If the same index is defined in both `#BMP` and `#BGA`, `#BGA` takes
-/// priority.  `BM98de` treats `x1 y1 x2 y2 = 0 0 1 1` as a 2×2 pixel
-/// crop; most others treat it as 1×1.
+/// 若同一索引同时在 `#BMP` 与 `#BGA` 中定义，`#BGA` 优先。
+/// `BM98de` 将 `x1 y1 x2 y2 = 0 0 1 1` 视为 2×2 像素
+/// 裁剪；大多数其他播放器视为 1×1。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BgaParams {
-    /// Index into the `#BMP` table (decimal).
+    /// 指向 `#BMP` 表的索引（十进制）。
     pub bmp_index: u16,
-    /// Top-left X coordinate.
+    /// 左上角 X 坐标。
     pub x1: i32,
-    /// Top-left Y coordinate.
+    /// 左上角 Y 坐标。
     pub y1: i32,
-    /// Bottom-right X coordinate.
+    /// 右下角 X 坐标。
     pub x2: i32,
-    /// Bottom-right Y coordinate.
+    /// 右下角 Y 坐标。
     pub y2: i32,
-    /// Display offset X.
+    /// 显示偏移 X。
     pub dx: i32,
-    /// Display offset Y.
+    /// 显示偏移 Y。
     pub dy: i32,
 }
 
@@ -60,25 +60,25 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
     }
 }
 
-/// Parameters for `#@BGA{id}` — image crop-and-place (width/height form).
+/// `#@BGA{id}` 的参数——图片裁剪与放置（宽/高形式）。
 ///
-/// Syntactic sugar for `#BGA` where you specify width/height instead of
-/// bottom-right corner.  Internally equivalent to `#BGA`.
+/// `#BGA` 的语法糖，改为指定宽/高而非
+/// 右下角。内部等价于 `#BGA`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtBgaParams {
-    /// Index into the `#BMP` table (decimal).
+    /// 指向 `#BMP` 表的索引（十进制）。
     pub bmp_index: u16,
-    /// Source X.
+    /// 源 X。
     pub sx: i32,
-    /// Source Y.
+    /// 源 Y。
     pub sy: i32,
-    /// Width.
+    /// 宽度。
     pub w: i32,
-    /// Height.
+    /// 高度。
     pub h: i32,
-    /// Display offset X.
+    /// 显示偏移 X。
     pub dx: i32,
-    /// Display offset Y.
+    /// 显示偏移 Y。
     pub dy: i32,
 }
 
@@ -110,23 +110,23 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
     }
 }
 
-/// Parameters for `#EXBMP{id}` — image with custom transparency colour
-/// (nanasi extension).
+/// `#EXBMP{id}` 的参数——带自定义透明色的图片
+/// （nanasi 扩展）。
 ///
-/// Like `#BMP`, but the specified ARGB colour is treated as transparent
-/// instead of the default pure-black (`RGB:00:00:00`).  The index
-/// shares the `#BMP` namespace.
+/// 类似 `#BMP`，但将指定的 ARGB 颜色视为透明，
+/// 而非默认的纯黑（`RGB:00:00:00`）。索引
+/// 与 `#BMP` 共享命名空间。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExBmpParams<C> {
-    /// Alpha component (0–255).
+    /// Alpha 分量（0–255）。
     pub a: u8,
-    /// Red component (0–255).
+    /// Red 分量（0–255）。
     pub r: u8,
-    /// Green component (0–255).
+    /// Green 分量（0–255）。
     pub g: u8,
-    /// Blue component (0–255).
+    /// Blue 分量（0–255）。
     pub b: u8,
-    /// Path or name of the resource file.
+    /// 资源文件路径或名称。
     pub filename: C,
 }
 
@@ -156,33 +156,33 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
     }
 }
 
-/// Parameters for `#SWBGA{id}` — key-bound BGA animation (nanasi,
-/// experimental).
+/// `#SWBGA{id}` 的参数——按键绑定 BGA 动画（nanasi，
+/// 实验性）。
 ///
-/// Plays an image sequence triggered by key input on a specified channel.
-/// The `pattern` field uses BMS message notation (e.g., `"01020304"`)
-/// where each 2-char pair references a `#BMP`/`#EXBMP`/`#BGA`/`#@BGA`
-/// index.  Unlike normal BMS messages, `00` here **shows** `#BMP00`
-/// rather than being a rest.
+/// 在指定通道上由按键输入触发的图片序列播放。
+/// `pattern` 字段使用 BMS 消息表示法（例如 `"01020304"`），
+/// 每对 2 字符引用一个 `#BMP`/`#EXBMP`/`#BGA`/`#@BGA`
+/// 索引。与普通 BMS 消息不同，此处的 `00` **显示** `#BMP00`
+/// 而非休止。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SwBgaParams<C> {
-    /// Frame rate.
+    /// 帧率。
     pub fr: u32,
-    /// Transition time in frames.
+    /// 过渡时长（帧数）。
     pub time: u32,
-    /// Scanline direction.
+    /// 扫描线方向。
     pub line: u8,
-    /// Whether to loop the transition.
+    /// 是否循环过渡。
     pub r#loop: bool,
-    /// Alpha component.
+    /// Alpha 分量。
     pub a: u8,
-    /// Red component.
+    /// Red 分量。
     pub r: u8,
-    /// Green component.
+    /// Green 分量。
     pub g: u8,
-    /// Blue component.
+    /// Blue 分量。
     pub b: u8,
-    /// Transition pattern name or path.
+    /// 过渡图样名称或路径。
     pub pattern: C,
 }
 
@@ -226,21 +226,21 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
     }
 }
 
-/// Parameters for `#ARGB{id}` — per-layer colour/alpha overlay (nanasi).
+/// `#ARGB{id}` 的参数——逐图层颜色/alpha 叠加（nanasi）。
 ///
-/// Applies an ARGB multiplier to an entire BGA layer (BASE / LAYER /
-/// LAYER2 / POOR).  Unlike `#EXBMP` (per-image), this affects the whole
-/// layer.  The index is referenced by channels `#xxxA1-A4`.  Shares the
-/// alpha channel with opacity channels `#xxx0B-0E`.
+/// 将一个 ARGB 倍率应用到整个 BGA 图层（BASE / LAYER /
+/// LAYER2 / POOR）。与 `#EXBMP`（逐图片）不同，这影响
+/// 整个图层。索引被通道 `#xxxA1-A4` 引用。与不透明度通道
+/// `#xxx0B-0E` 共享 alpha 通道。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArgbParams {
-    /// Alpha component (0–255).
+    /// Alpha 分量（0–255）。
     pub a: u8,
-    /// Red component (0–255).
+    /// Red 分量（0–255）。
     pub r: u8,
-    /// Green component (0–255).
+    /// Green 分量（0–255）。
     pub g: u8,
-    /// Blue component (0–255).
+    /// Blue 分量（0–255）。
     pub b: u8,
 }
 
@@ -262,7 +262,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
     }
 }
 
-/// Parse a whitespace-separated string into exactly seven `i32` values.
+/// 将空白分隔的字符串解析为恰好七个 `i32` 值。
 fn parse_seven_ints(s: &str) -> Option<[i32; 7]> {
     let mut iter = s.split_whitespace();
     let v0 = iter.next()?.parse().ok()?;
@@ -278,7 +278,7 @@ fn parse_seven_ints(s: &str) -> Option<[i32; 7]> {
     Some([v0, v1, v2, v3, v4, v5, v6])
 }
 
-/// Parse a comma-separated `a,r,g,b` string into four `u8` values.
+/// 将逗号分隔的 `a,r,g,b` 字符串解析为四个 `u8` 值。
 #[expect(clippy::many_single_char_names, reason = "ARGB component names")]
 fn parse_argb(s: &str) -> Option<(u8, u8, u8, u8)> {
     let mut parts = s.split(',');
@@ -292,141 +292,141 @@ fn parse_argb(s: &str) -> Option<(u8, u8, u8, u8)> {
     Some((a, r, g, b))
 }
 
-/// Visual resource definition headers.
+/// 视觉资源定义头部。
 ///
-/// These commands define the images, videos, and BGA (background
-/// animation) layers used by the chart.
+/// 这些命令定义谱面使用的图片、视频与 BGA（背景
+/// 动画）图层。
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderResDefVisual<C> {
-    /// `#BMP{id}` — image file definition.
+    /// `#BMP{id}`——图片文件定义。
     ///
-    /// Referenced by BGA channels `#xxx04` (BASE), `#xxx06` (POOR),
-    /// `#xxx07` (LAYER), `#xxx0A` (LAYER2), and opacity channels
-    /// `#xxx0B-0E`.  Usually 256×256 pixels; larger images are handled
-    /// differently by each player.
+    /// 被 BGA 通道 `#xxx04`（BASE）、`#xxx06`（POOR）、
+    /// `#xxx07`（LAYER）、`#xxx0A`（LAYER2）以及不透明度通道
+    /// `#xxx0B-0E` 引用。通常为 256×256 像素；更大的图片
+    /// 各播放器处理方式不同。
     ///
-    /// In the LAYER channel (`#xxx07`), pure black (`RGB:00:00:00`) is
-    /// transparent, showing the BASE layer underneath.
+    /// 在 LAYER 通道（`#xxx07`）中，纯黑（`RGB:00:00:00`）
+    /// 为透明，显示下方的 BASE 图层。
     ///
-    /// `#BMP00` is the default miss/poor image (shown when no `#xxx06`
-    /// objects are present).
+    /// `#BMP00` 是默认的 miss/poor 图片（当无 `#xxx06`
+    /// 对象时显示）。
     ///
-    /// **Video files** can also be assigned to `#BMP` (in LR2, ruvit,
-    /// Angolmois, Sonorous, etc.) — MPG is the most compatible format.
+    /// **视频文件**也可分配给 `#BMP`（在 LR2、ruvit、
+    /// Angolmois、Sonorous 等中）——MPG 是兼容性最好的格式。
     #[bms_token("#BMP{id} {filename}")]
     Bmp {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: BmpIndex,
-        /// Path or name of the resource file.
+        /// 资源文件路径或名称。
         filename: C,
     },
-    /// `#EXBMP{id}` — image with custom transparency colour (nanasi).
+    /// `#EXBMP{id}`——带自定义透明色的图片（nanasi）。
     #[bms_token("#EXBMP{id} {params}")]
     #[bms_fallback]
     ExBmp {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: BmpIndex,
-        /// Parsed parameters.
+        /// 解析出的参数。
         params: ExBmpParams<C>,
     },
-    /// `#BGA{id}` — image crop-and-place definition.
+    /// `#BGA{id}`——图片裁剪与放置定义。
     #[bms_token("#BGA{id} {params}")]
     #[bms_fallback]
     Bga {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: BmpIndex,
-        /// Parsed placement parameters.
+        /// 解析出的放置参数。
         params: BgaParams,
     },
-    /// `#@BGA{id}` — image crop-and-place (width/height form).
+    /// `#@BGA{id}`——图片裁剪与放置（宽/高形式）。
     #[bms_token("#@BGA{id} {params}")]
     #[bms_fallback]
     AtBga {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: BmpIndex,
-        /// Parsed placement parameters.
+        /// 解析出的放置参数。
         params: AtBgaParams,
     },
-    /// `#POORBGA` — poor/miss BGA display mode (nanasi).
+    /// `#POORBGA`——poor/miss BGA 显示模式（nanasi）。
     #[bms_token("#POORBGA {}")]
     #[bms_fallback]
     PoorBga(PoorBgaMode),
-    /// `#SWBGA{id}` — key-bound BGA animation (nanasi, experimental).
+    /// `#SWBGA{id}`——按键绑定 BGA 动画（nanasi，实验性）。
     #[bms_token("#SWBGA{id} {params}")]
     #[bms_fallback]
     SwBga {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: BmpIndex,
-        /// Parsed transition parameters.
+        /// 解析出的过渡参数。
         params: SwBgaParams<C>,
     },
-    /// `#ARGB{id}` — per-layer ARGB colour/alpha overlay (nanasi).
+    /// `#ARGB{id}`——逐图层 ARGB 颜色/alpha 叠加（nanasi）。
     #[bms_token("#ARGB{id} {params}")]
     #[bms_fallback]
     Argb {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: BmpIndex,
-        /// Parsed ARGB values.
+        /// 解析出的 ARGB 值。
         params: ArgbParams,
     },
-    /// `#VIDEOFILE` — video file as BGA (bemaniaDX origin).
+    /// `#VIDEOFILE`——作为 BGA 的视频文件（bemaniaDX 起源）。
     ///
-    /// Plays from `#000`; loops if the chart is longer than the video.
-    /// Video audio is muted (except nazoZZ).  Compatible formats: MPG
-    /// (most compatible), AVI, `WebM`, MP4, etc. (player-dependent).
+    /// 从 `#000` 播放；若谱面比视频长则循环。
+    /// 视频音频被静音（nazoZZ 除外）。兼容格式：MPG
+    /// （兼容性最好）、AVI、`WebM`、MP4 等（取决于播放器）。
     #[bms_token("#VIDEOFILE {}")]
     VideoFile(C),
-    /// `#MOVIE` — video file as BGA, no loop (`DXEmu` origin).
+    /// `#MOVIE`——作为 BGA 的视频文件，不循环（`DXEmu` 起源）。
     ///
-    /// Plays once from `#000`; holds the last frame when finished.
-    /// Conflicts with `#xxx04`: image files in `#xxx04` lose to
-    /// `#MOVIE`, but video files in `#xxx04` take priority.
+    /// 从 `#000` 播放一次；结束时保持最后一帧。
+    /// 与 `#xxx04` 冲突：`#xxx04` 中的图片文件输给
+    /// `#MOVIE`，但 `#xxx04` 中的视频文件优先。
     #[bms_token("#MOVIE {}")]
     Movie(C),
-    /// `#SEEK{id}` — video seek position in milliseconds (LR origin).
+    /// `#SEEK{id}`——以毫秒为单位的视频定位位置（LR 起源）。
     ///
-    /// Referenced by channel `#xxx05`.  Changes the video playback
-    /// position.  Limited documentation — may not be widely supported.
+    /// 被通道 `#xxx05` 引用。改变视频播放
+    /// 位置。文档有限——可能不被广泛支持。
     #[bms_token("#SEEK{id} {value}")]
     Seek {
-        /// The 2-character index.
+        /// 2 字符索引。
         id: SeekIndex,
-        /// Seek time in milliseconds.
+        /// 定位时间（毫秒）。
         value: f64,
     },
-    /// `#ExtChr` — custom UI skin elements (`BM98k` origin).
+    /// `#ExtChr`——自定义 UI 皮肤元素（`BM98k` 起源）。
     ///
-    /// Allows the BMS file to replace BM98's on-screen character sprites
-    /// with custom images.  Only supported by `BM98k` and DDR (partial).
-    /// Very complex syntax; rarely used in modern charts.
+    /// 允许 BMS 文件用自定义图片替换 BM98 的屏幕角色精灵。
+    /// 仅 `BM98k` 和 DDR（部分）支持。
+    /// 语法非常复杂；现代谱面很少使用。
     ///
-    /// **Historical note**: the `Project2DX` format used `#ExtChr` to
-    /// remap 5K visuals into a 7K layout before dedicated 7K channels
-    /// (`#xxx18-19`) were standardised.  DDR detects specific `#ExtChr`
-    /// patterns to activate `Project2DX` mode.
+    /// **历史注记**：`Project2DX` 格式曾用 `#ExtChr`
+    /// 将 5K 视觉重映射为 7K 布局，这在专用 7K 通道
+    /// （`#xxx18-19`）标准化之前。DDR 检测特定的 `#ExtChr`
+    /// 模式以激活 `Project2DX` 模式。
     #[bms_token("#ExtChr {}")]
     ExtChr(C),
-    /// `#VIDEOf/s` — video frame rate override (`bemaniaDX` only).
+    /// `#VIDEOf/s`——视频帧率覆盖（仅 `bemaniaDX`）。
     ///
-    /// Overrides the playback frame rate of the video specified by
-    /// `#VIDEOFILE`.  Omit to use the video file's native frame rate.
+    /// 覆盖由 `#VIDEOFILE` 指定的视频的播放帧率。
+    /// 省略则使用视频文件的原始帧率。
     #[bms_token("#VIDEOf/s {}")]
     VideoFps(f64),
-    /// `#VIDEOCOLORS` — video palette depth (`bemaniaDX` only).
+    /// `#VIDEOCOLORS`——视频调色板深度（仅 `bemaniaDX`）。
     ///
-    /// Sets the colour depth (in bits) for video playback.
-    /// Default: `16` (16-bit colour).
+    /// 设置视频播放的颜色深度（位）。
+    /// 默认：`16`（16 位色）。
     #[bms_token("#VIDEOCOLORS {}")]
     VideoColors(f64),
-    /// `#VIDEODLY` — video start-frame delay (`bemaniaDX` only).
+    /// `#VIDEODLY`——视频起始帧延迟（仅 `bemaniaDX`）。
     ///
-    /// Specifies which frame the video should start playing from.
-    /// Default: `0` (start from the beginning).
+    /// 指定视频应从哪一帧开始播放。
+    /// 默认：`0`（从头开始）。
     #[bms_token("#VIDEODLY {}")]
     VideoDly(f64),
 }
 
-// From / TryFrom conversions
+// From / TryFrom 转换
 
 impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefVisual<C> {
     type Error = BmsTryFromError<C>;

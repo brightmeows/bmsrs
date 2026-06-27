@@ -1,4 +1,4 @@
-//! Integration tests for the public API of `bms-tokenizer`.
+//! `bms-tokenizer` 公共 API 的集成测试。
 
 use std::collections::HashMap;
 
@@ -145,16 +145,16 @@ fn collect_all_returns_all_results() {
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::CollectAll)
         .tokenize::<_, &str>(bms);
-    // comment line is skipped; 2 tokens expected
+    // 注释行被跳过；预期 2 个 token
     assert_eq!(tokens.len(), 2);
-    // Line numbers reflect original input (comment skipped)
+    // 行号反映原始输入（注释被跳过）
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 3);
 }
 
 #[test]
 fn collect_all_continues_past_errors() {
-    // #001..: has an invalid channel (dot is not valid Base62)
+    // #001..: 含有无效通道（点号不是有效的 Base62）
     let bms = "\
 #TITLE Song
 #001..:1122
@@ -164,11 +164,11 @@ fn collect_all_continues_past_errors() {
         .error_strategy(ErrorStrategy::CollectAll)
         .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 3);
-    // First line: OK
+    // 第一行：OK
     assert!(tokens[0].1.is_ok());
-    // Second line: the invalid channel error
+    // 第二行：无效通道错误
     assert!(tokens[1].1.is_err());
-    // Third line: parsed successfully (continued past error)
+    // 第三行：解析成功（越过错误继续）
     assert!(tokens[2].1.is_ok());
 }
 
@@ -182,11 +182,11 @@ fn fail_fast_stops_at_first_error() {
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
         .tokenize::<_, &str>(bms);
-    // FailFast stops at the error line (line 2), including it
+    // FailFast 在错误行（第 2 行）停止，包含该行
     assert_eq!(tokens.len(), 2);
     assert!(tokens[0].1.is_ok());
     assert!(tokens[1].1.is_err());
-    // Line numbers correct
+    // 行号正确
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 2);
 }
@@ -217,14 +217,14 @@ fn line_number_gaps_with_skipped_lines() {
     let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 3);
     assert_eq!(tokens[0].0.get(), 1); // #TITLE
-    assert_eq!(tokens[1].0.get(), 3); // #BPM (line 2 is blank)
-    assert_eq!(tokens[2].0.get(), 5); // #00101 (line 4 is blank)
+    assert_eq!(tokens[1].0.get(), 3); // #BPM（第 2 行为空）
+    assert_eq!(tokens[2].0.get(), 5); // #00101（第 4 行为空）
 }
 
 #[test]
 fn default_strategy_is_collect_all() {
     let tokenizer = BmsTokenizer::new();
-    // Tokenize with default should be CollectAll
+    // 默认分词应为 CollectAll
     let bms = "#00101:11\n#001..:FF\n#00201:22";
     let tokens: Vec<_> = tokenizer.tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 3);
@@ -296,7 +296,7 @@ fn fail_fast_error_line_included_in_results() {
         .error_strategy(ErrorStrategy::FailFast)
         .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 2);
-    // The error line itself is included (not dropped)
+    // 错误行本身被包含（未被丢弃）
     assert!(tokens[1].1.is_err());
 }
 
@@ -317,7 +317,7 @@ fn bms_tokenizer_default() {
 
 #[test]
 fn custom_prefix_filters_percent() {
-    // With only `#` prefix, `%URL` lines should be skipped.
+    // 仅 `#` 前缀时，`%URL` 行应被跳过。
     let bms = "#TITLE Song\n%URL https://example.com";
     let tokens: Vec<_> = BmsTokenizer::new()
         .header_prefixes(&['#'])
@@ -333,7 +333,7 @@ fn custom_prefix_filters_percent() {
 
 #[test]
 fn custom_prefix_accepts_percent_only() {
-    // With only `%` prefix, `#TITLE` is skipped but `%URL` is parsed.
+    // 仅 `%` 前缀时，`#TITLE` 被跳过，但 `%URL` 被解析。
     let bms = "#TITLE Song\n%URL https://example.com";
     let tokens: Vec<_> = BmsTokenizer::new()
         .header_prefixes(&['%'])
@@ -353,7 +353,7 @@ fn empty_prefixes_skips_all() {
     let tokens: Vec<_> = BmsTokenizer::new()
         .header_prefixes(&[])
         .tokenize::<_, &str>(bms);
-    // Only the channel message line remains (no `#` lines are headers)
+    // 仅剩通道消息行（无 `#` 行作为头部）
     assert_eq!(tokens.len(), 1);
     assert!(matches!(tokens[0].1, Ok(BmsToken::Message(_))));
 }
@@ -365,7 +365,7 @@ fn custom_prefix_single_char() {
         .header_prefixes(&['#', '@'])
         .tokenize::<_, &str>(bms);
     assert_eq!(tokens.len(), 2);
-    // `@CUSTOM` is not a known header, so it falls through to Fallback
+    // `@CUSTOM` 不是已知头部，因此回退到 Fallback
     assert!(matches!(
         tokens[1].1,
         Ok(BmsToken::Header(BmsHeader::Fallback(_)))

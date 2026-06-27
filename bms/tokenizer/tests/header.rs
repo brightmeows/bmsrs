@@ -1,4 +1,4 @@
-//! Integration tests for [`BmsHeader`] parsing via [`parse_header_line`].
+//! 通过 [`parse_header_line`] 解析 [`BmsHeader`] 的集成测试。
 
 use bms_tokenizer::{
     BmpIndex, BmsBase, BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback,
