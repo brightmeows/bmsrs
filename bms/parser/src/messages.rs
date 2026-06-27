@@ -1105,6 +1105,43 @@ mod tests {
     }
 
     #[test]
+    fn mine_damage_decoded() {
+        // #001D1:01 → damage = 1/2 = 0.5
+        let msgs = parse_one("#001D1:01");
+        assert!((msgs.mine_events[0].damage - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn mine_damage_half_health() {
+        // 1E (36进制) = 50 → damage = 50/2 = 25.0
+        let msgs = parse_one("#001D1:1E");
+        assert!((msgs.mine_events[0].damage - 25.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn mine_damage_instant_kill() {
+        // ZZ = 1295 → damage = inf (instant kill)
+        let msgs = parse_one("#001D1:ZZ");
+        assert!(msgs.mine_events[0].damage.is_infinite());
+    }
+
+    #[test]
+    fn mine_zero_entries_filtered() {
+        // "00" entries are filtered out (no mine at that position).
+        let msgs = parse_one("#001D1:0000");
+        assert_eq!(msgs.mine_events.len(), 0);
+    }
+
+    #[test]
+    fn mine_damage_mixed_zero_and_real() {
+        // 0A(=10) 00 ZZ(=1295) → first: 10/2=5, second: inf, 00 skipped.
+        let msgs = parse_one("#001D1:0A00ZZ");
+        assert_eq!(msgs.mine_events.len(), 2);
+        assert!((msgs.mine_events[0].damage - 5.0).abs() < f64::EPSILON);
+        assert!(msgs.mine_events[1].damage.is_infinite());
+    }
+
+    #[test]
     fn bpm_absolute_parsed() {
         let msgs = parse_one("#00103:7F");
         assert_eq!(msgs.bpm_changes.len(), 1);
@@ -1133,6 +1170,32 @@ mod tests {
         let msgs = parse_one("#000SC:ZZ");
         assert_eq!(msgs.scroll_events.len(), 1);
         assert_eq!(msgs.scroll_events[0].scroll_id, "ZZ".try_into().unwrap());
+    }
+
+    #[test]
+    fn speed_event_parsed() {
+        let msgs = parse_one("#001SP:01");
+        assert_eq!(msgs.speed_events.len(), 1);
+        assert_eq!(msgs.speed_events[0].speed_id, "01".try_into().unwrap());
+    }
+
+    #[test]
+    fn speed_event_multiple_values() {
+        let msgs = parse_one("#001SP:010203");
+        assert_eq!(msgs.speed_events.len(), 3);
+        assert_eq!(msgs.speed_events[0].position.numer, 0);
+        assert_eq!(msgs.speed_events[1].position.numer, 1);
+        assert_eq!(msgs.speed_events[2].position.numer, 2);
+    }
+
+    #[test]
+    fn speed_event_zero_values_preserved() {
+        // SPEED channel does NOT filter "00" — it follows non-BGM merge semantics.
+        let msgs = parse_one("#001SP:AA00BB");
+        assert_eq!(msgs.speed_events.len(), 3);
+        assert_eq!(msgs.speed_events[0].speed_id, "AA".try_into().unwrap());
+        assert_eq!(msgs.speed_events[1].speed_id, "00".try_into().unwrap());
+        assert_eq!(msgs.speed_events[2].speed_id, "BB".try_into().unwrap());
     }
 
     #[test]

@@ -96,18 +96,18 @@ pub struct BmsIndex {
     bytes: [u8; 2],
 }
 
-// Custom comparison traits: case-insensitive.
+// Custom comparison traits: case-sensitive.
 //
-// Standard BMS (36-ary) treats `"AA"` and `"aa"` as the same index.
-// Only `#BASE 62` mode uses case-sensitive comparison.  The default
-// (no `#BASE` or `#BASE 36`) is always case-insensitive.
-//
-// For `#BASE 62` support, use `normalize(BmsBase::Base62)` before
-// comparison to preserve the original case.
+// Standard BMS (36-ary) normalises indices to uppercase in the parser
+// (`BmsIndex::normalize(BmsBase::Base36)`), so all stored keys are
+// uppercase.  Base62 mode preserves the original case.  Since all
+// insertion and lookup paths normalise consistently, the comparison
+// here is always **case-sensitive** — this is required for `#BASE 62`
+// where `"aa"` and `"AA"` must be distinct keys.
 
 impl PartialEq for BmsIndex {
     fn eq(&self, other: &Self) -> bool {
-        bytes_eq_ignore_case(self.bytes, other.bytes)
+        self.bytes == other.bytes
     }
 }
 
@@ -121,25 +121,14 @@ impl PartialOrd for BmsIndex {
 
 impl Ord for BmsIndex {
     fn cmp(&self, other: &Self) -> Ordering {
-        let a0 = self.bytes[0].to_ascii_uppercase();
-        let b0 = other.bytes[0].to_ascii_uppercase();
-        let a1 = self.bytes[1].to_ascii_uppercase();
-        let b1 = other.bytes[1].to_ascii_uppercase();
-        a0.cmp(&b0).then_with(|| a1.cmp(&b1))
+        self.bytes.cmp(&other.bytes)
     }
 }
 
 impl Hash for BmsIndex {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.bytes[0].to_ascii_uppercase().hash(state);
-        self.bytes[1].to_ascii_uppercase().hash(state);
+        self.bytes.hash(state);
     }
-}
-
-/// Compare two byte arrays case-insensitively (ASCII only).
-#[inline]
-const fn bytes_eq_ignore_case(a: [u8; 2], b: [u8; 2]) -> bool {
-    a[0].eq_ignore_ascii_case(&b[0]) && a[1].eq_ignore_ascii_case(&b[1])
 }
 
 #[expect(

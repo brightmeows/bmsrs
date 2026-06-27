@@ -6,7 +6,7 @@
 use bms_parser::*;
 use bms_tokenizer::{
     BmpIndex, BmsBase, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, Rank,
-    StopIndex, WavIndex,
+    ScrollIndex, SpeedIndex, StopIndex, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -634,4 +634,111 @@ fn parse_with_string_container() {
     );
     assert_eq!(bms.fallback_headers.len(), 1);
     assert_eq!(bms.fallback_headers[0], ("MYEXT".into(), "abc123".into()));
+}
+
+#[test]
+fn base62_wav_indices_case_sensitive() {
+    // In Base62 mode, WAVAA and WAVaa are distinct indices.
+    let bms = parse("#BASE 62\n#WAVAA kick.wav\n#WAVaa snare.wav\n#WAVaA hat.wav\n");
+    // All three should be stored separately.
+    assert_eq!(bms.audio.wav_files.len(), 3);
+    let aa: WavIndex = "AA".parse().unwrap();
+    let a_lower: WavIndex = "aa".parse().unwrap();
+    let a_cap_lower: WavIndex = "aA".parse().unwrap();
+    assert_eq!(
+        bms.audio.wav_files.get(&aa).map(String::as_str),
+        Some("kick.wav")
+    );
+    assert_eq!(
+        bms.audio.wav_files.get(&a_lower).map(String::as_str),
+        Some("snare.wav")
+    );
+    assert_eq!(
+        bms.audio.wav_files.get(&a_cap_lower).map(String::as_str),
+        Some("hat.wav")
+    );
+}
+
+#[test]
+fn base36_wav_indices_case_insensitive() {
+    // Standard mode (no #BASE 62): AA and aa map to the same index (last wins).
+    let bms = parse("#WAVAA kick.wav\n#WAVaa snare.wav\n");
+    assert_eq!(bms.audio.wav_files.len(), 1);
+    let idx: WavIndex = "AA".parse().unwrap();
+    assert_eq!(
+        bms.audio.wav_files.get(&idx).map(String::as_str),
+        Some("snare.wav")
+    );
+}
+
+#[test]
+fn bmspec_bpm_basic() {
+    // Equivalent to bmspec-1-05-BPM: #BPM 60, #00003:0078 → object at 3s.
+    // Parser-level: verify the BPM change is correctly parsed.
+    let bms = parse("#BPM 60\n#00003:0078");
+    assert_eq!(bms.timing.bpm, Some(60.0));
+    assert_eq!(bms.messages.bpm_changes.len(), 1);
+    match bms.messages.bpm_changes[0].value {
+        bms_parser::BpmValue::Absolute(v) => assert!((v - 120.0).abs() < f64::EPSILON),
+        bms_parser::BpmValue::Reference(_) => panic!("expected absolute BPM"),
+    }
+}
+
+#[test]
+fn bmspec_bpm_extended() {
+    // Equivalent to bmspec-1-05: #BPM 60, #BPM01 120, #00008:0001 → object at 3s.
+    // Verify the BPM def and channel reference.
+    let bms = parse("#BPM 60\n#BPM01 120\n#00008:0001");
+    assert_eq!(bms.timing.bpm, Some(60.0));
+    let bpm1: BpmIndex = "01".parse().unwrap();
+    assert_eq!(bms.timing.bpm_defs.get(&bpm1), Some(&120.0));
+    // #00008:0001 produces 2 events: "00" (reference to BPM00, typically
+    // undefined) and "01" (reference to BPM01=120).
+    assert_eq!(bms.messages.bpm_changes.len(), 2);
+}
+
+#[test]
+fn bmspec_stop_basic() {
+    // Equivalent to bmspec-1-06: #BPM 60, #STOP11 96, #00109:0011 → stop events.
+    let bms = parse("#BPM 60\n#STOP11 96\n#00111:01000200\n#00109:00110000");
+    let stop1: StopIndex = "11".parse().unwrap();
+    assert_eq!(bms.timing.stop_defs.get(&stop1), Some(&96.0));
+}
+
+#[test]
+fn bmspec_scroll_basic() {
+    // Equivalent to bmspec-3: #SCROLL02 0.5, #001SC:02 → scroll speed = 0.5.
+    let bms = parse("#SCROLL02 0.5\n#001SC:02");
+    let idx: ScrollIndex = "02".parse().unwrap();
+    assert!((bms.timing.scroll_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
+    assert_eq!(bms.messages.scroll_events.len(), 1);
+}
+
+#[test]
+fn bmspec_speed_without_channel() {
+    // Equivalent to bmspec-6: #SPEED01 0.5 without #001SP → no speed events.
+    let bms = parse("#SPEED01 0.5\n");
+    let idx: SpeedIndex = "01".parse().unwrap();
+    assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
+    assert!(bms.messages.speed_events.is_empty());
+}
+
+#[test]
+fn bmspec_speed_with_channel() {
+    // Equivalent to bmspec-6: #SPEED01 0.5, #001SP:0001 → speed event.
+    let bms = parse("#SPEED01 0.5\n#001SP:0001");
+    assert_eq!(bms.messages.speed_events.len(), 2);
+    let idx: SpeedIndex = "01".parse().unwrap();
+    assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
+}
+
+#[test]
+fn bmspec_timesig_positioning() {
+    // Equivalent to bmspec-1-04: #00102:0.750, #00111:0104 → object positions.
+    let bms = parse("#00102:0.750\n#00111:0104");
+    assert_eq!(bms.messages.measure_lengths.len(), 1);
+    assert!((bms.messages.measure_lengths[0].length_ratio - 0.75).abs() < f64::EPSILON);
+    assert_eq!(bms.messages.measure_lengths[0].measure, 1);
+    // Verify notes parsed: 2 events (01 and 04).
+    assert_eq!(bms.messages.note_events.len(), 2);
 }

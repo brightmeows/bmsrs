@@ -26,6 +26,19 @@ fn tokenize_comment_only() {
 }
 
 #[test]
+fn tokenize_semicolon_comment() {
+    let tokens: Vec<_> =
+        BmsTokenizer::new().tokenize::<_, &str>("; debug line\n#TITLE real\n  ; indented comment");
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(
+        tokens[0].1,
+        Ok(BmsToken::Header(BmsHeader::Metadata(
+            BmsHeaderMetadata::Title("real")
+        )))
+    ));
+}
+
+#[test]
 fn tokenize_single_header() {
     let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#TITLE My Song");
     assert_eq!(tokens.len(), 1);
