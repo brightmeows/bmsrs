@@ -1,17 +1,16 @@
-//! Unified event enumeration, format-extension traits.
+//! 统一事件枚举与格式扩展 trait。
 //!
-//! All timed events live in a single `Vec<Event<T, C>>` sorted by tick,
-//! enabling unified iteration and binary-search queries.
+//! 所有计时事件存放在单一的 `Vec<Event<T, C>>` 中，按脉冲排序，
+//! 支持统一迭代与二分查找。
 //!
-//! Generic parameters:
-//! - `T` — per-note extension data (carried on [`Event::Note`]).
-//! - `C` — format-specific custom event type (carried on [`Event::Custom`]).
+//! 泛型参数：
+//! - `T` —— 每音符扩展数据（携带于 [`Event::Note`]）。
+//! - `C` —— 格式特有的自定义事件类型（携带于 [`Event::Custom`]）。
 //!
-//! # Sorting
+//! # 排序
 //!
-//! Processors sort events by tick using a stable sort, so the relative
-//! order of events at the same tick is determined by insertion order.
-//! The convention is:
+//! 处理器使用稳定排序按脉冲对事件排序，因此同一脉冲上各事件的相对顺序
+//! 由插入顺序决定。约定如下：
 //!
 //! `Bar → Note/BGA/BGM → BPM → Stop → Scroll → Custom`
 
@@ -21,92 +20,91 @@ use crate::mode::{Lane, NoteSide};
 use crate::note::NoteKind;
 use crate::visual::BgaLayer;
 
-// Event enum
+// Event 枚举
 
-/// A single timed event in a chart.
+/// 谱面中的单个计时事件。
 ///
-/// Every variant has a `tick` field (or method) giving its absolute position
-/// in the chart timeline.  Use [`Event::tick`] for uniform access.
+/// 每个变体都含有一个 `tick` 字段（或方法），给出其在谱面时间线上的绝对
+/// 位置。统一访问请用 [`Event::tick`]。
 ///
-/// Processors must insert events in the desired same-tick order before
-/// sorting, because stable sort preserves insertion order.
+/// 处理器必须在排序前以期望的同脉冲顺序插入事件，因为稳定排序会保留
+/// 插入顺序。
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event<T, C: CustomEvent = NoCustomEvent> {
-    /// A playable note.
+    /// 可玩音符。
     Note {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
-        /// Which player side.
+        /// 玩家侧。
         side: NoteSide,
-        /// Which key/scratch/pedal.
+        /// 按键 / 转盘 / 踏板。
         lane: Lane,
-        /// Note kind (normal, long, mine, invisible).
+        /// 音符种类（普通、长音、地雷、不可见）。
         kind: NoteKind,
-        /// Audio asset index into [`crate::ChartData::audio_assets`], or `None`.
+        /// 指向 [`crate::ChartData::audio_assets`] 的音频素材索引，或 `None`。
         audio_index: Option<u32>,
-        /// Format-specific extension data (use `()` for no extensions).
+        /// 格式特有的扩展数据（无扩展时用 `()`）。
         ext: T,
     },
-    /// A BGM (background music) event — audio trigger, no gameplay interaction.
+    /// BGM（背景音乐）事件 —— 触发音频，不参与游玩交互。
     Bgm {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
-        /// Index into [`crate::ChartData::audio_assets`].
+        /// 指向 [`crate::ChartData::audio_assets`] 的索引。
         audio_index: u32,
     },
-    /// A BPM change.
+    /// BPM 变更。
     Bpm {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
-        /// New BPM value.
+        /// 新的 BPM 值。
         bpm: f64,
     },
-    /// A stop / pause event.
+    /// 停止 / 暂停事件。
     Stop {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
-        /// Stop duration in ticks.
+        /// 停止时长（脉冲数）。
         duration: u64,
     },
-    /// A scroll-speed multiplier change.
+    /// 滚动速度倍率变更。
     Scroll {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
-        /// Scroll speed multiplier (`1.0` = normal, negative = reverse).
+        /// 滚动速度倍率（`1.0` = 标准，负值 = 反向）。
         rate: f64,
     },
-    /// A visual note-spacing (SPEED) keyframe change.
+    /// 视觉音符间距（SPEED）关键帧变更。
     ///
-    /// Controls the visual density of notes between keyframes via linear
-    /// interpolation.  Unlike [`Scroll`](Self::Scroll) which affects the
-    /// scrolling speed, SPEED only affects how tightly notes are packed
-    /// on screen, independent of timing.
+    /// 通过线性插值控制关键帧之间音符的视觉密度。与影响滚动速度的
+    /// [`Scroll`](Self::Scroll) 不同，SPEED 仅影响音符在屏幕上排列的
+    /// 紧密程度，与计时无关。
     Speed {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
-        /// Spacing multiplier at this keyframe.
+        /// 此关键帧处的间距倍率。
         rate: f64,
     },
-    /// A BGA (background animation) display event.
+    /// BGA（背景动画）显示事件。
     Bga {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
-        /// Which BGA layer this event targets.
+        /// 此事件所针对的 BGA 图层。
         layer: BgaLayer,
-        /// Index into [`crate::ChartInfo::bga_resources`].
+        /// 指向 [`crate::ChartInfo::bga_resources`] 的索引。
         resource_id: u32,
     },
-    /// A bar line for visual display.
+    /// 用于视觉显示的小节线。
     Bar {
-        /// Tick position.
+        /// 脉冲位置。
         tick: u64,
     },
-    /// Format-specific custom event.
+    /// 格式特有的自定义事件。
     Custom(C),
 }
 
 impl<T, C: CustomEvent> Event<T, C> {
-    /// Returns the tick position of this event uniformly, regardless of variant.
+    /// 统一返回此事件的脉冲位置，与变体无关。
     #[must_use]
     pub fn tick(&self) -> u64 {
         match self {
@@ -125,29 +123,27 @@ impl<T, C: CustomEvent> Event<T, C> {
 
 // NoteExt trait
 
-/// Trait for format-specific per-note extension data.
+/// 格式特有的每音符扩展数据 trait。
 ///
-/// The built-in `()` implements this trait with no overhead.
+/// 内置的 `()` 以零开销实现此 trait。
 pub trait NoteExt: Clone + Debug + PartialEq + Default {}
 
 impl NoteExt for () {}
 
 // CustomEvent trait
 
-/// Trait for format-specific custom event types.
+/// 格式特有的自定义事件类型 trait。
 ///
-/// Custom events participate in the unified sorted timeline.
-/// The processor must insert them in the desired same-tick order before
-/// the stable sort.
+/// 自定义事件参与统一的已排序时间线。处理器必须在稳定排序前以期望的
+/// 同脉冲顺序插入它们。
 pub trait CustomEvent: Clone + Debug + PartialEq {
-    /// Tick position of this custom event.
+    /// 此自定义事件的脉冲位置。
     fn tick(&self) -> u64;
 }
 
-/// Sentinel type: no custom events.
+/// 哨兵类型：无自定义事件。
 ///
-/// The `Custom` variant is simply never constructed when
-/// `C = NoCustomEvent`.
+/// 当 `C = NoCustomEvent` 时，`Custom` 变体永远不会被构造。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NoCustomEvent;
 

@@ -1,35 +1,35 @@
-//! Visual elements: BGA layer types and resource declarations.
+//! 视觉元素：BGA 图层类型与资源声明。
 //!
-//! Bar lines, scroll changes, and BGA events are now part of the unified
-//! [`Event`](crate::Event) enum — see [`crate::Event::Bar`],
-//! [`crate::Event::Scroll`], and [`crate::Event::Bga`].
+//! 小节线、滚动变更与 BGA 事件现归入统一的 [`Event`](crate::Event)
+//! 枚举 —— 参见 [`crate::Event::Bar`]、[`crate::Event::Scroll`] 与
+//! [`crate::Event::Bga`]。
 
 use std::path::PathBuf;
 
-/// Which BGA layer a display event targets.
+/// 显示事件所针对的 BGA 图层。
 ///
-/// Layers are composited by the renderer in order:
-/// `Base` (bottom) → `Layer` → `Layer2` → `Poor` (top, on miss).
+/// 图层由渲染器按以下顺序合成：
+/// `Base`（底层）→ `Layer` → `Layer2` → `Poor`（顶层，未命中时显示）。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BgaLayer {
-    /// Base / primary background (channel `04`).
+    /// 基础 / 主背景（通道 `04`）。
     #[default]
     Base,
-    /// Miss / poor-performance layer (channels `05`, `06`).
+    /// 未命中 / POOR 表现图层（通道 `05`、`06`）。
     Poor,
-    /// Overlay layer composited on top of the primary BGA (channel `07`).
+    /// 叠加在主 BGA 之上的覆盖图层（通道 `07`）。
     Layer,
-    /// Secondary overlay layer (channel `0A`, nanasi extension).
+    /// 第二覆盖图层（通道 `0A`，nanasi 扩展）。
     ///
-    /// LAYER2 is composited on top of LAYER.
+    /// LAYER2 叠加在 LAYER 之上。
     Layer2,
 }
 
-/// A BGA resource (image or video file).
+/// BGA 资源（图片或视频文件）。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BgaResource {
-    /// Unique identifier within the chart.
+    /// 谱面内唯一标识符。
     pub id: u32,
-    /// File path relative to the chart file's directory.
+    /// 相对于谱面文件所在目录的文件路径。
     pub path: PathBuf,
 }

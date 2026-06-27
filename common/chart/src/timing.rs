@@ -1,74 +1,71 @@
-//! Timing track for tick ↔ Duration conversion.
+//! 用于脉冲 ↔ Duration 换算的计时轨。
 //!
-//! [`TimingTrack`] holds the initial BPM, BPM change events, and stop events.
-//! It provides [`TimingTrack::tick_to_duration`] and [`TimingTrack::duration_to_tick`]
-//! for converting between chart positions (ticks) and wall-clock time
-//! ([`Duration`]).
+//! [`TimingTrack`] 持有初始 BPM、BPM 变更事件与停止事件。它提供
+//! [`TimingTrack::tick_to_duration`] 与 [`TimingTrack::duration_to_tick`]
+//! 用于在谱面位置（脉冲）与实际时间（[`Duration`]）之间换算。
 //!
-//! Internal computation uses `f64` arithmetic (BPM values are inherently
-//! floating-point). The `f64` ↔ [`Duration`] conversion happens only at the
-//! public API boundary via [`Duration::from_secs_f64`] and
-//! [`Duration::as_secs_f64`].
+//! 内部计算使用 `f64` 运算（BPM 值本质上是浮点数）。`f64` ↔ [`Duration`]
+//! 的转换仅发生在公开 API 边界处，通过 [`Duration::from_secs_f64`] 与
+//! [`Duration::as_secs_f64`] 完成。
 
 use std::time::Duration;
 
-/// Timing information for converting tick positions to wall-clock time.
+/// 用于将脉冲位置换算为实际时间的计时信息。
 ///
-/// All events are at absolute tick positions. The processor is responsible
-/// for converting format-specific positions (BMSON pulses, BMS measures) to ticks.
+/// 所有事件都在绝对脉冲位置上。处理器负责将格式特有的位置
+/// （BMSON 脉冲、BMS 小节）换算为脉冲。
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TimingTrack {
-    /// Initial BPM at tick 0.
+    /// 脉冲 0 处的初始 BPM。
     pub init_bpm: f64,
-    /// BPM change events, sorted by tick ascending.
+    /// BPM 变更事件，按脉冲升序排列。
     pub bpm_changes: Vec<BpmChange>,
-    /// Stop (pause) events, sorted by tick ascending.
+    /// 停止（暂停）事件，按脉冲升序排列。
     pub stops: Vec<StopEvent>,
 }
 
-/// A BPM change event.
+/// BPM 变更事件。
 #[derive(Clone, Debug, PartialEq)]
 pub struct BpmChange {
-    /// Tick position where the BPM changes.
+    /// BPM 发生变更的脉冲位置。
     pub tick: u64,
-    /// New BPM (beats per minute).
+    /// 新的 BPM（每分钟拍数）。
     pub bpm: f64,
 }
 
-/// A stop (pause) event.
+/// 停止（暂停）事件。
 ///
-/// When the playback reaches `tick`, the scroll halts for `duration` ticks
-/// worth of time (at the current BPM). Multiple stops at the same tick
-/// accumulate.
+/// 当回放到达 `tick` 时，滚动暂停 `duration` 个脉冲的时长（按当前 BPM
+/// 计算）。同一脉冲上的多个停止会累加。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StopEvent {
-    /// Tick where the stop begins.
+    /// 停止开始的脉冲位置。
     pub tick: u64,
-    /// Duration in ticks.
+    /// 时长（脉冲数）。
     pub duration: u64,
 }
 
-/// Internal event representation for the merged timeline.
+/// 合并时间线的内部事件表示。
 #[derive(Clone, Copy)]
 enum TimingEvent {
-    /// BPM change — `is_stop = false` ensures BPM sorts before Stop at the same tick.
+    /// BPM 变更 —— `is_stop = false` 确保同一脉冲上 BPM 排在 Stop 之前。
     Bpm(f64),
-    /// Stop with duration in ticks.
+    /// 停止，时长以脉冲数表示。
     Stop(u64),
 }
 
 impl TimingEvent {
-    /// Returns `true` if this is a [`TimingEvent::Stop`].
+    /// 当此事件为 [`TimingEvent::Stop`] 时返回 `true`。
     const fn is_stop(self) -> bool {
         matches!(self, Self::Stop(_))
     }
 }
 
 impl TimingTrack {
-    /// Build a sorted event list from `bpm_changes` and stops.
+    /// 由 `bpm_changes` 与停止事件构造已排序的事件列表。
     ///
-    /// At the same tick, BPM changes sort before stops (per BMSON spec:
-    /// "speed will first change, then the music pauses").
+    /// 同一脉冲上，BPM 变更排在停止之前（依据 BMSON 规范：
+    /// "speed will first change, then the music pauses"）。
     fn build_events(&self) -> Vec<(u64, TimingEvent)> {
         let mut events: Vec<(u64, TimingEvent)> = Vec::new();
         for bc in &self.bpm_changes {
@@ -77,20 +74,20 @@ impl TimingTrack {
         for st in &self.stops {
             events.push((st.tick, TimingEvent::Stop(st.duration)));
         }
-        // Sort by tick, then BPM (false) before Stop (true).
+        // 按脉冲排序，再按 BPM（false）排在 Stop（true）之前。
         events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
         events
     }
 
-    /// Convert a tick position to wall-clock [`Duration`].
+    /// 将脉冲位置换算为实际时间 [`Duration`]。
     ///
-    /// At a tick with a stop event, the returned time is **before** the pause
-    /// (notes at that tick are activated before the pause, per BMSON spec).
-    /// Stops at ticks strictly before the target contribute their full pause time.
+    /// 在带有停止事件的脉冲上，返回的时间是暂停**之前**的时刻
+    /// （依据 BMSON 规范，该脉冲上的音符在暂停之前激活）。
+    /// 严格位于目标脉冲之前的停止贡献其完整暂停时长。
     ///
-    /// # Panics (debug only)
+    /// # Panic（仅 debug 构建）
     ///
-    /// In debug builds, asserts `resolution > 0` and `init_bpm > 0`.
+    /// debug 构建中断言 `resolution > 0` 与 `init_bpm > 0`。
     #[must_use]
     #[expect(
         clippy::cast_precision_loss,
@@ -119,7 +116,7 @@ impl TimingTrack {
             if *event_tick > tick {
                 break;
             }
-            // Advance playback to event_tick.
+            // 将回放推进到 event_tick。
             if *event_tick > current_tick {
                 let delta = (*event_tick - current_tick) as f64;
                 seconds += delta / res * 60.0 / current_bpm;
@@ -130,9 +127,8 @@ impl TimingTrack {
                     current_bpm = *bpm;
                 }
                 TimingEvent::Stop(duration) => {
-                    // Stop time is only counted when the stop is strictly before
-                    // the target tick. At the target tick itself, the time is
-                    // before the pause (per spec).
+                    // 仅当停止严格位于目标脉冲之前时才计入停止时间。
+                    // 在目标脉冲本身处，时间是暂停之前的时刻（依据规范）。
                     if *event_tick < tick {
                         seconds += *duration as f64 / res * 60.0 / current_bpm;
                     }
@@ -140,7 +136,7 @@ impl TimingTrack {
             }
         }
 
-        // Remaining time from the last event to the target tick.
+        // 从最后一个事件到目标脉冲的剩余时间。
         if tick > current_tick {
             let delta = (tick - current_tick) as f64;
             seconds += delta / res * 60.0 / current_bpm;
@@ -149,14 +145,14 @@ impl TimingTrack {
         Duration::from_secs_f64(seconds)
     }
 
-    /// Convert wall-clock [`Duration`] to the nearest tick position.
+    /// 将实际时间 [`Duration`] 换算为最近的脉冲位置。
     ///
-    /// This is the inverse of [`tick_to_duration`](Self::tick_to_duration).
-    /// Time spent in stops does not advance the tick.
+    /// 这是 [`tick_to_duration`](Self::tick_to_duration) 的逆运算。
+    /// 停止中消耗的时间不会推进脉冲。
     ///
-    /// # Panics (debug only)
+    /// # Panic（仅 debug 构建）
     ///
-    /// In debug builds, asserts `resolution > 0` and `init_bpm > 0`.
+    /// debug 构建中断言 `resolution > 0` 与 `init_bpm > 0`。
     #[must_use]
     #[expect(
         clippy::cast_precision_loss,
@@ -193,7 +189,7 @@ impl TimingTrack {
         let mut current_bpm = self.init_bpm;
 
         for (event_tick, event) in &events {
-            // Advance playback to event_tick.
+            // 将回放推进到 event_tick。
             if *event_tick > current_tick {
                 let delta_ticks = *event_tick - current_tick;
                 let delta_seconds = delta_ticks as f64 / res * 60.0 / current_bpm;
@@ -211,7 +207,7 @@ impl TimingTrack {
                 TimingEvent::Stop(stop_duration) => {
                     let stop_seconds = *stop_duration as f64 / res * 60.0 / current_bpm;
                     if stop_seconds >= remaining {
-                        // Target is within the stop — tick doesn't advance.
+                        // 目标位于停止内 —— 脉冲不推进。
                         return current_tick;
                     }
                     remaining -= stop_seconds;
@@ -219,7 +215,7 @@ impl TimingTrack {
             }
         }
 
-        // Target is beyond all events.
+        // 目标超出所有事件。
         current_tick + (remaining * res * current_bpm / 60.0).round() as u64
     }
 }

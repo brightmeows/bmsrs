@@ -52,6 +52,6 @@ fn last_tick_from_bgm_beyond_notes() {
 #[test]
 fn duration_constant_bpm() {
     let chart = make_test_chart(vec![note(480)]);
-    // 480 ticks at 120 BPM, resolution 240: 480/240 * 0.5 = 1.0s
+    // 120 BPM、分辨率 240 下 480 脉冲：480/240 * 0.5 = 1.0s
     assert_eq!(chart.data.duration(), std::time::Duration::from_secs(1));
 }

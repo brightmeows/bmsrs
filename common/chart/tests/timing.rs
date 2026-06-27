@@ -23,8 +23,8 @@ fn constant_bpm_120_one_beat_is_half_second() {
         bpm_changes: vec![],
         stops: vec![],
     };
-    // 240 ticks = 1 beat at resolution 240.
-    // At 120 BPM: 1 beat = 0.5s
+    // 分辨率 240 下 240 脉冲 = 1 拍。
+    // 120 BPM 下：1 拍 = 0.5s
     let result = timing.tick_to_duration(240, RES);
     assert_eq!(result, Duration::from_millis(500));
 }
@@ -50,7 +50,7 @@ fn bpm_change_at_tick_240() {
         }],
         stops: vec![],
     };
-    // 0-240 at 120 BPM = 0.5s, 240-480 at 60 BPM = 1.0s, total = 1.5s
+    // 0-240 在 120 BPM = 0.5s，240-480 在 60 BPM = 1.0s，合计 = 1.5s
     let result = timing.tick_to_duration(480, RES);
     assert_eq!(result, Duration::from_millis(1500));
 }
@@ -79,9 +79,9 @@ fn stop_before_target_adds_pause_time() {
             duration: 240,
         }],
     };
-    // 0-240 at 120 BPM = 0.5s
-    // Stop at 240: 240/240 * 60/120 = 0.5s
-    // 240-241 at 120 BPM = 1/480 s
+    // 0-240 在 120 BPM = 0.5s
+    // 240 处停止：240/240 * 60/120 = 0.5s
+    // 240-241 在 120 BPM = 1/480 s
     let result = timing.tick_to_duration(241, RES);
     let expected = 0.5 + 0.5 + 1.0 / 480.0;
     assert!((result.as_secs_f64() - expected).abs() < 1e-9);
@@ -117,8 +117,8 @@ fn multiple_stops_same_tick_accumulate() {
             },
         ],
     };
-    // Stop total = 1200 ticks at 120 BPM = 2.5s
-    // Tick 241 = 0.5 + 2.5 + 1/480
+    // 停止合计 = 1200 脉冲，120 BPM 下 = 2.5s
+    // 脉冲 241 = 0.5 + 2.5 + 1/480
     let result = timing.tick_to_duration(241, RES);
     let expected = 0.5 + 2.5 + 1.0 / 480.0;
     assert!((result.as_secs_f64() - expected).abs() < 1e-9);
@@ -167,7 +167,7 @@ fn duration_to_tick_bpm_change() {
         }],
         stops: vec![],
     };
-    // 1.5s -> tick 480 (0.5s at 120 + 1.0s at 60)
+    // 1.5s -> 脉冲 480（120 BPM 下 0.5s + 60 BPM 下 1.0s）
     assert_eq!(
         timing.duration_to_tick(Duration::from_millis(1500), RES),
         480
@@ -184,8 +184,8 @@ fn duration_to_tick_within_stop_returns_stop_tick() {
             duration: 240,
         }],
     };
-    // 0.5s = tick 240 (just reached stop)
-    // 0.6s = within stop -> still tick 240
+    // 0.5s = 脉冲 240（刚好到达停止）
+    // 0.6s = 位于停止内 -> 仍是脉冲 240
     assert_eq!(
         timing.duration_to_tick(Duration::from_millis(600), RES),
         240
