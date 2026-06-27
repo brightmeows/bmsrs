@@ -747,8 +747,12 @@ fn bmspec_6_speed_interpolation() {
     // keyframe 01: tick 960 (beat 4), rate 0.5
     assert!((player.spacing_at(960) - 0.5).abs() < 1e-9, "kf 01");
 
-    // keyframe 01→02 plateau: still 0.5
-    assert!((player.spacing_at(1200) - 0.5).abs() < 1e-9, "plateau");
+    // keyframe 01→02 插值: tick 1200 位于 960 与 1440 的中点
+    // 0.5 + (1.5 - 0.5) * 0.5 = 1.0
+    assert!(
+        (player.spacing_at(1200) - 1.0).abs() < 1e-9,
+        "linear interpolation midpoint"
+    );
 
     // keyframe 02: tick 1440 (beat 6), rate 1.5
     assert!((player.spacing_at(1440) - 1.5).abs() < 1e-9, "kf 02");

@@ -692,9 +692,9 @@ fn bmspec_bpm_extended() {
     assert_eq!(bms.timing.bpm, Some(60.0));
     let bpm1: BpmIndex = "01".parse().unwrap();
     assert_eq!(bms.timing.bpm_defs.get(&bpm1), Some(&120.0));
-    // #00008:0001 产生 2 个事件："00"（指向 BPM00 的引用，通常未定义）
-    // 与 "01"（指向 BPM01=120 的引用）。
-    assert_eq!(bms.messages.bpm_changes.len(), 2);
+    // #00008:0001 产生 1 个事件："00" 为休止（跳过），
+    // "01"（指向 BPM01=120 的引用）。
+    assert_eq!(bms.messages.bpm_changes.len(), 1);
 }
 
 #[test]

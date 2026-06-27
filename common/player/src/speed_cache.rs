@@ -53,7 +53,10 @@ impl SpeedCache {
     /// 两关键帧之间 → 线性插值。
     #[expect(clippy::indexing_slicing, reason = "idx checks bounds before access")]
     pub fn spacing_at(&self, tick: u64) -> f64 {
-        if self.keyframes.is_empty() || tick <= self.keyframes[0].tick {
+        if self.keyframes.is_empty() {
+            return 1.0;
+        }
+        if tick < self.keyframes[0].tick {
             return 1.0;
         }
 
@@ -138,9 +141,11 @@ mod tests {
         let events = make_speed_events(&[(960, 0.5), (1440, 1.5), (1920, 1.0)]);
         let cache = SpeedCache::build(&events);
         assert!((cache.spacing_at(960) - 0.5).abs() < 1e-9, "keyframe 01");
+        // keyframe 01→02 插值: tick 1200 位于 960 与 1440 的中点
+        // 0.5 + (1.5 - 0.5) * 0.5 = 1.0
         assert!(
-            (cache.spacing_at(1200) - 0.5).abs() < 1e-9,
-            "still 0.5 before next kf"
+            (cache.spacing_at(1200) - 1.0).abs() < 1e-9,
+            "interpolation midpoint"
         );
         assert!((cache.spacing_at(1440) - 1.5).abs() < 1e-9, "keyframe 02");
         // beat 7 = tick 1680: 75% between 1440(1.5) and 1920(1.0)
