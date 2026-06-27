@@ -1,37 +1,37 @@
-//! **bmson v0.2.1** (legacy) — camelCase field names, `EventNote` format.
+//! **bmson v0.2.1**（遗留）—— camelCase 字段名，`EventNote` 格式。
 //!
-//! Prior to v1.0.0 bmson used a mix of `camelCase` and `snake_case` field
-//! names, had a unified `EventNote` type that served both BPM and STOP
-//! events, and included a `k` field on `BarLine`.
+//! 在 v1.0.0 之前，bmson 混用 `camelCase` 和 `snake_case` 字段名，
+//! 使用统一的 `EventNote` 类型同时表示 BPM 和 STOP 事件，并在 `BarLine`
+//! 上包含 `k` 字段。
 //!
-//! # Conversions
+//! # 转换
 //!
-//! | Direction | Trait | Notes |
+//! | 方向 | Trait | 说明 |
 //! |---|---|---|
-//! | `v0::Bmson` → [`crate::Bmson`] | [`TryFrom`] | Discards `BarLine.k`; maps `EventNote` by context; maps `t`→`ln_type_hint`; fills defaults for missing v2 fields |
-//! | [`crate::Bmson`] → `v0::Bmson` | [`TryFrom`] | Merges `BpmEvent`+`StopEvent` back into `EventNote`; maps `ln_type_hint`→`t`; defaults for missing v0 fields |
+//! | `v0::Bmson` → [`crate::Bmson`] | [`TryFrom`] | 丢弃 `BarLine.k`；按上下文映射 `EventNote`；将 `t`→`ln_type_hint`；缺失的 v2 字段填充默认值 |
+//! | [`crate::Bmson`] → `v0::Bmson` | [`TryFrom`] | 将 `BpmEvent`+`StopEvent` 合并回 `EventNote`；将 `ln_type_hint`→`t`；缺失的 v0 字段填充默认值 |
 //!
 //! # Serde
 //!
-//! | v0 JSON | Rust field |
+//! | v0 JSON | Rust 字段 |
 //! |---|---|
-//! | `info` (key in Bmson) | `info` |
-//! | `lines` | `lines` (same key as v1) |
+//! | `info`（Bmson 中的键）| `info` |
+//! | `lines` | `lines`（与 v1 相同的键）|
 //! | `bpmNotes` | `bpm_notes` |
-//! | `stopEvents` / `stopNotes` | `stop_events` (both accepted) |
+//! | `stopEvents` / `stopNotes` | `stop_events`（两者都接受）|
 //! | `soundChannel` | `sound_channels` |
-//! | `bgaHeader` / `bgaNotes` / `layerNotes` / `poorNotes` | reused [`crate::BGA`] handles these |
-//! | `ID` (inside BGAHeader → handled in [`crate::BGAHeader`]) | `id` |
-//! | `lnType` (inside BmsonInfo) | `ln_type` |
-//! | `titleImage` (inside BmsonInfo) | `title_image` |
-//! | `t` (inside Note, beatoraja extension) | `t` |
+//! | `bgaHeader` / `bgaNotes` / `layerNotes` / `poorNotes` | 复用的 [`crate::BGA`] 处理 |
+//! | `ID`（BGAHeader 内部 → 在 [`crate::BGAHeader`] 中处理）| `id` |
+//! | `lnType`（BmsonInfo 内部）| `ln_type` |
+//! | `titleImage`（BmsonInfo 内部）| `title_image` |
+//! | `t`（Note 内部，beatoraja 扩展）| `t` |
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::{LnMode, ModeHint};
 
-/// Top-level bmson object in the legacy v0.2.1 schema.
+/// 遗留 v0.2.1 schema 中的顶层 bmson 对象。
 ///
 /// ```json
 /// {
@@ -46,14 +46,14 @@ use crate::{LnMode, ModeHint};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'a"))]
 pub struct Bmson<'a> {
-    /// Metadata object.
+    /// 元数据对象。
     pub info: BmsonInfo<'a>,
 
-    /// Bar lines (v0 includes the `k` field).
-    /// The JSON key is `"lines"` (same as v1/v2).
+    /// 小节线（v0 包含 `k` 字段）。
+    /// JSON 键为 `"lines"`（与 v1/v2 相同）。
     pub lines: Option<Vec<BarLine>>,
 
-    /// BPM change events (`bpmNotes` in JSON; nullable per spec).
+    /// BPM 变更事件（JSON 中为 `bpmNotes`；规范允许为 null）。
     #[serde(
         rename = "bpmNotes",
         default,
@@ -61,7 +61,7 @@ pub struct Bmson<'a> {
     )]
     pub bpm_notes: Vec<EventNote>,
 
-    /// Stop events (`stopEvents` or `stopNotes` in JSON; nullable per spec).
+    /// 停止事件（JSON 中为 `stopEvents` 或 `stopNotes`；规范允许为 null）。
     #[serde(
         rename = "stopEvents",
         alias = "stopNotes",
@@ -70,55 +70,55 @@ pub struct Bmson<'a> {
     )]
     pub stop_events: Vec<EventNote>,
 
-    /// Sound channels (`soundChannel` in JSON).
+    /// 音频通道（JSON 中为 `soundChannel`）。
     #[serde(rename = "soundChannel", default)]
     pub sound_channels: Vec<SoundChannel<'a>>,
 
-    /// Background animation data.
+    /// 背景动画数据。
     #[serde(rename = "bga")]
     pub bga: crate::BGA<'a>,
 
-    /// Scroll-speed events.
+    /// 滚动速度事件。
     #[serde(default)]
     pub scroll_events: Vec<crate::ScrollEvent>,
-    /// Mine channels.
+    /// 地雷通道。
     #[serde(default)]
     pub mine_channels: Vec<crate::MineChannel<'a>>,
-    /// Invisible-key channels.
+    /// 不可见按键通道。
     #[serde(default)]
     pub key_channels: Vec<crate::KeyChannel<'a>>,
 }
 
-/// Metadata object for v0.2.1.
+/// v0.2.1 的元数据对象。
 ///
-/// Many fields are optional here because early versions did not have them.
+/// 许多字段在此为可选，因为早期版本尚无这些字段。
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BmsonInfo<'a> {
-    /// Song title.
+    /// 乐曲标题。
     #[serde(borrow)]
     pub title: &'a str,
 
-    /// Subtitle.
+    /// 副标题。
     #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
     pub subtitle: Option<&'a str>,
 
-    /// Primary artist.
+    /// 主要艺术家。
     #[serde(borrow)]
     pub artist: &'a str,
 
-    /// Additional contributors (`["key:value", ...]`).
+    /// 其他贡献者（`["key:value", ...]`）。
     #[serde(default, deserialize_with = "crate::null_to_default")]
     pub subartists: Vec<&'a str>,
 
-    /// Genre.
+    /// 流派。
     #[serde(borrow)]
     pub genre: &'a str,
 
-    /// Game-mode hint (`modeHint` in JSON). Not present in original v0.
+    /// 游戏模式提示（JSON 中为 `modeHint`）。原始 v0 中不存在。
     #[serde(rename = "modeHint", default, skip_serializing_if = "Option::is_none")]
     pub mode_hint: Option<ModeHint>,
 
-    /// Chart name (`chartName` in JSON).
+    /// 谱面名称（JSON 中为 `chartName`）。
     #[serde(
         rename = "chartName",
         borrow,
@@ -127,24 +127,24 @@ pub struct BmsonInfo<'a> {
     )]
     pub chart_name: Option<&'a str>,
 
-    /// Numeric difficulty level.
+    /// 数值难度等级。
     ///
-    /// Unlike v1+ fields that were added later, `level` existed in v0.
+    /// 与后来添加的 v1+ 字段不同，`level` 在 v0 中即已存在。
     pub level: u64,
 
-    /// Initial BPM (`initBPM` in JSON).
+    /// 初始 BPM（JSON 中为 `initBPM`）。
     #[serde(rename = "initBPM")]
     pub init_bpm: f64,
 
-    /// Judgement rank (`judgeRank` in JSON, default 100).
+    /// 判定等级（JSON 中为 `judgeRank`，默认 100）。
     #[serde(rename = "judgeRank", default = "default_100")]
     pub judge_rank: f64,
 
-    /// Total (default 100).
+    /// 血量槽总量（默认 100）。
     #[serde(default = "default_100")]
     pub total: f64,
 
-    /// Background image (`backImage` in JSON).
+    /// 背景图片（JSON 中为 `backImage`）。
     #[serde(
         rename = "backImage",
         default,
@@ -153,7 +153,7 @@ pub struct BmsonInfo<'a> {
     )]
     pub back_image: Option<&'a Path>,
 
-    /// Eyecatch image (`eyecatchImage` in JSON).
+    /// 过场图 eyecatch（JSON 中为 `eyecatchImage`）。
     #[serde(
         rename = "eyecatchImage",
         default,
@@ -162,7 +162,7 @@ pub struct BmsonInfo<'a> {
     )]
     pub eyecatch_image: Option<&'a Path>,
 
-    /// Banner image (`bannerImage` in JSON).
+    /// 横幅图片（JSON 中为 `bannerImage`）。
     #[serde(
         rename = "bannerImage",
         default,
@@ -171,7 +171,7 @@ pub struct BmsonInfo<'a> {
     )]
     pub banner_image: Option<&'a Path>,
 
-    /// Preview music (`previewMusic` in JSON).
+    /// 预览音频（JSON 中为 `previewMusic`）。
     #[serde(
         rename = "previewMusic",
         default,
@@ -180,7 +180,7 @@ pub struct BmsonInfo<'a> {
     )]
     pub preview_music: Option<&'a Path>,
 
-    /// Title image (`titleImage` in JSON).
+    /// 标题图片（JSON 中为 `titleImage`）。
     #[serde(
         rename = "titleImage",
         default,
@@ -189,79 +189,79 @@ pub struct BmsonInfo<'a> {
     )]
     pub title_image: Option<&'a Path>,
 
-    /// Pulse resolution (default 240).
+    /// 节拍分辨率（默认 240）。
     #[serde(
         default = "crate::default_resolution",
         deserialize_with = "crate::deserialize_resolution_nonzero"
     )]
     pub resolution: u64,
 
-    /// Long-note type — beatoraja extension (`lnType` in JSON).
+    /// 长音类型 —— beatoraja 扩展（JSON 中为 `lnType`）。
     #[serde(rename = "lnType", default, skip_serializing_if = "Option::is_none")]
     pub ln_type: Option<LnMode>,
 }
 
-/// Default value 100.0 for `#[serde(default)]` on fields like `resolution`.
+/// `#[serde(default)]` 在 `resolution` 等字段上使用的默认值 100.0。
 const fn default_100() -> f64 {
     100.0
 }
 
-/// A bar line in the v0 schema.
+/// v0 schema 中的小节线。
 ///
-/// Has an extra field `k` that was removed in v1.0.0.
-/// The `k` field is optional — official samples omit it on some entries.
+/// 含有一个额外的 `k` 字段，在 v1.0.0 中被移除。
+/// `k` 字段是可选的 —— 官方示例在某些条目中省略了它。
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BarLine {
-    /// Pulse offset.
+    /// 脉冲偏移。
     pub y: u64,
-    /// Legacy field (removed in v1). Semantics are unspecified;
-    /// preserved for round-trip compatibility.
+    /// 遗留字段（v1 中已移除）。语义未指定；
+    /// 保留用于往返兼容。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k: Option<u64>,
 }
 
-/// A unified timing event used in v0.2.1 for both BPM changes and stops.
+/// v0.2.1 中用于 BPM 变更和停止的统一计时事件。
 ///
-/// In v1.0.0 this was split into [`crate::BpmEvent`] and [`crate::StopEvent`].
+/// 在 v1.0.0 中被拆分为 [`crate::BpmEvent`] 和 [`crate::StopEvent`]。
 ///
-/// | Array | `v` meaning |
+/// | 所属数组 | `v` 的含义 |
 /// |---|---|
-/// | `bpmNotes` | New BPM value |
-/// | `stopEvents` | Stop duration (in pulses) |
+/// | `bpmNotes` | 新的 BPM 值 |
+/// | `stopEvents` | 停止时长（脉冲数）|
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EventNote {
-    /// Pulse offset.
+    /// 脉冲偏移。
     pub y: u64,
-    /// Value: BPM (if in `bpmNotes`) or duration in pulses (if in `stopEvents`).
+    /// 值：BPM（在 `bpmNotes` 中时）或脉冲时长（在 `stopEvents` 中时）。
     pub v: f64,
 }
 
-/// A sound channel in the v0 schema.
+/// v0 schema 中的音频通道。
 ///
-/// Uses the field name `"notes"` (not `"note_events"` as in v2).
+/// 使用字段名 `"notes"`（而非 v2 的 `"note_events"`）。
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'a"))]
 pub struct SoundChannel<'a> {
-    /// Audio file name.
+    /// 音频文件名。
     #[serde(deserialize_with = "crate::de_path")]
     pub name: &'a Path,
-    /// Notes referencing this audio file.
+    /// 引用此音频文件的音符。
     pub notes: Vec<crate::NoteEvent>,
 }
 
 use crate::{BpmEvent, StopEvent};
 use crate::{ChartData, ChartInfo, SongInfo};
 
-/// Error type for v0 ↔ root conversion failures.
+/// v0 ↔ 根版本转换失败的错误类型。
 #[derive(Clone, Debug, derive_more::Display)]
 #[display("v0 conversion error: {message}")]
 pub struct TryFromV0Error {
-    /// Human-readable description of what went wrong.
+    /// 出错原因的人类可读描述。
     pub message: String,
 }
 
 impl TryFromV0Error {
-    /// Create a new conversion error with a descriptive message.
+    /// 使用描述性消息创建新的转换错误。
     #[must_use]
     #[inline]
     pub fn new(message: impl Into<String>) -> Self {
@@ -342,10 +342,10 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
                         .notes
                         .into_iter()
                         .map(|mut note| {
-                            // Map v0 't' field → v2 'ln_type_hint' if not already set.
+                            // 将 v0 't' 字段 → v2 'ln_type_hint'（如果尚未设置）。
                             if note.ln_type_hint.is_none() {
                                 note.ln_type_hint = note.t.as_ref().and_then(|t| match t {
-                                    LnMode::Hcn => None, // no LnType equivalent for HCN
+                                    LnMode::Hcn => None, // HCN 没有 LnType 等价物
                                     LnMode::Ln => Some(crate::LnType::Ln),
                                     LnMode::Cn => Some(crate::LnType::Cn),
                                 });
@@ -371,7 +371,7 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
     }
 }
 
-/// Converts v0 `BarLine` (with extra `k` field) to the common `BarLine`.
+/// 将 v0 `BarLine`（含额外 `k` 字段）转换为通用 `BarLine`。
 fn convert_bar_lines(lines: Vec<BarLine>) -> Vec<crate::BarLine> {
     lines
         .into_iter()
@@ -455,7 +455,7 @@ impl<'a> TryFrom<crate::Bmson<'a>> for Bmson<'a> {
                         .note_events
                         .into_iter()
                         .map(|mut note| {
-                            // Map v2 'ln_type_hint' → v0 't' if not already set.
+                            // 将 v2 'ln_type_hint' → v0 't'（如果尚未设置）。
                             if note.t.is_none() {
                                 note.t = note.ln_type_hint.as_ref().map(|h| match h {
                                     crate::LnType::Ln => LnMode::Ln,
@@ -475,10 +475,10 @@ impl<'a> TryFrom<crate::Bmson<'a>> for Bmson<'a> {
     }
 }
 
-/// Returns `None` for empty strings, `Some(s)` otherwise.
+/// 空字符串返回 `None`，否则返回 `Some(s)`。
 ///
-/// Used when converting from the root [`Bmson`] to [`v0::Bmson`](Bmson)
-/// to map empty `&str` fields to `None` (so they serialize as absent).
+/// 在从根 [`Bmson`] 转换为 [`v0::Bmson`](Bmson) 时使用，
+/// 将空的 `&str` 字段映射为 `None`（使其序列化时表现为缺失）。
 #[must_use]
 pub(crate) const fn some_if_nonempty(s: &str) -> Option<&str> {
     if s.is_empty() { None } else { Some(s) }

@@ -1,34 +1,34 @@
-//! Types and conversion utilities for the **bmson** chart format.
+//! **bmson** 谱面格式的类型定义与转换工具。
 //!
-//! Bmson is a JSON-based serialization format for BMS charts.
-//! The format has evolved through three versions:
+//! Bmson 是一种基于 JSON 的 BMS 谱面序列化格式。
+//! 该格式经历了三个版本的演进：
 //!
-//! | Version | Status | Distinguishing features |
+//! | 版本 | 状态 | 区分特征 |
 //! |---|---|---|
-//! | v0.2.1 (legacy) | [`v0`] submodule | CamelCase field names; unified `EventNote`; `BarLine.k` present |
-//! | v1.0.0 | [`v1`] submodule | `snake_case` field names; flat `Bmson` object |
-//! | v2.0.0-rc1 | this module | Split `SongInfo`+`ChartInfo`+`ChartData` |
+//! | v0.2.1（遗留）| [`v0`] 子模块 | CamelCase 字段名；统一的 `EventNote`；`BarLine` 含 `k` 字段 |
+//! | v1.0.0 | [`v1`] 子模块 | `snake_case` 字段名；扁平的 `Bmson` 对象 |
+//! | v2.0.0-rc1 | 本模块 | 拆分为 `SongInfo`+`ChartInfo`+`ChartData` |
 //!
-//! # Version conversions
+//! # 版本转换
 //!
-//! Each version module implements [`From`] / [`TryFrom`] for conversion to
-//! the root (v2) `Bmson`:
+//! 每个版本模块都实现了 [`From`] / [`TryFrom`]，用于转换到
+//! 根（v2）`Bmson`：
 //!
-//! - [`v1::Bmson`] → [`Bmson`] — `From` (infallible, values are mapped with reasonable defaults)
-//! - [`v0::Bmson`] → [`Bmson`] — `TryFrom` (some lossy mappings)
-//! - [`Bmson`] → [`v1::Bmson`] — `From`
-//! - [`Bmson`] → [`v0::Bmson`] — `TryFrom` (round-trip may lose extensions)
+//! - [`v1::Bmson`] → [`Bmson`] —— `From`（不会失败，按合理默认值映射）
+//! - [`v0::Bmson`] → [`Bmson`] —— `TryFrom`（部分映射有损）
+//! - [`Bmson`] → [`v1::Bmson`] —— `From`
+//! - [`Bmson`] → [`v0::Bmson`] —— `TryFrom`（往返转换可能丢失扩展字段）
 //!
-//! # Module layout
+//! # 模块布局
 //!
-//! | Module | Contents |
+//! | 模块 | 内容 |
 //! |---|---|
-//! | [`v0`] | v0.2.1 specific types (`EventNote`, `BarLine` with `k`, …) |
-//! | [`v1`] | v1.0.0 specific types (flat `Bmson`, `BmsonInfo`, …) |
-//! | this module | v2.0.0-rc1 types (`Bmson`, `SongInfo`, `ChartInfo`, `ChartData`) |
+//! | [`v0`] | v0.2.1 特有类型（`EventNote`、带 `k` 的 `BarLine` 等）|
+//! | [`v1`] | v1.0.0 特有类型（扁平 `Bmson`、`BmsonInfo` 等）|
+//! | 本模块 | v2.0.0-rc1 类型（`Bmson`、`SongInfo`、`ChartInfo`、`ChartData`）|
 //!
-//! Cross-version shared types ([`NoteEvent`], [`BpmEvent`], [`BGA`], …) are
-//! re-exported from the crate root and live in an internal `common` module.
+//! 跨版本共享的类型（[`NoteEvent`]、[`BpmEvent`]、[`BGA`] 等）从 crate 根
+//! re-export，定义在内部 `common` 模块中。
 
 pub mod v0;
 pub mod v1;
@@ -48,161 +48,154 @@ pub use common::{
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-/// Custom judgement window offsets introduced by the DJ.NEXT player.
+/// DJ.NEXT 播放器引入的自定义判定窗口偏移。
 ///
-/// Each field specifies an **additional** amount (in milliseconds) added
-/// to the player's default window for that judgement tier.
+/// 每个字段指定一个**额外**量（毫秒），加到播放器该判定等级的默认窗口上。
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JudgementDeltas {
-    /// Additional offset for the PERFECT window (ms).
+    /// PERFECT 窗口的额外偏移（毫秒）。
     pub perfect: u64,
-    /// Additional offset for the GREAT window (ms).
+    /// GREAT 窗口的额外偏移（毫秒）。
     pub great: u64,
-    /// Additional offset for the GOOD window (ms).
+    /// GOOD 窗口的额外偏移（毫秒）。
     pub good: u64,
-    /// Additional offset for the MISS window (ms).
+    /// MISS 窗口的额外偏移（毫秒）。
     pub miss: u64,
 }
 
-/// Custom life-gauge deltas introduced by the DJ.NEXT player.
+/// DJ.NEXT 播放器引入的自定义血量槽增量。
 ///
-/// Each field specifies the life change (as a percentage of the gauge)
-/// for that judgement tier.  Negative values drain life.
+/// 每个字段指定该判定等级的血量变化（以血量槽百分比表示）。
+/// 负值表示扣除血量。
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LifeDeltas {
-    /// Life change on PERFECT (percent, may be negative).
+    /// PERFECT 时的血量变化（百分比，可为负）。
     pub perfect: f64,
-    /// Life change on GREAT (percent, may be negative).
+    /// GREAT 时的血量变化（百分比，可为负）。
     pub great: f64,
-    /// Life change on GOOD (percent, may be negative).
+    /// GOOD 时的血量变化（百分比，可为负）。
     pub good: f64,
-    /// Life change on MISS (percent, may be negative).
+    /// MISS 时的血量变化（百分比，可为负）。
     pub miss: f64,
 }
 
-/// The root object of a bmson chart (v2.0.0-rc1 schema).
+/// bmson 谱面的根对象（v2.0.0-rc1 schema）。
 ///
-/// In v2 the flat `Bmson` from v1/v0 has been split into three sub-objects:
+/// 在 v2 中，v1/v0 的扁平 `Bmson` 被拆分为三个子对象：
 ///
-/// | Object | Role |
+/// | 对象 | 职责 |
 /// |---|---|---|
-/// | [`SongInfo`] | Musical metadata (title, artist, genre) |
-/// | [`ChartInfo`] | Per-chart metadata (difficulty, images, BGA) |
-/// | [`ChartData`] | Actual chart data (notes, timing, sound channels) |
+/// | [`SongInfo`] | 乐曲元数据（标题、艺术家、流派）|
+/// | [`ChartInfo`] | 谱面级元数据（难度、图片、BGA）|
+/// | [`ChartData`] | 实际谱面数据（音符、计时、音频通道）|
 ///
 ///
-/// # beatoraja extensions
+/// # beatoraja 扩展
 ///
-/// The optional fields `scroll_events`, `mine_channels` and `key_channels`
-/// are beatoraja-specific extensions and are not part of the core bmson
-/// specification.
+/// 可选字段 `scroll_events`、`mine_channels` 和 `key_channels`
+/// 是 beatoraja 特有的扩展，不属于 bmson 核心规范。
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bmson<'a> {
-    /// bmson format version string.
+    /// bmson 格式版本字符串。
     ///
-    /// Must be a valid `SemVer` string.  For v2 files the value is `"2.0.0"`.
-    /// If `version` is missing (`null`), the player should reject the file
-    /// or treat it as an older format.
+    /// 必须是合法的 `SemVer` 字符串。v2 文件的值为 `"2.0.0"`。
+    /// 如果 `version` 缺失（`null`），播放器应拒绝该文件或将其视为旧版本格式。
     ///
     #[serde(borrow)]
     pub version: &'a str,
 
-    /// Song-level metadata (title, artist, genre).
+    /// 乐曲级元数据（标题、艺术家、流派）。
     #[serde(rename = "song_info")]
     pub song_info: SongInfo<'a>,
 
-    /// Per-chart metadata (difficulty, images, BGA).
+    /// 谱面级元数据（难度、图片、BGA）。
     #[serde(rename = "chart_info")]
     pub chart_info: ChartInfo<'a>,
 
-    /// Chart data (notes, timing, sound channels).
+    /// 谱面数据（音符、计时、音频通道）。
     #[serde(rename = "chart_data")]
     pub chart_data: ChartData<'a>,
 
-    /// Scroll-speed change events (beatoraja 0.7.6+).
+    /// 滚动速度变更事件（beatoraja 0.7.6+）。
     #[serde(default)]
     pub scroll_events: Vec<ScrollEvent>,
 
-    /// Mine (landmine) channels (beatoraja extension).
+    /// 地雷（landmine）通道（beatoraja 扩展）。
     #[serde(default)]
     pub mine_channels: Vec<MineChannel<'a>>,
 
-    /// Invisible ("key") channels (beatoraja extension).
+    /// 不可见（"key"）通道（beatoraja 扩展）。
     #[serde(default)]
     pub key_channels: Vec<KeyChannel<'a>>,
 }
 
-/// Song-level metadata (v2.0.0-rc1).
+/// 乐曲级元数据（v2.0.0-rc1）。
 ///
-/// Extracted from the old `BmsonInfo` in v1.  Contains only the fields that
-/// describe the **composition itself** (not a specific chart).
+/// 从 v1 的旧 `BmsonInfo` 中提取。仅包含描述**乐曲本身**的字段
+/// （而非某个具体谱面）。
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SongInfo<'a> {
-    /// Song title.
+    /// 乐曲标题。
     ///
-    /// Players must display this as-is without splitting on delimiters
-    /// like `()` or `--`.
+    /// 播放器必须原样显示，不得按 `()` 或 `--` 等分隔符拆分。
     ///
     #[serde(borrow)]
     pub title: &'a str,
 
-    /// Primary artist.
+    /// 主要艺术家。
     ///
-    /// Usually the music composer.  May contain multiple names separated
-    /// by `vs`, `feat.`, etc.
+    /// 通常是音乐作曲者。可包含多个名字，以 `vs`、`feat.` 等分隔。
     ///
     #[serde(borrow)]
     pub artist: &'a str,
 
-    /// Song genre.
+    /// 乐曲流派。
     ///
     #[serde(borrow)]
     pub genre: &'a str,
 }
 
-/// Per-chart metadata (v2.0.0-rc1).
+/// 谱面级元数据（v2.0.0-rc1）。
 ///
-/// Carries difficulty information, display assets and BGA for one specific
-/// chart arrangement of a song.
+/// 承载某首乐曲的一个具体谱面编排的难度信息、显示素材和 BGA。
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChartInfo<'a> {
-    /// Chart subtitle.
+    /// 谱面副标题。
     ///
-    /// Displayed in a smaller font below [`SongInfo::title`].
-    /// May contain `\n` for multi-line subtitles.
+    /// 以较小字体显示在 [`SongInfo::title`] 下方。
+    /// 可包含 `\n` 实现多行副标题。
     ///
     #[serde(borrow, default)]
     pub subtitle: &'a str,
 
-    /// Contributors other than the primary artist.
+    /// 主要艺术家以外的贡献者。
     ///
-    /// Each entry has the form `"key:value"` where `key` is one of:
-    /// `music`, `vocal`, `chart`, `image`, `movie`, `other`.
-    /// If `key` is omitted it defaults to `other`.
+    /// 每个条目格式为 `"key:value"`，其中 `key` 取值之一为：
+    /// `music`、`vocal`、`chart`、`image`、`movie`、`other`。
+    /// 如果省略 `key`，则默认为 `other`。
     ///
     #[serde(default, deserialize_with = "null_to_default")]
     pub subartists: Vec<&'a str>,
 
-    /// Chart name / difficulty label.
+    /// 谱面名称 / 难度标签。
     ///
-    /// Examples: `"BEGINNER"`, `"HYPER"`, `"ANOTHER"`.
+    /// 示例：`"BEGINNER"`、`"HYPER"`、`"ANOTHER"`。
     ///
     #[serde(borrow, default)]
     pub chart_name: &'a str,
 
-    /// Numeric difficulty level.
+    /// 数值难度等级。
     ///
-    /// Must be ≥ 0.  For `beat-7k` mode the value is typically in the
-    /// range 1–12.
+    /// 必须 ≥ 0。`beat-7k` 模式下通常取值范围为 1–12。
     ///
     pub level: u64,
 
-    /// Background image displayed **during gameplay**.
+    /// **游玩时**显示的背景图片。
     ///
     #[serde(
         default,
@@ -211,7 +204,7 @@ pub struct ChartInfo<'a> {
     )]
     pub back_image: Option<&'a Path>,
 
-    /// Eyecatch image displayed **during song load**.
+    /// **乐曲加载时**显示的过场图（eyecatch）。
     ///
     #[serde(
         default,
@@ -220,9 +213,9 @@ pub struct ChartInfo<'a> {
     )]
     pub eyecatch_image: Option<&'a Path>,
 
-    /// Banner image used in **song-select and result screens**.
+    /// **选曲和结算界面**使用的横幅图片。
     ///
-    /// Recommended aspect ratio: 15 : 4 (e.g. 600×160).
+    /// 推荐宽高比：15 : 4（例如 600×160）。
     ///
     #[serde(
         default,
@@ -231,7 +224,7 @@ pub struct ChartInfo<'a> {
     )]
     pub banner_image: Option<&'a Path>,
 
-    /// Short preview audio file path.
+    /// 短预览音频文件路径。
     ///
     #[serde(
         default,
@@ -240,10 +233,10 @@ pub struct ChartInfo<'a> {
     )]
     pub preview_music: Option<&'a Path>,
 
-    /// Title image displayed **before gameplay starts**.
+    /// **游玩开始前**显示的标题图片。
     ///
-    /// Equivalent to `#BACKBMP` in the OADX+ skin system.
-    /// If absent, the player displays the title in its default font.
+    /// 等价于 OADX+ 皮肤系统中的 `#BACKBMP`。
+    /// 如果缺失，播放器以默认字体显示标题。
     #[serde(
         default,
         deserialize_with = "de_opt_path",
@@ -251,98 +244,96 @@ pub struct ChartInfo<'a> {
     )]
     pub title_image: Option<&'a Path>,
 
-    /// Background animation data.
+    /// 背景动画数据。
     #[serde(rename = "bga")]
     pub bga: BGA<'a>,
 }
 
-/// The actual chart data (v2.0.0-rc1).
+/// 实际谱面数据（v2.0.0-rc1）。
 ///
-/// Contains everything needed to play the chart: timing, notes, sound
-/// channels, LN hints, and optional DJ.NEXT extensions.
+/// 包含播放谱面所需的一切：计时、音符、音频通道、长音提示，
+/// 以及可选的 DJ.NEXT 扩展。
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'a"))]
 pub struct ChartData<'a> {
-    /// Game-mode hint.
+    /// 游戏模式提示。
     ///
-    /// Players should check this field to verify that the chart is
-    /// compatible with their input layout.
+    /// 播放器应检查此字段，确认谱面与其输入布局兼容。
     ///
     #[serde(default)]
     pub mode_hint: ModeHint,
 
-    /// Chart-level LN (long-note) type hint.
+    /// 谱面级长音（long-note）类型提示。
     ///
-    /// | Value | Meaning |
+    /// | 值 | 含义 |
     /// |---|---|
-    /// | `ln` | Judged on initial press only |
-    /// | `cn` | Judged on both press and release |
+    /// | `ln` | 仅在按下时判定 |
+    /// | `cn` | 在按下和释放时都判定 |
     ///
-    /// This can be overridden per-note via [`NoteEvent::ln_type_hint`].
+    /// 可通过 [`NoteEvent::ln_type_hint`] 按音符覆盖。
     ///
     #[serde(default)]
     pub ln_type_hint: LnType,
 
-    /// Chart-level LN judgement hint.
+    /// 谱面级长音判定提示。
     ///
-    /// | Value | Meaning |
+    /// | 值 | 含义 |
     /// |---|---|
-    /// | `normal` | Only the note itself is judged |
-    /// | `ticks` | Extra ticks are judged during the hold |
+    /// | `normal` | 仅判定音符本身 |
+    /// | `ticks` | 按住期间额外判定若干脉冲 |
     ///
     #[serde(default)]
     pub ln_judge_hint: LnJudge,
 
-    /// Chart-level LN life (gauge) hint.
+    /// 谱面级长音血量槽（life）提示。
     ///
-    /// | Value | Meaning |
+    /// | 值 | 含义 |
     /// |---|---|
-    /// | `normal` | Only the note itself restores life |
-    /// | `ticks` | Extra ticks restore life during the hold |
+    /// | `normal` | 仅音符本身恢复血量 |
+    /// | `ticks` | 按住期间额外脉冲恢复血量 |
     ///
     #[serde(default)]
     pub ln_life_hint: LnLife,
 
-    /// Initial BPM (beats per minute) at the start of the song.
+    /// 乐曲开始时的初始 BPM（每分钟拍数）。
     ///
-    /// If omitted the file is considered malformed.
+    /// 如果省略则视为文件格式错误。
     ///
     pub init_bpm: f64,
 
-    /// Judgement window multiplier (v2).
+    /// 判定窗口倍率（v2）。
     ///
-    /// Default: `1.00`.
+    /// 默认值：`1.00`。
     ///
-    /// | Value | Window width |
+    /// | 值 | 窗口宽度 |
     /// |---|---|
-    /// | `1.00` | Default (player-specific) |
-    /// | `>1.00` | Wider (easier) |
-    /// | `<1.00` | Narrower (harder) |
+    /// | `1.00` | 默认（因播放器而异）|
+    /// | `>1.00` | 更宽（更易）|
+    /// | `<1.00` | 更窄（更难）|
     ///
-    /// In v1 this was `judge_rank` (0–100 scale); the conversion is
-    /// `judge_multiplier = judge_rank / 100.0`.
+    /// 在 v1 中此字段为 `judge_rank`（0–100 量表）；转换公式为
+    /// `judge_multiplier = judge_rank / 100.0`。
     ///
     #[serde(default = "default_multiplier")]
     pub judge_multiplier: f64,
 
-    /// Life-gauge multiplier (v2).
+    /// 血量槽倍率（v2）。
     ///
-    /// Default: `1.00`.
+    /// 默认值：`1.00`。
     ///
-    /// Values >1.00 make the gauge fill faster; values <1.00 make it
-    /// fill slower.  Must be ≥ 0.  In v1 this was `total` (0–100 scale);
-    /// the conversion is `life_multiplier = total / 100.0`.
+    /// 大于 1.00 的值使血量槽充能更快；小于 1.00 的值使充能更慢。
+    /// 必须 ≥ 0。在 v1 中此字段为 `total`（0–100 量表）；转换公式为
+    /// `life_multiplier = total / 100.0`。
     ///
     #[serde(default = "default_multiplier")]
     pub life_multiplier: f64,
 
-    /// Ticks per quarter-note (pulse resolution).
+    /// 每四分音符的脉冲数（节拍分辨率）。
     ///
-    /// Default: `240`.  Must be > 0.
+    /// 默认值：`240`。必须 > 0。
     ///
-    /// 240 is the LCM of 48 (common BMS resolution) and 5, allowing
-    /// quintuplet rhythms.
+    /// 240 是 48（常见 BMS 分辨率）与 5 的最小公倍数，可支持五连音节奏。
     ///
     #[serde(
         default = "default_resolution",
@@ -350,96 +341,92 @@ pub struct ChartData<'a> {
     )]
     pub resolution: u64,
 
-    /// Bar-line positions (measure boundaries).
+    /// 小节线位置（小节边界）。
     ///
-    /// `None` → auto-generate 4/4 bar lines.
-    /// `Some([])` → no bar lines displayed.
+    /// `None` → 自动生成 4/4 小节线。
+    /// `Some([])` → 不显示小节线。
     ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lines: Option<Vec<BarLine>>,
 
-    /// BPM change events.
+    /// BPM 变更事件。
     ///
-    /// The spec marks this field as nullable (`BpmEvent[]?`);
-    /// `null` is treated as an empty array.
+    /// 规范将此字段标记为可空（`BpmEvent[]?`）；
+    /// `null` 视为空数组。
     ///
     #[serde(default, deserialize_with = "null_to_default")]
     pub bpm_events: Vec<BpmEvent>,
 
-    /// Stop (pause) events.
+    /// 停止（暂停）事件。
     ///
-    /// The spec marks this field as nullable (`StopEvent[]?`);
-    /// `null` is treated as an empty array.
+    /// 规范将此字段标记为可空（`StopEvent[]?`）；
+    /// `null` 视为空数组。
     ///
     #[serde(default, deserialize_with = "null_to_default")]
     pub stop_events: Vec<StopEvent>,
 
-    /// Sound channels — each bundles an audio file with its notes.
+    /// 音频通道 —— 每个通道将一个音频文件与其音符绑定在一起。
     #[serde(default)]
     pub sound_channels: Vec<SoundChannel<'a>>,
 
-    /// Custom judgement window offsets (DJ.NEXT extension).
+    /// 自定义判定窗口偏移（DJ.NEXT 扩展）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub judge_deltas: Option<JudgementDeltas>,
 
-    /// Custom life-gauge deltas (DJ.NEXT extension).
+    /// 自定义血量槽增量（DJ.NEXT 扩展）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub life_deltas: Option<LifeDeltas>,
 }
 
-/// Errors that can occur during bmson version detection or format
-/// conversion.
+/// bmson 版本检测或格式转换时可能发生的错误。
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum BmsonError {
-    /// Version string is present but not recognized.
+    /// 版本字符串存在但无法识别。
     ///
-    /// Only versions starting with `"0"` (v0.2.1 legacy), `"1"` (v1.0.0),
-    /// or `"2"` (v2.0.0-rc1) are supported.
+    /// 仅支持以 `"0"`（v0.2.1 遗留）、`"1"`（v1.0.0）或 `"2"`（v2.0.0-rc1）
+    /// 开头的版本。
     #[error("unknown bmson version: {0}")]
     UnknownVersion(String),
 
-    /// Conversion from the legacy v0.2.1 format failed.
+    /// 从遗留 v0.2.1 格式的转换失败。
     #[error("v0 conversion error: {0}")]
     V0Conversion(String),
 }
 
-/// Detected bmson format version, determined by inspecting the
-/// `"version"` field of a JSON chart file.
+/// 检测到的 bmson 格式版本，通过检查 JSON 谱面文件的 `"version"` 字段确定。
 ///
-/// | Variant | Detection cue |
+/// | 变体 | 检测依据 |
 /// |---|---|
-/// | [`V0`](DetectedVersion::V0) | No `"version"` field present (legacy) |
-/// | [`V1`](DetectedVersion::V1) | `"version"` starts with `"1"` |
-/// | [`V2`](DetectedVersion::V2) | `"version"` starts with `"2"` |
+/// | [`V0`](DetectedVersion::V0) | 无 `"version"` 字段（遗留）|
+/// | [`V1`](DetectedVersion::V1) | `"version"` 以 `"1"` 开头 |
+/// | [`V2`](DetectedVersion::V2) | `"version"` 以 `"2"` 开头 |
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetectedVersion {
-    /// v0.2.1 (legacy, no `version` field).
+    /// v0.2.1（遗留，无 `version` 字段）。
     V0,
-    /// v1.0.0 (flat schema).
+    /// v1.0.0（扁平 schema）。
     V1,
-    /// v2.0.0-rc1 (split schema).
+    /// v2.0.0-rc1（拆分 schema）。
     V2,
 }
 
-/// Detect the bmson format version of a JSON chart file by scanning
-/// its `"version"` field.
+/// 通过扫描 JSON 谱面文件的 `"version"` 字段来检测 bmson 格式版本。
 ///
-/// This performs a **lightweight string scan** rather than a full JSON
-/// parse, making it suitable as a first pass before dispatching to
-/// a version-specific deserializer.
+/// 此函数执行**轻量级字符串扫描**而非完整 JSON 解析，因此适合作为
+/// 分发到版本特有反序列化器之前的第一步。
 ///
-/// # Detection logic
+/// # 检测逻辑
 ///
-/// 1. Search for the literal `"version"` key in the JSON text.
-/// 2. If found, extract the string value after the colon.
-/// 3. If the value starts with `'2'` → [`V2`](DetectedVersion::V2).
-/// 4. If the value starts with `'1'` → [`V1`](DetectedVersion::V1).
-/// 5. If the value starts with `'0'` → [`V0`](DetectedVersion::V0).
-/// 6. Otherwise → [`BmsonError::UnknownVersion`].
-/// 7. If `"version"` is absent → [`V0`](DetectedVersion::V0) (legacy).
+/// 1. 在 JSON 文本中搜索字面量 `"version"` 键。
+/// 2. 如果找到，提取冒号后的字符串值。
+/// 3. 如果值以 `'2'` 开头 → [`V2`](DetectedVersion::V2)。
+/// 4. 如果值以 `'1'` 开头 → [`V1`](DetectedVersion::V1)。
+/// 5. 如果值以 `'0'` 开头 → [`V0`](DetectedVersion::V0)。
+/// 6. 否则 → [`BmsonError::UnknownVersion`]。
+/// 7. 如果 `"version"` 不存在 → [`V0`](DetectedVersion::V0)（遗留）。
 ///
-/// # Example
+/// # 示例
 ///
 /// ```rust
 /// # use bmson_def::DetectedVersion;
@@ -449,31 +436,30 @@ pub enum DetectedVersion {
 ///
 /// # Errors
 ///
-/// Returns [`BmsonError::UnknownVersion`] when a `"version"` field is
-/// found but its value is not a string or does not start with `'0'`,
-/// `'1'` or `'2'`.
+/// 当找到 `"version"` 字段但其值不是字符串，或不以 `'0'`、`'1'`、`'2'`
+/// 开头时，返回 [`BmsonError::UnknownVersion`]。
 #[expect(
     clippy::string_slice,
     reason = "JSON bytes for \"version\" key and ASCII version strings; byte indexing is safe"
 )]
 pub fn detect_version(json: &str) -> Result<DetectedVersion, BmsonError> {
-    // Find the `"version"` key by scanning for the literal substring.
+    // 扫描字面量子串以查找 `"version"` 键。
     let Some(key_pos) = json.find("\"version\"") else {
         return Ok(DetectedVersion::V0);
     };
 
     let mut rest = &json[key_pos + 9..];
-    // Skip whitespace and expect `:`.
+    // 跳过空白，预期 `:`。
     rest = rest.trim_start();
     rest = rest.strip_prefix(':').ok_or_else(|| {
         BmsonError::UnknownVersion("malformed version field: expected ':'".into())
     })?;
-    // Skip whitespace and expect opening `"`.
+    // 跳过空白，预期开头的 `"`。
     rest = rest.trim_start();
     rest = rest.strip_prefix('"').ok_or_else(|| {
         BmsonError::UnknownVersion("malformed version field: expected string".into())
     })?;
-    // Find the closing `"`.
+    // 查找闭合的 `"`。
     let end = rest
         .find('"')
         .ok_or_else(|| BmsonError::UnknownVersion("unterminated version string".into()))?;

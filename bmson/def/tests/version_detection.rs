@@ -186,7 +186,7 @@ fn detect_v1_with_mode_hint() {
 
 #[test]
 fn detect_version_string_with_extra_whitespace() {
-    // The scanner handles whitespace between "version" and the value.
+    // 扫描器处理 "version" 与值之间的空白。
     let json = r#"{  "version"  :  "2.0.0"  ,"song_info":{}}"#;
     assert_eq!(
         bmson_def::detect_version(json).unwrap(),
@@ -205,7 +205,7 @@ fn detect_version_first_in_object() {
 
 #[test]
 fn detect_version_not_first_key() {
-    // version field may appear after other fields
+    // version 字段可能出现在其他字段之后
     let json = r#"{"x":1,"version":"2.0.0","y":2}"#;
     assert_eq!(
         bmson_def::detect_version(json).unwrap(),
