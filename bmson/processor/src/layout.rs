@@ -1,17 +1,16 @@
 //! BMSON mode-family layouts: `x`-value-to-lane mapping using [`BmsonLayout`].
 //!
 //! Each family is expressed as a zero-sized newtype that maps a sound-channel
-//! `x` value to a [`NoteData`] note position.  Stateful decoders (e.g.
+//! `x` value to a `(NoteSide, Lane)` pair.  Stateful decoders (e.g.
 //! [`GenericLayout`] for `generic-nkeys`) are standalone structs with an
 //! inherent `map_x` method.
 
 use std::num::NonZeroU8;
 
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::note::{NoteData, NoteKind};
 
 /// BMSON-side mapping: decodes a sound-channel `x` value into a
-/// [`NoteData`] position (side + lane; kind is set to [`NoteKind::Normal`]).
+/// `(NoteSide, Lane)` pair.
 ///
 /// `None` discards the note. Only stateless families implement this trait;
 /// stateful decoders (e.g. [`GenericLayout`]) have their own `map_x` method
@@ -19,7 +18,7 @@ use bmsrs_chart::note::{NoteData, NoteKind};
 pub trait BmsonLayout {
     /// Map a BMSON player channel `x` to the note's position.
     #[must_use]
-    fn map_x(x: u64) -> Option<NoteData>;
+    fn map_x(x: u64) -> Option<(NoteSide, Lane)>;
 }
 
 /// Construct a `NonZeroU8` from a value known to be ≥ 1 at the call site.
@@ -46,35 +45,19 @@ impl Beat {
         reason = "x bounded by match arms to ≤16"
     )]
     #[must_use]
-    pub fn from_bmson(x: u64) -> Option<NoteData> {
+    pub fn from_bmson(x: u64) -> Option<(NoteSide, Lane)> {
         match x {
-            1..=7 => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(x as u8)?),
-                kind: NoteKind::Normal,
-            }),
-            8 => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Scratch(nz(1)?),
-                kind: NoteKind::Normal,
-            }),
-            9..=15 => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Key(nz((x - 8) as u8)?),
-                kind: NoteKind::Normal,
-            }),
-            16 => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Scratch(nz(1)?),
-                kind: NoteKind::Normal,
-            }),
+            1..=7 => Some((NoteSide::P1, Lane::Key(nz(x as u8)?))),
+            8 => Some((NoteSide::P1, Lane::Scratch(nz(1)?))),
+            9..=15 => Some((NoteSide::P2, Lane::Key(nz((x - 8) as u8)?))),
+            16 => Some((NoteSide::P2, Lane::Scratch(nz(1)?))),
             _ => None,
         }
     }
 }
 
 impl BmsonLayout for Beat {
-    fn map_x(x: u64) -> Option<NoteData> {
+    fn map_x(x: u64) -> Option<(NoteSide, Lane)> {
         Self::from_bmson(x)
     }
 }
@@ -91,20 +74,16 @@ impl Pms {
         reason = "x bounded by match arm to ≤9"
     )]
     #[must_use]
-    pub fn from_bmson(x: u64) -> Option<NoteData> {
+    pub fn from_bmson(x: u64) -> Option<(NoteSide, Lane)> {
         match x {
-            1..=9 => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(x as u8)?),
-                kind: NoteKind::Normal,
-            }),
+            1..=9 => Some((NoteSide::P1, Lane::Key(nz(x as u8)?))),
             _ => None,
         }
     }
 }
 
 impl BmsonLayout for Pms {
-    fn map_x(x: u64) -> Option<NoteData> {
+    fn map_x(x: u64) -> Option<(NoteSide, Lane)> {
         Self::from_bmson(x)
     }
 }
@@ -127,15 +106,11 @@ pub struct GenericLayout {
 impl GenericLayout {
     /// Map a BMSON `x` value to a note position for this key count.
     #[must_use]
-    pub fn map_x(&self, x: u64) -> Option<NoteData> {
+    pub fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         if !(1..=u64::from(self.keys)).contains(&x) {
             return None;
         }
         let n = nz(u8::try_from(x).ok()?)?;
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: Lane::Key(n),
-            kind: NoteKind::Normal,
-        })
+        Some((NoteSide::P1, Lane::Key(n)))
     }
 }

@@ -11,22 +11,28 @@
 //! (default 240). Wall-clock time is derived via
 //! [`TimingTrack::tick_to_duration`][timing::TimingTrack::tick_to_duration].
 //!
-//! # Generic note data
+//! # Unified event timeline
 //!
-//! [`Chart<T>`][Chart] is parameterised by a [`NoteData`] type `T`.
-//! The default is [`NoteData`] (position triple + kind).
-//! Custom types can carry format-specific extensions (volume, pan, LN mode, etc.).
+//! All timed events live in a single [`events`][Chart::events] vector,
+//! sorted by tick.  Each variant of the [`Event`] enum represents a
+//! different kind of event (note, BGM, BPM change, stop, scroll, BGA,
+//! bar line, or format-specific custom event).
+//!
+//! # Generic parameters
+//!
+//! - `T: NoteExt` — per-note extension data (default `()`).
+//! - `C: CustomEvent` — format-specific custom event type (default
+//!   [`NoCustomEvent`]).
 //!
 //! # Example
 //!
 //! ```
 //! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
-//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, NoteSide,
-//!     TimingTrack, Bga,
+//!     Chart, ChartMetadata, Event, Lane, NoteKind, NoteSide, TimingTrack,
 //! };
 //!
-//! let chart = Chart {
+//! let chart: Chart = Chart {
 //!     metadata: ChartMetadata {
 //!         title: "Test".into(),
 //!         ..Default::default()
@@ -39,36 +45,34 @@
 //!     },
 //!     judge_multiplier: 1.0,
 //!     life_multiplier: 1.0,
-//!     notes: vec![Note {
+//!     events: vec![Event::Note {
 //!         tick: 0,
-//!         audio: None,
-//!         data: NoteData {
-//!             side: NoteSide::P1,
-//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!             kind: NoteKind::Normal,
-//!         },
+//!         side: NoteSide::P1,
+//!         lane: Lane::Key(NonZeroU8::new(1).unwrap()),
+//!         kind: NoteKind::Normal,
+//!         audio_index: None,
+//!         ext: (),
 //!     }],
-//!     bgm: vec![],
 //!     audio_assets: vec![],
-//!     bar_lines: vec![],
-//!     scroll_events: vec![],
-//!     bga: Bga::default(),
+//!     bga_resources: vec![],
 //! };
 //! assert_eq!(chart.resolution, 240);
-//! assert_eq!(chart.notes.len(), 1);
+//! assert_eq!(chart.events.len(), 1);
 //! ```
 
 pub mod audio;
+pub mod event;
 pub mod mode;
 pub mod note;
 pub mod timing;
 pub mod visual;
 
-pub use audio::{AudioAsset, BgmEvent};
+pub use audio::AudioAsset;
+pub use event::{CustomEvent, Event, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
-pub use note::{Note, NoteData, NoteDataLike, NoteKind};
+pub use note::NoteKind;
 pub use timing::{BpmChange, StopEvent, TimingTrack};
-pub use visual::{BarLine, Bga, BgaResource, BgaTimelineEvent, ScrollChangeEvent};
+pub use visual::{BgaLayer, BgaResource};
 
 /// Chart metadata (song and difficulty information).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -92,8 +96,9 @@ pub struct ChartMetadata {
 /// Format-agnostic rhythm game chart.
 ///
 /// Produced by format processors and consumed by the player.
-/// All event vectors should be sorted by tick ascending — processors
-/// guarantee this, and the player relies on it for binary-search queries.
+/// All events are in a single vector sorted by tick ascending —
+/// processors guarantee this, and the player relies on it for
+/// binary-search queries.
 ///
 /// Each note carries its position as `(NoteSide, Lane)` directly, so the
 /// chart needs no separate mode field.
@@ -105,10 +110,11 @@ pub struct ChartMetadata {
 /// | `metadata` | BMSON `SongInfo`/`ChartInfo` or BMS `Metadata` |
 /// | `resolution` | BMSON `resolution` or processor-chosen (240 for BMS) |
 /// | `timing` | BMSON `bpm_events`/`stop_events` or BMS `timing`/`messages` |
-/// | `notes` | BMSON `sound_channels` or BMS `messages` |
+/// | `events` | unified timeline from all source events |
 /// | `audio_assets` | BMSON sliced sound channels or BMS WAV table |
+/// | `bga_resources` | BGA resource declarations |
 #[derive(Clone, Debug, PartialEq)]
-pub struct Chart<T: NoteDataLike = NoteData> {
+pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// Song and chart metadata.
     pub metadata: ChartMetadata,
 
@@ -124,54 +130,23 @@ pub struct Chart<T: NoteDataLike = NoteData> {
     /// Life gauge multiplier (`1.0` = normal).
     pub life_multiplier: f64,
 
-    /// Playable notes, sorted by tick ascending.
-    pub notes: Vec<Note<T>>,
+    /// All timed events, sorted by tick ascending.
+    pub events: Vec<Event<T, C>>,
 
-    /// BGM audio events (audio-only, no gameplay), sorted by tick.
-    pub bgm: Vec<BgmEvent>,
-
-    /// Audio assets referenced by notes and BGM events.
+    /// Audio assets referenced by note and BGM events.
     pub audio_assets: Vec<AudioAsset>,
 
-    /// Bar line positions for visual display.
-    pub bar_lines: Vec<BarLine>,
-
-    /// Scroll-speed change events.
-    pub scroll_events: Vec<ScrollChangeEvent>,
-
-    /// Background animation data.
-    pub bga: Bga,
+    /// BGA resource declarations (image/video files).
+    pub bga_resources: Vec<BgaResource>,
 }
 
-impl<T: NoteDataLike> Chart<T> {
-    /// Returns the last tick position of any event in the chart
-    /// (notes, BGM, bar lines, BGA).
+impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
+    /// Returns the last tick position of any event in the chart.
     ///
     /// Useful for computing total chart duration.
     #[must_use]
-    #[expect(
-        clippy::missing_inline_in_public_items,
-        reason = "moderate size; compiler can decide inlining"
-    )]
     pub fn last_tick(&self) -> u64 {
-        let note_last = self.notes.last().map_or(0, |n| n.tick);
-        let bgm_last = self.bgm.last().map_or(0, |e| e.tick);
-        let bar_last = self.bar_lines.last().map_or(0, |b| b.tick);
-        let bga_final = self
-            .bga
-            .events
-            .iter()
-            .chain(self.bga.layer_events.iter())
-            .chain(self.bga.poor_events.iter())
-            .map(|e| e.tick)
-            .max()
-            .unwrap_or(0);
-        let scroll_last = self.scroll_events.last().map_or(0, |s| s.tick);
-        note_last
-            .max(bgm_last)
-            .max(bar_last)
-            .max(bga_final)
-            .max(scroll_last)
+        self.events.last().map_or(0, Event::tick)
     }
 
     /// Returns the total duration of the chart.

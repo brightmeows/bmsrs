@@ -7,7 +7,7 @@ use bms_processor::BmsProcessor;
 use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
 use bms_tokenizer::{BpmIndex, LnObjIndex};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{Note, NoteData, NoteDataLike as _, NoteKind};
+use bmsrs_chart::{Event, NoteKind};
 
 /// Shorthand to construct a valid [`BmsChannel`] in tests.
 fn ch(player: u8, lane: u8) -> BmsChannel {
@@ -35,102 +35,35 @@ const PEDAL: Lane = Lane::FootPedal;
 fn bme_maps_key7_channel_19() {
     // Regression: the old Beat7k match `(1, 1..=8)` silently dropped
     // channel 19 (decoded lane 9, i.e. KEY7). Bme must map it to Key(7).
-    assert_eq!(
-        Bme::map_channel(ch(1, 9)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key(7),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(Bme::map_channel(ch(1, 9)), Some((NoteSide::P1, key(7))));
 }
 
 #[test]
 fn bme_maps_both_player_sides() {
+    assert_eq!(Bme::map_channel(ch(2, 6)), Some((NoteSide::P2, sc(1))));
     assert_eq!(
         Bme::map_channel(ch(2, 6)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: sc(1),
-            kind: NoteKind::Normal
-        })
+        Some((NoteSide::P2, Lane::Scratch(NonZeroU8::new(1).unwrap())))
     );
-    assert_eq!(
-        Bme::map_channel(ch(2, 6)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: Lane::Scratch(NonZeroU8::new(1).unwrap()),
-            kind: NoteKind::Normal
-        })
-    );
-    assert_eq!(
-        Bme::map_channel(ch(2, 9)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: key(7),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(Bme::map_channel(ch(2, 9)), Some((NoteSide::P2, key(7))));
 }
 
 #[test]
 fn pms_maps_cross_side_channels_to_single_player() {
     // PMS KEY1-5 on 1P channels 11-15 → Player1
-    assert_eq!(
-        Pms::map_channel(ch(1, 1)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key(1),
-            kind: NoteKind::Normal
-        })
-    );
-    assert_eq!(
-        Pms::map_channel(ch(1, 5)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key(5),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(Pms::map_channel(ch(1, 1)), Some((NoteSide::P1, key(1))));
+    assert_eq!(Pms::map_channel(ch(1, 5)), Some((NoteSide::P1, key(5))));
     // PMS KEY6-9 on 2P channels 22-25 → still Player1 (single-player mode)
-    assert_eq!(
-        Pms::map_channel(ch(2, 2)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key(6),
-            kind: NoteKind::Normal
-        })
-    );
-    assert_eq!(
-        Pms::map_channel(ch(2, 5)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key(9),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(Pms::map_channel(ch(2, 2)), Some((NoteSide::P1, key(6))));
+    assert_eq!(Pms::map_channel(ch(2, 5)), Some((NoteSide::P1, key(9))));
     // Channel 21 (2P lane 1) is unused by PMS.
     assert_eq!(Pms::map_channel(ch(2, 1)), None);
 }
 
 #[test]
 fn nanasi_maps_foot_pedal_channel_17() {
-    assert_eq!(
-        Nanasi::map_channel(ch(1, 7)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: PEDAL,
-            kind: NoteKind::Normal
-        })
-    );
-    assert_eq!(
-        Nanasi::map_channel(ch(2, 7)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: PEDAL,
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(Nanasi::map_channel(ch(1, 7)), Some((NoteSide::P1, PEDAL)));
+    assert_eq!(Nanasi::map_channel(ch(2, 7)), Some((NoteSide::P2, PEDAL)));
 }
 
 #[test]
@@ -150,11 +83,27 @@ fn process_basic_note() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert_eq!(chart.notes.len(), 1);
-    assert_eq!(chart.notes[0].tick, 0);
-    assert_eq!(chart.notes[0].data.side(), NoteSide::P1);
-    assert_eq!(chart.notes[0].data.lane(), key(1));
-    assert_eq!(chart.notes[0].data.kind(), NoteKind::Normal);
+    let notes: Vec<_> = chart
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let Event::Note {
+                tick,
+                side,
+                lane,
+                kind,
+                ext: (),
+                ..
+            } = e
+            {
+                Some((*tick, *side, *lane, *kind))
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0], (0, NoteSide::P1, key(1), NoteKind::Normal));
     assert_eq!(chart.audio_assets.len(), 1);
 }
 
@@ -176,7 +125,18 @@ fn process_key7_note_lands_on_key_seven() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert_eq!(chart.notes[0].data.lane(), key(7));
+    let notes: Vec<_> = chart
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let Event::Note { lane, ext: (), .. } = e {
+                Some(*lane)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(notes[0], key(7));
 }
 
 #[test]
@@ -209,8 +169,19 @@ fn process_bgm_events_mapped() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert_eq!(chart.bgm.len(), 1);
-    assert_eq!(chart.bgm[0].tick, 0);
+    let bgm: Vec<_> = chart
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let Event::Bgm { tick, .. } = e {
+                Some(*tick)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(bgm.len(), 1);
+    assert_eq!(bgm[0], 0);
 }
 
 #[test]
@@ -255,9 +226,15 @@ fn process_default_uses_bme_and_maps_both_sides() {
     let chart = BmsProcessor::process_default(&bms).unwrap();
 
     let positions: Vec<(NoteSide, Lane)> = chart
-        .notes
+        .events
         .iter()
-        .map(|n| (n.data.side(), n.data.lane()))
+        .filter_map(|e| {
+            if let Event::Note { side, lane, .. } = e {
+                Some((*side, *lane))
+            } else {
+                None
+            }
+        })
         .collect();
     assert!(positions.contains(&(NoteSide::P1, key(1))));
     assert!(positions.contains(&(NoteSide::P2, key(1))));
@@ -292,13 +269,24 @@ fn process_lnobj_produces_long_note() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    let lns: Vec<&Note> = chart
-        .notes
+    let lns: Vec<_> = chart
+        .events
         .iter()
-        .filter(|n| matches!(n.data.kind(), NoteKind::Long { .. }))
+        .filter_map(|e| {
+            if let Event::Note {
+                tick,
+                kind: NoteKind::Long { .. },
+                ..
+            } = e
+            {
+                Some(*tick)
+            } else {
+                None
+            }
+        })
         .collect();
     assert_eq!(lns.len(), 1);
-    assert_eq!(lns[0].tick, 0);
+    assert_eq!(lns[0], 0);
 }
 
 #[test]
@@ -325,9 +313,20 @@ fn process_bar_lines_generated() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert!(!chart.bar_lines.is_empty());
-    assert_eq!(chart.bar_lines[0].tick, 0);
-    assert_eq!(chart.bar_lines[1].tick, 960);
+    let bar_lines: Vec<_> = chart
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let Event::Bar { tick } = e {
+                Some(*tick)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert!(!bar_lines.is_empty());
+    assert_eq!(bar_lines[0], 0);
+    assert_eq!(bar_lines[1], 960);
 }
 
 #[test]
@@ -347,87 +346,42 @@ fn process_invisible_note_mapped() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert_eq!(chart.notes.len(), 1);
-    assert_eq!(chart.notes[0].data.kind(), NoteKind::Invisible);
+    let notes: Vec<_> = chart
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let Event::Note { kind, ext: (), .. } = e {
+                Some(*kind)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0], NoteKind::Invisible);
 }
 
 #[test]
 fn pms_bme_reinterprets_16_17_as_keys() {
-    assert_eq!(
-        PmsBme::map_channel(ch(1, 8)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key(6),
-            kind: NoteKind::Normal
-        })
-    );
-    assert_eq!(
-        PmsBme::map_channel(ch(1, 6)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key(8),
-            kind: NoteKind::Normal
-        })
-    );
-    assert_eq!(
-        PmsBme::map_channel(ch(2, 7)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: key(9),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(PmsBme::map_channel(ch(1, 8)), Some((NoteSide::P1, key(6))));
+    assert_eq!(PmsBme::map_channel(ch(1, 6)), Some((NoteSide::P1, key(8))));
+    assert_eq!(PmsBme::map_channel(ch(2, 7)), Some((NoteSide::P2, key(9))));
 }
 
 #[test]
 fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
     // P1 scratch
-    assert_eq!(
-        DscOctFp::map_channel(ch(1, 6)),
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: sc(1),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(DscOctFp::map_channel(ch(1, 6)), Some((NoteSide::P1, sc(1))));
     // P2 foot pedal
-    assert_eq!(
-        DscOctFp::map_channel(ch(2, 1)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: PEDAL,
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(DscOctFp::map_channel(ch(2, 1)), Some((NoteSide::P2, PEDAL)));
     // P2 second scratch
-    assert_eq!(
-        DscOctFp::map_channel(ch(2, 6)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: sc(2),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(DscOctFp::map_channel(ch(2, 6)), Some((NoteSide::P2, sc(2))));
 }
 
 #[test]
 fn pms_bme_maps_second_player_side() {
-    assert_eq!(
-        PmsBme::map_channel(ch(2, 1)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: key(1),
-            kind: NoteKind::Normal
-        })
-    );
-    assert_eq!(
-        PmsBme::map_channel(ch(2, 9)),
-        Some(NoteData {
-            side: NoteSide::P2,
-            lane: key(7),
-            kind: NoteKind::Normal
-        })
-    );
+    assert_eq!(PmsBme::map_channel(ch(2, 1)), Some((NoteSide::P2, key(1))));
+    assert_eq!(PmsBme::map_channel(ch(2, 9)), Some((NoteSide::P2, key(7))));
 }
 
 #[test]

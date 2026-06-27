@@ -1,8 +1,9 @@
-use bmsrs_chart::{
-    Bga, Chart, ChartMetadata, Lane, Note, NoteData, NoteKind, NoteSide, TimingTrack,
-};
+use bmsrs_chart::{Chart, ChartMetadata, Event, Lane, NoteKind, NoteSide, TimingTrack};
 
-pub fn make_chart(notes: Vec<Note>) -> Chart {
+/// Event type with default params for tests.
+type Evt = Event<()>;
+
+pub fn make_chart(events: Vec<Evt>) -> Chart {
     Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
@@ -13,23 +14,19 @@ pub fn make_chart(notes: Vec<Note>) -> Chart {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes,
-        bgm: vec![],
+        events,
         audio_assets: vec![],
-        bar_lines: vec![],
-        scroll_events: vec![],
-        bga: Bga::default(),
+        bga_resources: vec![],
     }
 }
 
-pub const fn note(tick: u64, lane: Lane, kind: NoteKind) -> Note {
-    Note {
+pub const fn note(tick: u64, lane: Lane, kind: NoteKind) -> Evt {
+    Event::Note {
         tick,
-        audio: None,
-        data: NoteData {
-            side: NoteSide::P1,
-            lane,
-            kind,
-        },
+        side: NoteSide::P1,
+        lane,
+        kind,
+        audio_index: None,
+        ext: (),
     }
 }

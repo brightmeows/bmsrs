@@ -89,6 +89,7 @@ name = "bms-parser"
 version = "0.1.0"
 dependencies = [
  "bms-tokenizer",
+ "bmsrs-chart",
  "itertools",
 ]
 

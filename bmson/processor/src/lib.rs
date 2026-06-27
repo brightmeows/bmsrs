@@ -1,15 +1,15 @@
 //! BMSON → `Chart` conversion processor.
 //!
 //! [`BmsonProcessor`] converts a `bmson_def::Bmson` (v2 root schema) into
-//! a format-agnostic `Chart` by applying a [`BmsonLayout`] mode family
-//! ([`Beat`], [`Pms`], or [`GenericLayout`] for n-keys).
+//! a format-agnostic `Chart<BmsonNoteExt>` by applying a [`BmsonLayout`] mode
+//! family ([`Beat`], [`Pms`], or [`GenericLayout`] for n-keys).
 //!
 //! Mode families and the [`BmsonLayout`] trait live in the [`layout`] module.
 //!
 //! # Pipeline
 //!
 //! ```text
-//! bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<NoteData>
+//! bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<BmsonNoteExt>
 //! ```
 //!
 //! For v0/v1 files, convert to the root schema first via `Bmson::from`.
@@ -27,17 +27,40 @@ pub mod layout;
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-use bmson_def::{BGAEvent, BpmEvent, ModeHint, StopEvent as BmsonStopEvent};
+use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, BpmChange, Chart,
-    ChartMetadata, Note, NoteData, NoteDataLike, NoteKind, ScrollChangeEvent, StopEvent,
-    TimingTrack,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartMetadata, Event, Lane, NoteExt,
+    NoteKind, NoteSide, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
 use crate::layout::{Beat, BmsonLayout, GenericLayout, Pms};
 
 use crate::slice::slice_channel;
+
+/// Per-note extension data for BMSON format.
+///
+/// Carries optional fields from `bmson_def::NoteEvent` that are not part
+/// of the core chart model.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BmsonNoteExt {
+    /// Note volume (percent, DJ.NEXT extension).
+    pub vol: Option<i8>,
+    /// Note pan (DJ.NEXT extension).
+    pub pan: Option<i8>,
+    /// Release-sound / BSS flag (bmson `up`).
+    pub release_sound: Option<bool>,
+    /// beatoraja long-note mode (bmson `t`, 1=LN/2=CN/3=HCN).
+    pub beatoraja_ln_mode: Option<u64>,
+    /// Per-note LN type hint override (bmson v2).
+    pub ln_type_hint: Option<String>,
+    /// Per-note LN judgement hint override (bmson v2).
+    pub ln_judge_hint: Option<String>,
+    /// Per-note LN life hint override (bmson v2).
+    pub ln_life_hint: Option<String>,
+}
+
+impl NoteExt for BmsonNoteExt {}
 
 /// Errors that can occur during BMSON processing.
 #[derive(Debug, Error)]
@@ -47,7 +70,8 @@ pub enum ProcessError {
     InvalidBpm(f64),
 }
 
-/// Zero-sized processor that converts [`bmson_def::Bmson`] into [`Chart`].
+/// Zero-sized processor that converts [`bmson_def::Bmson`] into
+/// [`Chart<BmsonNoteExt>`].
 ///
 /// Call [`process`](Self::process) with a mode-family layout, or
 /// [`process_default`](Self::process_default) to select one from `mode_hint`.
@@ -59,11 +83,11 @@ impl BmsonProcessor {
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
-    pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<NoteData>, ProcessError>
+    pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<BmsonNoteExt>, ProcessError>
     where
         L: BmsonLayout,
     {
-        Self::process_body(bmson, &L::map_x)
+        Self::process_body(bmson, &|x| L::map_x(x))
     }
 
     /// Process a BMSON chart with a generic-nkeys layout.
@@ -77,7 +101,7 @@ impl BmsonProcessor {
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
         keys: u16,
-    ) -> Result<Chart<NoteData>, ProcessError> {
+    ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
     }
@@ -91,23 +115,30 @@ impl BmsonProcessor {
     /// # Errors
     ///
     /// Returns [`ProcessError::InvalidBpm`] if `init_bpm` is not positive.
-    pub fn process_default(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<NoteData>, ProcessError> {
+    pub fn process_default(
+        bmson: &bmson_def::Bmson<'_>,
+    ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         match bmson.chart_data.mode_hint {
-            ModeHint::Popn5k | ModeHint::Popn9k => Self::process::<Pms>(bmson),
-            ModeHint::Generic(n) => {
+            bmson_def::ModeHint::Popn5k | bmson_def::ModeHint::Popn9k => {
+                Self::process::<Pms>(bmson)
+            }
+            bmson_def::ModeHint::Generic(n) => {
                 let keys = u16::try_from(n).unwrap_or(0);
                 Self::process_nkeys(bmson, keys)
             }
-            // All beat-* and dj-* variants, plus Other/unknown → Beat.
             _ => Self::process::<Beat>(bmson),
         }
     }
 
     /// Public entry point for custom decode logic (internal use).
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "BGA header/event ids are in the u32 range for practical charts"
+    )]
     fn process_body(
         bmson: &bmson_def::Bmson<'_>,
-        decode: &impl Fn(u64) -> Option<NoteData>,
-    ) -> Result<Chart<NoteData>, ProcessError> {
+        decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
+    ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let data = &bmson.chart_data;
 
         if data.init_bpm <= 0.0 {
@@ -118,7 +149,7 @@ impl BmsonProcessor {
         let resolution = data.resolution;
         let playable_pulses = collect_playable_pulses(&data.sound_channels);
 
-        let (mut audio_assets, mut notes, bgm) = process_sound_channels(
+        let (mut audio_assets, mut events) = process_sound_channels(
             &data.sound_channels,
             decode,
             &timing,
@@ -126,14 +157,58 @@ impl BmsonProcessor {
             &playable_pulses,
         );
 
-        process_mine_channels(&bmson.mine_channels, decode, &mut audio_assets, &mut notes);
-        process_key_channels(&bmson.key_channels, decode, &mut audio_assets, &mut notes);
+        process_mine_channels(&bmson.mine_channels, decode, &mut audio_assets, &mut events);
+        process_key_channels(&bmson.key_channels, decode, &mut audio_assets, &mut events);
 
-        notes.sort_by_key(|n| n.tick);
+        events.extend(data.bpm_events.iter().map(|e| Event::Bpm {
+            tick: e.y,
+            bpm: e.bpm,
+        }));
+        events.extend(data.stop_events.iter().map(|e| Event::Stop {
+            tick: e.y,
+            duration: e.duration,
+        }));
+        events.extend(bmson.scroll_events.iter().map(|e| Event::Scroll {
+            tick: e.y,
+            rate: e.rate,
+        }));
 
-        let bar_lines = build_bar_lines(data.lines.as_deref(), resolution, &notes, &bgm);
-        let scroll_events = build_scroll_events(&bmson.scroll_events);
-        let bga = build_bga(&bmson.chart_info.bga);
+        events.extend(build_bar_lines(data.lines.as_deref(), resolution, &events));
+
+        let bga = &bmson.chart_info.bga;
+        let bga_resources: Vec<BgaResource> = bga
+            .bga_header
+            .iter()
+            .map(|h| BgaResource {
+                id: h.id as u32,
+                path: h.name.to_path_buf(),
+            })
+            .collect();
+
+        for e in &bga.bga_events {
+            events.push(Event::Bga {
+                tick: e.y,
+                layer: BgaLayer::Base,
+                resource_id: e.id as u32,
+            });
+        }
+        for e in &bga.layer_events {
+            events.push(Event::Bga {
+                tick: e.y,
+                layer: BgaLayer::Layer,
+                resource_id: e.id as u32,
+            });
+        }
+        for e in &bga.poor_events {
+            events.push(Event::Bga {
+                tick: e.y,
+                layer: BgaLayer::Poor,
+                resource_id: e.id as u32,
+            });
+        }
+
+        events.sort_by_key(Event::tick);
+
         let metadata = build_metadata(bmson);
 
         Ok(Chart {
@@ -142,12 +217,9 @@ impl BmsonProcessor {
             timing,
             judge_multiplier: data.judge_multiplier,
             life_multiplier: data.life_multiplier,
-            notes,
-            bgm,
+            events,
             audio_assets,
-            bar_lines,
-            scroll_events,
-            bga,
+            bga_resources,
         })
     }
 }
@@ -171,21 +243,20 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
     }
 }
 
-/// Process sound channels: slicing, note creation, BGM events.
+/// Process sound channels: slicing, note/BGM event creation.
 #[expect(
     clippy::cast_possible_truncation,
     reason = "audio asset count fits in u32 for practical charts"
 )]
 fn process_sound_channels(
     channels: &[bmson_def::SoundChannel<'_>],
-    decode: &impl Fn(u64) -> Option<NoteData>,
+    decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
     timing: &TimingTrack,
     resolution: u64,
     playable_pulses: &BTreeSet<u64>,
-) -> (Vec<AudioAsset>, Vec<Note<NoteData>>, Vec<BgmEvent>) {
+) -> (Vec<AudioAsset>, Vec<Event<BmsonNoteExt>>) {
     let mut audio_assets = Vec::new();
-    let mut notes = Vec::new();
-    let mut bgm = Vec::new();
+    let mut events = Vec::new();
 
     for channel in channels {
         let sliced = slice_channel(channel, timing, resolution);
@@ -202,26 +273,27 @@ fn process_sound_channels(
                     continue;
                 }
                 if let Some(idx) = audio_idx {
-                    bgm.push(BgmEvent {
+                    events.push(Event::Bgm {
                         tick: ne.y,
-                        audio: idx,
+                        audio_index: idx,
                     });
                 }
             } else {
-                let Some(nd) = decode(ne.x) else {
+                let Some((side, lane)) = decode(ne.x) else {
                     continue;
                 };
-                notes.push(Note {
+                let kind = if ne.l > 0 {
+                    NoteKind::Long { duration: ne.l }
+                } else {
+                    NoteKind::Normal
+                };
+                events.push(Event::Note {
                     tick: ne.y,
-                    audio: audio_idx,
-                    data: NoteData {
-                        kind: if ne.l > 0 {
-                            NoteKind::Long { duration: ne.l }
-                        } else {
-                            NoteKind::Normal
-                        },
-                        ..nd
-                    },
+                    side,
+                    lane,
+                    kind,
+                    audio_index: audio_idx,
+                    ext: build_note_ext(ne),
                 });
             }
         }
@@ -229,7 +301,56 @@ fn process_sound_channels(
         audio_assets.extend(sliced.assets);
     }
 
-    (audio_assets, notes, bgm)
+    (audio_assets, events)
+}
+
+/// Build [`BmsonNoteExt`] from a BMSON [`NoteEvent`](bmson_def::NoteEvent).
+fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
+    BmsonNoteExt {
+        vol: ne.vol,
+        pan: ne.pan,
+        release_sound: ne.up,
+        beatoraja_ln_mode: ne.t.map(ln_mode_to_u64),
+        ln_type_hint: ne.ln_type_hint.map(ln_type_to_str),
+        ln_judge_hint: ne.ln_judge_hint.map(ln_judge_to_str),
+        ln_life_hint: ne.ln_life_hint.map(ln_life_to_str),
+    }
+}
+
+/// Convert a `LnMode` discriminant to a numeric beatoraja LN-mode value.
+const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
+    match m {
+        bmson_def::LnMode::Cn => 2,
+        bmson_def::LnMode::Hcn => 3,
+        _ => 1,
+    }
+}
+
+/// Convert `LnType` to its bmson v2 string representation.
+fn ln_type_to_str(lt: bmson_def::LnType) -> String {
+    match lt {
+        bmson_def::LnType::Cn => "cn",
+        _ => "ln",
+    }
+    .to_owned()
+}
+
+/// Convert `LnJudge` to its bmson v2 string representation.
+fn ln_judge_to_str(lj: bmson_def::LnJudge) -> String {
+    match lj {
+        bmson_def::LnJudge::Ticks => "ticks",
+        _ => "normal",
+    }
+    .to_owned()
+}
+
+/// Convert `LnLife` to its bmson v2 string representation.
+fn ln_life_to_str(ll: bmson_def::LnLife) -> String {
+    match ll {
+        bmson_def::LnLife::Ticks => "ticks",
+        _ => "normal",
+    }
+    .to_owned()
 }
 
 /// Process mine channels: each channel contributes one whole-file `AudioAsset`.
@@ -239,9 +360,9 @@ fn process_sound_channels(
 )]
 fn process_mine_channels(
     channels: &[bmson_def::MineChannel<'_>],
-    decode: &impl Fn(u64) -> Option<NoteData>,
+    decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
     audio_assets: &mut Vec<AudioAsset>,
-    notes: &mut Vec<Note<NoteData>>,
+    events: &mut Vec<Event<BmsonNoteExt>>,
 ) {
     for mc in channels {
         let mine_audio_idx = audio_assets.len() as u32;
@@ -252,16 +373,16 @@ fn process_mine_channels(
         });
 
         for mn in &mc.notes {
-            let Some(nd) = decode(mn.x) else {
+            let Some((side, lane)) = decode(mn.x) else {
                 continue;
             };
-            notes.push(Note {
+            events.push(Event::Note {
                 tick: mn.y,
-                audio: Some(mine_audio_idx),
-                data: NoteData {
-                    kind: NoteKind::Mine { damage: mn.damage },
-                    ..nd
-                },
+                side,
+                lane,
+                kind: NoteKind::Mine { damage: mn.damage },
+                audio_index: Some(mine_audio_idx),
+                ext: BmsonNoteExt::default(),
             });
         }
     }
@@ -274,9 +395,9 @@ fn process_mine_channels(
 )]
 fn process_key_channels(
     channels: &[bmson_def::KeyChannel<'_>],
-    decode: &impl Fn(u64) -> Option<NoteData>,
+    decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
     audio_assets: &mut Vec<AudioAsset>,
-    notes: &mut Vec<Note<NoteData>>,
+    events: &mut Vec<Event<BmsonNoteExt>>,
 ) {
     for kc in channels {
         let key_audio_idx = audio_assets.len() as u32;
@@ -287,16 +408,16 @@ fn process_key_channels(
         });
 
         for kn in &kc.notes {
-            let Some(nd) = decode(kn.x) else {
+            let Some((side, lane)) = decode(kn.x) else {
                 continue;
             };
-            notes.push(Note {
+            events.push(Event::Note {
                 tick: kn.y,
-                audio: Some(key_audio_idx),
-                data: NoteData {
-                    kind: NoteKind::Invisible,
-                    ..nd
-                },
+                side,
+                lane,
+                kind: NoteKind::Invisible,
+                audio_index: Some(key_audio_idx),
+                ext: BmsonNoteExt::default(),
             });
         }
     }
@@ -336,64 +457,21 @@ const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
     }
 }
 
-/// Build scroll-speed change events from BMSON scroll events.
-fn build_scroll_events(events: &[bmson_def::ScrollEvent]) -> Vec<ScrollChangeEvent> {
-    events
-        .iter()
-        .map(|e| ScrollChangeEvent {
-            tick: e.y,
-            rate: e.rate,
-        })
-        .collect()
-}
-
-/// Build bar lines from the BMSON `lines` field.
+/// Build bar line events from the BMSON `lines` field.
 ///
 /// `None` → auto-generate 4/4 bar lines (every `resolution * 4` pulses)
 /// from 0 to the last event tick.
 fn build_bar_lines(
     lines: Option<&[bmson_def::BarLine]>,
     resolution: u64,
-    notes: &[Note<impl NoteDataLike>],
-    bgm: &[BgmEvent],
-) -> Vec<BarLine> {
+    events: &[Event<BmsonNoteExt>],
+) -> Vec<Event<BmsonNoteExt>> {
     if let Some(vec) = lines {
-        return vec.iter().map(|bl| BarLine { tick: bl.y }).collect();
+        return vec.iter().map(|bl| Event::Bar { tick: bl.y }).collect();
     }
 
-    // Auto-generate 4/4 bar lines.
-    let last_tick = notes
-        .last()
-        .map_or(0, |n| n.tick)
-        .max(bgm.last().map_or(0, |e| e.tick));
+    let last_tick = events.last().map_or(0, Event::tick);
     let step = resolution * 4;
-    let count = step.checked_div(step).map_or(1, |_| last_tick / step + 1);
-    (0..=count).map(|i| BarLine { tick: i * step }).collect()
-}
-
-/// Build [`Bga`] from BMSON BGA data.
-#[expect(clippy::cast_possible_truncation, reason = "BGA ids fit in u32")]
-fn build_bga(bga: &bmson_def::BGA<'_>) -> Bga {
-    Bga {
-        resources: bga
-            .bga_header
-            .iter()
-            .map(|h| BgaResource {
-                id: h.id as u32,
-                path: h.name.to_path_buf(),
-            })
-            .collect(),
-        events: bga.bga_events.iter().map(build_bga_event).collect(),
-        layer_events: bga.layer_events.iter().map(build_bga_event).collect(),
-        poor_events: bga.poor_events.iter().map(build_bga_event).collect(),
-    }
-}
-
-/// Build a [`BgaTimelineEvent`] from a BMSON [`BGAEvent`].
-#[expect(clippy::cast_possible_truncation, reason = "BGA ids fit in u32")]
-const fn build_bga_event(e: &BGAEvent) -> BgaTimelineEvent {
-    BgaTimelineEvent {
-        tick: e.y,
-        resource_id: e.id as u32,
-    }
+    let count = last_tick / step + 1;
+    (0..=count).map(|i| Event::Bar { tick: i * step }).collect()
 }

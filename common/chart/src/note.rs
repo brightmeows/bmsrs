@@ -1,12 +1,10 @@
-//! Note types and the [`NoteDataLike`] trait.
+//! Note kind definitions.
 //!
-//! Each note in a [`crate::Chart`] carries a `T: NoteDataLike` that provides
-//! the position triple `(NoteSide, Lane)` plus the note kind — the minimum the
-//! Player needs to match and judge notes.
+//! Note position (`NoteSide`, `Lane`) is carried directly in
+//! [`Event::Note`](crate::Event::Note).  Per-note format extensions use the
+//! [`NoteExt`](crate::NoteExt) trait.
 
 use std::fmt::Debug;
-
-use crate::mode::{Lane, NoteSide};
 
 /// The kind of a playable note.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -29,74 +27,4 @@ pub enum NoteKind {
     /// In BMS these are "key" notes (channels `31`–`39`, `41`–`49`).
     /// In BMSON these come from `key_channels`.
     Invisible,
-}
-
-/// Trait for types that can serve as note data in a [`Chart`](crate::Chart).
-///
-/// The built-in [`NoteData`] struct implements this trait. Custom types can
-/// carry format-specific extensions (volume, pan, LN mode, etc.) while still
-/// providing the minimum position triple required by the Player.
-///
-/// # Example
-///
-/// ```
-/// use std::num::NonZeroU8;
-/// use bmsrs_chart::mode::{Lane, NoteSide};
-/// use bmsrs_chart::note::{NoteData, NoteDataLike, NoteKind};
-///
-/// let data = NoteData {
-///     side: NoteSide::P1,
-///     lane: Lane::Key(NonZeroU8::new(3).unwrap()),
-///     kind: NoteKind::Normal,
-/// };
-/// assert_eq!(data.side(), NoteSide::P1);
-/// assert_eq!(data.lane(), Lane::Key(NonZeroU8::new(3).unwrap()));
-/// assert_eq!(data.kind(), NoteKind::Normal);
-/// ```
-pub trait NoteDataLike: Clone + Debug + PartialEq {
-    /// Which player side the note belongs to.
-    fn side(&self) -> NoteSide;
-    /// Which key the note sits on.
-    fn lane(&self) -> Lane;
-    /// Note kind.
-    fn kind(&self) -> NoteKind;
-}
-
-/// Default [`NoteDataLike`] implementation: position triple + kind.
-#[derive(Clone, Debug, PartialEq)]
-pub struct NoteData {
-    /// Player side.
-    pub side: NoteSide,
-    /// Key position.
-    pub lane: Lane,
-    /// Note kind.
-    pub kind: NoteKind,
-}
-
-impl NoteDataLike for NoteData {
-    #[inline]
-    fn side(&self) -> NoteSide {
-        self.side
-    }
-
-    #[inline]
-    fn lane(&self) -> Lane {
-        self.lane
-    }
-
-    #[inline]
-    fn kind(&self) -> NoteKind {
-        self.kind
-    }
-}
-
-/// A note in the chart.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Note<T: NoteDataLike = NoteData> {
-    /// Tick position.
-    pub tick: u64,
-    /// Audio asset index into [`crate::Chart::audio_assets`], or `None` if silent.
-    pub audio: Option<u32>,
-    /// Format-specific note data (position, kind, extensions).
-    pub data: T,
 }

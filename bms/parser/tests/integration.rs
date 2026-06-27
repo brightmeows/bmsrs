@@ -8,6 +8,7 @@ use bms_tokenizer::{
     BmpIndex, BmsBaseMode, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, Rank,
     StopIndex, WavIndex,
 };
+use bmsrs_chart::BgaLayer;
 
 /// Helper: parse a BMS string into a `Bms` (default C = &str).
 fn parse(input: &str) -> Bms {

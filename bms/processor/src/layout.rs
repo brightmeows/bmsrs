@@ -1,7 +1,7 @@
 //! BMS mode-family layouts: channel-to-lane mapping using [`BmsLayout`].
 //!
 //! Each family is expressed as a zero-sized newtype that maps a decoded
-//! [`BmsChannel`] `(player, lane)` pair to a [`NoteData`] note position.
+//! [`BmsChannel`] `(player, lane)` pair to a `(NoteSide, Lane)` position.
 //!
 //! Families do **not** carry a key count: whether a chart is 5K or 7K is a
 //! property of which lanes its notes actually use, not of the family.
@@ -9,7 +9,6 @@
 use std::num::NonZeroU8;
 
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::note::{NoteData, NoteKind};
 
 /// A decoded BMS channel identifier: the `(player, lane)` pair extracted
 /// from a raw BMS channel byte (e.g. `"19"` → `{ player: 1, lane: 9 }`).
@@ -18,58 +17,59 @@ use bmsrs_chart::note::{NoteData, NoteKind};
 /// downstream code can safely call [`note_side`](Self::note_side) and
 /// [`lane`](Self::lane) without extra checks.  The lane value is the decoded
 /// number (1–9), **not** the raw channel byte.
+/// A validated BMS `(player, lane)` channel pair.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BmsChannel {
-    /// Player side, stored as the validated [`NoteSide`] (guaranteed by
-    /// [`new`](Self::new) to be `Player1` or `Player2`).
-    player: NoteSide,
-    /// Lane / key number (1–9).
+    /// Player number (1 or 2).
+    player: u8,
+    /// Lane number (1–9).
     lane: u8,
 }
 
 impl BmsChannel {
-    /// Try to construct a `BmsChannel` from a decoded `(player, lane)` pair.
+    /// Create a new `BmsChannel` from a decoded `(player, lane)`.
     ///
-    /// Returns `None` when `player` is not 1 or 2, or `lane` is not 1–9.
+    /// Returns `None` if `player` is not 1 or 2, or if `lane` is not 1–9.
     #[must_use]
     pub const fn new(player: u8, lane: u8) -> Option<Self> {
-        let side = match player {
-            1 => NoteSide::P1,
-            2 => NoteSide::P2,
-            _ => return None,
-        };
-        if matches!(lane, 1..=9) {
-            Some(Self { player: side, lane })
+        if (player == 1 || player == 2) && lane >= 1 && lane <= 9 {
+            Some(Self { player, lane })
         } else {
             None
         }
     }
 
-    /// The lane / key number (1–9).
+    /// Player side (1 or 2).
+    #[must_use]
+    pub const fn player(self) -> u8 {
+        self.player
+    }
+
+    /// Lane number (1–9).
     #[must_use]
     pub const fn lane(self) -> u8 {
         self.lane
     }
 
-    /// The validated [`NoteSide`] of this channel.
-    ///
-    /// [`new`](Self::new) guarantees the player is `Player1` or `Player2`,
-    /// so this is a direct field access with no fallible conversion.
+    /// Return the player side as a [`NoteSide`].
     #[must_use]
     pub const fn note_side(self) -> NoteSide {
-        self.player
+        match self.player {
+            1 => NoteSide::P1,
+            _ => NoteSide::P2,
+        }
     }
 }
 
-/// BMS-side mapping: decodes a [`BmsChannel`] into a [`NoteData`] position
-/// (side + lane; kind is set to [`NoteKind::Normal`] and overridden by the
-/// caller as needed).
+/// BMS-side mapping: decodes a [`BmsChannel`] into a `(NoteSide, Lane)`
+/// position pair, or `None` if the channel should be discarded.
 ///
-/// `None` discards the note.
+/// Note kind (normal/LN/mine/invisible) is set by the processor after this
+/// mapping.
 pub trait BmsLayout {
     /// Map a decoded BMS channel to the note's position.
     #[must_use]
-    fn map_channel(ch: BmsChannel) -> Option<NoteData>;
+    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)>;
 }
 
 /// Construct a `NonZeroU8` from a value known to be ≥ 1 at the call site.
@@ -86,8 +86,7 @@ const fn nz(n: u8) -> Option<NonZeroU8> {
 pub struct Bme;
 
 impl BmsLayout for Bme {
-    /// Decode a BMS `(player, lane)` pair into the BME-family position.
-    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -100,11 +99,7 @@ impl BmsLayout for Bme {
             9 => Lane::Key(nz(7)?),
             _ => return None,
         };
-        Some(NoteData {
-            side,
-            lane: key,
-            kind: NoteKind::Normal,
-        })
+        Some((side, key))
     }
 }
 
@@ -115,8 +110,7 @@ impl BmsLayout for Bme {
 pub struct Nanasi;
 
 impl BmsLayout for Nanasi {
-    /// Decode a BMS `(player, lane)` pair into the Nanasi-family position.
-    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -130,11 +124,7 @@ impl BmsLayout for Nanasi {
             9 => Lane::Key(nz(7)?),
             _ => return None,
         };
-        Some(NoteData {
-            side,
-            lane: key,
-            kind: NoteKind::Normal,
-        })
+        Some((side, key))
     }
 }
 
@@ -145,12 +135,7 @@ impl BmsLayout for Nanasi {
 pub struct Pms;
 
 impl BmsLayout for Pms {
-    /// Decode a BMS `(player, lane)` pair into the PMS-family position.
-    ///
-    /// KEY1-5 come from 1P channels `11-15`; KEY6-9 come from 2P channels
-    /// `22-25` (decoded `(2, 2..=5)`). All keys report `NoteSide::P1` because PMS
-    /// is single-player.
-    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
         let key = match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => Lane::Key(nz(1)?),
             (1, 2) => Lane::Key(nz(2)?),
@@ -163,11 +148,7 @@ impl BmsLayout for Pms {
             (2, 5) => Lane::Key(nz(9)?),
             _ => return None,
         };
-        Some(NoteData {
-            side: NoteSide::P1,
-            lane: key,
-            kind: NoteKind::Normal,
-        })
+        Some((NoteSide::P1, key))
     }
 }
 
@@ -179,8 +160,7 @@ impl BmsLayout for Pms {
 pub struct PmsBme;
 
 impl BmsLayout for PmsBme {
-    /// Decode a BMS `(player, lane)` pair into the PMS-BME-type position.
-    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
+    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -194,11 +174,7 @@ impl BmsLayout for PmsBme {
             9 => Lane::Key(nz(7)?),
             _ => return None,
         };
-        Some(NoteData {
-            side,
-            lane: key,
-            kind: NoteKind::Normal,
-        })
+        Some((side, key))
     }
 }
 
@@ -209,90 +185,25 @@ impl BmsLayout for PmsBme {
 pub struct DscOctFp;
 
 impl BmsLayout for DscOctFp {
-    /// Decode a BMS `(player, lane)` pair into the DscOctFp-family position.
-    fn map_channel(ch: BmsChannel) -> Option<NoteData> {
-        match (ch.note_side().as_u8(), ch.lane()) {
-            (1, 1) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(1)?),
-                kind: NoteKind::Normal,
-            }),
-            (1, 2) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(2)?),
-                kind: NoteKind::Normal,
-            }),
-            (1, 3) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(3)?),
-                kind: NoteKind::Normal,
-            }),
-            (1, 4) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(4)?),
-                kind: NoteKind::Normal,
-            }),
-            (1, 5) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(5)?),
-                kind: NoteKind::Normal,
-            }),
-            (1, 6) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Scratch(nz(1)?),
-                kind: NoteKind::Normal,
-            }),
-            (1, 8) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(6)?),
-                kind: NoteKind::Normal,
-            }),
-            (1, 9) => Some(NoteData {
-                side: NoteSide::P1,
-                lane: Lane::Key(nz(7)?),
-                kind: NoteKind::Normal,
-            }),
-            (2, 1) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::FootPedal,
-                kind: NoteKind::Normal,
-            }),
-            (2, 2) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Key(nz(1)?),
-                kind: NoteKind::Normal,
-            }),
-            (2, 3) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Key(nz(2)?),
-                kind: NoteKind::Normal,
-            }),
-            (2, 4) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Key(nz(3)?),
-                kind: NoteKind::Normal,
-            }),
-            (2, 5) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Key(nz(4)?),
-                kind: NoteKind::Normal,
-            }),
-            (2, 6) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Scratch(nz(2)?),
-                kind: NoteKind::Normal,
-            }),
-            (2, 8) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Key(nz(5)?),
-                kind: NoteKind::Normal,
-            }),
-            (2, 9) => Some(NoteData {
-                side: NoteSide::P2,
-                lane: Lane::Key(nz(6)?),
-                kind: NoteKind::Normal,
-            }),
-            _ => None,
-        }
+    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
+        Some(match (ch.note_side().as_u8(), ch.lane()) {
+            (1, 1) => (NoteSide::P1, Lane::Key(nz(1)?)),
+            (1, 2) => (NoteSide::P1, Lane::Key(nz(2)?)),
+            (1, 3) => (NoteSide::P1, Lane::Key(nz(3)?)),
+            (1, 4) => (NoteSide::P1, Lane::Key(nz(4)?)),
+            (1, 5) => (NoteSide::P1, Lane::Key(nz(5)?)),
+            (1, 6) => (NoteSide::P1, Lane::Scratch(nz(1)?)),
+            (1, 8) => (NoteSide::P1, Lane::Key(nz(6)?)),
+            (1, 9) => (NoteSide::P1, Lane::Key(nz(7)?)),
+            (2, 1) => (NoteSide::P2, Lane::FootPedal),
+            (2, 2) => (NoteSide::P2, Lane::Key(nz(1)?)),
+            (2, 3) => (NoteSide::P2, Lane::Key(nz(2)?)),
+            (2, 4) => (NoteSide::P2, Lane::Key(nz(3)?)),
+            (2, 5) => (NoteSide::P2, Lane::Key(nz(4)?)),
+            (2, 6) => (NoteSide::P2, Lane::Scratch(nz(2)?)),
+            (2, 8) => (NoteSide::P2, Lane::Key(nz(5)?)),
+            (2, 9) => (NoteSide::P2, Lane::Key(nz(6)?)),
+            _ => return None,
+        })
     }
 }

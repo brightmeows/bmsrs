@@ -10,7 +10,7 @@
 //! # Pipeline
 //!
 //! ```text
-//! bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<NoteData>
+//! bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<(), NoCustomEvent>
 //! ```
 //!
 //! # Mode families
@@ -38,11 +38,11 @@ pub mod layout;
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
-use bms_parser::{BgaLayer, Bms, BpmValue, KeyType};
+use bms_parser::{Bms, BpmValue, KeyType};
 use bms_tokenizer::{BmpIndex, WavIndex};
 use bmsrs_chart::{
-    AudioAsset, BarLine, Bga, BgaResource, BgaTimelineEvent, BgmEvent, BpmChange, Chart,
-    ChartMetadata, Note, NoteData, NoteKind, ScrollChangeEvent, StopEvent, TimingTrack,
+    AudioAsset, BgaResource, BpmChange, Chart, ChartMetadata, Event, NoteKind, StopEvent,
+    TimingTrack,
 };
 use thiserror::Error;
 
@@ -76,7 +76,7 @@ impl BmsProcessor {
     ///
     /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
     /// or not positive.
-    pub fn process<L>(bms: &Bms) -> Result<Chart<NoteData>, ProcessError>
+    pub fn process<L>(bms: &Bms) -> Result<Chart<(), bmsrs_chart::NoCustomEvent>, ProcessError>
     where
         L: BmsLayout,
     {
@@ -100,9 +100,46 @@ impl BmsProcessor {
             stops,
         };
 
+        let bmp_map = build_bmp_map(&bms.visual.bmp_files);
+        let bga_resources = bmp_map
+            .values()
+            .map(|(resource_id, path)| BgaResource {
+                id: *resource_id,
+                path: path.clone().into(),
+            })
+            .collect();
+
         let (paired_lns, consumed) = pair_long_notes(bms, &table);
-        let notes = collect_notes::<L>(bms, &table, &wav_map, &paired_lns, &consumed);
-        let bgm = collect_bgm(bms, &table, &wav_map);
+        let mut events = Vec::new();
+
+        // Bar lines first (priority 0).
+        events.extend(build_bar_events(max_measure));
+
+        // Notes (priority 1).
+        collect_notes::<L>(bms, &table, &wav_map, &paired_lns, &consumed, &mut events);
+
+        // BGM (priority 1).
+        collect_bgm(bms, &table, &wav_map, &mut events);
+
+        // BGA (priority 1).
+        collect_bga(bms, &table, &bmp_map, &mut events);
+
+        // BPM changes (priority 2).
+        collect_bpm_events(bms, &table, &mut events);
+
+        // Stop events (priority 3) — re-iterate timing stops.
+        for se in &timing.stops {
+            events.push(Event::Stop {
+                tick: se.tick,
+                duration: se.duration,
+            });
+        }
+
+        // Scroll events (priority 4).
+        collect_scroll_events(bms, &table, &mut events);
+
+        // Stable sort preserves insertion order at the same tick.
+        events.sort_by_key(bmsrs_chart::Event::tick);
 
         Ok(Chart {
             metadata: build_metadata(bms),
@@ -110,12 +147,9 @@ impl BmsProcessor {
             timing,
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
-            notes,
-            bgm,
+            events,
             audio_assets,
-            bar_lines: build_bar_lines(max_measure),
-            scroll_events: build_scroll_events(bms, &table),
-            bga: build_bga(bms, &table),
+            bga_resources,
         })
     }
 
@@ -133,7 +167,9 @@ impl BmsProcessor {
     ///
     /// Returns [`ProcessError::InvalidBpm`] if the initial BPM is missing
     /// or not positive.
-    pub fn process_default(bms: &Bms) -> Result<Chart<NoteData>, ProcessError> {
+    pub fn process_default(
+        bms: &Bms,
+    ) -> Result<Chart<(), bmsrs_chart::NoCustomEvent>, ProcessError> {
         Self::process::<Bme>(bms)
     }
 }
@@ -141,130 +177,173 @@ impl BmsProcessor {
 // Builder helpers
 
 /// Determine LN mode and pair LNs. Returns paired LNs and consumed note indices.
-///
-/// The LN notation is selected in this priority:
-/// 1. `#LNOBJ` — LNOBJ notation (channels 11-49 with marker WAV).
-/// 2. `#LNTYPE 2` — MGQ notation (channels 51-69, 00 = release).
-/// 3. `#LNTYPE 1` / default — RDM notation (channels 51-69, consecutive pairs).
 fn pair_long_notes(bms: &Bms, table: &MeasureTable) -> (Vec<PairedLn>, BTreeSet<usize>) {
-    // LNOBJ takes highest priority.
     if let Some(ln_obj) = bms.gameplay.ln_obj {
         return pair_lnobj(&bms.messages.note_events, ln_obj, table);
     }
-
-    // Check for MGQ notation.
     if bms.gameplay.ln_type == Some(bms_tokenizer::LnType::Type2) {
         return (
             pair_lntype2(&bms.messages.long_note_events, table),
             BTreeSet::new(),
         );
     }
-
-    // Default: RDM / LNTYPE 1.
     (
         pair_lntype1(&bms.messages.long_note_events, table),
         BTreeSet::new(),
     )
 }
 
-/// Collect all playable notes (visible, invisible, LN, mines) into a sorted vector.
+/// Collect all playable notes into the events vec.
 fn collect_notes<L: BmsLayout>(
     bms: &Bms,
     table: &MeasureTable,
     wav_map: &BTreeMap<WavIndex, u32>,
     paired_lns: &[PairedLn],
     consumed: &BTreeSet<usize>,
-) -> Vec<Note<NoteData>> {
-    let mut notes = Vec::new();
+    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+) {
+    let push_note = |tick: u64,
+                     side,
+                     lane,
+                     kind: NoteKind,
+                     audio: Option<u32>,
+                     ev: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>| {
+        if let Some((note_side, note_lane)) = BmsChannel::new(side, lane).and_then(L::map_channel) {
+            ev.push(Event::Note {
+                tick,
+                side: note_side,
+                lane: note_lane,
+                kind,
+                audio_index: audio,
+                ext: (),
+            });
+        }
+    };
 
     // Visible notes (skip consumed LNOBJ pairs).
     for (i, ne) in bms.messages.note_events.iter().enumerate() {
         if consumed.contains(&i) {
             continue;
         }
-        if ne.key_type == KeyType::Visible
-            && let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel)
-        {
-            notes.push(Note {
-                tick: table.position_to_tick(ne.position),
-                audio: wav_map.get(&ne.wav_id).copied(),
-                data: NoteData {
-                    kind: NoteKind::Normal,
-                    ..nd
-                },
-            });
+        if ne.key_type == KeyType::Visible {
+            push_note(
+                table.position_to_tick(ne.position),
+                ne.player,
+                ne.lane,
+                NoteKind::Normal,
+                wav_map.get(&ne.wav_id).copied(),
+                events,
+            );
         }
     }
 
     // Invisible notes (keysounds).
     for ne in &bms.messages.note_events {
-        if ne.key_type == KeyType::Invisible
-            && let Some(nd) = BmsChannel::new(ne.player, ne.lane).and_then(L::map_channel)
-        {
-            notes.push(Note {
-                tick: table.position_to_tick(ne.position),
-                audio: wav_map.get(&ne.wav_id).copied(),
-                data: NoteData {
-                    kind: NoteKind::Invisible,
-                    ..nd
-                },
-            });
+        if ne.key_type == KeyType::Invisible {
+            push_note(
+                table.position_to_tick(ne.position),
+                ne.player,
+                ne.lane,
+                NoteKind::Invisible,
+                wav_map.get(&ne.wav_id).copied(),
+                events,
+            );
         }
     }
 
     // Paired long notes.
     for ln in paired_lns {
-        if let Some(nd) = BmsChannel::new(ln.player, ln.lane).and_then(L::map_channel) {
-            notes.push(Note {
-                tick: ln.tick,
-                audio: wav_map.get(&ln.wav_id).copied(),
-                data: NoteData {
-                    kind: NoteKind::Long {
-                        duration: ln.duration,
-                    },
-                    ..nd
-                },
-            });
-        }
+        push_note(
+            ln.tick,
+            ln.player,
+            ln.lane,
+            NoteKind::Long {
+                duration: ln.duration,
+            },
+            wav_map.get(&ln.wav_id).copied(),
+            events,
+        );
     }
 
     // Mines.
     for me in &bms.messages.mine_events {
-        if let Some(nd) = BmsChannel::new(me.player, me.lane).and_then(L::map_channel) {
-            notes.push(Note {
-                tick: table.position_to_tick(me.position),
-                audio: None,
-                data: NoteData {
-                    kind: NoteKind::Mine { damage: 1.0 },
-                    ..nd
-                },
-            });
-        }
+        push_note(
+            table.position_to_tick(me.position),
+            me.player,
+            me.lane,
+            NoteKind::Mine { damage: 1.0 },
+            None,
+            events,
+        );
     }
-
-    notes.sort_by_key(|n| n.tick);
-    notes
 }
 
-/// Collect BGM events into a vector.
+/// Collect BGM events into the events vec.
 fn collect_bgm(
     bms: &Bms,
     table: &MeasureTable,
     wav_map: &BTreeMap<WavIndex, u32>,
-) -> Vec<BgmEvent> {
-    bms.messages
-        .bgm_events
-        .iter()
-        .filter_map(|be| {
-            wav_map.get(&be.wav_id).copied().map(|audio| BgmEvent {
+    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+) {
+    for be in &bms.messages.bgm_events {
+        if let Some(&audio) = wav_map.get(&be.wav_id) {
+            events.push(Event::Bgm {
                 tick: table.position_to_tick(be.position),
-                audio,
-            })
-        })
-        .collect()
+                audio_index: audio,
+            });
+        }
+    }
 }
 
-/// Build WAV audio assets and a `WavIndex` → `u32` lookup map.
+/// Build BPM events (for the unified timeline).
+fn collect_bpm_events(
+    bms: &Bms,
+    table: &MeasureTable,
+    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+) {
+    for bc in &bms.messages.bpm_changes {
+        events.push(Event::Bpm {
+            tick: table.position_to_tick(bc.position),
+            bpm: resolve_bpm(bc.value, bms),
+        });
+    }
+}
+
+/// Build scroll-speed change events.
+fn collect_scroll_events(
+    bms: &Bms,
+    table: &MeasureTable,
+    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+) {
+    for se in &bms.messages.scroll_events {
+        if let Some(&rate) = bms.timing.scroll_defs.get(&se.scroll_id) {
+            events.push(Event::Scroll {
+                tick: table.position_to_tick(se.position),
+                rate,
+            });
+        }
+    }
+}
+
+/// Build BGA events from BGA events and BMP file definitions.
+fn collect_bga(
+    bms: &Bms,
+    table: &MeasureTable,
+    bmp_map: &BTreeMap<BmpIndex, (u32, String)>,
+    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+) {
+    for be in &bms.messages.bga_events {
+        if let Some(&(resource_id, _)) = bmp_map.get(&be.bmp_id) {
+            events.push(Event::Bga {
+                tick: table.position_to_tick(be.position),
+                layer: be.layer,
+                resource_id,
+            });
+        }
+    }
+}
+
+/// Build WAV audio assets and return lookup map + assets vec.
 fn build_audio_assets(
     wav_files: &BTreeMap<WavIndex, String>,
 ) -> (BTreeMap<WavIndex, u32>, Vec<AudioAsset>) {
@@ -283,7 +362,17 @@ fn build_audio_assets(
     (wav_map, audio_assets)
 }
 
-/// Build BPM change events.
+/// Build BMP index to (`resource_id`, file path) map.
+fn build_bmp_map(bmp_files: &BTreeMap<BmpIndex, String>) -> BTreeMap<BmpIndex, (u32, String)> {
+    let mut map = BTreeMap::new();
+    #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
+    for (i, (id, path)) in bmp_files.iter().enumerate() {
+        map.insert(*id, (i as u32, path.clone()));
+    }
+    map
+}
+
+/// Build BPM change events for timing track.
 fn build_bpm_changes(bms: &Bms, table: &MeasureTable) -> Vec<BpmChange> {
     bms.messages
         .bpm_changes
@@ -295,7 +384,8 @@ fn build_bpm_changes(bms: &Bms, table: &MeasureTable) -> Vec<BpmChange> {
         .collect()
 }
 
-/// Resolve a [`BpmValue`] to a concrete BPM.
+/// Resolve a [`BpmValue`] to a concrete BPM, using the BPM definition table
+/// for reference values.
 fn resolve_bpm(value: BpmValue, bms: &Bms) -> f64 {
     match value {
         BpmValue::Absolute(bpm) => bpm,
@@ -303,7 +393,7 @@ fn resolve_bpm(value: BpmValue, bms: &Bms) -> f64 {
     }
 }
 
-/// Find the BPM active at `tick` (last BPM change at or before `tick`).
+/// Find the BPM active at a given tick (last BPM change at or before `tick`).
 fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
     let mut bpm = init_bpm;
     for bc in bpm_changes {
@@ -316,9 +406,7 @@ fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
     bpm
 }
 
-/// Build stop events from `#STOPxx` definitions (channel `09`).
-///
-/// BMS STOP unit: 1/192 of a 4/4 measure → ticks = `raw / 192 * res * 4`.
+/// Building stop events from `#STOPxx` definitions (channel `09`).
 #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
 #[expect(clippy::cast_sign_loss, reason = "raw is non-negative")]
 #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
@@ -360,69 +448,11 @@ fn build_stops_from_stp(
         .collect()
 }
 
-/// Build scroll-speed change events, sorted by tick.
-fn build_scroll_events(bms: &Bms, table: &MeasureTable) -> Vec<ScrollChangeEvent> {
-    let mut events: Vec<ScrollChangeEvent> = bms
-        .messages
-        .scroll_events
-        .iter()
-        .filter_map(|se| {
-            bms.timing
-                .scroll_defs
-                .get(&se.scroll_id)
-                .map(|&rate| ScrollChangeEvent {
-                    tick: table.position_to_tick(se.position),
-                    rate,
-                })
-        })
-        .collect();
-    events.sort_by_key(|e| e.tick);
-    events
-}
-
-/// Build BGA data from BGA events and BMP file definitions.
-fn build_bga(bms: &Bms, table: &MeasureTable) -> Bga {
-    let mut bmp_map: BTreeMap<BmpIndex, u32> = BTreeMap::new();
-    let mut resources = Vec::new();
-    for (&bmp_id, path) in &bms.visual.bmp_files {
-        #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
-        let idx = resources.len() as u32;
-        resources.push(BgaResource {
-            id: idx,
-            path: path.clone().into(),
-        });
-        bmp_map.insert(bmp_id, idx);
-    }
-
-    let map_bga_events = |layer: BgaLayer| -> Vec<BgaTimelineEvent> {
-        bms.messages
-            .bga_events
-            .iter()
-            .filter(|be| be.layer == layer)
-            .filter_map(|be| {
-                bmp_map
-                    .get(&be.bmp_id)
-                    .map(|&resource_id| BgaTimelineEvent {
-                        tick: table.position_to_tick(be.position),
-                        resource_id,
-                    })
-            })
-            .collect()
-    };
-
-    Bga {
-        resources,
-        events: map_bga_events(BgaLayer::Base),
-        layer_events: map_bga_events(BgaLayer::Layer),
-        poor_events: map_bga_events(BgaLayer::Poor),
-    }
-}
-
-/// Build auto 4/4 bar lines (one per measure).
-fn build_bar_lines(max_measure: u16) -> Vec<BarLine> {
+/// Build auto 4/4 bar events (one per measure).
+fn build_bar_events(max_measure: u16) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
     let step = RESOLUTION * 4;
     (0..=u64::from(max_measure))
-        .map(|i| BarLine { tick: i * step })
+        .map(|i| Event::Bar { tick: i * step })
         .collect()
 }
 

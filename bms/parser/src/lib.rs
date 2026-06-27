@@ -20,8 +20,8 @@ pub use audio::Audio;
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{
-    BgaEvent, BgaLayer, BgmEvent, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength,
-    Messages, MineEvent, NoteEvent, Position, ScrollEvent, StopEvent, StpEvent,
+    BgaEvent, BgmEvent, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength, Messages,
+    MineEvent, NoteEvent, Position, ScrollEvent, StopEvent, StpEvent,
 };
 pub use metadata::Metadata;
 pub use timing::Timing;

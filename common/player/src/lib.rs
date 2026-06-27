@@ -1,7 +1,7 @@
 //! Pure simulation layer for rhythm game charts.
 //!
-//! [`Player<T>`] wraps a [`Chart<T>`] and provides time-based queries for
-//! gameplay rendering and scheduling. It is a pure simulation layer with
+//! [`Player<T, C>`] wraps a [`Chart<T, C>`] and provides time-based queries
+//! for gameplay rendering and scheduling. It is a pure simulation layer with
 //! no I/O, rendering, judgement, or scoring.
 //!
 //! # Usage
@@ -10,12 +10,11 @@
 //! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, ChartMetadata, NoteData, Lane, Note, NoteKind, NoteSide,
-//!     TimingTrack, Bga,
+//!     Chart, ChartMetadata, Event, Lane, NoteKind, NoteSide, TimingTrack,
 //! };
 //! use bmsrs_player::Player;
 //!
-//! let chart = Chart {
+//! let chart: Chart = Chart {
 //!     metadata: ChartMetadata::default(),
 //!     resolution: 240,
 //!     timing: TimingTrack {
@@ -25,20 +24,16 @@
 //!     },
 //!     judge_multiplier: 1.0,
 //!     life_multiplier: 1.0,
-//!     notes: vec![Note {
+//!     events: vec![Event::Note {
 //!         tick: 480,
-//!         audio: None,
-//!         data: NoteData {
-//!             side: NoteSide::P1,
-//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!             kind: NoteKind::Normal,
-//!         },
+//!         side: NoteSide::P1,
+//!         lane: Lane::Key(NonZeroU8::new(1).unwrap()),
+//!         kind: NoteKind::Normal,
+//!         audio_index: None,
+//!         ext: (),
 //!     }],
-//!     bgm: vec![],
 //!     audio_assets: vec![],
-//!     bar_lines: vec![],
-//!     scroll_events: vec![],
-//!     bga: Bga::default(),
+//!     bga_resources: vec![],
 //! };
 //!
 //! let mut player = Player::new(chart);
@@ -49,10 +44,12 @@
 
 mod timing;
 
+use std::ops::Bound;
+use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BarLine, BgaTimelineEvent, BgmEvent, Chart, Lane, Note, NoteDataLike, NoteKind,
+    AudioAsset, BgaResource, Chart, CustomEvent, Event, Lane, NoCustomEvent, NoteExt, NoteKind,
     NoteSide,
 };
 
@@ -67,19 +64,19 @@ use crate::timing::TimingCache;
 ///
 /// The player is a pure simulation layer: no audio playback, rendering,
 /// input handling, judgement, or scoring.
-pub struct Player<T: NoteDataLike> {
+pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// The chart being played.
-    chart: Chart<T>,
+    chart: Chart<T, C>,
     /// Pre-computed timing cache for O(log n) queries.
     cache: TimingCache,
     /// Current playback position in ticks.
     current_tick: u64,
 }
 
-impl<T: NoteDataLike> Player<T> {
+impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// Create a new player from a chart, starting at tick 0.
     #[must_use]
-    pub fn new(chart: Chart<T>) -> Self {
+    pub fn new(chart: Chart<T, C>) -> Self {
         let resolution = chart.resolution;
         let cache = TimingCache::new(&chart.timing, resolution);
         Self {
@@ -89,7 +86,7 @@ impl<T: NoteDataLike> Player<T> {
         }
     }
 
-    // Time control
+    // ─── Time control ─────────────────────────────────────────────────
 
     /// Advance playback by `delta` of wall-clock time.
     ///
@@ -116,7 +113,7 @@ impl<T: NoteDataLike> Player<T> {
         self.current_tick = 0;
     }
 
-    // Time queries
+    // ─── Time queries ─────────────────────────────────────────────────
 
     /// Current playback position in ticks.
     #[must_use]
@@ -161,62 +158,68 @@ impl<T: NoteDataLike> Player<T> {
         self.cache.bpm_at_tick(self.current_tick)
     }
 
-    // Note queries
+    // ─── Event queries ────────────────────────────────────────────────
 
-    /// Return notes within `[from_tick, to_tick)`.
+    /// Return all events within `range`.
     ///
-    /// Notes are sorted by tick ascending (guaranteed by the chart).
+    /// Events are sorted by tick ascending (guaranteed by the chart).
     #[expect(
         clippy::indexing_slicing,
         reason = "indices from partition_point on same vector"
     )]
     #[must_use]
-    pub fn notes_in_range(&self, from_tick: u64, to_tick: u64) -> &[Note<T>] {
-        let start = self.chart.notes.partition_point(|n| n.tick < from_tick);
-        let end = self.chart.notes.partition_point(|n| n.tick < to_tick);
-        &self.chart.notes[start..end]
+    pub fn events_in_range(&self, range: impl RangeBounds<u64>) -> &[Event<T, C>] {
+        let (start, end) = self.event_range_indices(range);
+        &self.chart.events[start..end]
     }
 
-    /// Return an iterator over notes at `(side, lane)` within `[from_tick, to_tick)`.
+    /// Return an iterator over Note events within `range`.
+    pub fn notes_in_range(
+        &self,
+        range: impl RangeBounds<u64>,
+    ) -> impl Iterator<Item = &Event<T, C>> {
+        self.events_in_range(range)
+            .iter()
+            .filter(|e| matches!(e, Event::Note { .. }))
+    }
+
+    /// Return an iterator over Note events at `(side, lane)` within `range`.
     pub fn notes_in_lane(
         &self,
         side: NoteSide,
         lane: Lane,
-        from_tick: u64,
-        to_tick: u64,
-    ) -> impl Iterator<Item = &Note<T>> {
-        self.notes_in_range(from_tick, to_tick)
-            .iter()
-            .filter(move |n| n.data.side() == side && n.data.lane() == lane)
+        range: impl RangeBounds<u64>,
+    ) -> impl Iterator<Item = &Event<T, C>> {
+        self.notes_in_range(range).filter(
+            move |e| matches!(e, Event::Note { side: s, lane: l, .. } if *s == side && *l == lane),
+        )
     }
 
-    /// Return an iterator over judgement-relevant notes in
-    /// `[from_tick, to_tick)`.
+    /// Return an iterator over judgement-relevant Note events within
+    /// `range`.
     ///
     /// Judgement-relevant notes are normal and long notes (not invisible
     /// or mines, which have different handling).
     pub fn notes_for_judgement(
         &self,
-        from_tick: u64,
-        to_tick: u64,
-    ) -> impl Iterator<Item = &Note<T>> {
-        self.notes_in_range(from_tick, to_tick)
-            .iter()
-            .filter(|n| matches!(n.data.kind(), NoteKind::Normal | NoteKind::Long { .. }))
+        range: impl RangeBounds<u64>,
+    ) -> impl Iterator<Item = &Event<T, C>> {
+        self.notes_in_range(range).filter(|e| {
+            matches!(
+                e,
+                Event::Note {
+                    kind: NoteKind::Normal | NoteKind::Long { .. },
+                    ..
+                }
+            )
+        })
     }
 
-    // Audio queries
-
-    /// Return BGM events within `[from_tick, to_tick)`.
-    #[expect(
-        clippy::indexing_slicing,
-        reason = "indices from partition_point on same vector"
-    )]
-    #[must_use]
-    pub fn bgm_in_range(&self, from_tick: u64, to_tick: u64) -> &[BgmEvent] {
-        let start = self.chart.bgm.partition_point(|e| e.tick < from_tick);
-        let end = self.chart.bgm.partition_point(|e| e.tick < to_tick);
-        &self.chart.bgm[start..end]
+    /// Return an iterator over BGM events within `range`.
+    pub fn bgm_in_range(&self, range: impl RangeBounds<u64>) -> impl Iterator<Item = &Event<T, C>> {
+        self.events_in_range(range)
+            .iter()
+            .filter(|e| matches!(e, Event::Bgm { .. }))
     }
 
     /// Return the audio assets table.
@@ -225,87 +228,87 @@ impl<T: NoteDataLike> Player<T> {
         &self.chart.audio_assets
     }
 
-    // Visual queries
+    // ─── Visual queries ───────────────────────────────────────────────
 
     /// Return the scroll-speed multiplier at `tick`.
     ///
     /// If multiple scroll events exist at the same tick, the last one wins.
     /// Returns `1.0` if no scroll event has occurred.
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "indices from partition_point on same vector"
+    )]
     #[must_use]
     pub fn scroll_rate_at(&self, tick: u64) -> f64 {
+        let end = self.chart.events.partition_point(|e| e.tick() <= tick);
         let mut rate = 1.0;
-        for sc in &self.chart.scroll_events {
-            if sc.tick <= tick {
-                rate = sc.rate;
-            } else {
-                break;
+        for event in &self.chart.events[..end] {
+            if let Event::Scroll { rate: sc_rate, .. } = event {
+                rate = *sc_rate;
             }
         }
         rate
     }
 
-    /// Return bar lines within `[from_tick, to_tick)`.
-    #[expect(
-        clippy::indexing_slicing,
-        reason = "indices from partition_point on same vector"
-    )]
-    #[must_use]
-    pub fn bar_lines_in_range(&self, from_tick: u64, to_tick: u64) -> &[BarLine] {
-        let start = self.chart.bar_lines.partition_point(|b| b.tick < from_tick);
-        let end = self.chart.bar_lines.partition_point(|b| b.tick < to_tick);
-        &self.chart.bar_lines[start..end]
+    /// Return an iterator over Bar events within `range`.
+    pub fn bar_lines_in_range(
+        &self,
+        range: impl RangeBounds<u64>,
+    ) -> impl Iterator<Item = &Event<T, C>> {
+        self.events_in_range(range)
+            .iter()
+            .filter(|e| matches!(e, Event::Bar { .. }))
     }
 
-    /// Return BGA events on the base layer within `[from_tick, to_tick)`.
-    #[must_use]
-    pub fn bga_events_in_range(&self, from_tick: u64, to_tick: u64) -> &[BgaTimelineEvent] {
-        Self::events_in_range(&self.chart.bga.events, from_tick, to_tick)
-    }
-
-    /// Return BGA events on the overlay layer within `[from_tick, to_tick)`.
-    #[must_use]
-    pub fn bga_layer_events_in_range(&self, from_tick: u64, to_tick: u64) -> &[BgaTimelineEvent] {
-        Self::events_in_range(&self.chart.bga.layer_events, from_tick, to_tick)
-    }
-
-    /// Return BGA events on the poor (miss) layer within `[from_tick, to_tick)`.
-    #[must_use]
-    pub fn bga_poor_events_in_range(&self, from_tick: u64, to_tick: u64) -> &[BgaTimelineEvent] {
-        Self::events_in_range(&self.chart.bga.poor_events, from_tick, to_tick)
+    /// Return an iterator over BGA events within `range`.
+    ///
+    /// The caller can further filter by [`bmsrs_chart::BgaLayer`] if needed.
+    pub fn bga_events_in_range(
+        &self,
+        range: impl RangeBounds<u64>,
+    ) -> impl Iterator<Item = &Event<T, C>> {
+        self.events_in_range(range)
+            .iter()
+            .filter(|e| matches!(e, Event::Bga { .. }))
     }
 
     /// Return BGA resources.
     #[must_use]
-    pub fn bga_resources(&self) -> &[bmsrs_chart::BgaResource] {
-        &self.chart.bga.resources
+    pub fn bga_resources(&self) -> &[BgaResource] {
+        &self.chart.bga_resources
     }
 
-    // Chart access
+    // ─── Chart access ─────────────────────────────────────────────────
 
     /// Borrow the underlying chart.
     #[must_use]
-    pub const fn chart(&self) -> &Chart<T> {
+    pub const fn chart(&self) -> &Chart<T, C> {
         &self.chart
     }
 
     /// Consume the player and return the chart.
     #[must_use]
-    pub fn into_chart(self) -> Chart<T> {
+    pub fn into_chart(self) -> Chart<T, C> {
         self.chart
     }
 
-    /// Binary-search a sorted event vector for a tick range.
-    #[expect(
-        clippy::indexing_slicing,
-        reason = "indices from partition_point on same vector"
-    )]
-    fn events_in_range(
-        events: &[BgaTimelineEvent],
-        from_tick: u64,
-        to_tick: u64,
-    ) -> &[BgaTimelineEvent] {
-        let start = events.partition_point(|e| e.tick < from_tick);
-        let end = events.partition_point(|e| e.tick < to_tick);
-        &events[start..end]
+    // ─── Private helpers ──────────────────────────────────────────────
+
+    /// Map a [`RangeBounds<u64>`] to `(start_index, end_index)` into
+    /// `self.chart.events`.
+    fn event_range_indices(&self, range: impl RangeBounds<u64>) -> (usize, usize) {
+        let start_tick = match range.start_bound() {
+            Bound::Included(t) => *t,
+            Bound::Excluded(t) => t.saturating_add(1),
+            Bound::Unbounded => 0,
+        };
+        let end_tick = match range.end_bound() {
+            Bound::Included(t) => t.saturating_add(1),
+            Bound::Excluded(t) => *t,
+            Bound::Unbounded => u64::MAX,
+        };
+        let start = self.chart.events.partition_point(|e| e.tick() < start_tick);
+        let end = self.chart.events.partition_point(|e| e.tick() < end_tick);
+        (start, end)
     }
 }

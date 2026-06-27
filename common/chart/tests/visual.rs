@@ -1,31 +1,25 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_chart::{BarLine, Bga, BgaResource, BgaTimelineEvent, ScrollChangeEvent};
+use bmsrs_chart::{BgaLayer, BgaResource, Event};
 use std::path::PathBuf;
 
 #[test]
-fn bar_line_tick() {
-    let bl = BarLine { tick: 960 };
-    assert_eq!(bl.tick, 960);
+fn bar_event_tick() {
+    let ev: Event<()> = Event::Bar { tick: 960 };
+    assert_eq!(ev.tick(), 960);
 }
 
 #[test]
-fn scroll_change_fields() {
-    let sc = ScrollChangeEvent {
+fn scroll_event_fields() {
+    let ev: Event<()> = Event::Scroll {
         tick: 480,
         rate: 2.0,
     };
-    assert_eq!(sc.tick, 480);
-    assert!((sc.rate - 2.0).abs() < f64::EPSILON);
-}
-
-#[test]
-fn bga_default_is_empty() {
-    let bga = Bga::default();
-    assert!(bga.resources.is_empty());
-    assert!(bga.events.is_empty());
-    assert!(bga.layer_events.is_empty());
-    assert!(bga.poor_events.is_empty());
+    assert_eq!(ev.tick(), 480);
+    assert!(
+        matches!(ev, Event::Scroll { rate, .. } if (rate - 2.0).abs() < f64::EPSILON),
+        "expected Scroll with rate 2.0"
+    );
 }
 
 #[test]
@@ -38,11 +32,15 @@ fn bga_resource_fields() {
 }
 
 #[test]
-fn bga_timeline_event_fields() {
-    let ev = BgaTimelineEvent {
+fn bga_event_fields() {
+    let ev: Event<()> = Event::Bga {
         tick: 240,
+        layer: BgaLayer::Base,
         resource_id: 2,
     };
-    assert_eq!(ev.tick, 240);
-    assert_eq!(ev.resource_id, 2);
+    assert_eq!(ev.tick(), 240);
+    assert!(
+        matches!(ev, Event::Bga { resource_id: 2, .. }),
+        "expected Bga with resource_id 2"
+    );
 }

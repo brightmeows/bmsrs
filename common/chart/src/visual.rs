@@ -1,44 +1,28 @@
-//! Visual elements: bar lines, scroll-speed changes, and BGA.
+//! Visual elements: BGA layer types and resource declarations.
+//!
+//! Bar lines, scroll changes, and BGA events are now part of the unified
+//! [`Event`](crate::Event) enum — see [`crate::Event::Bar`],
+//! [`crate::Event::Scroll`], and [`crate::Event::Bga`].
 
 use std::path::PathBuf;
 
-/// A bar line position for visual display.
+/// Which BGA layer a display event targets.
 ///
-/// Bar lines are display hints — they do not affect gameplay timing.
-/// The processor generates them from the source format's measure structure
-/// (BMS) or explicit `lines` array (BMSON).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BarLine {
-    /// Tick position.
-    pub tick: u64,
-}
-
-/// A scroll-speed multiplier change event.
-///
-/// The scroll rate affects how fast notes approach the judgement line
-/// on screen. A rate of `1.0` is the default speed; negative values
-/// cause reverse scroll.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ScrollChangeEvent {
-    /// Tick position.
-    pub tick: u64,
-    /// Speed multiplier (`1.0` = normal, negative = reverse).
-    pub rate: f64,
-}
-
-/// Background animation data.
-///
-/// Holds three independent event tracks that the renderer can composite.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Bga {
-    /// Resource declarations (id → file path).
-    pub resources: Vec<BgaResource>,
-    /// Primary background animation events.
-    pub events: Vec<BgaTimelineEvent>,
-    /// Overlay layer events composited on top of the primary BGA.
-    pub layer_events: Vec<BgaTimelineEvent>,
-    /// Poor-performance (miss) animation events.
-    pub poor_events: Vec<BgaTimelineEvent>,
+/// Layers are composited by the renderer in order:
+/// `Base` (bottom) → `Layer` → `Layer2` → `Poor` (top, on miss).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BgaLayer {
+    /// Base / primary background (channel `04`).
+    #[default]
+    Base,
+    /// Miss / poor-performance layer (channels `05`, `06`).
+    Poor,
+    /// Overlay layer composited on top of the primary BGA (channel `07`).
+    Layer,
+    /// Secondary overlay layer (channel `0A`, nanasi extension).
+    ///
+    /// LAYER2 is composited on top of LAYER.
+    Layer2,
 }
 
 /// A BGA resource (image or video file).
@@ -48,13 +32,4 @@ pub struct BgaResource {
     pub id: u32,
     /// File path relative to the chart file's directory.
     pub path: PathBuf,
-}
-
-/// A BGA display event referencing a resource.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BgaTimelineEvent {
-    /// Tick position at which the resource becomes visible.
-    pub tick: u64,
-    /// Index into [`Bga::resources`].
-    pub resource_id: u32,
 }

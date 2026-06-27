@@ -1,6 +1,6 @@
-use bmsrs_chart::{Bga, BgmEvent, Chart, ChartMetadata, Note, TimingTrack};
+use bmsrs_chart::{Chart, ChartMetadata, Event, TimingTrack};
 
-pub fn make_test_chart(notes: Vec<Note>, bgm: Vec<BgmEvent>) -> Chart {
+pub fn make_test_chart(events: Vec<Event<()>>) -> Chart {
     Chart {
         metadata: ChartMetadata::default(),
         resolution: 240,
@@ -11,11 +11,8 @@ pub fn make_test_chart(notes: Vec<Note>, bgm: Vec<BgmEvent>) -> Chart {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes,
-        bgm,
+        events,
         audio_assets: vec![],
-        bar_lines: vec![],
-        scroll_events: vec![],
-        bga: Bga::default(),
+        bga_resources: vec![],
     }
 }

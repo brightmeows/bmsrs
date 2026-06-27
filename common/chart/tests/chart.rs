@@ -4,7 +4,7 @@ mod helper;
 
 use std::num::NonZeroU8;
 
-use bmsrs_chart::{BgmEvent, Lane, Note, NoteData, NoteKind, NoteSide};
+use bmsrs_chart::{Event, Lane, NoteKind, NoteSide};
 use helper::make_test_chart;
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -14,45 +14,44 @@ const fn nz(n: u8) -> NonZeroU8 {
     }
 }
 
-const fn note(tick: u64) -> Note {
-    Note {
+const fn note(tick: u64) -> Event<()> {
+    Event::Note {
         tick,
-        audio: None,
-        data: NoteData {
-            side: NoteSide::P1,
-            lane: Lane::Key(nz(1)),
-            kind: NoteKind::Normal,
-        },
+        side: NoteSide::P1,
+        lane: Lane::Key(nz(1)),
+        kind: NoteKind::Normal,
+        audio_index: None,
+        ext: (),
     }
 }
 
 #[test]
 fn last_tick_empty_chart() {
-    let chart = make_test_chart(vec![], vec![]);
+    let chart = make_test_chart(vec![]);
     assert_eq!(chart.last_tick(), 0);
 }
 
 #[test]
 fn last_tick_from_notes() {
-    let chart = make_test_chart(vec![note(960)], vec![]);
+    let chart = make_test_chart(vec![note(960)]);
     assert_eq!(chart.last_tick(), 960);
 }
 
 #[test]
 fn last_tick_from_bgm_beyond_notes() {
-    let chart = make_test_chart(
-        vec![note(480)],
-        vec![BgmEvent {
+    let chart = make_test_chart(vec![
+        note(480),
+        Event::Bgm {
             tick: 1920,
-            audio: 0,
-        }],
-    );
+            audio_index: 0,
+        },
+    ]);
     assert_eq!(chart.last_tick(), 1920);
 }
 
 #[test]
 fn duration_constant_bpm() {
-    let chart = make_test_chart(vec![note(480)], vec![]);
+    let chart = make_test_chart(vec![note(480)]);
     // 480 ticks at 120 BPM, resolution 240: 480/240 * 0.5 = 1.0s
     assert_eq!(chart.duration(), std::time::Duration::from_secs(1));
 }

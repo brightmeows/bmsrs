@@ -1,4 +1,7 @@
-//! Audio asset and BGM event types.
+//! Audio asset type.
+//!
+//! BGM events are now part of the unified [`Event`](crate::Event) enum —
+//! see [`crate::Event::Bgm`].
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -21,14 +24,4 @@ pub struct AudioAsset {
     /// Slice duration.
     /// `None` means play to the end of the file.
     pub duration: Option<Duration>,
-}
-
-/// A BGM (background music) event — an audio-only trigger with no
-/// gameplay interaction.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BgmEvent {
-    /// Tick position.
-    pub tick: u64,
-    /// Index into [`crate::Chart::audio_assets`].
-    pub audio: u32,
 }

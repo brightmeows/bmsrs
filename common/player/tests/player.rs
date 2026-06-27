@@ -5,8 +5,7 @@ mod helper;
 use std::num::NonZeroU8;
 
 use bmsrs_chart::{
-    BarLine, Bga, BgmEvent, BpmChange, Chart, ChartMetadata, Note, NoteKind, ScrollChangeEvent,
-    TimingTrack,
+    BpmChange, Chart, ChartMetadata, Event, NoteKind, TimingTrack,
     mode::{Lane, NoteSide},
 };
 use bmsrs_player::Player;
@@ -90,10 +89,10 @@ fn notes_in_range_returns_subset() {
     ]);
     let player = Player::new(chart);
 
-    let range = player.notes_in_range(240, 720);
+    let range: Vec<&Event<()>> = player.notes_in_range(240..720).collect();
     assert_eq!(range.len(), 2);
-    assert_eq!(range[0].tick, 240);
-    assert_eq!(range[1].tick, 480);
+    assert_eq!(range[0].tick(), 240);
+    assert_eq!(range[1].tick(), 480);
 }
 
 #[test]
@@ -105,10 +104,10 @@ fn notes_in_lane_filters_by_side_and_lane() {
     ]);
     let player = Player::new(chart);
 
-    let lane1: Vec<&Note> = player.notes_in_lane(NoteSide::P1, key(1), 0, 960).collect();
+    let lane1: Vec<&Event<()>> = player.notes_in_lane(NoteSide::P1, key(1), 0..960).collect();
     assert_eq!(lane1.len(), 2);
-    assert_eq!(lane1[0].tick, 0);
-    assert_eq!(lane1[1].tick, 480);
+    assert_eq!(lane1[0].tick(), 0);
+    assert_eq!(lane1[1].tick(), 480);
 }
 
 #[test]
@@ -121,10 +120,10 @@ fn notes_for_judgement_excludes_invisible_and_mines() {
     ]);
     let player = Player::new(chart);
 
-    let judge_notes: Vec<&Note> = player.notes_for_judgement(0, 960).collect();
+    let judge_notes: Vec<&Event<()>> = player.notes_for_judgement(0..960).collect();
     assert_eq!(judge_notes.len(), 2);
-    assert_eq!(judge_notes[0].tick, 0);
-    assert_eq!(judge_notes[1].tick, 720);
+    assert_eq!(judge_notes[0].tick(), 0);
+    assert_eq!(judge_notes[1].tick(), 720);
 }
 
 #[test]
@@ -139,28 +138,28 @@ fn bgm_in_range_returns_events() {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes: vec![],
-        bgm: vec![
-            BgmEvent { tick: 0, audio: 0 },
-            BgmEvent {
-                tick: 480,
-                audio: 1,
+        events: vec![
+            Event::Bgm {
+                tick: 0,
+                audio_index: 0,
             },
-            BgmEvent {
+            Event::Bgm {
+                tick: 480,
+                audio_index: 1,
+            },
+            Event::Bgm {
                 tick: 960,
-                audio: 2,
+                audio_index: 2,
             },
         ],
         audio_assets: vec![],
-        bar_lines: vec![],
-        scroll_events: vec![],
-        bga: Bga::default(),
+        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
-    let range = player.bgm_in_range(240, 960);
+    let range: Vec<&Event<()>> = player.bgm_in_range(240..960).collect();
     assert_eq!(range.len(), 1);
-    assert_eq!(range[0].tick, 480);
+    assert_eq!(range[0].tick(), 480);
 }
 
 #[test]
@@ -175,21 +174,18 @@ fn scroll_rate_at_returns_latest_multiplier() {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes: vec![],
-        bgm: vec![],
-        audio_assets: vec![],
-        bar_lines: vec![],
-        scroll_events: vec![
-            ScrollChangeEvent {
+        events: vec![
+            Event::Scroll {
                 tick: 240,
                 rate: 2.0,
             },
-            ScrollChangeEvent {
+            Event::Scroll {
                 tick: 720,
                 rate: 0.5,
             },
         ],
-        bga: Bga::default(),
+        audio_assets: vec![],
+        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
@@ -211,23 +207,20 @@ fn bar_lines_in_range_returns_subset() {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes: vec![],
-        bgm: vec![],
-        audio_assets: vec![],
-        bar_lines: vec![
-            BarLine { tick: 0 },
-            BarLine { tick: 960 },
-            BarLine { tick: 1920 },
+        events: vec![
+            Event::Bar { tick: 0 },
+            Event::Bar { tick: 960 },
+            Event::Bar { tick: 1920 },
         ],
-        scroll_events: vec![],
-        bga: Bga::default(),
+        audio_assets: vec![],
+        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
-    let range = player.bar_lines_in_range(500, 2000);
+    let range: Vec<&Event<()>> = player.bar_lines_in_range(500..2000).collect();
     assert_eq!(range.len(), 2);
-    assert_eq!(range[0].tick, 960);
-    assert_eq!(range[1].tick, 1920);
+    assert_eq!(range[0].tick(), 960);
+    assert_eq!(range[1].tick(), 1920);
 }
 
 #[test]
@@ -245,12 +238,9 @@ fn current_bpm_returns_active_bpm() {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes: vec![],
-        bgm: vec![],
+        events: vec![],
         audio_assets: vec![],
-        bar_lines: vec![],
-        scroll_events: vec![],
-        bga: Bga::default(),
+        bga_resources: vec![],
     };
     let mut player = Player::new(chart);
 
@@ -305,12 +295,9 @@ fn duration_to_tick_with_bpm_changes_and_stops() {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes: vec![],
-        bgm: vec![],
+        events: vec![],
         audio_assets: vec![],
-        bar_lines: vec![],
-        scroll_events: vec![],
-        bga: Bga::default(),
+        bga_resources: vec![],
     };
     let player = Player::new(chart);
     let track = TimingTrack {
@@ -348,12 +335,9 @@ fn duration_to_tick_stop_does_not_advance() {
         },
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
-        notes: vec![],
-        bgm: vec![],
+        events: vec![],
         audio_assets: vec![],
-        bar_lines: vec![],
-        scroll_events: vec![],
-        bga: Bga::default(),
+        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
@@ -375,5 +359,5 @@ fn into_chart_returns_original_chart() {
     let chart = make_chart(vec![note(0, key(1), NoteKind::Normal)]);
     let player = Player::new(chart);
     let recovered = player.into_chart();
-    assert_eq!(recovered.notes.len(), 1);
+    assert_eq!(recovered.events.len(), 1);
 }

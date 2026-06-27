@@ -16,6 +16,7 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{BmpIndex, BmsChannel, BpmIndex, ScrollIndex, StopIndex, WavIndex};
+use bmsrs_chart::BgaLayer;
 
 // Position
 
@@ -171,21 +172,6 @@ pub struct ScrollEvent {
 }
 
 // BGA events
-
-/// The BGA layer targeted by a [`BgaEvent`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BgaLayer {
-    /// Base layer (channel `04`).
-    Base,
-    /// Poor / miss layer (channels `05`, `06`).
-    Poor,
-    /// Overlay layer (channel `07`).
-    Layer,
-    /// Secondary overlay layer (channel `0A`, nanasi extension).
-    ///
-    /// LAYER2 is composited on top of LAYER.
-    Layer2,
-}
 
 /// A BGA display event (channels `04`, `05`, `06`, `07`).
 #[derive(Debug, Clone, PartialEq, Eq)]
