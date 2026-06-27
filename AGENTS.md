@@ -85,7 +85,8 @@ Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下
 | `deprecated:` | 🗑️ Deprecated | — |
 | `revert:` | ⏪ Revert | — |
 
-- Title/body 用英文
+- Title/body 用中文（type 与 scope 仍用英文，如 `docs(chart):`）
+- body 可选，无特殊情况可省略
 - breaking change 用 `!`：`feat!:` 或 `feat(scope)!:`
 - `!` 放在冒号前
 
@@ -111,6 +112,9 @@ Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下
 
 - 公开项用 `///`，模块用 `//!`（clippy 强制）
 - `//` 用于实现内部说明，不用来写文档
+- 文档注释（`///`、`//!`）与实现注释（`//`）一律用中文；
+  BMS/bmson 领域术语参照 bms / bmson skill 中的译法，代码标识符用反引号保留英文
+- rustdoc 标准段标题（`# Errors`、`# Panic`、`# Example` 等）保留英文
 
 ### 测试规范
 
@@ -132,8 +136,9 @@ Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下
 ### Always
 
 - 修改后运行 `pre-commit run --all-files`（或等 hook 自动触发）
-- commit message 符合 Conventional Commits + scope
+- commit message 符合 Conventional Commits + scope；subject/body 用中文（type/scope 用英文）
 - 每个提交只做一个逻辑变更，`feat:` + `fix:` 不混入同提交
+- 文档注释（`///`、`//!`）与实现注释（`//`）一律用中文，代码标识符用反引号保留英文
 - 新增 crate 时在 `bmsrs/` 和根 AGENTS.md 中添加对应的 `pub use` 和记录
 
 ### Ask
