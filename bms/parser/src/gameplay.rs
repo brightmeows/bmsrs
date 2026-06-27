@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    BmsBaseMode, BmsHeaderGameplay, ChangeOptionIndex, ExRankIndex, LnMode, LnObjIndex, LnType,
+    BmsBase, BmsHeaderGameplay, ChangeOptionIndex, ExRankIndex, LnMode, LnObjIndex, LnType,
     PlayerMode, Rank,
 };
 
@@ -32,7 +32,7 @@ pub struct Gameplay {
     /// Forced LN / CN / HCN mode (`#LNMODE`).
     pub ln_mode: Option<LnMode>,
     /// Numbering base for indexed commands (`#BASE`).
-    pub base: Option<BmsBaseMode>,
+    pub base: Option<BmsBase>,
     /// Per-position judgment width overrides (`#EXRANKxx`).
     pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
     /// Dynamic option-change definitions (`#CHANGEOPTIONxx`).

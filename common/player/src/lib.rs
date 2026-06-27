@@ -88,7 +88,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         }
     }
 
-    // ─── Time control ─────────────────────────────────────────────────
+    // Time control
 
     /// Advance playback by `delta` of wall-clock time.
     ///
@@ -117,7 +117,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         self.current_tick = 0;
     }
 
-    // ─── Time queries ─────────────────────────────────────────────────
+    // Time queries
 
     /// Current playback position in ticks.
     #[must_use]
@@ -162,7 +162,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         self.cache.bpm_at_tick(self.current_tick)
     }
 
-    // ─── Event queries ────────────────────────────────────────────────
+    // Event queries
 
     /// Return all events within `range`.
     ///
@@ -232,7 +232,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         &self.chart.data.audio_assets
     }
 
-    // ─── Visual queries ───────────────────────────────────────────────
+    // Visual queries
 
     /// Return the scroll-speed multiplier at `tick`.
     ///
@@ -282,7 +282,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         &self.chart.chart.bga_resources
     }
 
-    // ─── Chart access ─────────────────────────────────────────────────
+    // Chart access
 
     /// Borrow the underlying chart.
     #[must_use]
@@ -296,7 +296,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         self.chart
     }
 
-    // ─── Private helpers ──────────────────────────────────────────────
+    // Private helpers
 
     /// Map a [`RangeBounds<u64>`] to `(start_index, end_index)` into
     /// `self.chart.data.events`.

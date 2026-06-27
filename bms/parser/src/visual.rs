@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    ArgbParams, AtBgaParams, BgaParams, BmpIndex, BmsHeaderResDefVisual, ExBmpParams, PoorBgaMode,
-    SeekIndex, SwBgaParams,
+    ArgbParams, AtBgaParams, BgaParams, BmpIndex, BmsBase, BmsHeaderResDefVisual, ExBmpParams,
+    PoorBgaMode, SeekIndex, SwBgaParams,
 };
 
 // Owned parameter types
@@ -120,28 +120,43 @@ pub struct Visual {
 
 impl Visual {
     /// Apply a visual resource header to this struct.
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefVisual<C>) {
+    ///
+    /// Indexed keys (`BmpIndex`, `SeekIndex`, etc.) are normalized using
+    /// `base` for case-insensitive comparison in standard BMS.
+    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefVisual<C>, base: BmsBase) {
+        macro_rules! norm_as {
+            ($id:expr, $ty:ident) => {
+                $ty::from($id.normalize(base))
+            };
+        }
+
         match header {
             BmsHeaderResDefVisual::Bmp { id, filename } => {
-                self.bmp_files.insert(*id, filename.as_ref().to_owned());
+                self.bmp_files
+                    .insert(norm_as!(id, BmpIndex), filename.as_ref().to_owned());
             }
             BmsHeaderResDefVisual::Seek { id, value } => {
-                self.seek_defs.insert(*id, *value);
+                self.seek_defs.insert(norm_as!(id, SeekIndex), *value);
             }
             BmsHeaderResDefVisual::ExBmp { id, params } => {
-                self.ex_bmp_defs.insert(*id, OwnedExBmpParams::from(params));
+                self.ex_bmp_defs
+                    .insert(norm_as!(id, BmpIndex), OwnedExBmpParams::from(params));
             }
             BmsHeaderResDefVisual::Bga { id, params } => {
-                self.crop_defs.insert(*id, params.clone());
+                self.crop_defs
+                    .insert(norm_as!(id, BmpIndex), params.clone());
             }
             BmsHeaderResDefVisual::AtBga { id, params } => {
-                self.alt_crop_defs.insert(*id, params.clone());
+                self.alt_crop_defs
+                    .insert(norm_as!(id, BmpIndex), params.clone());
             }
             BmsHeaderResDefVisual::SwBga { id, params } => {
-                self.sw_bga_defs.insert(*id, OwnedSwBgaParams::from(params));
+                self.sw_bga_defs
+                    .insert(norm_as!(id, BmpIndex), OwnedSwBgaParams::from(params));
             }
             BmsHeaderResDefVisual::Argb { id, params } => {
-                self.argb_defs.insert(*id, params.clone());
+                self.argb_defs
+                    .insert(norm_as!(id, BmpIndex), params.clone());
             }
             BmsHeaderResDefVisual::VideoFile(s) => self.video_file = Some(s.as_ref().to_owned()),
             BmsHeaderResDefVisual::Movie(s) => self.movie = Some(s.as_ref().to_owned()),

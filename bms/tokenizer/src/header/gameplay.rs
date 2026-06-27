@@ -9,7 +9,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::BmsTokenAttr;
-use crate::index::{ChangeOptionIndex, ExRankIndex, LnObjIndex};
+use crate::index::{BmsBase, ChangeOptionIndex, ExRankIndex, LnObjIndex};
 use crate::{BmsHeader, BmsTryFromError};
 
 /// The play mode specified by `#PLAYER`.
@@ -170,28 +170,9 @@ impl fmt::Display for Rank {
     }
 }
 
-/// The base numbering mode declared by `#BASE`.
-///
-/// Controls the character set used for two-character indices in
-/// `#WAV`, `#BMP`, `#BPM`, `#STOP`, `#SCROLL`, `#SPEED`, and `#LNOBJ`.
-///
-/// | Value | Slots | Charset | Notes |
-/// |-------|-------|---------|-------|
-/// | `16`  | 256   | `[0-9A-F]` | Original BM98 format |
-/// | `36`  | 1296  | `[0-9A-Z]` | Modern default (no `#BASE` = 36) |
-/// | `62`  | 3844  | `[0-9A-Za-z]` | beatoraja extension |
-#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
-pub enum BmsBaseMode {
-    /// `#BASE 16` — hexadecimal (256 slots).
-    #[bms_token("16")]
-    Base16,
-    /// `#BASE 36` — base-36 uppercase (1296 slots). Default when omitted.
-    #[bms_token("36")]
-    Base36,
-    /// `#BASE 62` — case-sensitive base-62 (3844 slots, beatoraja extension).
-    #[bms_token("62")]
-    Base62,
-}
+// BmsBase is defined in crate::index::BmsBase (identical to the former
+// BmsBaseMode).  It is used here via import; the derive BmsTokenAttr ensures
+// `#BASE 16`, `#BASE 36`, and `#BASE 62` parse correctly.
 
 /// Gameplay behaviour headers.
 ///
@@ -308,7 +289,7 @@ pub enum BmsHeaderGameplay<C> {
     /// Unknown values fall through to `BmsHeaderFallback`.
     #[bms_token("#BASE {}")]
     #[bms_fallback]
-    Base(BmsBaseMode),
+    Base(BmsBase),
 }
 
 // From / TryFrom conversions

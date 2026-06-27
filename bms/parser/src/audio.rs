@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsHeaderResDefAudio, WavIndex};
+use bms_tokenizer::{BmsBase, BmsHeaderResDefAudio, WavIndex};
 
 /// Extended audio effect parameters for `#EXWAV`.
 ///
@@ -41,16 +41,23 @@ pub struct Audio {
 
 impl Audio {
     /// Apply an audio resource header to this struct.
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefAudio<C>) {
+    ///
+    /// Indexed keys (`WavIndex`) are normalized using `base` to ensure
+    /// case-insensitive comparison in standard (Base36) BMS files.
+    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefAudio<C>, base: BmsBase) {
         match header {
             BmsHeaderResDefAudio::Wav { id, filename } => {
-                self.wav_files.insert(*id, filename.as_ref().to_owned());
+                self.wav_files.insert(
+                    WavIndex::from(id.normalize(base)),
+                    filename.as_ref().to_owned(),
+                );
             }
             BmsHeaderResDefAudio::ExWav { id, params } => {
+                let nid = WavIndex::from(id.normalize(base));
                 self.wav_files
-                    .insert(*id, params.filename.as_ref().to_owned());
+                    .insert(nid, params.filename.as_ref().to_owned());
                 self.ex_wav_params.insert(
-                    *id,
+                    nid,
                     ExWavParams {
                         flags: params.flags.as_ref().to_owned(),
                         values: params.values.clone(),

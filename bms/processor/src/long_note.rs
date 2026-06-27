@@ -152,14 +152,14 @@ pub fn pair_lnobj(
     ln_obj: LnObjIndex,
     table: &MeasureTable,
 ) -> (Vec<PairedLn>, std::collections::BTreeSet<usize>) {
-    let ln_obj_str = ln_obj.as_str();
     // Index notes by (player, lane) to find preceding notes.
     let mut last_by_lane: BTreeMap<(u8, u8), (usize, &NoteEvent)> = BTreeMap::new();
     let mut paired = Vec::new();
     let mut consumed = std::collections::BTreeSet::new();
 
     for (i, ev) in note_events.iter().enumerate() {
-        if ev.wav_id.as_str() == ln_obj_str {
+        // Compare underlying BmsIndex values (case-insensitive in standard BMS).
+        if *ev.wav_id == *ln_obj {
             // This is an LN end. Find the preceding note on the same (player, lane).
             if let Some(&(start_idx, start_ev)) = last_by_lane.get(&(ev.player, ev.lane)) {
                 let start_tick = table.position_to_tick(start_ev.position);

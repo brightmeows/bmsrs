@@ -42,7 +42,7 @@ pub enum Event<T, C: CustomEvent = NoCustomEvent> {
         lane: Lane,
         /// Note kind (normal, long, mine, invisible).
         kind: NoteKind,
-        /// Audio asset index into [`crate::Chart::audio_assets`], or `None`.
+        /// Audio asset index into [`crate::ChartData::audio_assets`], or `None`.
         audio_index: Option<u32>,
         /// Format-specific extension data (use `()` for no extensions).
         ext: T,
@@ -51,7 +51,7 @@ pub enum Event<T, C: CustomEvent = NoCustomEvent> {
     Bgm {
         /// Tick position.
         tick: u64,
-        /// Index into [`crate::Chart::audio_assets`].
+        /// Index into [`crate::ChartData::audio_assets`].
         audio_index: u32,
     },
     /// A BPM change.
@@ -81,7 +81,7 @@ pub enum Event<T, C: CustomEvent = NoCustomEvent> {
         tick: u64,
         /// Which BGA layer this event targets.
         layer: BgaLayer,
-        /// Index into [`crate::Chart::bga_resources`].
+        /// Index into [`crate::ChartInfo::bga_resources`].
         resource_id: u32,
     },
     /// A bar line for visual display.

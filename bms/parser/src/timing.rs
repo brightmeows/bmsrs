@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsHeaderTiming, BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
+use bms_tokenizer::{BmsBase, BmsHeaderTiming, BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
 
 /// Timing definitions and global scalars.
 ///
@@ -31,21 +31,28 @@ pub struct Timing {
 
 impl Timing {
     /// Apply a timing header to this struct.
-    pub fn apply(&mut self, header: &BmsHeaderTiming) {
+    ///
+    /// Indexed keys (`BpmIndex`, `StopIndex`, etc.) are normalized using
+    /// `base` for case-insensitive comparison in standard BMS.
+    pub fn apply(&mut self, header: &BmsHeaderTiming, base: BmsBase) {
         match header {
             BmsHeaderTiming::Bpm(v) => self.bpm = Some(*v),
             BmsHeaderTiming::BpmDef { id, value } | BmsHeaderTiming::ExBpm { id, value } => {
-                self.bpm_defs.insert(*id, *value);
+                let nid = BpmIndex::from(id.normalize(base));
+                self.bpm_defs.insert(nid, *value);
             }
             BmsHeaderTiming::BaseBpm(v) => self.base_bpm = Some(*v),
             BmsHeaderTiming::StopDef { id, value } => {
-                self.stop_defs.insert(*id, *value);
+                let nid = StopIndex::from(id.normalize(base));
+                self.stop_defs.insert(nid, *value);
             }
             BmsHeaderTiming::ScrollDef { id, value } => {
-                self.scroll_defs.insert(*id, *value);
+                let nid = ScrollIndex::from(id.normalize(base));
+                self.scroll_defs.insert(nid, *value);
             }
             BmsHeaderTiming::SpeedDef { id, value } => {
-                self.speed_defs.insert(*id, *value);
+                let nid = SpeedIndex::from(id.normalize(base));
+                self.speed_defs.insert(nid, *value);
             }
             BmsHeaderTiming::Stp { .. } => {
                 // `#STP` is a position-based stop; it is stored in

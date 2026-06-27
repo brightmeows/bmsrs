@@ -36,8 +36,8 @@ pub use bms_tokenizer_derive::BmsTokenAttr;
 pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::{
-    ArgbParams, AtBgaParams, BgaParams, BmsBaseMode, DifficultyLevel, ExBmpParams, ExWavParams,
-    LnMode, LnType, ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams,
+    ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
+    ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams,
 };
 pub use header::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay,

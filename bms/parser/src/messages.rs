@@ -215,11 +215,14 @@ pub struct StpEvent {
 /// Container for raw and parsed channel message data.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Messages {
-    /// Raw concatenated value strings per (measure → channel).
+    /// Raw value strings per (measure → channel), preserving individual lines.
     ///
-    /// Multiple lines for the same `(measure, channel)` are **concatenated**
-    /// in file order — unlike the old last-wins behaviour.
-    pub raw: BTreeMap<u16, BTreeMap<BmsChannel, String>>,
+    /// Multiple lines for the same `(measure, channel)` are stored as
+    /// separate entries in the `Vec` in file order.  During [`finalize`](Self::finalize),
+    /// non-BGM channels are **position-merged** (later lines overwrite earlier
+    /// non-`00` positions), while BGM lines are processed independently to
+    /// support polyphony.
+    pub raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
 
     /// BGM events parsed from channel `01`.
     pub bgm_events: Vec<BgmEvent>,
@@ -246,27 +249,38 @@ pub struct Messages {
 impl Messages {
     /// Append a message's values to `raw` storage.
     ///
-    /// Values from consecutive lines with the same `(measure, channel)` are
-    /// **appended**.  Call [`finalize`](Self::finalize) after all messages
-    /// have been received to parse events with correct positions.
+    /// Each line for the same `(measure, channel)` is stored as a separate
+    /// entry in the inner `Vec`, preserving file order.  Call
+    /// [`finalize`](Self::finalize) after all messages have been received;
+    /// it will position-merge non-BGM channels and then parse events.
     pub fn concat_raw<C: AsRef<str>>(&mut self, msg: &bms_tokenizer::BmsMessage<C>) {
         self.raw
             .entry(msg.track)
             .or_default()
             .entry(msg.channel)
-            .and_modify(|existing| existing.push_str(msg.body.as_ref()))
-            .or_insert_with(|| msg.body.as_ref().to_owned());
+            .or_default()
+            .push(msg.body.as_ref().to_owned());
     }
 
-    /// Finalize event parsing from raw concatenated storage.
+    /// Finalize event parsing from raw multi-line storage.
     ///
     /// Must be called after **all** channel messages have been added via
-    /// [`concat_raw`](Self::concat_raw).  Iterates every `(measure, channel)`
-    /// pair in `raw` once, producing events with correct `(numer, denom)`
-    /// positions based on the **final** total object count per channel.
+    /// [`concat_raw`](Self::concat_raw).  For each `(measure, channel)`:
+    ///
+    /// - **BGM** (`ch01`): each line is processed independently, producing
+    ///   events with per-line denominators (polyphony support).
+    /// - **`ch02` / `chA6`** (measure length / option): only the **last**
+    ///   line is used (last-wins for these scalar-like channels).
+    /// - **`ch03`** (BPM change via hex): like other playable channels,
+    ///   position-merged.  `"00"` entries are filtered out (rest = no BPM
+    ///   change).
+    /// - **All other channels**: all lines are **position-merged** via
+    ///   `merge_channel` before parsing, following the spec rule that
+    ///   later lines overwrite non-`00` positions while `"00"` preserves.
     ///
     /// Calling this multiple times appends duplicate events; call it exactly
     /// once after all data is loaded.
+    #[expect(clippy::too_many_lines, reason = "finalize handles all channel types")]
     pub fn finalize(&mut self) {
         // Clear existing parse results so finalize is safe to call once.
         self.bgm_events.clear();
@@ -282,70 +296,168 @@ impl Messages {
         let raw = std::mem::take(&mut self.raw);
 
         for (&measure, channels) in &raw {
-            for (&channel, values) in channels {
-                let objects = split_2char_values_lenient(values);
-                let total_objects = objects.len() as u32;
-
+            for (&channel, lines) in channels {
                 match channel {
+                    // BGM: each line independent (polyphony).
                     BmsChannel::Bgm => {
-                        self.push_bgm_full(values, measure, total_objects);
-                    }
-                    BmsChannel::MeasureLength => {
-                        self.push_measure_length(values, measure);
-                    }
-                    BmsChannel::BpmChange => {
-                        self.push_bpm_absolute_full(values, measure, total_objects);
-                    }
-                    BmsChannel::BgaBase => {
-                        self.push_bga_full(values, measure, BgaLayer::Base, total_objects);
-                    }
-                    BmsChannel::BgaPoor => {
-                        self.push_bga_full(values, measure, BgaLayer::Poor, total_objects);
-                    }
-                    BmsChannel::BgaLayer => {
-                        self.push_bga_full(values, measure, BgaLayer::Layer, total_objects);
-                    }
-                    BmsChannel::ExtendedBpm => {
-                        self.push_bpm_reference_full(values, measure, total_objects);
-                    }
-                    BmsChannel::Stop => {
-                        self.push_stop_full(values, measure, total_objects);
-                    }
-                    BmsChannel::BgaLayer2 => {
-                        self.push_bga_full(values, measure, BgaLayer::Layer2, total_objects);
-                    }
-                    BmsChannel::Scroll => {
-                        self.push_scroll_full(values, measure, total_objects);
-                    }
-                    BmsChannel::Note(note_ch) => {
-                        if let Some(ch) = note_ch.as_u8_hex() {
-                            self.dispatch_note_channel(values, measure, ch, total_objects);
+                        for line in lines {
+                            let objects = split_2char_values_lenient(line);
+                            let total_objects = objects.len() as u32;
+                            self.push_bgm_full(line, measure, total_objects);
                         }
                     }
-                    // Known non-note channels without event parsing:
-                    BmsChannel::BgaBaseOpacity
-                    | BmsChannel::BgaLayerOpacity
-                    | BmsChannel::BgaLayer2Opacity
-                    | BmsChannel::BgaPoorOpacity
-                    | BmsChannel::BgmVolume
-                    | BmsChannel::KeyVolume
-                    | BmsChannel::Text
-                    | BmsChannel::Judge
-                    | BmsChannel::BgaArgbBase
-                    | BmsChannel::BgaArgbLayer
-                    | BmsChannel::BgaArgbLayer2
-                    | BmsChannel::BgaArgbPoor
-                    | BmsChannel::BgaKeyBound
-                    | BmsChannel::Option
-                    | BmsChannel::Speed
-                    | BmsChannel::Seek
-                    | BmsChannel::Unknown(_) => { /* kept only in raw storage */ }
+                    // Measure length / Option: last line wins.
+                    BmsChannel::MeasureLength => {
+                        if let Some(last) = lines.last() {
+                            self.push_measure_length(last, measure);
+                        }
+                    }
+                    // All other channels: position-merge, then parse events.
+                    _ => {
+                        let merged = if lines.len() <= 1 {
+                            lines.first().cloned().unwrap_or_default()
+                        } else {
+                            merge_channel(lines)
+                        };
+                        let objects = split_2char_values_lenient(&merged);
+                        #[expect(
+                            clippy::cast_possible_truncation,
+                            reason = "BMS measure value count fits in u32"
+                        )]
+                        let total_objects = objects.len() as u32;
+
+                        match channel {
+                            BmsChannel::BpmChange => {
+                                self.push_bpm_absolute_full(&merged, measure, total_objects);
+                            }
+                            BmsChannel::ExtendedBpm => {
+                                self.push_bpm_reference_full(&merged, measure, total_objects);
+                            }
+                            BmsChannel::BgaBase => {
+                                self.push_bga_full(&merged, measure, BgaLayer::Base, total_objects);
+                            }
+                            BmsChannel::BgaPoor => {
+                                self.push_bga_full(&merged, measure, BgaLayer::Poor, total_objects);
+                            }
+                            BmsChannel::BgaLayer => {
+                                self.push_bga_full(
+                                    &merged,
+                                    measure,
+                                    BgaLayer::Layer,
+                                    total_objects,
+                                );
+                            }
+                            BmsChannel::BgaLayer2 => {
+                                self.push_bga_full(
+                                    &merged,
+                                    measure,
+                                    BgaLayer::Layer2,
+                                    total_objects,
+                                );
+                            }
+                            BmsChannel::Stop => {
+                                self.push_stop_full(&merged, measure, total_objects);
+                            }
+                            BmsChannel::Scroll => {
+                                self.push_scroll_full(&merged, measure, total_objects);
+                            }
+                            BmsChannel::Note(note_ch) => {
+                                if let Some(ch) = note_ch.as_u8_hex() {
+                                    self.dispatch_note_channel(&merged, measure, ch, total_objects);
+                                }
+                            }
+                            // Non-event channels — kept in raw only.
+                            BmsChannel::BgaBaseOpacity
+                            | BmsChannel::BgaLayerOpacity
+                            | BmsChannel::BgaLayer2Opacity
+                            | BmsChannel::BgaPoorOpacity
+                            | BmsChannel::BgmVolume
+                            | BmsChannel::KeyVolume
+                            | BmsChannel::Text
+                            | BmsChannel::Judge
+                            | BmsChannel::BgaArgbBase
+                            | BmsChannel::BgaArgbLayer
+                            | BmsChannel::BgaArgbLayer2
+                            | BmsChannel::BgaArgbPoor
+                            | BmsChannel::BgaKeyBound
+                            | BmsChannel::Speed
+                            | BmsChannel::Seek
+                            | BmsChannel::Bgm
+                            | BmsChannel::MeasureLength
+                            | BmsChannel::Option
+                            | BmsChannel::Unknown(_) => { /* kept only in raw */ }
+                        }
+                    }
                 }
             }
         }
 
         self.raw = raw;
     }
+}
+
+// Channel merge (position-based, per spec)
+
+/// Merge multiple BMS message lines for the same `(measure, channel)` using
+/// position-based merge semantics:
+///
+/// - Lines are processed **in file order** (later line = higher priority).
+/// - A non-`"00"` value at a position **overwrites** whatever was there.
+/// - A `"00"` value **preserves** the existing value (no-op).
+///
+/// The final resolution (total object count) is the **maximum** count across
+/// all lines.  Each line's values are mapped onto this grid proportionally:
+/// `dest_position = src_position × max_count / line_count`.
+///
+/// # Panics
+///
+/// Panics if `lines` is empty (caller must guard).
+#[expect(
+    clippy::indexing_slicing,
+    reason = "loop guard ensures access is within bounds"
+)]
+pub fn merge_channel(lines: &[String]) -> String {
+    debug_assert!(!lines.is_empty(), "merge_channel called with empty lines");
+
+    // Parse each line into 2-char value chunks.
+    let parsed: Vec<Vec<String>> = lines
+        .iter()
+        .map(|line| {
+            split_2char_values_lenient(line)
+                .into_iter()
+                .map(String::from)
+                .collect()
+        })
+        .collect();
+
+    // Find the maximum count (final resolution).
+    let max_count = parsed.iter().map(Vec::len).max().unwrap_or(1);
+    if max_count == 0 {
+        return String::new();
+    }
+
+    // Initialise result buffer with all "00" at max resolution.
+    let mut result: Vec<&str> = vec!["00"; max_count];
+
+    // Process lines in file order.  Later lines have higher priority,
+    // but "00" is a no-op (preserves existing value).
+    for line_vals in &parsed {
+        let line_count = line_vals.len();
+        if line_count == 0 {
+            continue;
+        }
+        // Map each position from this line's grid onto the max grid.
+        for (j, val) in line_vals.iter().enumerate() {
+            let dest = j * max_count / line_count;
+            if val != "00" {
+                // dest < max_count by construction
+                result[dest] = val;
+            }
+            // "00" → skip (preserve existing)
+        }
+    }
+
+    result.concat()
 }
 
 // Internal parsing helpers
@@ -909,8 +1021,13 @@ mod tests {
             msgs.raw
                 .get(&1)
                 .and_then(|m| m.get(&ch))
-                .map(String::as_str),
+                .and_then(|v| v.first().map(String::as_str)),
             Some("AA")
+        );
+        // Single line stored.
+        assert_eq!(
+            msgs.raw.get(&1).and_then(|m| m.get(&ch).map(Vec::len)),
+            Some(1)
         );
     }
 

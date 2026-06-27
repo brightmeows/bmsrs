@@ -10,7 +10,7 @@ mod timing;
 
 pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
-pub use gameplay::{BmsBaseMode, BmsHeaderGameplay, LnMode, LnType, PlayerMode, Rank};
+pub use gameplay::{BmsHeaderGameplay, LnMode, LnType, PlayerMode, Rank};
 pub use metadata::BmsHeaderMetadata;
 pub use res_def_audio::{BmsHeaderResDefAudio, ExWavParams};
 pub use res_def_visual::{
@@ -185,8 +185,8 @@ mod tests {
     use crate::header::gameplay::Rank;
     use crate::header::timing::StpParams;
     use crate::index::{
-        BmpIndex, BpmIndex, ChangeOptionIndex, ExRankIndex, LnObjIndex, ScrollIndex, SeekIndex,
-        SpeedIndex, StopIndex, TextIndex, WavIndex,
+        BmpIndex, BmsBase, BpmIndex, ChangeOptionIndex, ExRankIndex, LnObjIndex, ScrollIndex,
+        SeekIndex, SpeedIndex, StopIndex, TextIndex, WavIndex,
     };
 
     #[test]
@@ -1223,7 +1223,7 @@ mod tests {
         let result = parse_header_line_default("#BASE 16").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base16))
+            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBase::Base16))
         );
     }
 
@@ -1232,7 +1232,7 @@ mod tests {
         let result = parse_header_line_default("#BASE 36").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base36))
+            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBase::Base36))
         );
     }
 
@@ -1241,7 +1241,7 @@ mod tests {
         let result = parse_header_line_default("#BASE 62").unwrap().unwrap();
         assert_eq!(
             result,
-            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBaseMode::Base62))
+            BmsHeader::Gameplay(BmsHeaderGameplay::Base(BmsBase::Base62))
         );
     }
 

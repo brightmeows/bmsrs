@@ -5,7 +5,7 @@
 //! structured [`Bms`] object with typed metadata, resource definitions,
 //! timing, and channel messages.
 
-use bms_tokenizer::{BmsHeader, BmsHeaderTiming, BmsMessage, BmsToken};
+use bms_tokenizer::{BmsBase, BmsHeader, BmsHeaderGameplay, BmsHeaderTiming, BmsMessage, BmsToken};
 
 mod audio;
 mod display;
@@ -59,15 +59,23 @@ pub struct Bms {
 impl Bms {
     /// Build a `Bms` from a flat token stream (no control-flow commands).
     ///
-    /// Iterates over tokens and populates fields.  Headers use last-wins
-    /// semantics; messages are concatenated per (measure, channel).
+    /// Two-pass processing:
+    /// 1. A pre-scan locates `#BASE` to determine the numbering base.
+    /// 2. All tokens are then processed with the correct base, normalising
+    ///    indexed keys (`WavIndex`, `BmpIndex`, etc.) for case-insensitive
+    ///    comparison in standard (Base36) BMS files.
     pub fn from_flat_tokens<C: AsRef<str>>(tokens: impl IntoIterator<Item = BmsToken<C>>) -> Self {
         let mut bms = Self::default();
 
-        for token in tokens {
+        // Pre-scan for #BASE.  Collect the token iterator first since we
+        // need to iterate it twice (once for BASE, once for processing).
+        let all_tokens: Vec<_> = tokens.into_iter().collect();
+        let bms_base = detect_base(&all_tokens);
+
+        for token in &all_tokens {
             match token {
-                BmsToken::Header(header) => bms.process_header(&header),
-                BmsToken::Message(msg) => bms.process_message(&msg),
+                BmsToken::Header(header) => bms.process_header(header, bms_base),
+                BmsToken::Message(msg) => bms.process_message(msg),
             }
         }
 
@@ -79,16 +87,14 @@ impl Bms {
 
     /// Route a header to the appropriate sub-module's `apply` method.
     ///
-    /// Each tokenizer header group maps to exactly one sub-struct.
-    /// `#STP` is the sole exception: it lives in the Timing group
-    /// but is stored in `Messages` (same position model as channel
-    /// events).
-    fn process_header<C: AsRef<str>>(&mut self, header: &BmsHeader<C>) {
+    /// `base` is the numbering base determined by `#BASE` (defaults to
+    /// [`BmsBase::Base36`]).
+    fn process_header<C: AsRef<str>>(&mut self, header: &BmsHeader<C>, base: BmsBase) {
         match header {
             BmsHeader::Metadata(m) => self.metadata.apply(m),
             BmsHeader::Gameplay(g) => self.gameplay.apply(g),
             BmsHeader::Timing(t) => {
-                self.timing.apply(t);
+                self.timing.apply(t, base);
                 // #STP crosses sub-struct boundaries
                 if let BmsHeaderTiming::Stp { params } = t {
                     self.messages.stp_events.push(messages::StpEvent {
@@ -101,8 +107,8 @@ impl Bms {
                     });
                 }
             }
-            BmsHeader::ResDefAudio(a) => self.audio.apply(a),
-            BmsHeader::ResDefVisual(v) => self.visual.apply(v),
+            BmsHeader::ResDefAudio(a) => self.audio.apply(a, base),
+            BmsHeader::ResDefVisual(v) => self.visual.apply(v, base),
             BmsHeader::Display(d) => self.display.apply(d),
             BmsHeader::ControlFlow(_) => { /* skipped — not stored in Bms */ }
             BmsHeader::Fallback(f) => self
@@ -117,6 +123,18 @@ impl Bms {
     fn process_message<C: AsRef<str>>(&mut self, m: &BmsMessage<C>) {
         self.messages.concat_raw(m);
     }
+}
+
+/// Pre-scan tokens for `#BASE` to determine the numbering base.
+///
+/// Defaults to [`BmsBase::Base36`] when no `#BASE` header is found.
+fn detect_base<C: AsRef<str>>(tokens: &[BmsToken<C>]) -> BmsBase {
+    for token in tokens {
+        if let BmsToken::Header(BmsHeader::Gameplay(BmsHeaderGameplay::Base(b))) = token {
+            return *b;
+        }
+    }
+    BmsBase::Base36
 }
 
 // Tests
@@ -165,9 +183,13 @@ mod tests {
         let measure_map = bms.messages.raw.get(&1);
         assert!(measure_map.is_some());
         assert_eq!(
-            measure_map.and_then(|m| m.get(&ch).map(String::as_str)),
+            measure_map
+                .and_then(|m| m.get(&ch))
+                .and_then(|v| v.first().map(String::as_str)),
             Some("1122")
         );
+        // Single-line: exactly one entry in the Vec
+        assert_eq!(measure_map.and_then(|m| m.get(&ch).map(Vec::len)), Some(1));
     }
 
     #[test]
@@ -176,10 +198,14 @@ mod tests {
         let bms = Bms::from_flat_tokens(tokens);
         let ch = bms_tokenizer::BmsChannel::from_raw("01").unwrap();
         let measure_map = bms.messages.raw.get(&1);
-        assert_eq!(
-            measure_map.and_then(|m| m.get(&ch).map(String::as_str)),
-            Some("11223344")
-        );
+        // BGM channels store each line separately (polyphony support).
+        let lines = measure_map.and_then(|m| m.get(&ch));
+        assert_eq!(lines, Some(&vec!["1122".to_owned(), "3344".to_owned()]));
+        // Two lines produce 2 BGM events per line (total 4), each with
+        // its own per-line denominator.
+        assert_eq!(bms.messages.bgm_events.len(), 4);
+        assert_eq!(bms.messages.bgm_events[0].position.denom, 2);
+        assert_eq!(bms.messages.bgm_events[2].position.denom, 2);
     }
 
     #[test]
@@ -212,7 +238,8 @@ mod tests {
             bms.messages
                 .raw
                 .get(&1)
-                .and_then(|m| m.get(&ch).map(String::as_str)),
+                .and_then(|m| m.get(&ch))
+                .and_then(|v| v.first().map(String::as_str)),
             Some("11223344")
         );
     }
@@ -237,6 +264,45 @@ mod tests {
         assert!(bms.audio.wav_files.is_empty());
         assert!(bms.messages.raw.is_empty());
         assert!(bms.fallback_headers.is_empty());
+    }
+
+    #[test]
+    fn merge_channel_basic_example() {
+        use crate::messages::merge_channel;
+        // Spec example from memo/03:
+        //   #00113:11111111   (4 values)
+        //   #00113:0022332255224400  (8 values)
+        //   #00113:0066        (2 values)
+        //   Result: 1122332266224400
+        let lines = vec![
+            "11111111".to_owned(),
+            "0022332255224400".to_owned(),
+            "0066".to_owned(),
+        ];
+        assert_eq!(merge_channel(&lines), "1122332266224400");
+    }
+
+    #[test]
+    fn merge_channel_single_line_passthrough() {
+        use crate::messages::merge_channel;
+        let lines = vec!["AABBCC".to_owned()];
+        assert_eq!(merge_channel(&lines), "AABBCC");
+    }
+
+    #[test]
+    fn merge_channel_00_preserves_earlier() {
+        use crate::messages::merge_channel;
+        // Non-00 from line 1 is preserved when line 2 has "00" at that pos.
+        let lines = vec!["11".to_owned(), "00".to_owned()];
+        assert_eq!(merge_channel(&lines), "11");
+    }
+
+    #[test]
+    fn merge_channel_later_overwrites_non_00() {
+        use crate::messages::merge_channel;
+        // Later line's non-00 overwrites earlier non-00.
+        let lines = vec!["11".to_owned(), "22".to_owned()];
+        assert_eq!(merge_channel(&lines), "22");
     }
 
     // New: verify headers that were previously silently dropped

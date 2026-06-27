@@ -22,13 +22,15 @@
 //! The ID is stored as `[u8; 2]` where each byte is the raw ASCII character.
 //! For single-character IDs (e.g., `"A"`), the second byte is `0`.
 
+use std::cmp::Ordering;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use derive_more::{Deref, Display, From, FromStr};
 use thiserror::Error;
 
-use crate::IntoTokensError;
+use crate::{BmsTokenAttr, IntoTokensError};
 
 // Charset check helpers
 
@@ -56,15 +58,18 @@ const fn is_base16(b: u8) -> bool {
 ///
 /// This replaces the previous compile-time `BmsCharset` type parameter.
 /// Use [`BmsIndex::is_valid_for`] for runtime checks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 #[non_exhaustive]
 pub enum BmsBase {
     /// Hexadecimal (`0`–`9`, `A`–`F`, `a`–`f`; 16 values per position).
+    #[bms_token("16")]
     Base16,
     /// Base-36 uppercase (`0`–`9`, `A`–`Z`; 36 values per position).
+    #[bms_token("36")]
     Base36,
     /// Base-62 (`0`–`9`, `A`–`Z`, `a`–`z`; 62 values per position).
     /// This is the default charset for most BMS indices.
+    #[bms_token("62")]
     Base62,
 }
 
@@ -79,7 +84,7 @@ pub enum BmsBase {
 /// # Storage
 ///
 /// `[u8; 2]` — when the ID is a single character, `bytes[1]` is `0`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug)]
 pub struct BmsIndex {
     /// Raw ASCII bytes of the characters.
     ///
@@ -89,6 +94,52 @@ pub struct BmsIndex {
     /// Two-character IDs store both bytes — neither is ever `0` because
     /// all charset validators exclude `NUL`.
     bytes: [u8; 2],
+}
+
+// Custom comparison traits: case-insensitive.
+//
+// Standard BMS (36-ary) treats `"AA"` and `"aa"` as the same index.
+// Only `#BASE 62` mode uses case-sensitive comparison.  The default
+// (no `#BASE` or `#BASE 36`) is always case-insensitive.
+//
+// For `#BASE 62` support, use `normalize(BmsBase::Base62)` before
+// comparison to preserve the original case.
+
+impl PartialEq for BmsIndex {
+    fn eq(&self, other: &Self) -> bool {
+        bytes_eq_ignore_case(self.bytes, other.bytes)
+    }
+}
+
+impl Eq for BmsIndex {}
+
+impl PartialOrd for BmsIndex {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BmsIndex {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a0 = self.bytes[0].to_ascii_uppercase();
+        let b0 = other.bytes[0].to_ascii_uppercase();
+        let a1 = self.bytes[1].to_ascii_uppercase();
+        let b1 = other.bytes[1].to_ascii_uppercase();
+        a0.cmp(&b0).then_with(|| a1.cmp(&b1))
+    }
+}
+
+impl Hash for BmsIndex {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.bytes[0].to_ascii_uppercase().hash(state);
+        self.bytes[1].to_ascii_uppercase().hash(state);
+    }
+}
+
+/// Compare two byte arrays case-insensitively (ASCII only).
+#[inline]
+const fn bytes_eq_ignore_case(a: [u8; 2], b: [u8; 2]) -> bool {
+    a[0].eq_ignore_ascii_case(&b[0]) && a[1].eq_ignore_ascii_case(&b[1])
 }
 
 #[expect(
@@ -171,6 +222,29 @@ impl BmsIndex {
     #[must_use]
     const fn from_valid(bytes: [u8; 2]) -> Self {
         Self { bytes }
+    }
+
+    /// Return a copy normalized for the given base.
+    ///
+    /// For [`BmsBase::Base16`] and [`BmsBase::Base36`] (the standard BMS
+    /// charsets), this uppercases the bytes so that `"AA"` and `"aa"` map
+    /// to the same index.  For [`BmsBase::Base62`], the original case is
+    /// preserved (case-sensitive).
+    #[must_use]
+    #[expect(
+        clippy::missing_const_for_fn,
+        reason = "to_ascii_uppercase is not const"
+    )]
+    pub fn normalize(&self, base: BmsBase) -> Self {
+        match base {
+            BmsBase::Base16 | BmsBase::Base36 => Self {
+                bytes: [
+                    self.bytes[0].to_ascii_uppercase(),
+                    self.bytes[1].to_ascii_uppercase(),
+                ],
+            },
+            BmsBase::Base62 => *self,
+        }
     }
 }
 

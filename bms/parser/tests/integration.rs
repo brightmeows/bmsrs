@@ -5,7 +5,7 @@
 
 use bms_parser::*;
 use bms_tokenizer::{
-    BmpIndex, BmsBaseMode, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, Rank,
+    BmpIndex, BmsBase, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, Rank,
     StopIndex, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
@@ -183,7 +183,7 @@ fn full_header_parse() {
     assert_eq!(bms.gameplay.ln_type, Some(LnType::Type1));
     assert!(bms.gameplay.ln_obj.is_some());
     assert_eq!(bms.gameplay.ln_mode, Some(LnMode::Ln));
-    assert_eq!(bms.gameplay.base, Some(BmsBaseMode::Base36));
+    assert_eq!(bms.gameplay.base, Some(BmsBase::Base36));
 
     // Timing
     assert_eq!(bms.timing.bpm, Some(180.0));
@@ -428,24 +428,26 @@ fn measure_length_parsed() {
 // Message concatenation
 
 #[test]
-fn same_channel_concat() {
+fn bgm_multi_line_polyphony() {
+    // BGM lines are stored separately (polyphony support).
     let bms = parse("#00101:AABB\n#00101:CCDD");
     let ch = BmsChannel::from_raw("01").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
-        Some(&"AABBCCDD".to_owned())
+        Some(&vec!["AABB".to_owned(), "CCDD".to_owned()])
     );
-    // Events are parsed from concatenated values with correct positions:
-    // AABBCCDD → events at (0/4, 1/4, 2/4, 3/4)
+    // Each BGM line is independent: 2+2 = 4 events total.
     assert_eq!(bms.messages.bgm_events.len(), 4);
+    // Line 1: events at (0/2, 1/2)
     assert_eq!(bms.messages.bgm_events[0].position.numer, 0);
-    assert_eq!(bms.messages.bgm_events[0].position.denom, 4);
+    assert_eq!(bms.messages.bgm_events[0].position.denom, 2);
     assert_eq!(bms.messages.bgm_events[1].position.numer, 1);
-    assert_eq!(bms.messages.bgm_events[1].position.denom, 4);
-    assert_eq!(bms.messages.bgm_events[2].position.numer, 2);
-    assert_eq!(bms.messages.bgm_events[2].position.denom, 4);
-    assert_eq!(bms.messages.bgm_events[3].position.numer, 3);
-    assert_eq!(bms.messages.bgm_events[3].position.denom, 4);
+    assert_eq!(bms.messages.bgm_events[1].position.denom, 2);
+    // Line 2: events at (0/2, 1/2)
+    assert_eq!(bms.messages.bgm_events[2].position.numer, 0);
+    assert_eq!(bms.messages.bgm_events[2].position.denom, 2);
+    assert_eq!(bms.messages.bgm_events[3].position.numer, 1);
+    assert_eq!(bms.messages.bgm_events[3].position.denom, 2);
 }
 
 #[test]
@@ -458,30 +460,36 @@ fn different_channels_independent() {
 // Edge cases
 
 #[test]
-fn same_channel_concat_positions_correct() {
-    // Multi-line concatenation must produce positions relative to the
-    // final total object count, not incremental totals.
-    let bms = parse("#00101:AABB\n#00101:CCDD");
-    assert_eq!(bms.messages.bgm_events.len(), 4);
-    // All four events use denom=4, not (2 then 4):
-    #[expect(clippy::cast_possible_truncation, reason = "test data fits in u32")]
-    for (i, ev) in bms.messages.bgm_events.iter().enumerate() {
-        assert_eq!(
-            ev.position.numer, i as u32,
-            "bgm_events[{i}] numer should be {i}"
-        );
-        assert_eq!(ev.position.denom, 4, "bgm_events[{i}] denom should be 4");
-    }
+fn note_channel_merge_two_lines() {
+    // Non-BGM channels are position-merged.
+    // Two lines on channel 11: line 1 (2 values), line 2 (2 values).
+    // After merge: later line overwrites non-00, 00 preserves.
+    let bms = parse("#00111:1100\n#00111:0022");
+    // Channel 11 → player 1, key 1, visible. Two events (positions 0 and 1).
+    assert_eq!(bms.messages.note_events.len(), 2);
+    assert_eq!(bms.messages.note_events[0].wav_id, "11".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[1].wav_id, "22".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[0].position.numer, 0);
+    assert_eq!(bms.messages.note_events[1].position.numer, 1);
 }
 
 #[test]
-fn same_channel_three_lines_positions_correct() {
-    let bms = parse("#00101:AA\n#00101:BB\n#00101:CC");
-    assert_eq!(bms.messages.bgm_events.len(), 3);
-    assert_eq!(bms.messages.bgm_events[0].position.denom, 3);
-    assert_eq!(bms.messages.bgm_events[1].position.denom, 3);
-    assert_eq!(bms.messages.bgm_events[2].position.denom, 3);
-    assert_eq!(bms.messages.bgm_events[2].position.numer, 2);
+fn note_channel_merge_different_division() {
+    // Merge where lines have different subdivisions.
+    // Channel 11: line 1 = 4 values, line 2 = 2 values (00 at pos 0, 66 at pos 1).
+    // Max count = 4.
+    //   Line 1: "AA0000BB" → pos 0=AA, 1=00, 2=00, 3=BB
+    //   Line 2: "0066" expanded to 4: pos 0=00(keep), pos 2=66(overwrite)
+    //   Merged: "AA0066BB"
+    // After "00" filtering: events for AA(pos0/num0), 66(pos2/num2), BB(pos3/num3).
+    let bms = parse("#00111:AA0000BB\n#00111:0066");
+    assert_eq!(bms.messages.note_events.len(), 3);
+    assert_eq!(bms.messages.note_events[0].wav_id, "AA".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[1].wav_id, "66".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[2].wav_id, "BB".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[0].position.numer, 0);
+    assert_eq!(bms.messages.note_events[1].position.numer, 2);
+    assert_eq!(bms.messages.note_events[2].position.numer, 3);
 }
 
 #[test]
@@ -515,19 +523,19 @@ fn unknown_channel_stays_raw() {
     let ch = BmsChannel::from_raw("FF").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
-        Some(&"1122".to_owned())
+        Some(&vec!["1122".to_owned()])
     );
 }
 
 #[test]
 fn empty_message_values() {
     let bms = parse("#00111:");
-    // Values empty — no events, but raw has empty string
+    // Values empty — no events, but raw has an empty-string entry
     assert!(bms.messages.note_events.is_empty());
     let ch = BmsChannel::from_raw("11").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
-        Some(&String::new())
+        Some(&vec![String::new()])
     );
 }
 
