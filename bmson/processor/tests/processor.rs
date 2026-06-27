@@ -6,7 +6,7 @@ use bmson_def::{
 };
 use bmson_processor::layout::*;
 use bmson_processor::{BmsonNoteExt, BmsonProcessor};
-use bmsrs_chart::{BgaLayer, Event, Lane, NoteKind, NoteSide};
+use bmsrs_chart::{BgaLayer, Damage, Event, Lane, NoteKind, NoteSide};
 use std::num::NonZeroU8;
 use std::path::Path;
 
@@ -402,7 +402,12 @@ fn process_mine_channel() {
         .iter()
         .find(|(t, _, _)| *t == 480)
         .expect("mine note exists");
-    assert_eq!(mine.2, NoteKind::Mine { damage: 0.5 });
+    assert_eq!(
+        mine.2,
+        NoteKind::Mine {
+            damage: Damage::new(0.5)
+        }
+    );
 }
 
 #[test]

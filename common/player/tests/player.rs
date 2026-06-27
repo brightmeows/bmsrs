@@ -5,7 +5,7 @@ mod helper;
 use std::num::NonZeroU8;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartData, ChartInfo, Event, NoteKind, SongInfo, TimingTrack,
+    BpmChange, Chart, ChartData, ChartInfo, Damage, Event, NoteKind, SongInfo, TimingTrack,
     mode::{Lane, NoteSide},
 };
 use bmsrs_player::Player;
@@ -110,7 +110,13 @@ fn notes_for_judgement_excludes_invisible_and_mines() {
     let chart = make_chart(vec![
         note(0, key(1), NoteKind::Normal),
         note(240, key(1), NoteKind::Invisible),
-        note(480, key(1), NoteKind::Mine { damage: 1.0 }),
+        note(
+            480,
+            key(1),
+            NoteKind::Mine {
+                damage: Damage::new(1.0),
+            },
+        ),
         note(720, key(1), NoteKind::Long { duration: 240 }),
     ]);
     let player = Player::new(chart);

@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU8;
 
-use bmsrs_chart::{Event, Lane, NoteKind, NoteSide};
+use bmsrs_chart::{Damage, Event, Lane, NoteKind, NoteSide};
 
 #[test]
 fn event_note_fields() {
@@ -34,6 +34,8 @@ fn note_kind_default_is_normal() {
 
 #[test]
 fn note_kind_clone_equal() {
-    let kind = NoteKind::Mine { damage: 12.5 };
+    let kind = NoteKind::Mine {
+        damage: Damage::new(12.5),
+    };
     assert_eq!(kind.clone(), kind);
 }

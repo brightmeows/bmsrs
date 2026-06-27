@@ -273,3 +273,7 @@ impl PartialEq for TimingTrack {
         // 忽略 events_cache 状态——无论是否缓存，原始数据相同则相等。
     }
 }
+
+// init_bpm 保证不含 NaN（构造时通过 debug_assert 验证），因此
+// PartialEq 满足 Eq 的反射性要求。
+impl Eq for TimingTrack {}

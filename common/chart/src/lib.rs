@@ -76,7 +76,7 @@ pub mod visual;
 pub use audio::AudioAsset;
 pub use event::{CustomEvent, Event, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
-pub use note::NoteKind;
+pub use note::{Damage, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingTrack};
 pub use visual::{BgaLayer, BgaResource};
 
@@ -117,6 +117,7 @@ pub struct ChartInfo {
 /// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
+    // 手动实现 Eq：judge_multiplier 与 life_multiplier 保证不含 NaN。
     /// 每个四分音符的脉冲数（节拍分辨率）。
     pub resolution: u64,
     /// 用于脉冲 ↔ 秒换算的计时轨。
@@ -130,6 +131,9 @@ pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// 音符与 BGM 事件引用的音频素材。
     pub audio_assets: Vec<AudioAsset>,
 }
+
+// judge_multiplier 与 life_multiplier 保证不含 NaN。
+impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for ChartData<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// 返回谱面数据中最后一个事件的脉冲位置。
@@ -159,3 +163,5 @@ pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// 游玩数据（计时、事件、音频）。
     pub data: ChartData<T, C>,
 }
+
+impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Chart<T, C> {}

@@ -39,8 +39,8 @@ use std::time::Duration;
 use bms_parser::{Bms, BpmValue, KeyType};
 use bms_tokenizer::{BmpIndex, WavIndex};
 use bmsrs_chart::{
-    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, NoteKind, SongInfo,
-    StopEvent, TimingTrack,
+    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, NoteKind,
+    SongInfo, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
@@ -274,7 +274,9 @@ fn collect_notes<L: BmsLayout>(
             table.position_to_tick(me.position),
             me.player,
             me.lane,
-            NoteKind::Mine { damage: me.damage },
+            NoteKind::Mine {
+                damage: Damage::new(me.damage),
+            },
             None,
             events,
         );

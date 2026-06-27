@@ -29,7 +29,7 @@ use std::time::Duration;
 
 use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, Lane,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, Lane,
     NoteExt, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 use thiserror::Error;
@@ -373,7 +373,9 @@ fn process_mine_channels(
                 tick: mn.y,
                 side,
                 lane,
-                kind: NoteKind::Mine { damage: mn.damage },
+                kind: NoteKind::Mine {
+                    damage: Damage::new(mn.damage),
+                },
                 audio_index: Some(mine_audio_idx),
                 ext: BmsonNoteExt::default(),
             });

@@ -6,8 +6,41 @@
 
 use std::fmt::Debug;
 
+/// 地雷伤害值。
+///
+/// 保证不含 NaN，支持 [`Eq`] 比较。
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Damage(f64);
+
+impl Damage {
+    /// 从 `f64` 创建伤害值。
+    ///
+    /// # Panic（仅 debug 构建）
+    ///
+    /// debug 构建中若 `value` 为 NaN 则 panic。
+    #[must_use]
+    pub fn new(value: f64) -> Self {
+        debug_assert!(!value.is_nan(), "damage must not be NaN");
+        Self(value)
+    }
+
+    /// 返回原始伤害值。
+    #[must_use]
+    pub const fn get(self) -> f64 {
+        self.0
+    }
+}
+
+impl PartialEq for Damage {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for Damage {}
+
 /// 可玩音符的种类。
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum NoteKind {
     /// 普通音符（短音）—— 单次敲击。
     #[default]
@@ -20,7 +53,7 @@ pub enum NoteKind {
     /// 地雷 —— 按下会扣血。
     Mine {
         /// 伤害量（由游戏定义的单位）。
-        damage: f64,
+        damage: Damage,
     },
     /// 不可见音符 —— 触发音频但不显示，也不按常规判定。
     ///

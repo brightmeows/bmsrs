@@ -29,6 +29,12 @@ use crate::visual::BgaLayer;
 ///
 /// 处理器必须在排序前以期望的同脉冲顺序插入事件，因为稳定排序会保留
 /// 插入顺序。
+///
+/// # `Eq` 保证
+///
+/// `Event` 手动实现 [`Eq`]。含有 `f64` 字段的变体（`Bpm`、`Scroll`、
+/// `Speed`）保证其浮点字段不含 `NaN`，因此 `PartialEq` 比较满足
+/// `Eq` 的反射性要求。
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event<T, C: CustomEvent = NoCustomEvent> {
     /// 可玩音符。
@@ -121,12 +127,16 @@ impl<T, C: CustomEvent> Event<T, C> {
     }
 }
 
+// 手动实现 Eq：所有 f64 字段（Bpm.bpm、Scroll.rate、Speed.rate）保证
+// 不含 NaN，因此 PartialEq 满足 Eq 的反射性要求。
+impl<T: Eq, C: Eq + CustomEvent> Eq for Event<T, C> {}
+
 // NoteExt trait
 
 /// 格式特有的每音符扩展数据 trait。
 ///
 /// 内置的 `()` 以零开销实现此 trait。
-pub trait NoteExt: Clone + Debug + PartialEq + Default {}
+pub trait NoteExt: Clone + Debug + PartialEq + Eq + Default {}
 
 impl NoteExt for () {}
 
@@ -136,7 +146,7 @@ impl NoteExt for () {}
 ///
 /// 自定义事件参与统一的已排序时间线。处理器必须在稳定排序前以期望的
 /// 同脉冲顺序插入它们。
-pub trait CustomEvent: Clone + Debug + PartialEq {
+pub trait CustomEvent: Clone + Debug + PartialEq + Eq {
     /// 此自定义事件的脉冲位置。
     fn tick(&self) -> u64;
 }
