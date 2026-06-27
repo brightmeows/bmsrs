@@ -122,9 +122,10 @@ Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下
 |------|------|
 | 命名 | `<场景>_<期望>`，如 `empty_input_returns_empty_bms` |
 | 断言数 | 每个 test 一个断言 |
-| 公开 API 测试 | 放 `tests/*.rs`（集成测试）|
+| 公开 API 测试 | 放 `tests/*.rs`（集成测试）；**禁止**在 `src/` 内测公开 API |
 | `pub(crate)`/ 私有测试 | 放 `src/*.rs` 内 `#[cfg(test)] mod` |
 | 优先测试公开类型 | 避免测试内部 `Wrap` 结构体 |
+| 防重复 | 新增测试前检查同 crate 的 `tests/` 与 `src/` 内 `#[cfg(test)] mod`，避免覆盖重复；仅当现有测试无法覆盖新场景时才新增 |
 
 ### 版本发布
 
