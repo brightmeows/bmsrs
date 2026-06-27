@@ -241,7 +241,10 @@ fn process_basic_chart() {
     assert_eq!(ns[1], (240, key(2), NoteKind::Normal));
     assert_eq!(ns[2], (480, key(1), NoteKind::Normal));
     assert_eq!(chart.data.audio_assets.len(), 3);
-    assert_eq!(chart.data.audio_assets[0].path, Path::new("demo.wav"));
+    assert_eq!(
+        chart.data.audio_assets[0].path.as_ref(),
+        Path::new("demo.wav")
+    );
 }
 
 #[test]

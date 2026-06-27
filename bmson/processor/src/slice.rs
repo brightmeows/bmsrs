@@ -21,6 +21,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bmson_def::SoundChannel;
@@ -74,6 +75,8 @@ pub fn slice_channel(
     // 4. 构建带有正确音频起始偏移的 AudioAsset。
     let mut assets = Vec::with_capacity(pulse_times.len());
     let mut pulse_to_index = BTreeMap::new();
+    // 共享路径：同一通道所有切片引用同一个 Arc，仅增加引用计数。
+    let shared_path = Arc::from(channel.name.to_path_buf());
     // 记录最近一次重启点处的谱面时间。
     let mut last_restart_time = Duration::ZERO;
 
@@ -96,7 +99,7 @@ pub fn slice_channel(
             .map(|&(_, next_time)| next_time.saturating_sub(chart_time));
 
         let asset = AudioAsset {
-            path: channel.name.to_path_buf(),
+            path: Arc::clone(&shared_path),
             start: audio_start,
             duration,
         };

@@ -24,6 +24,7 @@ mod slice;
 pub mod layout;
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
@@ -359,7 +360,7 @@ fn process_mine_channels(
     for mc in channels {
         let mine_audio_idx = audio_assets.len() as u32;
         audio_assets.push(AudioAsset {
-            path: mc.name.to_path_buf(),
+            path: Arc::from(mc.name.to_path_buf()),
             start: Duration::ZERO,
             duration: None,
         });
@@ -394,7 +395,7 @@ fn process_key_channels(
     for kc in channels {
         let key_audio_idx = audio_assets.len() as u32;
         audio_assets.push(AudioAsset {
-            path: kc.name.to_path_buf(),
+            path: Arc::from(kc.name.to_path_buf()),
             start: Duration::ZERO,
             duration: None,
         });

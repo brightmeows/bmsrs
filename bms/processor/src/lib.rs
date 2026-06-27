@@ -32,6 +32,8 @@ mod position;
 pub mod layout;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bms_parser::{Bms, BpmValue, KeyType};
@@ -399,7 +401,7 @@ fn build_audio_assets(
         #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
         let idx = audio_assets.len() as u32;
         audio_assets.push(AudioAsset {
-            path: path.clone().into(),
+            path: Arc::from(PathBuf::from(path.as_str())),
             start: Duration::ZERO,
             duration: None,
         });

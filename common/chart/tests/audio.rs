@@ -1,17 +1,18 @@
 #![expect(missing_docs, reason = "integration test")]
 
 use bmsrs_chart::{AudioAsset, Event};
-use std::path::PathBuf;
+use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[test]
 fn audio_asset_bms_style() {
     let asset = AudioAsset {
-        path: PathBuf::from("kick.wav"),
+        path: Arc::from(Path::new("kick.wav")),
         start: Duration::ZERO,
         duration: None,
     };
-    assert_eq!(asset.path, PathBuf::from("kick.wav"));
+    assert_eq!(&*asset.path, Path::new("kick.wav"));
     assert_eq!(asset.start, Duration::ZERO);
     assert!(asset.duration.is_none());
 }
@@ -19,7 +20,7 @@ fn audio_asset_bms_style() {
 #[test]
 fn audio_asset_bmson_slice_style() {
     let asset = AudioAsset {
-        path: PathBuf::from("vox.wav"),
+        path: Arc::from(Path::new("vox.wav")),
         start: Duration::from_millis(250),
         duration: Some(Duration::from_millis(750)),
     };
