@@ -5,7 +5,7 @@ mod helper;
 use std::num::NonZeroU8;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartMetadata, Event, NoteKind, TimingTrack,
+    BpmChange, Chart, ChartData, ChartInfo, Event, NoteKind, SongInfo, TimingTrack,
     mode::{Lane, NoteSide},
 };
 use bmsrs_player::Player;
@@ -129,31 +129,33 @@ fn notes_for_judgement_excludes_invisible_and_mines() {
 #[test]
 fn bgm_in_range_returns_events() {
     let chart: Chart = Chart {
-        metadata: ChartMetadata::default(),
-        resolution: 240,
-        timing: TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack {
+                init_bpm: 120.0,
+                bpm_changes: vec![],
+                stops: vec![],
+            },
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events: vec![
+                Event::Bgm {
+                    tick: 0,
+                    audio_index: 0,
+                },
+                Event::Bgm {
+                    tick: 480,
+                    audio_index: 1,
+                },
+                Event::Bgm {
+                    tick: 960,
+                    audio_index: 2,
+                },
+            ],
+            audio_assets: vec![],
         },
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
-        events: vec![
-            Event::Bgm {
-                tick: 0,
-                audio_index: 0,
-            },
-            Event::Bgm {
-                tick: 480,
-                audio_index: 1,
-            },
-            Event::Bgm {
-                tick: 960,
-                audio_index: 2,
-            },
-        ],
-        audio_assets: vec![],
-        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
@@ -165,27 +167,29 @@ fn bgm_in_range_returns_events() {
 #[test]
 fn scroll_rate_at_returns_latest_multiplier() {
     let chart: Chart = Chart {
-        metadata: ChartMetadata::default(),
-        resolution: 240,
-        timing: TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack {
+                init_bpm: 120.0,
+                bpm_changes: vec![],
+                stops: vec![],
+            },
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events: vec![
+                Event::Scroll {
+                    tick: 240,
+                    rate: 2.0,
+                },
+                Event::Scroll {
+                    tick: 720,
+                    rate: 0.5,
+                },
+            ],
+            audio_assets: vec![],
         },
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
-        events: vec![
-            Event::Scroll {
-                tick: 240,
-                rate: 2.0,
-            },
-            Event::Scroll {
-                tick: 720,
-                rate: 0.5,
-            },
-        ],
-        audio_assets: vec![],
-        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
@@ -198,22 +202,24 @@ fn scroll_rate_at_returns_latest_multiplier() {
 #[test]
 fn bar_lines_in_range_returns_subset() {
     let chart: Chart = Chart {
-        metadata: ChartMetadata::default(),
-        resolution: 240,
-        timing: TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack {
+                init_bpm: 120.0,
+                bpm_changes: vec![],
+                stops: vec![],
+            },
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events: vec![
+                Event::Bar { tick: 0 },
+                Event::Bar { tick: 960 },
+                Event::Bar { tick: 1920 },
+            ],
+            audio_assets: vec![],
         },
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
-        events: vec![
-            Event::Bar { tick: 0 },
-            Event::Bar { tick: 960 },
-            Event::Bar { tick: 1920 },
-        ],
-        audio_assets: vec![],
-        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
@@ -226,21 +232,23 @@ fn bar_lines_in_range_returns_subset() {
 #[test]
 fn current_bpm_returns_active_bpm() {
     let chart: Chart = Chart {
-        metadata: ChartMetadata::default(),
-        resolution: 240,
-        timing: TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![BpmChange {
-                tick: 480,
-                bpm: 200.0,
-            }],
-            stops: vec![],
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack {
+                init_bpm: 120.0,
+                bpm_changes: vec![BpmChange {
+                    tick: 480,
+                    bpm: 200.0,
+                }],
+                stops: vec![],
+            },
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events: vec![],
+            audio_assets: vec![],
         },
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
-        events: vec![],
-        audio_assets: vec![],
-        bga_resources: vec![],
     };
     let mut player = Player::new(chart);
 
@@ -280,24 +288,26 @@ fn duration_to_tick_matches_timing_track() {
 #[test]
 fn duration_to_tick_with_bpm_changes_and_stops() {
     let chart: Chart = Chart {
-        metadata: ChartMetadata::default(),
-        resolution: 240,
-        timing: TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![BpmChange {
-                tick: 480,
-                bpm: 60.0,
-            }],
-            stops: vec![bmsrs_chart::StopEvent {
-                tick: 960,
-                duration: 480,
-            }],
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack {
+                init_bpm: 120.0,
+                bpm_changes: vec![BpmChange {
+                    tick: 480,
+                    bpm: 60.0,
+                }],
+                stops: vec![bmsrs_chart::StopEvent {
+                    tick: 960,
+                    duration: 480,
+                }],
+            },
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events: vec![],
+            audio_assets: vec![],
         },
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
-        events: vec![],
-        audio_assets: vec![],
-        bga_resources: vec![],
     };
     let player = Player::new(chart);
     let track = TimingTrack {
@@ -323,21 +333,23 @@ fn duration_to_tick_with_bpm_changes_and_stops() {
 #[test]
 fn duration_to_tick_stop_does_not_advance() {
     let chart: Chart = Chart {
-        metadata: ChartMetadata::default(),
-        resolution: 240,
-        timing: TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![bmsrs_chart::StopEvent {
-                tick: 240,
-                duration: 480,
-            }],
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack {
+                init_bpm: 120.0,
+                bpm_changes: vec![],
+                stops: vec![bmsrs_chart::StopEvent {
+                    tick: 240,
+                    duration: 480,
+                }],
+            },
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events: vec![],
+            audio_assets: vec![],
         },
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
-        events: vec![],
-        audio_assets: vec![],
-        bga_resources: vec![],
     };
     let player = Player::new(chart);
 
@@ -359,5 +371,5 @@ fn into_chart_returns_original_chart() {
     let chart = make_chart(vec![note(0, key(1), NoteKind::Normal)]);
     let player = Player::new(chart);
     let recovered = player.into_chart();
-    assert_eq!(recovered.events.len(), 1);
+    assert_eq!(recovered.data.events.len(), 1);
 }

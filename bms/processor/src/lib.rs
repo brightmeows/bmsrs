@@ -41,8 +41,8 @@ use std::time::Duration;
 use bms_parser::{Bms, BpmValue, KeyType};
 use bms_tokenizer::{BmpIndex, WavIndex};
 use bmsrs_chart::{
-    AudioAsset, BgaResource, BpmChange, Chart, ChartMetadata, Event, NoteKind, StopEvent,
-    TimingTrack,
+    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, NoteKind, SongInfo,
+    StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
@@ -141,15 +141,22 @@ impl BmsProcessor {
         // Stable sort preserves insertion order at the same tick.
         events.sort_by_key(bmsrs_chart::Event::tick);
 
+        let (song, chart_info) = build_metadata(bms);
+
         Ok(Chart {
-            metadata: build_metadata(bms),
-            resolution: RESOLUTION,
-            timing,
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
-            events,
-            audio_assets,
-            bga_resources,
+            song,
+            chart: ChartInfo {
+                bga_resources,
+                ..chart_info
+            },
+            data: ChartData {
+                resolution: RESOLUTION,
+                timing,
+                judge_multiplier: 1.0,
+                life_multiplier: 1.0,
+                events,
+                audio_assets,
+            },
         })
     }
 
@@ -456,28 +463,33 @@ fn build_bar_events(max_measure: u16) -> Vec<Event<(), bmsrs_chart::NoCustomEven
         .collect()
 }
 
-/// Build [`ChartMetadata`] from BMS metadata.
+/// Build [`SongInfo`] and [`ChartInfo`] from BMS metadata.
 #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
 #[expect(clippy::cast_sign_loss, reason = "play level is non-negative")]
-fn build_metadata(bms: &Bms) -> ChartMetadata {
-    ChartMetadata {
-        title: bms.metadata.title.clone().unwrap_or_default(),
-        subtitle: bms.metadata.subtitle.clone().unwrap_or_default(),
-        artist: bms.metadata.artist.clone().unwrap_or_default(),
-        subartists: bms
-            .metadata
-            .sub_artist
-            .as_deref()
-            .map(|s| vec![s.to_owned()])
-            .unwrap_or_default(),
-        genre: bms.metadata.genre.clone().unwrap_or_default(),
-        chart_name: bms
-            .display
-            .play_level
-            .map(|l| format!("{l:.0}"))
-            .unwrap_or_default(),
-        level: bms.display.play_level.map_or(0, |l| l as u64),
-    }
+fn build_metadata(bms: &Bms) -> (SongInfo, ChartInfo) {
+    (
+        SongInfo {
+            title: bms.metadata.title.clone().unwrap_or_default(),
+            artist: bms.metadata.artist.clone().unwrap_or_default(),
+            genre: bms.metadata.genre.clone().unwrap_or_default(),
+            subartists: bms
+                .metadata
+                .sub_artist
+                .as_deref()
+                .map(|s| vec![s.to_owned()])
+                .unwrap_or_default(),
+        },
+        ChartInfo {
+            subtitle: bms.metadata.subtitle.clone().unwrap_or_default(),
+            chart_name: bms
+                .display
+                .play_level
+                .map(|l| format!("{l:.0}"))
+                .unwrap_or_default(),
+            level: bms.display.play_level.map_or(0, |l| l as u64),
+            ..ChartInfo::default()
+        },
+    )
 }
 
 /// Find the maximum measure number referenced by any event.

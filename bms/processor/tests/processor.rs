@@ -84,6 +84,7 @@ fn process_basic_note() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     let notes: Vec<_> = chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -104,7 +105,7 @@ fn process_basic_note() {
         .collect();
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0], (0, NoteSide::P1, key(1), NoteKind::Normal));
-    assert_eq!(chart.audio_assets.len(), 1);
+    assert_eq!(chart.data.audio_assets.len(), 1);
 }
 
 #[test]
@@ -126,6 +127,7 @@ fn process_key7_note_lands_on_key_seven() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     let notes: Vec<_> = chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -170,6 +172,7 @@ fn process_bgm_events_mapped() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     let bgm: Vec<_> = chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -194,9 +197,9 @@ fn process_metadata_from_headers() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert_eq!(chart.metadata.title, "Test Song");
-    assert_eq!(chart.metadata.artist, "Test Artist");
-    assert_eq!(chart.metadata.genre, "Test Genre");
+    assert_eq!(chart.song.title, "Test Song");
+    assert_eq!(chart.song.artist, "Test Artist");
+    assert_eq!(chart.song.genre, "Test Genre");
 }
 
 #[test]
@@ -226,6 +229,7 @@ fn process_default_uses_bme_and_maps_both_sides() {
     let chart = BmsProcessor::process_default(&bms).unwrap();
 
     let positions: Vec<(NoteSide, Lane)> = chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -270,6 +274,7 @@ fn process_lnobj_produces_long_note() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     let lns: Vec<_> = chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -302,8 +307,8 @@ fn process_bpm_change_reference_resolved() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert_eq!(chart.timing.bpm_changes.len(), 1);
-    assert!((chart.timing.bpm_changes[0].bpm - 200.0).abs() < 1e-9);
+    assert_eq!(chart.data.timing.bpm_changes.len(), 1);
+    assert!((chart.data.timing.bpm_changes[0].bpm - 200.0).abs() < 1e-9);
 }
 
 #[test]
@@ -314,6 +319,7 @@ fn process_bar_lines_generated() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     let bar_lines: Vec<_> = chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -347,6 +353,7 @@ fn process_invisible_note_mapped() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
     let notes: Vec<_> = chart
+        .data
         .events
         .iter()
         .filter_map(|e| {

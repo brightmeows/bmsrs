@@ -94,6 +94,7 @@ const fn ne(x: u64, y: u64, l: u64) -> NoteEvent {
 
 fn notes(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<(u64, Lane, NoteKind)> {
     chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -111,6 +112,7 @@ fn notes(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<(u64, Lane, NoteKind)>
 
 fn bgm_events(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<(u64, u32)> {
     chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -125,6 +127,7 @@ fn bgm_events(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<(u64, u32)> {
 
 fn bar_lines(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<u64> {
     chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -139,6 +142,7 @@ fn bar_lines(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<u64> {
 
 fn scroll_events(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<(u64, f64)> {
     chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -153,6 +157,7 @@ fn scroll_events(chart: &bmsrs_chart::Chart<BmsonNoteExt>) -> Vec<(u64, f64)> {
 
 fn bga_events(chart: &bmsrs_chart::Chart<BmsonNoteExt>, layer: BgaLayer) -> Vec<(u64, u32)> {
     chart
+        .data
         .events
         .iter()
         .filter_map(|e| {
@@ -235,8 +240,8 @@ fn process_basic_chart() {
     assert_eq!(ns[0], (0, key(1), NoteKind::Normal));
     assert_eq!(ns[1], (240, key(2), NoteKind::Normal));
     assert_eq!(ns[2], (480, key(1), NoteKind::Normal));
-    assert_eq!(chart.audio_assets.len(), 3);
-    assert_eq!(chart.audio_assets[0].path, Path::new("demo.wav"));
+    assert_eq!(chart.data.audio_assets.len(), 3);
+    assert_eq!(chart.data.audio_assets[0].path, Path::new("demo.wav"));
 }
 
 #[test]
@@ -364,8 +369,8 @@ fn process_bga_events() {
 
     let chart = BmsonProcessor::process::<Beat>(&bmson).expect("processing succeeds");
 
-    assert_eq!(chart.bga_resources.len(), 1);
-    assert_eq!(chart.bga_resources[0].path, Path::new("bg.png"));
+    assert_eq!(chart.chart.bga_resources.len(), 1);
+    assert_eq!(chart.chart.bga_resources[0].path, Path::new("bg.png"));
 
     let base_bga = bga_events(&chart, BgaLayer::Base);
     assert_eq!(base_bga.len(), 1);
@@ -422,11 +427,11 @@ fn process_metadata() {
 
     let chart = BmsonProcessor::process::<Beat>(&bmson).expect("processing succeeds");
 
-    assert_eq!(chart.metadata.title, TITLE);
-    assert_eq!(chart.metadata.artist, ARTIST);
-    assert_eq!(chart.metadata.genre, GENRE);
-    assert_eq!(chart.metadata.chart_name, "NORMAL");
-    assert_eq!(chart.metadata.level, 5);
+    assert_eq!(chart.song.title, TITLE);
+    assert_eq!(chart.song.artist, ARTIST);
+    assert_eq!(chart.song.genre, GENRE);
+    assert_eq!(chart.chart.chart_name, "NORMAL");
+    assert_eq!(chart.chart.level, 5);
 }
 
 #[test]
@@ -438,6 +443,6 @@ fn events_sorted_by_tick() {
 
     let chart = BmsonProcessor::process::<Beat>(&bmson).expect("processing succeeds");
 
-    let ticks: Vec<u64> = chart.events.iter().map(Event::tick).collect();
+    let ticks: Vec<u64> = chart.data.events.iter().map(Event::tick).collect();
     assert!(ticks.windows(2).all(|w| w[0] <= w[1]));
 }

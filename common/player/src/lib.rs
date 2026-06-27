@@ -10,30 +10,32 @@
 //! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, ChartMetadata, Event, Lane, NoteKind, NoteSide, TimingTrack,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, NoteKind, NoteSide, TimingTrack,
 //! };
 //! use bmsrs_player::Player;
 //!
 //! let chart: Chart = Chart {
-//!     metadata: ChartMetadata::default(),
-//!     resolution: 240,
-//!     timing: TimingTrack {
-//!         init_bpm: 120.0,
-//!         bpm_changes: vec![],
-//!         stops: vec![],
+//!     song: SongInfo::default(),
+//!     chart: ChartInfo::default(),
+//!     data: ChartData {
+//!         resolution: 240,
+//!         timing: TimingTrack {
+//!             init_bpm: 120.0,
+//!             bpm_changes: vec![],
+//!             stops: vec![],
+//!         },
+//!         judge_multiplier: 1.0,
+//!         life_multiplier: 1.0,
+//!         events: vec![Event::Note {
+//!             tick: 480,
+//!             side: NoteSide::P1,
+//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
+//!             kind: NoteKind::Normal,
+//!             audio_index: None,
+//!             ext: (),
+//!         }],
+//!         audio_assets: vec![],
 //!     },
-//!     judge_multiplier: 1.0,
-//!     life_multiplier: 1.0,
-//!     events: vec![Event::Note {
-//!         tick: 480,
-//!         side: NoteSide::P1,
-//!         lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!         kind: NoteKind::Normal,
-//!         audio_index: None,
-//!         ext: (),
-//!     }],
-//!     audio_assets: vec![],
-//!     bga_resources: vec![],
 //! };
 //!
 //! let mut player = Player::new(chart);
@@ -77,8 +79,8 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// Create a new player from a chart, starting at tick 0.
     #[must_use]
     pub fn new(chart: Chart<T, C>) -> Self {
-        let resolution = chart.resolution;
-        let cache = TimingCache::new(&chart.timing, resolution);
+        let resolution = chart.data.resolution;
+        let cache = TimingCache::new(&chart.data.timing, resolution);
         Self {
             chart,
             cache,
@@ -96,16 +98,18 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         let new_time = self.current_time() + delta;
         self.current_tick = self
             .chart
+            .data
             .timing
-            .duration_to_tick(new_time, self.chart.resolution);
+            .duration_to_tick(new_time, self.chart.data.resolution);
     }
 
     /// Seek to an absolute wall-clock time.
     pub fn seek(&mut self, target: Duration) {
         self.current_tick = self
             .chart
+            .data
             .timing
-            .duration_to_tick(target, self.chart.resolution);
+            .duration_to_tick(target, self.chart.data.resolution);
     }
 
     /// Reset playback to tick 0.
@@ -149,7 +153,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// Total chart duration.
     #[must_use]
     pub fn duration(&self) -> Duration {
-        self.chart.duration()
+        self.chart.data.duration()
     }
 
     /// Current BPM at the playback position.
@@ -170,7 +174,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     #[must_use]
     pub fn events_in_range(&self, range: impl RangeBounds<u64>) -> &[Event<T, C>] {
         let (start, end) = self.event_range_indices(range);
-        &self.chart.events[start..end]
+        &self.chart.data.events[start..end]
     }
 
     /// Return an iterator over Note events within `range`.
@@ -225,7 +229,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// Return the audio assets table.
     #[must_use]
     pub fn audio_assets(&self) -> &[AudioAsset] {
-        &self.chart.audio_assets
+        &self.chart.data.audio_assets
     }
 
     // ─── Visual queries ───────────────────────────────────────────────
@@ -240,9 +244,9 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     )]
     #[must_use]
     pub fn scroll_rate_at(&self, tick: u64) -> f64 {
-        let end = self.chart.events.partition_point(|e| e.tick() <= tick);
+        let end = self.chart.data.events.partition_point(|e| e.tick() <= tick);
         let mut rate = 1.0;
-        for event in &self.chart.events[..end] {
+        for event in &self.chart.data.events[..end] {
             if let Event::Scroll { rate: sc_rate, .. } = event {
                 rate = *sc_rate;
             }
@@ -275,7 +279,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// Return BGA resources.
     #[must_use]
     pub fn bga_resources(&self) -> &[BgaResource] {
-        &self.chart.bga_resources
+        &self.chart.chart.bga_resources
     }
 
     // ─── Chart access ─────────────────────────────────────────────────
@@ -295,7 +299,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     // ─── Private helpers ──────────────────────────────────────────────
 
     /// Map a [`RangeBounds<u64>`] to `(start_index, end_index)` into
-    /// `self.chart.events`.
+    /// `self.chart.data.events`.
     fn event_range_indices(&self, range: impl RangeBounds<u64>) -> (usize, usize) {
         let start_tick = match range.start_bound() {
             Bound::Included(t) => *t,
@@ -307,8 +311,16 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             Bound::Excluded(t) => *t,
             Bound::Unbounded => u64::MAX,
         };
-        let start = self.chart.events.partition_point(|e| e.tick() < start_tick);
-        let end = self.chart.events.partition_point(|e| e.tick() < end_tick);
+        let start = self
+            .chart
+            .data
+            .events
+            .partition_point(|e| e.tick() < start_tick);
+        let end = self
+            .chart
+            .data
+            .events
+            .partition_point(|e| e.tick() < end_tick);
         (start, end)
     }
 }

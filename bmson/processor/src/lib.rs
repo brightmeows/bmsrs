@@ -29,8 +29,8 @@ use std::time::Duration;
 
 use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartMetadata, Event, Lane, NoteExt,
-    NoteKind, NoteSide, StopEvent, TimingTrack,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, Lane,
+    NoteExt, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
@@ -176,14 +176,6 @@ impl BmsonProcessor {
         events.extend(build_bar_lines(data.lines.as_deref(), resolution, &events));
 
         let bga = &bmson.chart_info.bga;
-        let bga_resources: Vec<BgaResource> = bga
-            .bga_header
-            .iter()
-            .map(|h| BgaResource {
-                id: h.id as u32,
-                path: h.name.to_path_buf(),
-            })
-            .collect();
 
         for e in &bga.bga_events {
             events.push(Event::Bga {
@@ -209,17 +201,20 @@ impl BmsonProcessor {
 
         events.sort_by_key(Event::tick);
 
-        let metadata = build_metadata(bmson);
+        let song_info = build_song_info(bmson);
+        let chart_info = build_chart_info(bmson);
 
         Ok(Chart {
-            metadata,
-            resolution,
-            timing,
-            judge_multiplier: data.judge_multiplier,
-            life_multiplier: data.life_multiplier,
-            events,
-            audio_assets,
-            bga_resources,
+            song: song_info,
+            chart: chart_info,
+            data: ChartData {
+                resolution,
+                timing,
+                judge_multiplier: data.judge_multiplier,
+                life_multiplier: data.life_multiplier,
+                events,
+                audio_assets,
+            },
         })
     }
 }
@@ -423,21 +418,60 @@ fn process_key_channels(
     }
 }
 
-/// Build [`ChartMetadata`] from BMSON song/chart info.
-fn build_metadata(bmson: &bmson_def::Bmson<'_>) -> ChartMetadata {
-    ChartMetadata {
+/// Build [`SongInfo`] from BMSON song info.
+fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
+    SongInfo {
         title: bmson.song_info.title.to_owned(),
-        subtitle: bmson.chart_info.subtitle.to_owned(),
         artist: bmson.song_info.artist.to_owned(),
+        genre: bmson.song_info.genre.to_owned(),
         subartists: bmson
             .chart_info
             .subartists
             .iter()
             .map(std::string::ToString::to_string)
             .collect(),
-        genre: bmson.song_info.genre.to_owned(),
+    }
+}
+
+/// Build [`ChartInfo`] from BMSON chart info.
+fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> ChartInfo {
+    let bga = &bmson.chart_info.bga;
+    let bga_resources: Vec<BgaResource> = bga
+        .bga_header
+        .iter()
+        .map(|h| {
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "BGA header count fits in u32"
+            )]
+            BgaResource {
+                id: h.id as u32,
+                path: h.name.to_path_buf(),
+            }
+        })
+        .collect();
+
+    ChartInfo {
+        subtitle: bmson.chart_info.subtitle.to_owned(),
         chart_name: bmson.chart_info.chart_name.to_owned(),
         level: bmson.chart_info.level,
+        back_image: bmson
+            .chart_info
+            .back_image
+            .map(|p| p.to_string_lossy().into_owned()),
+        eyecatch_image: bmson
+            .chart_info
+            .eyecatch_image
+            .map(|p| p.to_string_lossy().into_owned()),
+        banner_image: bmson
+            .chart_info
+            .banner_image
+            .map(|p| p.to_string_lossy().into_owned()),
+        preview_music: bmson
+            .chart_info
+            .preview_music
+            .map(|p| p.to_string_lossy().into_owned()),
+        bga_resources,
     }
 }
 

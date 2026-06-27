@@ -1,22 +1,26 @@
-use bmsrs_chart::{Chart, ChartMetadata, Event, Lane, NoteKind, NoteSide, TimingTrack};
+use bmsrs_chart::{
+    Chart, ChartData, ChartInfo, Event, Lane, NoteKind, NoteSide, SongInfo, TimingTrack,
+};
 
 /// Event type with default params for tests.
 type Evt = Event<()>;
 
 pub fn make_chart(events: Vec<Evt>) -> Chart {
     Chart {
-        metadata: ChartMetadata::default(),
-        resolution: 240,
-        timing: TimingTrack {
-            init_bpm: 120.0,
-            bpm_changes: vec![],
-            stops: vec![],
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack {
+                init_bpm: 120.0,
+                bpm_changes: vec![],
+                stops: vec![],
+            },
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events,
+            audio_assets: vec![],
         },
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
-        events,
-        audio_assets: vec![],
-        bga_resources: vec![],
     }
 }
 

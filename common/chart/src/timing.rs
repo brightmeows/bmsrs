@@ -16,7 +16,7 @@ use std::time::Duration;
 ///
 /// All events are at absolute tick positions. The processor is responsible
 /// for converting format-specific positions (BMSON pulses, BMS measures) to ticks.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct TimingTrack {
     /// Initial BPM at tick 0.
     pub init_bpm: f64,

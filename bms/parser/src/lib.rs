@@ -16,7 +16,7 @@ mod timing;
 mod visual;
 
 // Re-export all public types from sub-modules.
-pub use audio::Audio;
+pub use audio::{Audio, ExWavParams};
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{
