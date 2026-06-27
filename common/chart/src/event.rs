@@ -75,6 +75,18 @@ pub enum Event<T, C: CustomEvent = NoCustomEvent> {
         /// Scroll speed multiplier (`1.0` = normal, negative = reverse).
         rate: f64,
     },
+    /// A visual note-spacing (SPEED) keyframe change.
+    ///
+    /// Controls the visual density of notes between keyframes via linear
+    /// interpolation.  Unlike [`Scroll`](Self::Scroll) which affects the
+    /// scrolling speed, SPEED only affects how tightly notes are packed
+    /// on screen, independent of timing.
+    Speed {
+        /// Tick position.
+        tick: u64,
+        /// Spacing multiplier at this keyframe.
+        rate: f64,
+    },
     /// A BGA (background animation) display event.
     Bga {
         /// Tick position.
@@ -104,6 +116,7 @@ impl<T, C: CustomEvent> Event<T, C> {
             | Self::Bpm { tick, .. }
             | Self::Stop { tick, .. }
             | Self::Scroll { tick, .. }
+            | Self::Speed { tick, .. }
             | Self::Bga { tick, .. }
             | Self::Bar { tick } => *tick,
         }
