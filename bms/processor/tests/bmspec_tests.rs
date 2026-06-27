@@ -95,7 +95,7 @@ fn long_notes(chart: &bmsrs_chart::Chart) -> Vec<(u64, u64)> {
         .collect()
 }
 
-/// 01-Sentences: 解析标准 BMS 文件。
+/// bmspec-1-01-Sentences: 解析标准 BMS 文件。
 #[test]
 fn bmspec_1_01_parse_sentences() {
     let chart = process(
@@ -110,7 +110,7 @@ fn bmspec_1_01_parse_sentences() {
     assert_eq!(chart.data.audio_assets.len(), 0); // WAV 未定义
 }
 
-/// 01-Sentences: 格式错误的命令行（无空格分隔符的头部视为注释）。
+/// bmspec-1-01-Sentences: 格式错误的命令行（无空格分隔符的头部视为注释）。
 #[test]
 fn bmspec_1_01_malformed_command() {
     // #ARTIST:flicknote （冒号而非空格）→ 不被识别为头部。
@@ -120,7 +120,7 @@ fn bmspec_1_01_malformed_command() {
     assert_eq!(chart.song.artist, "");
 }
 
-/// 02-Header: 标准头部。
+/// bmspec-1-02-Header: 标准头部。
 #[test]
 fn bmspec_1_02_standard_header() {
     let chart = process("#TITLE BY MY SIDE\n#ARTIST flicknote\n");
@@ -128,14 +128,14 @@ fn bmspec_1_02_standard_header() {
     assert_eq!(chart.song.artist, "flicknote");
 }
 
-/// 02-Header: 多空格分隔符。
+/// bmspec-1-02-Header: 多空格分隔符。
 #[test]
 fn bmspec_1_02_header_multiple_spaces() {
     let chart = process("#TITLE      BY MY SIDE\n");
     assert_eq!(chart.song.title, "BY MY SIDE");
 }
 
-/// 02-Header: 不区分大小写。
+/// bmspec-1-02-Header: 不区分大小写。
 #[test]
 fn bmspec_1_02_case_insensitive_header() {
     let chart = process("#Title BY MY SIDE\n#Artist flicknote\n");
@@ -143,14 +143,14 @@ fn bmspec_1_02_case_insensitive_header() {
     assert_eq!(chart.song.artist, "flicknote");
 }
 
-/// 02-Header: 重复头部，后胜出。
+/// bmspec-1-02-Header: 重复头部，后胜出。
 #[test]
 fn bmspec_1_02_duplicated_header() {
     let chart = process("#TiTlE BEAT MUSIC SEQUENCE\n#tItLe BY*MY*SIDE\n");
     assert_eq!(chart.song.title, "BY*MY*SIDE");
 }
 
-/// 03-Objects: 基本音符对象位置。
+/// bmspec-1-03-Objects: 基本音符对象位置。
 #[test]
 fn bmspec_1_03_basic_objects() {
     let chart = process("#00111:01000002\n#00311:0003\n");
@@ -164,7 +164,7 @@ fn bmspec_1_03_basic_objects() {
     assert_eq!(ticks[2], 3360, "object 03 at beat 14"); // measure 3, pos 1/2
 }
 
-/// 03-Objects: 重叠音符对象（通道合并）。
+/// bmspec-1-03-Objects: 重叠音符对象（通道合并）。
 #[test]
 fn bmspec_1_03_overlapped_objects() {
     let chart = process(
@@ -186,7 +186,7 @@ fn bmspec_1_03_overlapped_objects() {
     assert_eq!(ticks[6], 1680, "object 44 at beat 7"); // pos 6/8 → 960 + 720 = 1680
 }
 
-/// 03-Objects: 空通道行。
+/// bmspec-1-03-Objects: 空通道行。
 #[test]
 fn bmspec_1_03_empty_channel() {
     let chart = process("#00111:\n");
@@ -194,7 +194,7 @@ fn bmspec_1_03_empty_channel() {
     assert!(notes.is_empty(), "empty channel produces no objects");
 }
 
-/// 04-Time-Signature: 变拍子定位。
+/// bmspec-1-04-Time-Signature: 变拍子定位。
 #[test]
 fn bmspec_1_04_time_signature() {
     let chart = process(
@@ -224,7 +224,7 @@ fn bmspec_1_04_time_signature() {
     assert_eq!(ticks[3], 2640, "obj 03 at beat 11");
 }
 
-/// 05-BPM: BPM 变化 —— 对象应位于正确的时间位置。
+/// bmspec-1-05-BPM: BPM 变化 —— 对象应位于正确的时间位置。
 #[test]
 fn bmspec_1_05_bpm_change() {
     let chart = process("#BPM 60\n#00003:0078\n#00111:01\n");
@@ -261,7 +261,7 @@ fn bmspec_1_05_bpm_change() {
     );
 }
 
-/// 05-BPM: 多段 BPM 变化。
+/// bmspec-1-05-BPM: 多段 BPM 变化。
 #[test]
 fn bmspec_1_05_multiple_bpm_changes() {
     let chart = process(
@@ -324,7 +324,7 @@ fn bmspec_1_05_multiple_bpm_changes() {
     // Let me just verify approximate correctness.
 }
 
-/// 05-BPM: 扩展 BPM（#BPMxx 定义 + #00008 引用）。
+/// bmspec-1-05-BPM: 扩展 BPM（#BPMxx 定义 + #00008 引用）。
 #[test]
 fn bmspec_1_05_extended_bpm() {
     let chart = process(
@@ -357,7 +357,7 @@ fn bmspec_1_05_extended_bpm() {
     );
 }
 
-/// 06-STOP: 基本停止。
+/// bmspec-1-06-STOP: 基本停止。
 #[test]
 fn bmspec_1_06_basic_stop() {
     let chart = process(
@@ -407,7 +407,7 @@ fn bmspec_1_06_basic_stop() {
     );
 }
 
-/// LNOBJ: 长音对象配对。
+/// bmspec-2-LNOBJ: 长音对象配对。
 #[test]
 fn bmspec_2_lnobj() {
     let chart = process("#LNOBJ XX\n#00111:01XX02XX03XX04XX\n");
@@ -430,7 +430,7 @@ fn bmspec_2_lnobj() {
     assert_eq!(lns[3], (1680, 120), "LN 04: beat 7 to 7.5");
 }
 
-/// LNTYPE1: 独立长音通道。
+/// bmspec-2-LNTYPE1: 独立长音通道。
 #[test]
 fn bmspec_2_lntype1() {
     let chart = process("#00151:0101020203030404\n");
@@ -450,7 +450,7 @@ fn bmspec_2_lntype1() {
     assert_eq!(lns[3], (1680, sub), "LN 04: beat 7 to 7.5");
 }
 
-/// SCROLL 基础：速度与位置累积。
+/// bmspec-3-SCROLL: 基础：速度与位置累积。
 #[test]
 fn bmspec_3_scroll_basic() {
     let chart = process("#SCROLL02 0.5\n#001SC:02\n");
@@ -480,7 +480,7 @@ fn bmspec_3_scroll_basic() {
     );
 }
 
-/// SCROLL 初始速度：第 0 小节指定。
+/// bmspec-3-SCROLL: 初始速度：第 0 小节指定。
 #[test]
 fn bmspec_3_scroll_initial_speed() {
     let chart = process("#SCROLL02 0.5\n#000SC:02\n");
@@ -530,7 +530,7 @@ fn process_with_cf(bms_text: &str) -> bmsrs_chart::Chart {
     BmsProcessor::process::<Bme>(&bms).expect("process should succeed")
 }
 
-/// RANDOM: SETRANDOM 固定值选择分支。
+/// bmspec-4-RANDOM: SETRANDOM 固定值选择分支。
 #[test]
 fn bmspec_4_random_setrandom() {
     // SETRANDOM 1 → 始终选中 #IF 1
@@ -550,7 +550,7 @@ fn bmspec_4_random_setrandom() {
     assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "a.wav");
 }
 
-/// RANDOM: SETRANDOM 选中第二个分支。
+/// bmspec-4-RANDOM: SETRANDOM 选中第二个分支。
 #[test]
 fn bmspec_4_random_setrandom_second() {
     let chart = process_with_cf(
@@ -568,7 +568,7 @@ fn bmspec_4_random_setrandom_second() {
     assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "b.wav");
 }
 
-/// RANDOM: 多个连续块各自独立选择。
+/// bmspec-4-RANDOM: 多个连续块各自独立选择。
 #[test]
 fn bmspec_4_random_multiple_blocks() {
     // 第一个块选中 #IF 2，第二个块选中 #IF 1（顺序不重要）
@@ -607,7 +607,7 @@ fn bmspec_4_random_multiple_blocks() {
     );
 }
 
-/// RANDOM: 无匹配时不出 WAV。
+/// bmspec-4-RANDOM: 无匹配时不出 WAV。
 #[test]
 fn bmspec_4_random_no_match() {
     let chart = process_with_cf(
@@ -624,7 +624,7 @@ fn bmspec_4_random_no_match() {
     assert!(chart.data.audio_assets.is_empty());
 }
 
-/// 基本副标题。
+/// bmspec-5-Subtitle: 基本副标题。
 #[test]
 fn bmspec_5_subtitle() {
     let chart = process("#TITLE BY MY SIDE\n#SUBTITLE [TUTORIAL]\n");
@@ -632,9 +632,9 @@ fn bmspec_5_subtitle() {
     assert_eq!(chart.chart.subtitle, "[TUTORIAL]");
 }
 
-/// 基本信息完整解析。
+/// bmspec-1-07-Basic-Info: 基本信息完整解析。
 #[test]
-fn bmspec_7_basic_info() {
+fn bmspec_1_07_basic_info() {
     let chart = process(
         "#TITLE BY MY SIDE\n\
          #ARTIST flicknote\n\
@@ -649,9 +649,9 @@ fn bmspec_7_basic_info() {
     assert_eq!(chart.chart.level, 5);
 }
 
-/// WAV 定义引用（在 Bms 模型层验证，Chart 不保留 WavIndex→文件名映射）。
+/// bmspec-1-08-WAV: WAV 定义引用（在 Bms 模型层验证，Chart 不保留 WavIndex→文件名映射）。
 #[test]
-fn bmspec_8_wav_references() {
+fn bmspec_1_08_wav_references() {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(
             "#TITLE #WAV test case\n\
@@ -684,7 +684,7 @@ fn bmspec_8_wav_references() {
     assert_eq!(bms.audio.wav_files.get(&wav02).map(String::as_str), None);
 }
 
-/// SPEED 未设置时保持默认 1.0。
+/// bmspec-6-SPEED: 未设置时保持默认 1.0。
 #[test]
 fn bmspec_6_speed_without_set() {
     let chart = process("#SPEED01 0.5\n");
@@ -692,7 +692,7 @@ fn bmspec_6_speed_without_set() {
     assert!(speeds.is_empty(), "no SPEED event without #xxxSP channel");
 }
 
-/// SPEED 单值设置。
+/// bmspec-6-SPEED: 单值设置。
 #[test]
 fn bmspec_6_speed_single() {
     let chart = process("#SPEED01 0.5\n#001SP:0001\n");
@@ -704,7 +704,7 @@ fn bmspec_6_speed_single() {
     assert!((speeds[0].1 - 0.5).abs() < 1e-9, "speed rate should be 0.5");
 }
 
-/// SPEED 多值插值（多个 `SPEEDxx` 定义）。
+/// bmspec-6-SPEED: 多值插值（多个 `SPEEDxx` 定义）。
 #[test]
 fn bmspec_6_speed_multiple() {
     let chart = process(
@@ -729,7 +729,7 @@ fn bmspec_6_speed_multiple() {
     assert!((speeds[2].1 - 1.0).abs() < 1e-9);
 }
 
-/// SPEED 间距插值（通过 `Player::spacing_at` 验证）。
+/// bmspec-6-SPEED: 间距插值（通过 `Player::spacing_at` 验证）。
 #[test]
 fn bmspec_6_speed_interpolation() {
     let chart = process(
