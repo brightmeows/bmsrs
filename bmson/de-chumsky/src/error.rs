@@ -1,31 +1,31 @@
-//! Error types for the bmson deserialization pipeline.
+//! bmson 反序列化管道的错误类型。
 
-/// Errors that can occur during BMSON parsing and deserialization.
+/// BMSON 解析与反序列化过程中可能出现的错误。
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum BmsonDeError {
-    /// Fatal JSON parse error (chumsky produced no output).
+    /// 致命的 JSON 解析错误（chumsky 未产生任何输出）。
     ///
-    /// Contains the human-readable diagnostic messages from the parser.
+    /// 包含来自解析器的可读诊断信息。
     #[error("JSON parse error(s):\n{0}")]
     JsonParse(String),
 
-    /// The bmson version string is missing or unrecognised.
+    /// bmson 版本字符串缺失或无法识别。
     #[error("{0}")]
     UnknownVersion(String),
 
-    /// Deserialization of a version-specific type from [`serde_json::Value`]
-    /// failed (e.g. missing required field, type mismatch).
+    /// 从 [`serde_json::Value`] 反序列化版本特定类型失败
+    /// （例如缺少必填字段、类型不匹配）。
     #[error("Failed to deserialize {version} bmson: {message}")]
     Deserialize {
-        /// Human-readable version identifier (e.g. `"v2.0.0"`, `"v1.0.0"`).
+        /// 可读的版本标识符（例如 `"v2.0.0"`、`"v1.0.0"`）。
         version: &'static str,
-        /// Underlying error description.
+        /// 底层错误描述。
         message: String,
     },
 
-    /// Conversion from the legacy v0.2.1 format to the unified v2 format
-    /// failed (e.g. invalid `init_bpm`).
+    /// 从旧版 v0.2.1 格式转换为统一 v2 格式失败
+    /// （例如 `init_bpm` 非法）。
     #[error("V0 conversion error: {0}")]
     V0Conversion(String),
 }

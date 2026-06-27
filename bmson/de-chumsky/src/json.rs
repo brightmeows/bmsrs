@@ -1,23 +1,22 @@
-//! Chumsky-based JSON parser that produces [`serde_json::Value`].
+//! 基于 chumsky 的 JSON 解析器，产出 [`serde_json::Value`]。
 //!
-//! Parser supports error recovery: missing commas, trailing commas, and
-//! unmatched brackets produce warnings but continue parsing where possible.
-//! If no output value is produced the errors are fatal.
+//! 解析器支持错误恢复：缺失逗号、尾随逗号、括号不匹配会产生警告，
+//! 但仍尽可能继续解析。若未产出任何值，则这些错误为致命错误。
 
 use chumsky::error::RichReason;
 use chumsky::prelude::*;
 use serde_json::Value;
 
-/// Parser error type.
+/// 解析器错误类型。
 pub type ParseError<'a> = Rich<'a, char>;
 
-/// Parser result: optional output value with a list of errors.
+/// 解析结果：可选的输出值与一组错误列表。
 pub type ParseResult<'a, T> = (Option<T>, Vec<ParseError<'a>>);
 
-/// Build a chumsky-based JSON parser.
+/// 构建基于 chumsky 的 JSON 解析器。
 ///
-/// The parser recovers from common errors (missing/trailing commas,
-/// unmatched brackets) and produces [`serde_json::Value`] on success.
+/// 解析器能从常见错误（缺失/尾随逗号、括号不匹配）中恢复，并在成功时
+/// 产出 [`serde_json::Value`]。
 #[must_use]
 #[expect(
     clippy::too_many_lines,
@@ -41,7 +40,7 @@ pub fn parser<'a>() -> impl Parser<'a, &'a str, Value, extra::Err<Rich<'a, char>
             .then(exp.or_not())
             .to_slice()
             .validate(|s: &str, e, emitter| {
-                // JSON forbids leading zeros on numbers (except the literal "0").
+                // JSON 禁止数字前导零（字面量 "0" 除外）。
                 if s.len() > 1 && s.as_bytes().first() == Some(&b'0') {
                     emitter.emit(Rich::custom(
                         e.span(),
@@ -128,12 +127,11 @@ pub fn parser<'a>() -> impl Parser<'a, &'a str, Value, extra::Err<Rich<'a, char>
             .then_ignore(just(':').padded())
             .then(value.clone());
 
-        // Support normal commas, missing commas (emit error but continue),
-        // and trailing commas.
+        // 支持普通逗号、缺失逗号（发出错误但继续）以及尾随逗号。
         let subsequent_member = choice((
-            // Normal: comma then member.
+            // 普通：逗号后跟成员。
             just(',').padded().ignore_then(member.clone()).map(Some),
-            // Missing comma: directly another member. Emit an error.
+            // 缺失逗号：直接跟另一个成员。发出一个错误。
             member
                 .clone()
                 .validate(|m, e, emitter| {
@@ -144,20 +142,20 @@ pub fn parser<'a>() -> impl Parser<'a, &'a str, Value, extra::Err<Rich<'a, char>
                     m
                 })
                 .map(Some),
-            // Trailing comma: consume it and yield no item.
+            // 尾随逗号：消费它但不产出项。
             just(',').padded().to::<Option<(String, Value)>>(None),
         ));
 
-        // Members: optional first member followed by more members.
-        // If the first member is absent (leading comma), emit a diagnostic.
+        // 成员：可选的首个成员，其后跟随更多成员。
+        // 若首个成员缺失（前导逗号），发出一条诊断。
         let members = member
             .clone()
             .or_not()
             .then(subsequent_member.repeated().collect::<Vec<_>>())
             .validate(|(first_opt, rest), e, emitter| {
                 if first_opt.is_none() && rest.iter().flatten().next().is_some() {
-                    // First member missing but subsequent members exist —
-                    // this means the input has a leading comma.
+                    // 首个成员缺失但后续成员存在——
+                    // 这意味着输入存在前导逗号。
                     emitter.emit(Rich::custom(e.span(), "leading comma in object"));
                 }
                 (first_opt, rest)
@@ -216,23 +214,22 @@ pub fn parser<'a>() -> impl Parser<'a, &'a str, Value, extra::Err<Rich<'a, char>
     })
 }
 
-/// Parse a JSON string into a [`serde_json::Value`].
+/// 将 JSON 字符串解析为 [`serde_json::Value`]。
 ///
-/// Returns the parsed value (if any) and a list of errors.
-/// Non-fatal errors (recovered) are included in the list; the value is
-/// still returned.  Fatal errors (no output) result in `None`.
+/// 返回解析得到的值（若有）以及一组错误列表。非致命错误（已恢复）会
+/// 包含在列表中，且仍会返回该值；致命错误（无输出）会导致返回 `None`。
 #[must_use]
 pub fn parse_json(input: &str) -> ParseResult<'_, Value> {
     parser().parse(input.trim()).into_output_errors()
 }
 
-/// Classify chumsky `Rich` errors into warning / recovered / fatal categories.
+/// 将 chumsky 的 `Rich` 错误划分为 warning / recovered / fatal 三类。
 ///
-/// | Category | Condition |
+/// | 类别 | 条件 |
 /// |---|---|
-/// | `Warning` | `RichReason::Custom` (parser diagnostics emitted via `Rich::custom`) |
-/// | `Recovered` | Other errors when an output value was produced |
-/// | `Fatal` | Other errors when no output value was produced |
+/// | `Warning` | `RichReason::Custom`（通过 `Rich::custom` 发出的解析器诊断）|
+/// | `Recovered` | 产出值时的其他错误 |
+/// | `Fatal` | 未产出值时的其他错误 |
 #[must_use]
 pub fn classify_errors<'a>(
     errors: impl IntoIterator<Item = ParseError<'a>>,
