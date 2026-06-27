@@ -103,6 +103,7 @@ unnecessary_safety_doc = "deny"
 unused_trait_names = "deny"
 
 # === Restriction (Applicability: Unspecified) ===
+clone_on_ref_ptr = "deny"
 empty_structs_with_brackets = "deny"
 for_kv_map = "deny"
 get_unwrap = "deny"
