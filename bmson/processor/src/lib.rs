@@ -30,7 +30,7 @@ use std::time::Duration;
 use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, Lane,
-    NoteExt, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
+    NoteExt, NoteKind, NoteSide, SongInfo, StopEvent, TimingCache, TimingTrack,
 };
 use thiserror::Error;
 
@@ -145,13 +145,13 @@ impl BmsonProcessor {
 
         let timing = build_timing(data);
         let resolution = data.resolution;
+        let timing_cache = TimingCache::new(&timing, resolution);
         let playable_pulses = collect_playable_pulses(&data.sound_channels);
 
         let (mut audio_assets, mut events) = process_sound_channels(
             &data.sound_channels,
             decode,
-            &timing,
-            resolution,
+            &timing_cache,
             &playable_pulses,
         );
 
@@ -251,15 +251,14 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
 fn process_sound_channels(
     channels: &[bmson_def::SoundChannel<'_>],
     decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    timing: &TimingTrack,
-    resolution: u64,
+    timing: &TimingCache,
     playable_pulses: &BTreeSet<u64>,
 ) -> (Vec<AudioAsset>, Vec<Event<BmsonNoteExt>>) {
     let mut audio_assets = Vec::new();
     let mut events = Vec::new();
 
     for channel in channels {
-        let sliced = slice_channel(channel, timing, resolution);
+        let sliced = slice_channel(channel, timing);
 
         for ne in &channel.note_events {
             let audio_idx = sliced

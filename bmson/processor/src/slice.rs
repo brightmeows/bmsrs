@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bmson_def::SoundChannel;
-use bmsrs_chart::{AudioAsset, TimingTrack};
+use bmsrs_chart::{AudioAsset, TimingCache};
 
 /// 对单条音频通道切片的输出。
 ///
@@ -40,12 +40,14 @@ pub struct SlicedChannel {
 
 /// 将一条音频通道切片为预计算的 [`AudioAsset`]。
 ///
-/// 算法详见[模块文档](self)。
-pub fn slice_channel(
-    channel: &SoundChannel<'_>,
-    timing: &TimingTrack,
-    resolution: u64,
-) -> SlicedChannel {
+/// 算法详见[模块文档](self)。`timing` 为由 [`TimingTrack`] 预计算的
+/// [`TimingCache`]，提供 O(log n) 的脉冲→时间换算（相比直接调用
+/// [`TimingTrack::tick_to_duration`] 的 O(n) 扫描，在脉冲密集的通道上
+/// 将整体复杂度从 O(N·M) 降为 O(M·log N)）。
+///
+/// [`TimingTrack`]: bmsrs_chart::TimingTrack
+/// [`TimingTrack::tick_to_duration`]: bmsrs_chart::TimingTrack::tick_to_duration
+pub fn slice_channel(channel: &SoundChannel<'_>, timing: &TimingCache) -> SlicedChannel {
     // 1. 收集唯一的脉冲位置，按升序排列。
     let mut pulses: Vec<u64> = channel
         .note_events
@@ -69,7 +71,7 @@ pub fn slice_channel(
     // 3. 将每个脉冲换算为谱面时间。
     let pulse_times: Vec<(u64, Duration)> = pulses
         .iter()
-        .map(|&p| (p, timing.tick_to_duration(p, resolution)))
+        .map(|&p| (p, timing.tick_to_duration(p)))
         .collect();
 
     // 4. 构建带有正确音频起始偏移的 AudioAsset。
@@ -117,12 +119,13 @@ pub fn slice_channel(
 mod tests {
     use super::*;
     use bmson_def::NoteEvent;
+    use bmsrs_chart::TimingTrack;
     use std::path::Path;
 
     const RES: u64 = 240;
 
-    fn timing_120() -> TimingTrack {
-        TimingTrack::new(120.0, vec![], vec![])
+    fn timing_120() -> TimingCache {
+        TimingCache::new(&TimingTrack::new(120.0, vec![], vec![]), RES)
     }
 
     #[test]
@@ -172,7 +175,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), RES);
+        let result = slice_channel(&channel, &timing_120());
 
         assert_eq!(result.assets.len(), 3);
         assert_eq!(result.pulse_to_index.len(), 3);
@@ -221,7 +224,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), RES);
+        let result = slice_channel(&channel, &timing_120());
 
         assert_eq!(result.assets.len(), 1);
         assert_eq!(result.pulse_to_index.get(&240), Some(&0));
@@ -248,7 +251,7 @@ mod tests {
             }],
         };
 
-        let result = slice_channel(&channel, &timing_120(), RES);
+        let result = slice_channel(&channel, &timing_120());
 
         assert!(result.assets[0].start.is_zero());
         assert!(result.assets[0].duration.is_none());
@@ -288,7 +291,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), RES);
+        let result = slice_channel(&channel, &timing_120());
 
         // 120 BPM、节拍分辨率 240：脉冲 0→0s，脉冲 240→0.5s
         assert!(result.assets[0].start.is_zero());
@@ -332,7 +335,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), RES);
+        let result = slice_channel(&channel, &timing_120());
 
         assert!(result.assets.last().is_some_and(|a| a.duration.is_none()));
     }
@@ -412,7 +415,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), RES);
+        let result = slice_channel(&channel, &timing_120());
 
         // 5 个唯一脉冲 → 5 个音频素材
         assert_eq!(result.assets.len(), 5);
@@ -464,7 +467,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), RES);
+        let result = slice_channel(&channel, &timing_120());
         // 首个脉冲 → 始终视为重启
         assert!(result.assets[0].start.is_zero());
     }
