@@ -109,6 +109,12 @@ impl TimingTrack {
     /// （依据 BMSON 规范，该脉冲上的音符在暂停之前激活）。
     /// 严格位于目标脉冲之前的停止贡献其完整暂停时长。
     ///
+    /// # 复杂度与适用场景
+    ///
+    /// O(n) 线性扫描，零额外内存。适合一次性 / 低频查询
+    /// （如 [`ChartData::duration`](crate::ChartData::duration)）。
+    /// 高频查询（如播放器每帧）请用预计算的 [`TimingCache`]。
+    ///
     /// # Panic（仅 debug 构建）
     ///
     /// debug 构建中断言 `resolution > 0` 与 `init_bpm > 0`。
@@ -176,6 +182,11 @@ impl TimingTrack {
     ///
     /// 这是 [`tick_to_duration`](Self::tick_to_duration) 的逆运算。
     /// 停止中消耗的时间不会推进脉冲。
+    ///
+    /// # 复杂度与适用场景
+    ///
+    /// O(n) 线性扫描。适合一次性 / 低频查询；高频查询请用
+    /// [`TimingCache::duration_to_tick`]。
     ///
     /// # Panic（仅 debug 构建）
     ///
@@ -318,6 +329,11 @@ struct InvSeg {
 /// 由 [`TimingTrack`] 构造，把每次查询从 O(n) 线性扫描降为 O(log n) 二分
 /// 查找。适用于任何需要批量或频繁换算脉冲↔时间的场景：播放器实时查询、
 /// 处理器离线切片等。
+///
+/// 与 [`TimingTrack`] 的转换方法是“简单实现 + 优化实现”的关系：
+/// [`TimingTrack`] 的方法为 O(n) 直接实现（零额外内存，适合一次性查询），
+/// 本类型预计算索引后为 O(log n)（以 O(n) 构建 + 额外内存换取查询加速）。
+/// 两者语义一致（见 `matches_timing_track_*` 测试）。
 ///
 /// 换算分为两部分：
 ///
