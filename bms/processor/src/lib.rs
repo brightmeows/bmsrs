@@ -143,13 +143,8 @@ impl BmsProcessor {
         // SPEED 事件（优先级 5）。
         collect_speed_events(bms, &table, &mut events);
 
-        // 按 (tick, priority) 排序。优先级保证同一脉冲上的事件按
-        // Bar → Note/BGA/BGM → BPM → Stop → Scroll → Speed 的顺序。
-        events.sort_by(|a, b| {
-            a.tick()
-                .cmp(&b.tick())
-                .then(a.priority().cmp(&b.priority()))
-        });
+        // 排序规则收敛于 Event::sort_key（同脉冲子序约定见其文档）。
+        events.sort_by_key(BmsEvent::sort_key);
 
         let (song, chart_info) = build_metadata(bms);
 

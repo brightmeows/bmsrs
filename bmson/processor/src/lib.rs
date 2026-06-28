@@ -197,11 +197,7 @@ impl BmsonProcessor {
             });
         }
 
-        events.sort_by(|a, b| {
-            a.tick()
-                .cmp(&b.tick())
-                .then(a.priority().cmp(&b.priority()))
-        });
+        events.sort_by_key(Event::sort_key);
 
         let song_info = build_song_info(bmson);
         let chart_info = build_chart_info(bmson);

@@ -143,6 +143,15 @@ impl<T, C: CustomEvent> Event<T, C> {
             | Self::Bar { tick } => *tick,
         }
     }
+
+    /// 用于稳定排序的复合键：`(tick, priority)`。
+    ///
+    /// 收敛“同脉冲事件子序”约定（见 [`priority`](Self::priority)）。
+    /// 处理器应以本方法作为事件排序的唯一入口，避免排序规则散落多处。
+    #[must_use]
+    pub fn sort_key(&self) -> (u64, u8) {
+        (self.tick(), self.priority())
+    }
 }
 
 // 手动实现 Eq：所有 f64 字段（Bpm.bpm、Scroll.rate、Speed.rate）保证

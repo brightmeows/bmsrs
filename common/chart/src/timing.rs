@@ -84,7 +84,9 @@ impl TimingTrack {
     ///
     /// 第一次调用时构建并缓存结果，后续调用返回缓存引用。
     /// 同一脉冲上，BPM 变更排在停止之前（依据 BMSON 规范：
-    /// "speed will first change, then the music pauses"）。
+    /// "speed will first change, then the music pauses"），与
+    /// [`Event::priority`](crate::Event::priority) 中 `Bpm(2) < Stop(3)`
+    /// 的子序约定一致。
     fn cached_events(&self) -> &[(u64, TimingEvent)] {
         self.events_cache.get_or_init(|| {
             let mut events: Vec<(u64, TimingEvent)> =
