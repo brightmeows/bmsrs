@@ -77,7 +77,7 @@ pub use audio::AudioAsset;
 pub use event::{CustomEvent, Event, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, NoteKind};
-pub use timing::{BpmChange, StopEvent, TimingTrack};
+pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack};
 pub use visual::{BgaLayer, BgaResource};
 
 /// 乐曲级元数据 —— 对应 BMSON v2 的 `SongInfo`。

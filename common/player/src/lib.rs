@@ -41,7 +41,6 @@
 
 pub(crate) mod scroll_cache;
 mod speed_cache;
-mod timing;
 
 use std::ops::Bound;
 use std::ops::RangeBounds;
@@ -49,12 +48,11 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, BgaResource, Chart, CustomEvent, Event, Lane, NoCustomEvent, NoteExt, NoteKind,
-    NoteSide,
+    NoteSide, TimingCache,
 };
 
 use crate::scroll_cache::ScrollCache;
 use crate::speed_cache::SpeedCache;
-use crate::timing::TimingCache;
 
 /// 跟踪 [`Chart`] 播放进度的有状态仿真器。
 ///
