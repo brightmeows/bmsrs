@@ -27,18 +27,18 @@ flowchart LR
 
 ## Crate 职责矩阵
 
-| Crate | 定位 | 输入 → 输出 | 零依赖？ |
-|-------|------|-------------|---------|
-| `bms-tokenizer` | BMS 语法分析第一关：原始文本 → 结构化 token 流 | `&str` → `BmsToken<C>` | 否（proc-macro）|
-| `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 | — |
-| `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` | 否（rand）|
-| `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` | 否（bms-tokenizer）|
-| `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` | 否（bms-parser + chart）|
-| `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 | 是（dev-only serde_json）|
-| `bmson-de-chumsky` | bmson JSON 反序列化（chumsky 实现） | 替代 serde 的自定义 parser | 否 |
-| `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` | 否 |
-| `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR | **是** |
-| `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 | **是** |
+| Crate | 定位 | 输入 → 输出 |
+|-------|------|-------------|
+| `bms-tokenizer` | BMS 语法分析第一关：原始文本 → 结构化 token 流 | `&str` → `BmsToken<C>` |
+| `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
+| `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` |
+| `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` |
+| `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
+| `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
+| `bmson-de-chumsky` | bmson JSON 反序列化（chumsky 实现） | 替代 serde 的自定义 parser |
+| `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
+| `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
+| `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
 | `bmsrs` | 公共 re-export facade | `pub use` 聚合 | 是 |
 
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
