@@ -15,7 +15,14 @@ readme.workspace = true
 [dependencies]
 bmsrs-chart.workspace = true
 
+[dev-dependencies]
+criterion.workspace = true
+
 [lib]
+
+[[bench]]
+name = "player"
+harness = false
 
 [lints]
 workspace = true

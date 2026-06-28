@@ -42,6 +42,7 @@ itertools = "0.15"
 serde_with = "3"
 insta = { version = "1", features = ["yaml"] }
 proptest = "1"
+criterion = "0.5"
 
 # Local (path)
 bmson-def = { path = "bmson/def" }
