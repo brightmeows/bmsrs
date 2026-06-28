@@ -65,12 +65,13 @@ tick = measure_starts[measure] + numer * measure_len / denom
 | LNOBJ 终点 BGM | 终点标记过判定线时播放定义的 WAV |
 | 地雷 `damage: 1.0` | 已修复为实际伤害值（见 `MineEvent.damage`）|
 | `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
+| 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是 `BmsConverter` 方法，非自由函数 |
 
 ## Always / Ask / Never
 
 ### Always
 
-- 新事件类型在 `collect_*` 函数中注册 + 在 `process` 中调用
+- 新事件类型在 `BmsConverter` 的 `collect_*` 方法中注册 + 在 `process` 中调用
 - 更新 `Event::tick()` match 表达式以包含新变体
 
 ### Ask
