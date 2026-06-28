@@ -48,16 +48,14 @@ pub struct SlicedChannel {
 /// [`TimingTrack`]: bmsrs_chart::TimingTrack
 /// [`TimingTrack::tick_to_duration`]: bmsrs_chart::TimingTrack::tick_to_duration
 pub fn slice_channel(channel: &SoundChannel<'_>, timing: &TimingCache) -> SlicedChannel {
-    // 1. 收集唯一的脉冲位置，按升序排列。
-    let mut pulses: Vec<u64> = channel
+    // 1. 收集唯一的脉冲位置。BTreeSet 迭代本就升序，无需再次排序。
+    let pulses: Vec<u64> = channel
         .note_events
         .iter()
         .map(|n| n.y)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-
-    pulses.sort_unstable();
 
     // 2. 标记重启点：即 *任意* 音符 c:false 的脉冲。
     //    （按规范，同一脉冲上 c 标志混合 → 视为重启。）
