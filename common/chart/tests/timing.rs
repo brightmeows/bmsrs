@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_chart::{BpmChange, StopEvent, TimingTrack};
+use bmsrs_chart::{BpmChange, StopEvent, TimingCache, TimingTrack};
 use std::time::Duration;
 
 const RES: u64 = 240;
@@ -174,6 +174,41 @@ fn duration_to_tick_within_stop_returns_stop_tick() {
         timing.duration_to_tick(Duration::from_millis(600), RES),
         240
     );
+}
+
+#[test]
+fn cache_duration_to_tick_matches_timing_track() {
+    // P1 前置：Player 的 advance/seek 由 TimingTrack::duration_to_tick
+    // 切换到 TimingCache::duration_to_tick，两者必须语义一致。
+    let timing = TimingTrack::new(
+        150.0,
+        vec![
+            BpmChange {
+                tick: 480,
+                bpm: 200.0,
+            },
+            BpmChange {
+                tick: 1200,
+                bpm: 100.0,
+            },
+        ],
+        vec![StopEvent {
+            tick: 960,
+            duration: 480,
+        }],
+    );
+    let cache = TimingCache::new(&timing, RES);
+
+    // 覆盖 BPM 段边界、停止内部与段外区域。
+    for ms in [0u64, 100, 300, 500, 800, 1000, 1200, 1500, 2000, 3000] {
+        let d = Duration::from_millis(ms);
+        let expected = timing.duration_to_tick(d, RES);
+        let actual = cache.duration_to_tick(d);
+        assert_eq!(
+            actual, expected,
+            "duration_to_tick mismatch at {ms}ms: timing={expected}, cache={actual}"
+        );
+    }
 }
 
 #[test]

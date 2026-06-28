@@ -99,20 +99,16 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 停止（STOP）期间的时间不会推进脉冲。
     pub fn advance(&mut self, delta: Duration) {
         let new_time = self.current_time() + delta;
-        self.current_tick = self
-            .chart
-            .data
-            .timing
-            .duration_to_tick(new_time, self.chart.data.resolution);
+        // PERF: 走预计算的 TimingCache（O(log² n) 二分）而非 TimingTrack 的
+        // O(n) 线性扫描——advance 在播放循环中每帧调用，是真正的热路径。
+        // 两者语义已由 chart crate 的等价性测试保证一致。
+        self.current_tick = self.cache.duration_to_tick(new_time);
     }
 
     /// 跳转到指定的绝对实际时间。
     pub fn seek(&mut self, target: Duration) {
-        self.current_tick = self
-            .chart
-            .data
-            .timing
-            .duration_to_tick(target, self.chart.data.resolution);
+        // PERF: 同 advance，使用 TimingCache 的 O(log² n) 快路径。
+        self.current_tick = self.cache.duration_to_tick(target);
     }
 
     /// 将播放重置到脉冲 0。
