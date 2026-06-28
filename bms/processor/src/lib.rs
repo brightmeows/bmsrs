@@ -57,6 +57,13 @@ pub enum ProcessError {
     InvalidBpm(f64),
 }
 
+/// BMS 处理器产出的统一事件类型。
+///
+/// BMS 格式既无每音符扩展也无自定义事件，故泛型参数固定为
+/// `((), NoCustomEvent)`。集中于此以便内部函数统一引用，避免冗长的
+/// 全限定签名重复。
+type BmsEvent = Event<(), bmsrs_chart::NoCustomEvent>;
+
 /// 将 [`Bms`] 转换为 [`Chart`] 的零大小处理器。
 pub struct BmsProcessor;
 
@@ -208,25 +215,23 @@ fn collect_notes<L: BmsLayout>(
     wav_map: &BTreeMap<WavIndex, u32>,
     paired_lns: &[PairedLn],
     consumed: &BTreeSet<usize>,
-    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+    events: &mut Vec<BmsEvent>,
 ) {
-    let push_note = |tick: u64,
-                     side,
-                     lane,
-                     kind: NoteKind,
-                     audio: Option<u32>,
-                     ev: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>| {
-        if let Some((note_side, note_lane)) = BmsChannel::new(side, lane).and_then(L::map_channel) {
-            ev.push(Event::Note {
-                tick,
-                side: note_side,
-                lane: note_lane,
-                kind,
-                audio_index: audio,
-                ext: (),
-            });
-        }
-    };
+    let push_note =
+        |tick: u64, side, lane, kind: NoteKind, audio: Option<u32>, ev: &mut Vec<BmsEvent>| {
+            if let Some((note_side, note_lane)) =
+                BmsChannel::new(side, lane).and_then(L::map_channel)
+            {
+                ev.push(Event::Note {
+                    tick,
+                    side: note_side,
+                    lane: note_lane,
+                    kind,
+                    audio_index: audio,
+                    ext: (),
+                });
+            }
+        };
 
     // 可见音符（跳过已消耗的 LNOBJ 配对）。
     for (i, ne) in bms.messages.note_events.iter().enumerate() {
@@ -293,7 +298,7 @@ fn collect_bgm(
     bms: &Bms,
     table: &MeasureTable,
     wav_map: &BTreeMap<WavIndex, u32>,
-    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+    events: &mut Vec<BmsEvent>,
 ) {
     for be in &bms.messages.bgm_events {
         if let Some(&audio) = wav_map.get(&be.wav_id) {
@@ -316,7 +321,7 @@ fn collect_lnobj_bgm(
     table: &MeasureTable,
     wav_map: &BTreeMap<WavIndex, u32>,
     consumed: &BTreeSet<usize>,
-    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+    events: &mut Vec<BmsEvent>,
 ) {
     let Some(ln_obj) = bms.gameplay.ln_obj else {
         return;
@@ -335,11 +340,7 @@ fn collect_lnobj_bgm(
 }
 
 /// 构建 BPM 事件（用于统一时间线）。
-fn collect_bpm_events(
-    bms: &Bms,
-    table: &MeasureTable,
-    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
-) {
+fn collect_bpm_events(bms: &Bms, table: &MeasureTable, events: &mut Vec<BmsEvent>) {
     for bc in &bms.messages.bpm_changes {
         events.push(Event::Bpm {
             tick: table.position_to_tick(bc.position),
@@ -349,11 +350,7 @@ fn collect_bpm_events(
 }
 
 /// 构建 SCROLL 变更事件。
-fn collect_scroll_events(
-    bms: &Bms,
-    table: &MeasureTable,
-    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
-) {
+fn collect_scroll_events(bms: &Bms, table: &MeasureTable, events: &mut Vec<BmsEvent>) {
     for se in &bms.messages.scroll_events {
         if let Some(&rate) = bms.timing.scroll_defs.get(&se.scroll_id) {
             events.push(Event::Scroll {
@@ -365,11 +362,7 @@ fn collect_scroll_events(
 }
 
 /// 构建 SPEED（视觉音符间距）关键帧事件。
-fn collect_speed_events(
-    bms: &Bms,
-    table: &MeasureTable,
-    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
-) {
+fn collect_speed_events(bms: &Bms, table: &MeasureTable, events: &mut Vec<BmsEvent>) {
     for se in &bms.messages.speed_events {
         if let Some(&rate) = bms.timing.speed_defs.get(&se.speed_id) {
             events.push(Event::Speed {
@@ -385,7 +378,7 @@ fn collect_bga(
     bms: &Bms,
     table: &MeasureTable,
     bmp_map: &BTreeMap<BmpIndex, (u32, String)>,
-    events: &mut Vec<Event<(), bmsrs_chart::NoCustomEvent>>,
+    events: &mut Vec<BmsEvent>,
 ) {
     for be in &bms.messages.bga_events {
         if let Some(&(resource_id, _)) = bmp_map.get(&be.bmp_id) {
@@ -507,7 +500,7 @@ fn build_stops_from_stp(
 }
 
 /// 构建自动 4/4 拍小节事件（每小节一个）。
-fn build_bar_events(max_measure: u16) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
+fn build_bar_events(max_measure: u16) -> Vec<BmsEvent> {
     let step = RESOLUTION * 4;
     (0..=u64::from(max_measure))
         .map(|i| Event::Bar { tick: i * step })
