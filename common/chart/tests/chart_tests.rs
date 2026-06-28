@@ -21,11 +21,24 @@ const fn key(n: u8) -> Lane {
     Lane::Key(nz(n))
 }
 
-// Chart 构造与默认值
+// Chart 构造
 
 #[test]
-fn chart_default_is_empty() {
-    let chart: Chart = Chart::default();
+fn chart_construction_is_empty_by_default() {
+    // Chart 不实现 Default（内嵌 ChartData 无合法默认），
+    // 此处验证一个显式构造的空谱面：元数据为空、无事件。
+    let chart: Chart = Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack::new(120.0, vec![], vec![]),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events: vec![],
+            audio_assets: vec![],
+        },
+    };
     assert!(chart.song.title.is_empty());
     assert!(chart.chart.subtitle.is_empty());
     assert!(chart.data.events.is_empty());
@@ -42,6 +55,8 @@ fn chart_construction() {
         data: ChartData {
             resolution: 240,
             timing: TimingTrack::new(120.0, vec![], vec![]),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
             events: vec![Event::Note {
                 tick: 0,
                 side: NoteSide::P1,
@@ -50,7 +65,7 @@ fn chart_construction() {
                 audio_index: None,
                 ext: (),
             }],
-            ..Default::default()
+            audio_assets: vec![],
         },
     };
     assert_eq!(chart.song.title, "Test");
@@ -79,7 +94,15 @@ fn chart_info_default() {
 
 #[test]
 fn chart_data_last_tick_empty() {
-    let data = ChartData::<(), NoCustomEvent>::default();
+    // 空事件列表 → last_tick() 返回 0。
+    let data = ChartData::<(), NoCustomEvent> {
+        resolution: 240,
+        timing: TimingTrack::new(120.0, vec![], vec![]),
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
+        events: vec![],
+        audio_assets: vec![],
+    };
     assert_eq!(data.last_tick(), 0);
 }
 
@@ -88,8 +111,10 @@ fn chart_data_last_tick_with_events() {
     let data: ChartData = ChartData {
         resolution: 240,
         timing: TimingTrack::new(120.0, vec![], vec![]),
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
         events: vec![Event::Bar { tick: 0 }, Event::Bar { tick: 960 }],
-        ..Default::default()
+        audio_assets: vec![],
     };
     assert_eq!(data.last_tick(), 960);
 }
@@ -99,8 +124,10 @@ fn chart_data_duration() {
     let data: ChartData = ChartData {
         resolution: 240,
         timing: TimingTrack::new(120.0, vec![], vec![]),
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
         events: vec![Event::Bar { tick: 960 }],
-        ..Default::default()
+        audio_assets: vec![],
     };
     // 960 ticks at 120 BPM with resolution 240 = 2 seconds
     assert_eq!(data.duration(), Duration::from_secs_f64(2.0));

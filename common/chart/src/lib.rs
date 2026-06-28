@@ -50,6 +50,8 @@
 //!     data: ChartData {
 //!         resolution: 240,
 //!         timing: TimingTrack::new(120.0, vec![], vec![]),
+//!         judge_multiplier: 1.0,
+//!         life_multiplier: 1.0,
 //!         events: vec![Event::Note {
 //!             tick: 0,
 //!             side: NoteSide::P1,
@@ -59,7 +61,6 @@
 //!             ext: (),
 //!         }],
 //!         audio_assets: vec![],
-//!         ..Default::default()
 //!     },
 //! };
 //! assert_eq!(chart.song.title, "Test");
@@ -115,7 +116,11 @@ pub struct ChartInfo {
 }
 
 /// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
-#[derive(Clone, Debug, Default, PartialEq)]
+///
+/// 不实现 [`Default`]：合法状态要求 `resolution > 0` 且
+/// [`timing`](TimingTrack) 的初始 BPM 为正，没有有意义的零值默认。
+/// 调用方必须显式提供这些值（各处理器均以字面量构造）。
+#[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     // 手动实现 Eq：judge_multiplier 与 life_multiplier 保证不含 NaN。
     /// 每个四分音符的脉冲数（节拍分辨率）。
@@ -154,7 +159,10 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
 /// 顶层谱面 —— 对应 BMSON v2 的 `Bmson` 根对象。
 ///
 /// 包含乐曲元数据、谱面元数据与游玩数据。
-#[derive(Clone, Debug, Default, PartialEq)]
+///
+/// 不实现 [`Default`]，因为内嵌的 [`ChartData`] 无合法默认。
+/// 乐曲级与谱面级元数据（[`SongInfo`]、[`ChartInfo`]）仍实现 [`Default`]。
+#[derive(Clone, Debug, PartialEq)]
 pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// 乐曲级元数据（标题、艺术家、流派）。
     pub song: SongInfo,

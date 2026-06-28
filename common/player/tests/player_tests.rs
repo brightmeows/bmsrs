@@ -40,6 +40,8 @@ fn make_test_chart() -> Chart {
                 }],
                 vec![],
             ),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
             events: vec![
                 Event::Bar { tick: 0 },
                 Event::Bgm {
@@ -61,7 +63,6 @@ fn make_test_chart() -> Chart {
                 },
             ],
             audio_assets: vec![],
-            ..Default::default()
         },
     }
 }
