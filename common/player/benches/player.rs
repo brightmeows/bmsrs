@@ -168,11 +168,104 @@ fn bench_player_advance(c: &mut Criterion) {
     group.finish();
 }
 
+/// 构建一个 BGM 远多于 Note 的高密度谱面（模拟真实 BMS：每个按键音都是 BGM）。
+///
+/// `bgm_per_beat` 控制每拍的 BGM 数。用于量化 AOS 下从含大量 BGM 的
+/// 时间窗过滤 Note 事件的成本。
+fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
+    let mut events = Vec::with_capacity(n_notes * (1 + bgm_per_beat) + 4);
+
+    // 每拍一个 Note。
+    for i in 0..n_notes {
+        let tick = (i as u64) * RESOLUTION;
+        events.push(Event::Note {
+            tick,
+            side: NoteSide::P1,
+            lane: Lane::Key(KEY1),
+            kind: NoteKind::Normal,
+            audio_index: None,
+            ext: (),
+        });
+    }
+
+    // 每拍 bgm_per_beat 个 BGM（均布于拍内）。
+    for i in 0..n_notes {
+        let beat_start = (i as u64) * RESOLUTION;
+        for j in 0..bgm_per_beat {
+            let tick = beat_start + (RESOLUTION * j as u64 / bgm_per_beat.max(1) as u64);
+            events.push(Event::Bgm {
+                tick,
+                audio_index: 0,
+            });
+        }
+    }
+
+    events.sort_by_key(Event::sort_key);
+
+    Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: RESOLUTION,
+            timing: TimingTrack::new(120.0, vec![], vec![]),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            events,
+            audio_assets: vec![],
+        },
+    }
+}
+
+/// 基准：`Player::events_in_range` / `notes_in_range`（渲染层每帧查询）。
+///
+/// 量化 AOS（当前统一 `Vec<Event>`）下，从含大量 BGM 的时间窗中
+/// 过滤 Note 事件的实际成本，为是否需要 AOS→SOA 分桶提供数据。
+fn bench_player_events_in_range(c: &mut Criterion) {
+    let mut group = c.benchmark_group("player::events_in_range");
+    for &n in &[2000usize, 8000] {
+        // 标准谱面（无 BGM）。
+        let chart = build_chart(n);
+        let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
+        let mut player = Player::new(chart);
+        let last_tick = player.chart().data.last_tick();
+        let mid_tick = last_tick / 2;
+        player.seek(cache.tick_to_duration(mid_tick));
+        let start = mid_tick;
+        let end = mid_tick + 480;
+        group.bench_with_input(BenchmarkId::new("all_events", n), &n, |b, _| {
+            b.iter(|| {
+                black_box(player.events_in_range(start..end).len());
+            });
+        });
+        group.bench_with_input(BenchmarkId::new("notes_filter", n), &n, |b, _| {
+            b.iter(|| {
+                black_box(player.notes_in_range(start..end).count());
+            });
+        });
+    }
+
+    // BGM 密集场景：每拍 10 个 BGM（Note:BGM = 1:10），模拟真实 BMS。
+    // 固定 2000 个 Note，窗口内含约 20 Note + 200 BGM。
+    let chart = build_dense_chart(2000, 10);
+    let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
+    let mut player = Player::new(chart);
+    let mid_tick = player.chart().data.last_tick() / 2;
+    player.seek(cache.tick_to_duration(mid_tick));
+    let start = mid_tick;
+    let end = mid_tick + 480;
+    group.bench_function("notes_filter (1:10 BGM)", |b| {
+        b.iter(|| black_box(player.notes_in_range(start..end).count()));
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_timing_track_duration_to_tick,
     bench_timing_cache_duration_to_tick,
     bench_timing_cache_tick_to_duration,
     bench_player_advance,
+    bench_player_events_in_range,
 );
 criterion_main!(benches);
