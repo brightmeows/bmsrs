@@ -73,6 +73,11 @@ impl SpeedCache {
         // 在 keyframes[next_idx - 1] 与 keyframes[next_idx] 之间插值。
         let prev = &self.keyframes[next_idx - 1];
         let next = &self.keyframes[next_idx];
+        // 同一脉冲上的多个 SPEED 关键帧（畸形输入）会导致除零产生 NaN；
+        // 此时不插值，直接取后插入关键帧的值（与“后者覆盖前者”语义一致）。
+        if next.tick == prev.tick {
+            return next.rate;
+        }
         #[expect(clippy::cast_precision_loss, reason = "tick offsets fit in f64")]
         let t = (tick - prev.tick) as f64 / (next.tick - prev.tick) as f64;
         (next.rate - prev.rate).mul_add(t, prev.rate)
@@ -130,6 +135,16 @@ mod tests {
         assert!((cache.spacing_at(0) - 0.5).abs() < 1e-9);
         assert!((cache.spacing_at(480) - 1.0).abs() < 1e-9);
         assert!((cache.spacing_at(960) - 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn duplicate_tick_speed_events_no_nan() {
+        // 畸形输入：两个 SPEED 关键帧位于同一脉冲。插值分母为零，
+        // 必须避免 NaN（返回后插入关键帧的值）。
+        let events = make_speed_events(&[(480, 0.5), (480, 1.5), (960, 1.0)]);
+        let cache = SpeedCache::build(&events);
+        let result = cache.spacing_at(720);
+        assert!(result.is_finite(), "spacing must be finite, got {result}");
     }
 
     #[test]
