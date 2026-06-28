@@ -14,6 +14,8 @@
 | Time | `Duration` | `AudioAsset.start`、`Chart::duration()` |
 
 `TimingTrack` 通过 `tick_to_duration` / `duration_to_tick` 桥接两域。
+`TimingCache` 是 `TimingTrack` 的预计算加速版本（O(log n) 二分查找），
+适用于频繁换算场景（播放器实时查询、处理器批量切片）。
 `resolution` 定义每四分音符的 tick 数（默认 240）。
 
 ## 泛型参数
@@ -47,6 +49,8 @@ Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 | `Chart::duration()` = `last_tick` 的渲染时长 | 最后事件之后无额外尾音 |
 | `AudioAsset.start` 是 Time 域 | 用于定义音频素材的触发起点 |
 | `Event` 的 `tick()` 方法 | 统一访问所有变体的 tick 字段 |
+| `Event::sort_key()` | `(tick, priority)` 复合键，同脉冲排序的唯一入口 |
+| `TimingCache` | `TimingTrack` 的 O(log n) 加速版本，二者语义一致 |
 
 ## 测试
 
