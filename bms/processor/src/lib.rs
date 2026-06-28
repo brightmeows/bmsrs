@@ -441,16 +441,18 @@ fn resolve_bpm(value: BpmValue, bms: &Bms) -> f64 {
 }
 
 /// 查找给定脉冲处生效的 BPM（不晚于 `tick` 的最后一次 BPM 变更）。
+///
+/// `bpm_changes` 必须按 `tick` 升序排列（由 [`build_bpm_changes`] 保证）。
+/// 与 `bmsrs_player::TimingCache` 的二分查找采用同一前提。
+#[expect(
+    clippy::indexing_slicing,
+    reason = "idx ≥ 1 由 match 分支保证，idx-1 必在界内"
+)]
 fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
-    let mut bpm = init_bpm;
-    for bc in bpm_changes {
-        if bc.tick <= tick {
-            bpm = bc.bpm;
-        } else {
-            break;
-        }
+    match bpm_changes.partition_point(|bc| bc.tick <= tick) {
+        0 => init_bpm,
+        idx => bpm_changes[idx - 1].bpm,
     }
-    bpm
 }
 
 /// 从 `#STOPxx` 定义（通道 `09`）构建停止事件。
