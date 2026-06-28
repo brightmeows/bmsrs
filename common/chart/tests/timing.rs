@@ -178,8 +178,9 @@ fn duration_to_tick_within_stop_returns_stop_tick() {
 
 #[test]
 fn cache_duration_to_tick_matches_timing_track() {
-    // P1 前置：Player 的 advance/seek 由 TimingTrack::duration_to_tick
-    // 切换到 TimingCache::duration_to_tick，两者必须语义一致。
+    // P1 前置 + O(log n) 重写安全网：Player 的 advance/seek 由
+    // TimingTrack::duration_to_tick 切换到 TimingCache::duration_to_tick，
+    // 两者必须在所有场景（含停止内部、BPM 段边界）下语义一致。
     let timing = TimingTrack::new(
         150.0,
         vec![
@@ -192,15 +193,21 @@ fn cache_duration_to_tick_matches_timing_track() {
                 bpm: 100.0,
             },
         ],
-        vec![StopEvent {
-            tick: 960,
-            duration: 480,
-        }],
+        vec![
+            StopEvent {
+                tick: 960,
+                duration: 480,
+            },
+            StopEvent {
+                tick: 2400,
+                duration: 960,
+            },
+        ],
     );
     let cache = TimingCache::new(&timing, RES);
 
-    // 覆盖 BPM 段边界、停止内部与段外区域。
-    for ms in [0u64, 100, 300, 500, 800, 1000, 1200, 1500, 2000, 3000] {
+    // 穷举扫描 0–4s 每 10ms 一个点，覆盖 BPM 段边界、停止内部与段外区域。
+    for ms in (0..4000u64).step_by(10) {
         let d = Duration::from_millis(ms);
         let expected = timing.duration_to_tick(d, RES);
         let actual = cache.duration_to_tick(d);

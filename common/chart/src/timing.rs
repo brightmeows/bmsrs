@@ -299,6 +299,20 @@ struct BpmSegment {
     bpm: f64,
 }
 
+/// `duration_to_tick` 逆查找的一段。
+///
+/// 将单调的 `total_seconds(tick)` 函数拆分为若干段：`BPM` 恒定的线性段
+/// （脉冲随时间推进）与停止冻结段（脉冲恒定、时间跳过停止时长）。
+/// 各段 `sec_lo` 严格递增，支持 O(log n) 二分查找。
+struct InvSeg {
+    /// 本段起始的实际时间（秒）。
+    sec_lo: f64,
+    /// `sec_lo` 处的脉冲位置。
+    tick: u64,
+    /// 本段 BPM；`0.0` 表示冻结段（停止期间脉冲不推进）。
+    bpm: f64,
+}
+
 /// 预计算的计时索引，用于快速进行脉冲到 [`Duration`] 的换算。
 ///
 /// 由 [`TimingTrack`] 构造，把每次查询从 O(n) 线性扫描降为 O(log n) 二分
@@ -318,6 +332,8 @@ pub struct TimingCache {
     bpm_segments: Vec<BpmSegment>,
     /// 已排序的 `(stop_tick, cumulative_pause_seconds)` 配对。
     stop_cumsum: Vec<(u64, f64)>,
+    /// `duration_to_tick` 的逆查找段（按 `sec_lo` 升序）。
+    inv: Vec<InvSeg>,
     /// 每个四分音符的脉冲数（节拍分辨率）。
     resolution: u64,
 }
@@ -375,6 +391,12 @@ impl TimingCache {
         Self {
             bpm_segments,
             stop_cumsum,
+            inv: build_inv(
+                timing.init_bpm,
+                &timing.bpm_changes,
+                &timing.stops,
+                resolution,
+            ),
             resolution,
         }
     }
@@ -422,9 +444,17 @@ impl TimingCache {
     /// 这是 [`tick_to_duration`](Self::tick_to_duration) 的逆运算。
     /// 停止期间的时间不会推进脉冲。
     ///
-    /// 在 [`tick_to_duration`](Self::tick_to_duration) 上执行二分查找，
-    /// 复杂度为 O(log² n)。搜索上界取得很宽裕（超出最后一个 BPM 段
-    /// 1000 个小节），以覆盖任意有效时间。
+    /// 在预计算的逆查找段上执行二分查找，复杂度为 O(log n)。
+    #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "rounded result within u64 range"
+    )]
+    #[expect(clippy::cast_sign_loss, reason = "remaining time is non-negative")]
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "inv non-empty (always has initial seg); idx from saturating_sub on partition_point"
+    )]
     #[must_use]
     pub fn duration_to_tick(&self, duration: Duration) -> u64 {
         let target = duration.as_secs_f64();
@@ -432,24 +462,21 @@ impl TimingCache {
             return 0;
         }
 
-        // 上界：超出最后一个已知 BPM 段 1000 个小节。
-        let last_segment_tick = self.bpm_segments.last().map_or(0, |s| s.start_tick);
-        let upper = last_segment_tick + self.resolution * 4 * 1000;
+        // 二分查找最后一个 sec_lo <= target 的段。
+        let idx = self
+            .inv
+            .partition_point(|s| s.sec_lo <= target)
+            .saturating_sub(1);
+        let seg = &self.inv[idx];
 
-        // 二分查找：找出时间 ≤ target 的最后一个脉冲。
-        let mut lo = 0u64;
-        let mut hi = upper.max(1);
-
-        while lo < hi {
-            let mid = lo + (hi - lo) / 2;
-            if self.tick_to_duration(mid).as_secs_f64() <= target {
-                lo = mid + 1;
-            } else {
-                hi = mid;
-            }
+        if seg.bpm == 0.0 {
+            // 冻结段（停止内）：脉冲不推进。
+            return seg.tick;
         }
 
-        lo.saturating_sub(1)
+        // 线性段内插值：dt 秒对应 dt*res*|bpm|/60 个脉冲。
+        let dt = target - seg.sec_lo;
+        seg.tick + (dt * self.resolution as f64 * seg.bpm.abs() / 60.0).round() as u64
     }
 }
 
@@ -463,6 +490,77 @@ fn segment_bpm_at_tick(bpm_segments: &[BpmSegment], tick: u64) -> f64 {
         .partition_point(|s| s.start_tick <= tick)
         .saturating_sub(1);
     bpm_segments[idx].bpm
+}
+
+/// 构建 `duration_to_tick` 的逆查找段列表。
+///
+/// 合并 BPM 变更与停止事件，按 `(tick, is_stop)` 升序遍历（与
+/// [`TimingTrack::cached_events`] 同序，保证同一脉冲上 BPM 先于 Stop），
+/// 累计实际时间秒数，在每个断点记录 `(sec_lo, tick, bpm)`。停止产生一个
+/// `bpm = 0.0` 的冻结段，其后的线性段在同一脉冲以同 BPM 继续。
+#[expect(clippy::cast_precision_loss, reason = "tick/duration fit in f64")]
+fn build_inv(
+    init_bpm: f64,
+    bpm_changes: &[BpmChange],
+    stops: &[StopEvent],
+    resolution: u64,
+) -> Vec<InvSeg> {
+    let res_f = resolution as f64;
+
+    let mut events: Vec<(u64, TimingEvent)> = Vec::with_capacity(bpm_changes.len() + stops.len());
+    for bc in bpm_changes {
+        events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
+    }
+    for st in stops {
+        events.push((st.tick, TimingEvent::Stop(st.duration)));
+    }
+    events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
+
+    let mut inv = Vec::with_capacity(events.len() * 2 + 1);
+    let mut cur_tick = 0u64;
+    let mut cur_sec = 0.0f64;
+    let mut cur_bpm = init_bpm;
+    // 初始线性段：脉冲 0 处以初始 BPM 开始。
+    inv.push(InvSeg {
+        sec_lo: 0.0,
+        tick: 0,
+        bpm: init_bpm,
+    });
+
+    for (tick, ev) in events {
+        // 推进到 event_tick（当前线性段结束处）。
+        if tick > cur_tick {
+            cur_sec += (tick - cur_tick) as f64 / res_f * 60.0 / cur_bpm.abs();
+            cur_tick = tick;
+        }
+        match ev {
+            TimingEvent::Bpm(b) => {
+                cur_bpm = b;
+                inv.push(InvSeg {
+                    sec_lo: cur_sec,
+                    tick: cur_tick,
+                    bpm: b,
+                });
+            }
+            TimingEvent::Stop(d) => {
+                let d_sec = d as f64 / res_f * 60.0 / cur_bpm.abs();
+                // 冻结段：脉冲恒定，时间跳过 d_sec。
+                inv.push(InvSeg {
+                    sec_lo: cur_sec,
+                    tick: cur_tick,
+                    bpm: 0.0,
+                });
+                cur_sec += d_sec;
+                // 停止后线性段在同一脉冲以同 BPM 继续。
+                inv.push(InvSeg {
+                    sec_lo: cur_sec,
+                    tick: cur_tick,
+                    bpm: cur_bpm,
+                });
+            }
+        }
+    }
+    inv
 }
 
 #[cfg(test)]
