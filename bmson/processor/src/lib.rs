@@ -171,8 +171,6 @@ impl BmsonProcessor {
             rate: e.rate,
         }));
 
-        events.extend(build_bar_lines(data.lines.as_deref(), resolution, &events));
-
         let bga = &bmson.chart_info.bga;
 
         for e in &bga.bga_events {
@@ -196,6 +194,15 @@ impl BmsonProcessor {
                 resource_id: e.id as u32,
             });
         }
+
+        // 小节线从完整事件集（含 BGA）的末尾脉冲推算范围，避免漏掉 tick
+        // 大于音符的 BGA 事件导致覆盖不足。
+        let last_tick = events.iter().map(Event::tick).max().unwrap_or(0);
+        events.extend(build_bar_lines(
+            data.lines.as_deref(),
+            resolution,
+            last_tick,
+        ));
 
         events.sort_by_key(Event::sort_key);
 
@@ -494,17 +501,17 @@ const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
 /// 从 BMSON `lines` 字段构建小节线事件。
 ///
 /// `None` → 自动生成 4/4 拍小节线（每隔 `resolution * 4` 个脉冲一条），
-/// 范围从 0 到最后一个事件的脉冲位置。
+/// 范围从 0 到 `last_tick`。`last_tick` 由调用方从完整事件集（含 BGA）
+/// 推算，确保覆盖所有事件类型。
 fn build_bar_lines(
     lines: Option<&[bmson_def::BarLine]>,
     resolution: u64,
-    events: &[Event<BmsonNoteExt>],
+    last_tick: u64,
 ) -> Vec<Event<BmsonNoteExt>> {
     if let Some(vec) = lines {
         return vec.iter().map(|bl| Event::Bar { tick: bl.y }).collect();
     }
 
-    let last_tick = events.last().map_or(0, Event::tick);
     let step = resolution * 4;
     let count = last_tick / step + 1;
     (0..=count).map(|i| Event::Bar { tick: i * step }).collect()
