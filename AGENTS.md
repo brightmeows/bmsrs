@@ -65,6 +65,7 @@ Hook 配置于 `.pre-commit-config.yaml`：
 
 ```bash
 cargo test --workspace --quiet        # 全工作区测试
+cargo bench -p bmsrs-player          # 热路径性能基准
 cargo deny check                       # 依赖审计（CI）
 ```
 

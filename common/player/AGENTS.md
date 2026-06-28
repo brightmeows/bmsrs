@@ -53,3 +53,19 @@
 ```bash
 cargo test -p bmsrs-player
 ```
+
+## 性能基准
+
+热路径基准（`benches/player.rs`）量化播放循环每帧调用的耗时，
+为计时查询与查询路径的复杂度优化提供数据支撑。
+
+```bash
+cargo bench -p bmsrs-player          # 全部基准
+cargo bench -p bmsrs-player --bench player -- --quick  # 快速估算
+```
+
+覆盖 `duration_to_tick`、`tick_to_duration`、`advance`、`events_in_range`。
+
+> **性能相关变更必须用基准验证**，不要凭 big-O 推理下结论——
+> O(log² n) 的大常数因子在典型谱面上可能比 O(n) 更慢，
+> 唯有实测能区分。
