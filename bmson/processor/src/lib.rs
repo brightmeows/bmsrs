@@ -30,7 +30,8 @@ use std::time::Duration;
 use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, Lane,
-    NoteExt, NoteKind, NoteSide, SongInfo, StopEvent, TimingCache, TimingTrack,
+    LnJudgeHint, LnLifeHint, LnTypeHint, NoteExt, NoteKind, NoteSide, SongInfo, StopEvent,
+    TimingCache, TimingTrack,
 };
 use thiserror::Error;
 
@@ -52,11 +53,11 @@ pub struct BmsonNoteExt {
     /// beatoraja 长音模式（bmson `t`，1=LN/2=CN/3=HCN）。
     pub beatoraja_ln_mode: Option<u64>,
     /// 每音符的 LN 类型提示覆盖（bmson v2）。
-    pub ln_type_hint: Option<String>,
+    pub ln_type_hint: Option<LnTypeHint>,
     /// 每音符的 LN 判定提示覆盖（bmson v2）。
-    pub ln_judge_hint: Option<String>,
+    pub ln_judge_hint: Option<LnJudgeHint>,
     /// 每音符的 LN 血量提示覆盖（bmson v2）。
-    pub ln_life_hint: Option<String>,
+    pub ln_life_hint: Option<LnLifeHint>,
 }
 
 impl NoteExt for BmsonNoteExt {}
@@ -310,9 +311,9 @@ fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
         pan: ne.pan,
         release_sound: ne.up,
         beatoraja_ln_mode: ne.t.map(ln_mode_to_u64),
-        ln_type_hint: ne.ln_type_hint.map(ln_type_to_str),
-        ln_judge_hint: ne.ln_judge_hint.map(ln_judge_to_str),
-        ln_life_hint: ne.ln_life_hint.map(ln_life_to_str),
+        ln_type_hint: ne.ln_type_hint.map(ln_type_to_hint),
+        ln_judge_hint: ne.ln_judge_hint.map(ln_judge_to_hint),
+        ln_life_hint: ne.ln_life_hint.map(ln_life_to_hint),
     }
 }
 
@@ -325,31 +326,31 @@ const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
     }
 }
 
-/// 将 `LnType` 转换为其 bmson v2 字符串表示。
-fn ln_type_to_str(lt: bmson_def::LnType) -> String {
+/// 将 `bmson_def::LnType` 转换为格式无关的 [`LnTypeHint`]。
+const fn ln_type_to_hint(lt: bmson_def::LnType) -> LnTypeHint {
     match lt {
-        bmson_def::LnType::Cn => "cn",
-        _ => "ln",
+        bmson_def::LnType::Cn => LnTypeHint::Cn,
+        bmson_def::LnType::Ln => LnTypeHint::Ln,
+        _ => LnTypeHint::Ln,
     }
-    .to_owned()
 }
 
-/// 将 `LnJudge` 转换为其 bmson v2 字符串表示。
-fn ln_judge_to_str(lj: bmson_def::LnJudge) -> String {
+/// 将 `bmson_def::LnJudge` 转换为格式无关的 [`LnJudgeHint`]。
+const fn ln_judge_to_hint(lj: bmson_def::LnJudge) -> LnJudgeHint {
     match lj {
-        bmson_def::LnJudge::Ticks => "ticks",
-        _ => "normal",
+        bmson_def::LnJudge::Ticks => LnJudgeHint::Ticks,
+        bmson_def::LnJudge::Normal => LnJudgeHint::Normal,
+        _ => LnJudgeHint::Normal,
     }
-    .to_owned()
 }
 
-/// 将 `LnLife` 转换为其 bmson v2 字符串表示。
-fn ln_life_to_str(ll: bmson_def::LnLife) -> String {
+/// 将 `bmson_def::LnLife` 转换为格式无关的 [`LnLifeHint`]。
+const fn ln_life_to_hint(ll: bmson_def::LnLife) -> LnLifeHint {
     match ll {
-        bmson_def::LnLife::Ticks => "ticks",
-        _ => "normal",
+        bmson_def::LnLife::Ticks => LnLifeHint::Ticks,
+        bmson_def::LnLife::Normal => LnLifeHint::Normal,
+        _ => LnLifeHint::Normal,
     }
-    .to_owned()
 }
 
 /// 处理地雷通道：每个通道贡献一个整文件 `AudioAsset`。

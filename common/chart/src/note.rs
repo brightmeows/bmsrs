@@ -61,3 +61,33 @@ pub enum NoteKind {
     /// 在 BMSON 中这些来自 `key_channels`。
     Invisible,
 }
+
+/// 谱面级或按音符的长音类型提示（BMSON LN/CN）。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LnTypeHint {
+    /// 长音（LN）—— 仅在按下时判定。
+    #[default]
+    Ln,
+    /// 充电音（CN）—— 在按下和释放时都判定。
+    Cn,
+}
+
+/// 谱面级或按音符的长音判定提示。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LnJudgeHint {
+    /// 仅判定音符本身。
+    #[default]
+    Normal,
+    /// 按住期间额外判定若干脉冲。
+    Ticks,
+}
+
+/// 谱面级或按音符的长音血量提示。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LnLifeHint {
+    /// 仅音符本身恢复血量。
+    #[default]
+    Normal,
+    /// 按住期间额外脉冲恢复血量。
+    Ticks,
+}

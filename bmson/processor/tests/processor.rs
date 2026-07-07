@@ -12,7 +12,7 @@ use bmson_def::{
 use bmson_processor::layout::{Beat, GenericLayout, Pms};
 use bmson_processor::{BmsonNoteExt, BmsonProcessor};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{BgaLayer, Event, NoteKind};
+use bmsrs_chart::{BgaLayer, Event, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -697,9 +697,9 @@ fn note_ext_fields() {
         pan: Some(100),
         release_sound: Some(true),
         beatoraja_ln_mode: Some(2),
-        ln_type_hint: Some("cn".to_owned()),
-        ln_judge_hint: Some("ticks".to_owned()),
-        ln_life_hint: Some("normal".to_owned()),
+        ln_type_hint: Some(LnTypeHint::Cn),
+        ln_judge_hint: Some(LnJudgeHint::Ticks),
+        ln_life_hint: Some(LnLifeHint::Normal),
     };
     assert_eq!(ext.vol, Some(-50));
     assert_eq!(ext.pan, Some(100));

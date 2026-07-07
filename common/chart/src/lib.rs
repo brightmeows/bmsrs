@@ -77,7 +77,7 @@ pub mod visual;
 pub use audio::AudioAsset;
 pub use event::{CustomEvent, Event, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
-pub use note::{Damage, NoteKind};
+pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack};
 pub use visual::{BgaLayer, BgaResource};
 
