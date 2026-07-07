@@ -51,7 +51,7 @@ use kira::sound::static_sound::StaticSoundData;
 use kira::{AudioManager, AudioManagerSettings, Capacities, DefaultBackend};
 use macroquad::prelude::*;
 
-// ─── 常量 ───────────────────────────────────────────────────────────────
+// 常量
 
 /// 屏幕宽度。
 const SCREEN_WIDTH: f32 = 800.0;
@@ -83,7 +83,7 @@ const LOOKAHEAD_TIME_MS: u64 = 1650;
 /// 每拍像素数 —— 控制音符滚动速度。
 const PIXELS_PER_BEAT: f32 = 120.0;
 
-// ─── 配色 ───────────────────────────────────────────────────────────────
+// 配色
 
 /// 背景色。
 const COLOR_BG: Color = Color::new(0.12, 0.12, 0.12, 1.0);
@@ -121,7 +121,7 @@ const COLOR_INFO_TEXT: Color = Color::new(1.0, 1.0, 1.0, 1.0);
 /// 提示文字色。
 const COLOR_HINT_TEXT: Color = Color::new(0.5, 0.5, 0.5, 1.0);
 
-// ─── 窗口配置 ──────────────────────────────────────────────────────────
+// 窗口配置
 
 /// 返回 macroquad 窗口配置。
 fn window_conf() -> Conf {
@@ -137,7 +137,7 @@ fn window_conf() -> Conf {
     }
 }
 
-// ─── 命令行参数 ─────────────────────────────────────────────────────────
+// 命令行参数
 
 /// BMS/BMSON 谱面播放器。
 #[derive(Parser, Debug)]
@@ -149,7 +149,7 @@ struct Config {
     chart_path: PathBuf,
 }
 
-// ─── 谱面加载 ───────────────────────────────────────────────────────────
+// 谱面加载
 
 /// 加载并解析谱面文件，返回 `Chart<(), NoCustomEvent>` 与谱面所在目录。
 ///
@@ -269,7 +269,7 @@ fn normalize_event(
     }
 }
 
-// ─── 音频加载 ───────────────────────────────────────────────────────────
+// 音频加载
 
 /// 尝试以多种扩展名查找音频文件。
 fn find_audio_with_extensions(path: &Path, extensions: &[&str]) -> Option<PathBuf> {
@@ -306,7 +306,7 @@ fn preload_audio(audio_assets: &[AudioAsset], base_path: &Path) -> HashMap<u32, 
     map
 }
 
-// ─── 轨道映射 ───────────────────────────────────────────────────────────
+// 轨道映射
 
 /// 将 `Lane` 映射为轨道索引（0–7）。
 ///
@@ -330,7 +330,7 @@ fn track_x(index: usize) -> f32 {
     (index as f32).mul_add(TRACK_WIDTH + TRACK_SPACING, start_x)
 }
 
-// ─── 音符颜色 ───────────────────────────────────────────────────────────
+// 音符颜色
 
 /// 根据轨道索引返回音符颜色。
 #[must_use]
@@ -342,7 +342,7 @@ const fn note_color_for_track(index: usize) -> Color {
     }
 }
 
-// ─── 渲染 ───────────────────────────────────────────────────────────────
+// 渲染
 
 /// 绘制轨道背景与判定线。
 fn render_tracks() {
@@ -593,7 +593,7 @@ fn render_info(player: &Player<(), NoCustomEvent>, elapsed: Duration) {
     );
 }
 
-// ─── 音频处理 ───────────────────────────────────────────────────────────
+// 音频处理
 
 /// 处理新到达事件（播放音频）。
 fn process_audio_events(
@@ -633,7 +633,7 @@ fn process_audio_events(
     }
 }
 
-// ─── 主函数 ─────────────────────────────────────────────────────────────
+// 主函数
 
 #[macroquad::main(window_conf)]
 async fn main() {
