@@ -36,6 +36,7 @@ use crate::{BmsTokenAttr, IntoTokensError};
 
 /// Base-62 字符：`0`–`9`、`A`–`Z`、`a`–`z`。
 #[inline]
+#[must_use]
 pub const fn is_base62(b: u8) -> bool {
     matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
 }
@@ -284,6 +285,7 @@ const fn hex_digit_value(b: u8) -> Option<u8> {
 }
 
 /// 将单个 Base-36 ASCII 字节解码为数值（0–35）。
+#[must_use]
 pub fn base36_digit_value(b: u8) -> Option<u16> {
     match b {
         b'0'..=b'9' => Some(u16::from(b - b'0')),
@@ -298,6 +300,7 @@ pub fn base36_digit_value(b: u8) -> Option<u16> {
 /// 输入必须恰好为 2 字符，且每个字符为有效的 Base36 字符。
 /// 与 [`BmsIndex::to_index`] 语义一致但不依赖 `BmsIndex` 类型。
 #[must_use]
+#[expect(clippy::indexing_slicing, reason = "guarded by bytes.len() == 2 above")]
 pub fn base36_decode(s: &str) -> Option<u16> {
     let bytes = s.as_bytes();
     if bytes.len() != 2 {
@@ -305,7 +308,7 @@ pub fn base36_decode(s: &str) -> Option<u16> {
     }
     let hi = base36_digit_value(bytes[0])?;
     let lo = base36_digit_value(bytes[1])?;
-    Some(u16::from(hi) * 36 + u16::from(lo))
+    Some(hi * 36 + lo)
 }
 
 // 错误类型

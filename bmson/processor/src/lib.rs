@@ -330,7 +330,6 @@ const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
 const fn ln_type_to_hint(lt: bmson_def::LnType) -> LnTypeHint {
     match lt {
         bmson_def::LnType::Cn => LnTypeHint::Cn,
-        bmson_def::LnType::Ln => LnTypeHint::Ln,
         _ => LnTypeHint::Ln,
     }
 }
@@ -339,7 +338,6 @@ const fn ln_type_to_hint(lt: bmson_def::LnType) -> LnTypeHint {
 const fn ln_judge_to_hint(lj: bmson_def::LnJudge) -> LnJudgeHint {
     match lj {
         bmson_def::LnJudge::Ticks => LnJudgeHint::Ticks,
-        bmson_def::LnJudge::Normal => LnJudgeHint::Normal,
         _ => LnJudgeHint::Normal,
     }
 }
@@ -348,7 +346,6 @@ const fn ln_judge_to_hint(lj: bmson_def::LnJudge) -> LnJudgeHint {
 const fn ln_life_to_hint(ll: bmson_def::LnLife) -> LnLifeHint {
     match ll {
         bmson_def::LnLife::Ticks => LnLifeHint::Ticks,
-        bmson_def::LnLife::Normal => LnLifeHint::Normal,
         _ => LnLifeHint::Normal,
     }
 }

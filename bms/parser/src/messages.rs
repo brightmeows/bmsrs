@@ -527,7 +527,10 @@ fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let mut i = 0;
     let len = bytes.len();
     while i < len {
-        if bms_tokenizer::is_base62(bytes[i]) && i + 1 < len && bms_tokenizer::is_base62(bytes[i + 1]) {
+        if bms_tokenizer::is_base62(bytes[i])
+            && i + 1 < len
+            && bms_tokenizer::is_base62(bytes[i + 1])
+        {
             let chunk =
                 std::str::from_utf8(&bytes[i..i + 2]).expect("two base62 chars are valid ASCII");
             result.push(chunk);
@@ -548,7 +551,9 @@ fn split_2char_values_lenient(values: &str) -> Vec<&str> {
 /// - 所有其他值 → `base36_value / 2.0`
 fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
     let parsed = if base == BmsBase::Base62 {
-        val.parse::<u16>().ok().or_else(|| bms_tokenizer::base36_decode(val))
+        val.parse::<u16>()
+            .ok()
+            .or_else(|| bms_tokenizer::base36_decode(val))
     } else {
         let upper = val.to_ascii_uppercase();
         bms_tokenizer::base36_decode(&upper)
