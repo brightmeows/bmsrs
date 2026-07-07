@@ -305,7 +305,6 @@ impl Messages {
     ///
     /// `base` 控制索引归一化：在标准 Base36 模式下索引被转为大写以进行
     /// 不区分大小写的查找；在 Base62 模式下保留原始大小写。
-    #[expect(clippy::too_many_lines, reason = "finalize handles all channel types")]
     pub fn finalize(&mut self, base: BmsBase) {
         // 清除已有的解析结果，使 finalize 可安全调用一次。
         self.bgm_events.clear();
@@ -323,124 +322,90 @@ impl Messages {
 
         for (&measure, channels) in &raw {
             for (&channel, lines) in channels {
-                match channel {
-                    // BGM：每行独立（多声部）。
-                    BmsChannel::Bgm => {
-                        for line in lines {
-                            let objects = split_2char_values_lenient(line);
-                            let total_objects = objects.len() as u32;
-                            self.push_bgm_full(line, measure, total_objects, base);
-                        }
-                    }
-                    // 小节长度 / 选项：最后一行胜出。
-                    BmsChannel::MeasureLength => {
-                        if let Some(last) = lines.last() {
-                            self.push_measure_length(last, measure);
-                        }
-                    }
-                    // 所有其他通道：按位置合并后解析事件。
-                    _ => {
-                        let merged = if lines.len() <= 1 {
-                            lines.first().cloned().unwrap_or_default()
-                        } else {
-                            merge_channel(lines)
-                        };
-                        let objects = split_2char_values_lenient(&merged);
-                        #[expect(
-                            clippy::cast_possible_truncation,
-                            reason = "BMS measure value count fits in u32"
-                        )]
-                        let total_objects = objects.len() as u32;
-
-                        match channel {
-                            BmsChannel::BpmChange => {
-                                self.push_bpm_absolute_full(&merged, measure, total_objects);
-                            }
-                            BmsChannel::ExtendedBpm => {
-                                self.push_bpm_reference_full(&merged, measure, total_objects, base);
-                            }
-                            BmsChannel::BgaBase => {
-                                self.push_bga_full(
-                                    &merged,
-                                    measure,
-                                    BgaLayer::Base,
-                                    total_objects,
-                                    base,
-                                );
-                            }
-                            BmsChannel::BgaPoor => {
-                                self.push_bga_full(
-                                    &merged,
-                                    measure,
-                                    BgaLayer::Poor,
-                                    total_objects,
-                                    base,
-                                );
-                            }
-                            BmsChannel::BgaLayer => {
-                                self.push_bga_full(
-                                    &merged,
-                                    measure,
-                                    BgaLayer::Layer,
-                                    total_objects,
-                                    base,
-                                );
-                            }
-                            BmsChannel::BgaLayer2 => {
-                                self.push_bga_full(
-                                    &merged,
-                                    measure,
-                                    BgaLayer::Layer2,
-                                    total_objects,
-                                    base,
-                                );
-                            }
-                            BmsChannel::Stop => {
-                                self.push_stop_full(&merged, measure, total_objects, base);
-                            }
-                            BmsChannel::Scroll => {
-                                self.push_scroll_full(&merged, measure, total_objects, base);
-                            }
-                            BmsChannel::Speed => {
-                                self.push_speed_full(&merged, measure, total_objects, base);
-                            }
-                            BmsChannel::Note(note_ch) => {
-                                if let Some(ch) = note_ch.as_u8_hex() {
-                                    self.dispatch_note_channel(
-                                        &merged,
-                                        measure,
-                                        ch,
-                                        total_objects,
-                                        base,
-                                    );
-                                }
-                            }
-                            // 非事件通道 —— 仅保留在 raw 中。
-                            BmsChannel::BgaBaseOpacity
-                            | BmsChannel::BgaLayerOpacity
-                            | BmsChannel::BgaLayer2Opacity
-                            | BmsChannel::BgaPoorOpacity
-                            | BmsChannel::BgmVolume
-                            | BmsChannel::KeyVolume
-                            | BmsChannel::Text
-                            | BmsChannel::Judge
-                            | BmsChannel::BgaArgbBase
-                            | BmsChannel::BgaArgbLayer
-                            | BmsChannel::BgaArgbLayer2
-                            | BmsChannel::BgaArgbPoor
-                            | BmsChannel::BgaKeyBound
-                            | BmsChannel::Seek
-                            | BmsChannel::Bgm
-                            | BmsChannel::MeasureLength
-                            | BmsChannel::Option
-                            | BmsChannel::Unknown(_) => { /* 仅保留在 raw 中 */ }
-                        }
-                    }
-                }
+                self.finalize_channel(channel, &lines, measure, base);
             }
         }
 
         self.raw = raw;
+    }
+
+    /// 将单个通道的多行数据分派到对应的最终化方法。
+    fn finalize_channel(&mut self, channel: BmsChannel, lines: &[String], measure: u16, base: BmsBase) {
+        match channel {
+            // BGM：每行独立（多声部）。
+            BmsChannel::Bgm => self.finalize_bgm_lines(lines, measure, base),
+            // 小节长度 / 选项：最后一行胜出。
+            BmsChannel::MeasureLength => self.finalize_measure_length_line(lines, measure),
+            // 所有其他通道：按位置合并后解析事件。
+            _ => self.finalize_merged(channel, lines, measure, base),
+        }
+    }
+
+    /// 处理 BGM 通道的最终化：每行独立处理（多声部）。
+    fn finalize_bgm_lines(&mut self, lines: &[String], measure: u16, base: BmsBase) {
+        for line in lines {
+            let objects = split_2char_values_lenient(line);
+            let total_objects = objects.len() as u32;
+            self.push_bgm_full(line, measure, total_objects, base);
+        }
+    }
+
+    /// 处理小节长度通道的最终化：仅使用最后一行。
+    fn finalize_measure_length_line(&mut self, lines: &[String], measure: u16) {
+        if let Some(last) = lines.last() {
+            self.push_measure_length(last, measure);
+        }
+    }
+
+    /// 处理其他通道的最终化：按位置合并后按事件类型分发。
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "BMS measure value count fits in u32"
+    )]
+    fn finalize_merged(&mut self, channel: BmsChannel, lines: &[String], measure: u16, base: BmsBase) {
+        let merged = if lines.len() <= 1 {
+            lines.first().cloned().unwrap_or_default()
+        } else {
+            merge_channel(lines)
+        };
+        let objects = split_2char_values_lenient(&merged);
+        let total_objects = objects.len() as u32;
+
+        match channel {
+            BmsChannel::BpmChange => self.push_bpm_absolute_full(&merged, measure, total_objects),
+            BmsChannel::ExtendedBpm => self.push_bpm_reference_full(&merged, measure, total_objects, base),
+            BmsChannel::BgaBase => self.push_bga_full(&merged, measure, BgaLayer::Base, total_objects, base),
+            BmsChannel::BgaPoor => self.push_bga_full(&merged, measure, BgaLayer::Poor, total_objects, base),
+            BmsChannel::BgaLayer => self.push_bga_full(&merged, measure, BgaLayer::Layer, total_objects, base),
+            BmsChannel::BgaLayer2 => self.push_bga_full(&merged, measure, BgaLayer::Layer2, total_objects, base),
+            BmsChannel::Stop => self.push_stop_full(&merged, measure, total_objects, base),
+            BmsChannel::Scroll => self.push_scroll_full(&merged, measure, total_objects, base),
+            BmsChannel::Speed => self.push_speed_full(&merged, measure, total_objects, base),
+            BmsChannel::Note(note_ch) => {
+                if let Some(ch) = note_ch.as_u8_hex() {
+                    self.dispatch_note_channel(&merged, measure, ch, total_objects, base);
+                }
+            }
+            // 非事件通道 —— 仅保留在 raw 中。
+            BmsChannel::BgaBaseOpacity
+            | BmsChannel::BgaLayerOpacity
+            | BmsChannel::BgaLayer2Opacity
+            | BmsChannel::BgaPoorOpacity
+            | BmsChannel::BgmVolume
+            | BmsChannel::KeyVolume
+            | BmsChannel::Text
+            | BmsChannel::Judge
+            | BmsChannel::BgaArgbBase
+            | BmsChannel::BgaArgbLayer
+            | BmsChannel::BgaArgbLayer2
+            | BmsChannel::BgaArgbPoor
+            | BmsChannel::BgaKeyBound
+            | BmsChannel::Seek
+            | BmsChannel::Bgm
+            | BmsChannel::MeasureLength
+            | BmsChannel::Option
+            | BmsChannel::Unknown(_) => { /* 仅保留在 raw 中 */ }
+        }
     }
 }
 
