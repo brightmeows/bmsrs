@@ -284,13 +284,28 @@ const fn hex_digit_value(b: u8) -> Option<u8> {
 }
 
 /// 将单个 Base-36 ASCII 字节解码为数值（0–35）。
-fn base36_digit_value(b: u8) -> Option<u16> {
+pub fn base36_digit_value(b: u8) -> Option<u16> {
     match b {
         b'0'..=b'9' => Some(u16::from(b - b'0')),
         b'A'..=b'Z' => Some(u16::from(b - b'A') + 10),
         b'a'..=b'z' => Some(u16::from(b - b'a') + 10),
         _ => None,
     }
+}
+
+/// 将 Base36 双字符字符串解码为 u16 值。
+///
+/// 输入必须恰好为 2 字符，且每个字符为有效的 Base36 字符。
+/// 与 [`BmsIndex::to_index`] 语义一致但不依赖 `BmsIndex` 类型。
+#[must_use]
+pub fn base36_decode(s: &str) -> Option<u16> {
+    let bytes = s.as_bytes();
+    if bytes.len() != 2 {
+        return None;
+    }
+    let hi = base36_digit_value(bytes[0])?;
+    let lo = base36_digit_value(bytes[1])?;
+    Some(u16::from(hi) * 36 + u16::from(lo))
 }
 
 // 错误类型

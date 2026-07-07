@@ -508,11 +508,6 @@ pub fn merge_channel(lines: &[String]) -> String {
 
 // 内部解析辅助函数
 
-/// 检查一个字节是否为有效的 Base62 字符（0-9、A-Z、a-z）。
-const fn is_base62(b: u8) -> bool {
-    matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
-}
-
 /// 将 BMS 消息值字符串按宽松解析拆分为 2 字符块：无效字符被静默跳过，
 /// 每两个连续的有效 Base62 字符组成一个块。末尾单个有效字符被丢弃。
 ///
@@ -532,7 +527,7 @@ fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let mut i = 0;
     let len = bytes.len();
     while i < len {
-        if is_base62(bytes[i]) && i + 1 < len && is_base62(bytes[i + 1]) {
+        if bms_tokenizer::is_base62(bytes[i]) && i + 1 < len && bms_tokenizer::is_base62(bytes[i + 1]) {
             let chunk =
                 std::str::from_utf8(&bytes[i..i + 2]).expect("two base62 chars are valid ASCII");
             result.push(chunk);
@@ -553,40 +548,15 @@ fn split_2char_values_lenient(values: &str) -> Vec<&str> {
 /// - 所有其他值 → `base36_value / 2.0`
 fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
     let parsed = if base == BmsBase::Base62 {
-        val.parse::<u16>().or_else(|_| base36_decode(val))
+        val.parse::<u16>().ok().or_else(|| bms_tokenizer::base36_decode(val))
     } else {
         let upper = val.to_ascii_uppercase();
-        base36_decode(&upper)
+        bms_tokenizer::base36_decode(&upper)
     };
     match parsed {
-        Ok(1295) => f64::INFINITY,
-        Ok(n) => f64::from(n) / 2.0,
-        Err(()) => 1.0,
-    }
-}
-
-/// 将 Base36（0-9A-Z）字符串解码为 u16 值。
-#[expect(
-    clippy::indexing_slicing,
-    reason = "guarded by bytes.len() != 2 check above"
-)]
-fn base36_decode(s: &str) -> Result<u16, ()> {
-    let bytes = s.as_bytes();
-    if bytes.len() != 2 {
-        return Err(());
-    }
-    let hi = base36_digit(bytes[0]).ok_or(())?;
-    let lo = base36_digit(bytes[1]).ok_or(())?;
-    Ok(hi * 36 + lo)
-}
-
-/// 解码单个 Base36 数字（0-9、A-Z，不区分大小写）。
-fn base36_digit(b: u8) -> Option<u16> {
-    match b {
-        b'0'..=b'9' => Some(u16::from(b - b'0')),
-        b'A'..=b'Z' => Some(u16::from(b - b'A') + 10),
-        b'a'..=b'z' => Some(u16::from(b - b'a') + 10),
-        _ => None,
+        Some(1295) => f64::INFINITY,
+        Some(n) => f64::from(n) / 2.0,
+        None => 1.0,
     }
 }
 
