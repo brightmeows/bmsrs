@@ -80,3 +80,16 @@ repos:
         language: system
         # types: [text] catches all tracked text files (Rust, docs, etc.)
         types: [text]
+
+  # Reject module-level #![expect(...)] and #![allow(...)] in production
+  # source code.  Test files, benches, and examples may still use them
+  # (they have legitimate use cases).  Prefer function-level #[expect]
+  # with an explicit reason instead.
+  - repo: local
+    hooks:
+      - id: no-module-level-expect-allow
+        name: no module-level #[expect]/#[allow] in src/ (use function-level instead)
+        entry: bash -c '! rg -l "^\s*#!\[(expect|allow)\(" "$@"' _
+        language: system
+        types: [rust]
+        exclude: ^.*/(tests|benches|examples)/.*$
