@@ -231,7 +231,7 @@ fn normalize_chart(
 }
 
 /// 将 `Event<BmsonNoteExt>` 转换为 `Event<()>`，丢弃扩展数据。
-fn normalize_event(
+const fn normalize_event(
     event: Event<bmsrs::bmson::processor::BmsonNoteExt, NoCustomEvent>,
 ) -> Event<(), NoCustomEvent> {
     match event {
