@@ -3,14 +3,8 @@
 //! 本模块定义从 `#xxxYY:values` 行中提取的事件类型，以及同时持有原始
 //! 拼接值与已解析事件向量的 [`Messages`] 容器。
 
-// 类型在 Task 4 中接入 Bms；在此之前抑制 dead_code lint。
-// 事件类型被 Messages 字段引用。
 // usize→u32 截断是安全的：BMS 每个通道每小节的值数 <4B。
-#![allow(dead_code, reason = "wired into Bms in Task 4")]
-#![allow(
-    clippy::cast_possible_truncation,
-    reason = "BMS measure value count fits in u32"
-)]
+// 见 event_pos 辅助函数。
 
 use std::collections::BTreeMap;
 
@@ -270,6 +264,15 @@ pub struct Messages {
     pub stp_events: Vec<StpEvent>,
 }
 
+/// 将枚举索引 `i` 转换为 [`Position`]，集中处理 `usize → u32` 截断期望。
+///
+/// BMS 每通道每小节的内容数量（对象行数 × 每行值数）在实际谱面中
+/// 远小于 `u32::MAX`，截断是安全的。
+#[expect(clippy::cast_possible_truncation, reason = "BMS per-channel per-measure value count fits in u32")]
+const fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
+    Position::new(measure, i as u32, denom)
+}
+
 impl Messages {
     /// 将一条消息的值追加到 `raw` 存储。
     ///
@@ -322,7 +325,7 @@ impl Messages {
 
         for (&measure, channels) in &raw {
             for (&channel, lines) in channels {
-                self.finalize_channel(channel, &lines, measure, base);
+                self.finalize_channel(channel, lines, measure, base);
             }
         }
 
@@ -342,6 +345,7 @@ impl Messages {
     }
 
     /// 处理 BGM 通道的最终化：每行独立处理（多声部）。
+    #[expect(clippy::cast_possible_truncation, reason = "BMS measure value count fits in u32")]
     fn finalize_bgm_lines(&mut self, lines: &[String], measure: u16, base: BmsBase) {
         for line in lines {
             let objects = split_2char_values_lenient(line);
@@ -358,10 +362,7 @@ impl Messages {
     }
 
     /// 处理其他通道的最终化：按位置合并后按事件类型分发。
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "BMS measure value count fits in u32"
-    )]
+    #[expect(clippy::cast_possible_truncation, reason = "BMS measure value count fits in u32")]
     fn finalize_merged(&mut self, channel: BmsChannel, lines: &[String], measure: u16, base: BmsBase) {
         let merged = if lines.len() <= 1 {
             lines.first().cloned().unwrap_or_default()
@@ -538,7 +539,7 @@ impl Messages {
                 continue;
             };
             self.bgm_events.push(BgmEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 wav_id: WavIndex::from(wav_id.normalize(base)),
             });
         }
@@ -575,7 +576,7 @@ impl Messages {
                 continue;
             };
             self.bpm_changes.push(BpmChange {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 value: BpmValue::Absolute(f64::from(bpm_val)),
             });
         }
@@ -598,7 +599,7 @@ impl Messages {
                 continue;
             };
             self.bpm_changes.push(BpmChange {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 value: BpmValue::Reference(BpmIndex::from(bpm_id.normalize(base))),
             });
         }
@@ -611,7 +612,7 @@ impl Messages {
                 continue;
             };
             self.stop_events.push(StopEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 stop_id: StopIndex::from(stop_id.normalize(base)),
             });
         }
@@ -624,7 +625,7 @@ impl Messages {
                 continue;
             };
             self.scroll_events.push(ScrollEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 scroll_id: ScrollIndex::from(scroll_id.normalize(base)),
             });
         }
@@ -637,7 +638,7 @@ impl Messages {
                 continue;
             };
             self.speed_events.push(SpeedEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 speed_id: SpeedIndex::from(speed_id.normalize(base)),
             });
         }
@@ -657,7 +658,7 @@ impl Messages {
                 continue;
             };
             self.bga_events.push(BgaEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 layer,
                 bmp_id: BmpIndex::from(bmp_id.normalize(base)),
             });
@@ -693,7 +694,7 @@ impl Messages {
                 continue;
             };
             self.note_events.push(NoteEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 player,
                 lane,
                 key_type,
@@ -717,7 +718,7 @@ impl Messages {
                 continue;
             };
             self.long_note_events.push(LongNoteEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 player,
                 lane,
                 wav_id: WavIndex::from(wav_id.normalize(base)),
@@ -746,7 +747,7 @@ impl Messages {
             }
             let damage = decode_mine_damage(val, base);
             self.mine_events.push(MineEvent {
-                position: Position::new(measure, i as u32, total_objects),
+                position: event_pos(i, measure, total_objects),
                 player,
                 lane,
                 damage,

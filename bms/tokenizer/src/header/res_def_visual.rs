@@ -2,10 +2,6 @@
 //! `#@BGA`、`#POORBGA`、`#SWBGA`、`#ARGB`、`#VIDEOFILE`、`#MOVIE`、
 //! `#SEEK`、`#ExtChr`。
 
-// 此模块大量使用 a、r、g、b 等单字符变量名表示 ARGB 颜色分量，
-// 这是该领域的事实标准命名。
-#![expect(clippy::many_single_char_names, reason = "ARGB color components: a=alpha, r=red, g=green, b=blue")]
-
 use std::fmt;
 
 use crate::header::display::PoorBgaMode;
@@ -204,6 +200,7 @@ impl<C: AsRef<str> + fmt::Display> fmt::Display for SwBgaParams<C> {
 impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
     for SwBgaParams<C>
 {
+    #[expect(clippy::many_single_char_names, reason = "ARGB component names")]
     fn parse(s: &'a str) -> Option<Self> {
         let (param_part, pattern) = s.split_once(' ')?;
         let mut groups = param_part.split(':');
@@ -282,6 +279,7 @@ fn parse_seven_ints(s: &str) -> Option<[i32; 7]> {
 }
 
 /// 将逗号分隔的 `a,r,g,b` 字符串解析为四个 `u8` 值。
+#[expect(clippy::many_single_char_names, reason = "ARGB component names")]
 fn parse_argb(s: &str) -> Option<(u8, u8, u8, u8)> {
     let mut parts = s.split(',');
     let a = parts.next()?.trim().parse().ok()?;
