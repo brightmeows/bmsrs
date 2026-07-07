@@ -35,6 +35,11 @@ pub mod bmson {
         pub use bmson_def::*;
     }
 
+    /// BMSON 反序列化（chumsky 实现）。
+    pub mod de {
+        pub use bmson_de_chumsky::*;
+    }
+
     /// BMSON 处理器——将 bmson 数据转换为格式无关的 `Chart`。
     pub mod processor {
         pub use bmson_processor::*;

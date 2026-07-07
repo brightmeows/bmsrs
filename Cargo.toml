@@ -40,6 +40,11 @@ rand = { version = "0.10", default-features = false, features = ["std"] }
 derive_more = { version = "2", default-features = false, features = ["from", "display", "deref", "from_str", "is_variant"] }
 itertools = "0.15"
 serde_with = "3"
+macroquad = "0.4"
+kira = { version = "0.12", features = ["cpal"] }
+clap = { version = "4", features = ["derive"] }
+encoding_rs = "0.8"
+rayon = "1.10"
 insta = { version = "1", features = ["yaml"] }
 proptest = "1"
 criterion = "0.5"
@@ -54,6 +59,7 @@ bmsrs-chart = { path = "common/chart" }
 bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }
 bmsrs-player = { path = "common/player" }
+bmson-de-chumsky = { path = "bmson/de-chumsky" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
