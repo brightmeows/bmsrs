@@ -482,6 +482,10 @@ impl BmsConverter<'_> {
                     .map(|l| format!("{l:.0}"))
                     .unwrap_or_default(),
                 level: self.bms.display.play_level.map_or(0, |l| l as u64),
+                back_image: self.bms.display.back_bmp.clone(),
+                eyecatch_image: self.bms.display.stage_file.clone(),
+                banner_image: self.bms.display.banner.clone(),
+                preview_music: self.bms.display.preview.clone(),
                 ..ChartInfo::default()
             },
         )
