@@ -389,7 +389,7 @@ fn unit_note_ext() {
 #[test]
 fn timing_track_default() {
     let tt = TimingTrack::default();
-    assert!(tt.init_bpm == 0.0);
+    assert!((tt.init_bpm - 120.0).abs() < f64::EPSILON);
     assert!(tt.bpm_changes.is_empty());
     assert!(tt.stops.is_empty());
 }

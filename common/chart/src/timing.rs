@@ -276,12 +276,7 @@ impl Clone for TimingTrack {
 
 impl Default for TimingTrack {
     fn default() -> Self {
-        Self {
-            init_bpm: 0.0,
-            bpm_changes: Vec::new(),
-            stops: Vec::new(),
-            events_cache: OnceLock::new(),
-        }
+        Self::new(120.0, vec![], vec![])
     }
 }
 
