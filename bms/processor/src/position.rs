@@ -55,6 +55,16 @@ impl MeasureTable {
         Self { starts }
     }
 
+    /// 返回所有小节起点的累计脉冲（即小节线位置）。
+    ///
+    /// 返回值长度为 `max_measure + 2`，索引为小节号。
+    /// 第 0 项为 `0`，末项为最后一小节终点（可用于末条小节线）。
+    /// 适配变拍号：每个 bar tick 对应实际小节线位置，而非固定 4/4 间距。
+    #[must_use]
+    pub(crate) fn bar_ticks(&self) -> &[u64] {
+        &self.starts
+    }
+
     /// 将 BMS [`Position`] 转换为绝对脉冲。
     ///
     /// 小节内位置占该小节脉冲长度的 `numer / denom`。

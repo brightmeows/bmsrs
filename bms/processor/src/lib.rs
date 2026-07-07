@@ -114,7 +114,7 @@ impl BmsProcessor {
         let mut events = Vec::new();
 
         // 小节线优先（优先级 0）。
-        events.extend(build_bar_events(max_measure));
+        events.extend(build_bar_events(&table));
 
         // 音符（优先级 1）。
         conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed, &mut events);
@@ -572,10 +572,14 @@ fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
     }
 }
 
-/// 构建自动 4/4 拍小节事件（每小节一个）。
-fn build_bar_events(max_measure: u16) -> Vec<BmsEvent> {
-    let step = RESOLUTION * 4;
-    (0..=u64::from(max_measure))
-        .map(|i| Event::Bar { tick: i * step })
+/// 从预计算的小节脉冲表构建对齐的小节事件。
+///
+/// 适配变拍号（`#xxx02`）：每小节的小节线位于其实际起始脉冲位置，
+/// 而非强制等步长 4/4 间距。
+fn build_bar_events(table: &MeasureTable) -> Vec<BmsEvent> {
+    table
+        .bar_ticks()
+        .iter()
+        .map(|&tick| Event::Bar { tick })
         .collect()
 }
