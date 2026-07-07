@@ -37,21 +37,14 @@ use crate::{BmsTokenAttr, IntoTokensError};
 /// Base-62 字符：`0`–`9`、`A`–`Z`、`a`–`z`。
 #[inline]
 #[must_use]
-pub const fn is_base62(b: u8) -> bool {
+#[expect(clippy::redundant_pub_crate, reason = "needed for sibling module access")]
+pub(crate) const fn is_base62(b: u8) -> bool {
     matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
 }
 
-/// Base-36 大写字符：`0`–`9`、`A`–`Z`。
-#[inline]
-const fn is_base36(b: u8) -> bool {
-    matches!(b, b'0'..=b'9' | b'A'..=b'Z')
-}
 
-/// Base-16 十六进制字符：`0`–`9`、`A`–`F`、`a`–`f`。
-#[inline]
-const fn is_base16(b: u8) -> bool {
-    b.is_ascii_hexdigit()
-}
+
+
 
 // BmsBase —— 运行时字符集枚举
 
@@ -72,6 +65,34 @@ pub enum BmsBase {
     /// 这是大多数 BMS 索引的默认字符集。
     #[bms_token("62")]
     Base62,
+}
+
+impl BmsBase {
+    /// 检查字节 `b` 在此进制的字符集中是否有效。
+    #[must_use]
+    pub const fn is_valid_char(self, b: u8) -> bool {
+        match self {
+            Self::Base16 => b.is_ascii_hexdigit(),
+            Self::Base36 => matches!(b, b'0'..=b'9' | b'A'..=b'Z'),
+            Self::Base62 => matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z'),
+        }
+    }
+
+    /// 将双字符字符串解码为此进制下的数值（Base36 解码）。
+    ///
+    /// Base36 与 Base62 使用相同的数字映射；Base16 请使用
+    /// [`BmsIndex::as_u8_hex`]。输入必须恰好为 2 字符且每个字符有效。
+    #[must_use]
+    #[expect(clippy::indexing_slicing, reason = "guarded by bytes.len() == 2 above")]
+    pub fn decode(self, s: &str) -> Option<u16> {
+        let bytes = s.as_bytes();
+        if bytes.len() != 2 {
+            return None;
+        }
+        let hi = base36_digit_value(bytes[0])?;
+        let lo = base36_digit_value(bytes[1])?;
+        Some(hi * 36 + lo)
+    }
 }
 
 // BmsIndex —— 原始存储（无泛型）
@@ -196,13 +217,9 @@ impl BmsIndex {
 
     /// 检查此索引中所有字符对于给定字符集是否有效。
     #[must_use]
-    pub fn is_valid_for(&self, base: BmsBase) -> bool {
-        let check: fn(u8) -> bool = match base {
-            BmsBase::Base16 => is_base16,
-            BmsBase::Base36 => is_base36,
-            BmsBase::Base62 => is_base62,
-        };
-        check(self.bytes[0]) && (self.bytes[1] == 0 || check(self.bytes[1]))
+    pub const fn is_valid_for(&self, base: BmsBase) -> bool {
+        base.is_valid_char(self.bytes[0])
+            && (self.bytes[1] == 0 || base.is_valid_char(self.bytes[1]))
     }
 
     /// 从已校验字节创建（供 newtype 内部使用）。
@@ -286,30 +303,17 @@ const fn hex_digit_value(b: u8) -> Option<u8> {
 
 /// 将单个 Base-36 ASCII 字节解码为数值（0–35）。
 #[must_use]
-pub fn base36_digit_value(b: u8) -> Option<u16> {
+#[expect(clippy::redundant_pub_crate, reason = "needed for parent module BmsIndex access")]
+pub(crate) const fn base36_digit_value(b: u8) -> Option<u16> {
     match b {
-        b'0'..=b'9' => Some(u16::from(b - b'0')),
-        b'A'..=b'Z' => Some(u16::from(b - b'A') + 10),
-        b'a'..=b'z' => Some(u16::from(b - b'a') + 10),
+        b'0'..=b'9' => Some((b - b'0') as u16),
+        b'A'..=b'Z' => Some((b - b'A') as u16 + 10),
+        b'a'..=b'z' => Some((b - b'a') as u16 + 10),
         _ => None,
     }
 }
 
-/// 将 Base36 双字符字符串解码为 u16 值。
-///
-/// 输入必须恰好为 2 字符，且每个字符为有效的 Base36 字符。
-/// 与 [`BmsIndex::to_index`] 语义一致但不依赖 `BmsIndex` 类型。
-#[must_use]
-#[expect(clippy::indexing_slicing, reason = "guarded by bytes.len() == 2 above")]
-pub fn base36_decode(s: &str) -> Option<u16> {
-    let bytes = s.as_bytes();
-    if bytes.len() != 2 {
-        return None;
-    }
-    let hi = base36_digit_value(bytes[0])?;
-    let lo = base36_digit_value(bytes[1])?;
-    Some(hi * 36 + lo)
-}
+
 
 // 错误类型
 
@@ -470,8 +474,8 @@ impl FromStr for ChannelIndex {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = s.as_bytes();
         match bytes.len() {
-            1 if is_base36(bytes[0]) => Ok(Self(BmsIndex::from_valid([bytes[0], 0]))),
-            2 if is_base36(bytes[0]) && is_base36(bytes[1]) => {
+            1 if BmsBase::Base36.is_valid_char(bytes[0]) => Ok(Self(BmsIndex::from_valid([bytes[0], 0]))),
+            2 if BmsBase::Base36.is_valid_char(bytes[0]) && BmsBase::Base36.is_valid_char(bytes[1]) => {
                 Ok(Self(BmsIndex::from_valid([bytes[0], bytes[1]])))
             }
             _ => Err(BmsIndexError {

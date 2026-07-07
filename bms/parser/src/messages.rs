@@ -493,9 +493,9 @@ fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let mut i = 0;
     let len = bytes.len();
     while i < len {
-        if bms_tokenizer::is_base62(bytes[i])
+        if BmsBase::Base62.is_valid_char(bytes[i])
             && i + 1 < len
-            && bms_tokenizer::is_base62(bytes[i + 1])
+            && BmsBase::Base62.is_valid_char(bytes[i + 1])
         {
             let chunk =
                 std::str::from_utf8(&bytes[i..i + 2]).expect("two base62 chars are valid ASCII");
@@ -519,10 +519,10 @@ fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
     let parsed = if base == BmsBase::Base62 {
         val.parse::<u16>()
             .ok()
-            .or_else(|| bms_tokenizer::base36_decode(val))
+            .or_else(|| BmsBase::Base36.decode(val))
     } else {
         let upper = val.to_ascii_uppercase();
-        bms_tokenizer::base36_decode(&upper)
+        BmsBase::Base36.decode(&upper)
     };
     match parsed {
         Some(1295) => f64::INFINITY,
