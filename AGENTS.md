@@ -60,6 +60,7 @@ Hook 配置于 `.pre-commit-config.yaml`：
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | API doc 有 warning | 修复 doc 问题 |
 | `no-comment-decorations` | 装饰性注释块 | 移除 `// ===`、`// ---` 等装饰 |
 | `no-confusable-unicode` | Unicode 混淆字符 | 替换为 ASCII 等价字符 |
+| `no-module-level-expect-allow` | 模块级 `#![expect]/#[allow]` | 改用函数级 `#[expect(..., reason = "...")]` |
 
 ### 手动执行
 

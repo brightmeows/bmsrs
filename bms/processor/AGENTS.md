@@ -22,6 +22,7 @@ flowchart LR
 | 时序 | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | 小节长通过 `length_ratio` (f64) 计算 |
 | BGM | `BgmEvent` | `Event::Bgm` | LNOBJ 终点标记也作为 BGM 播放 |
 | BGA | `BgaEvent` | `Event::Bga` | 四层（Base / Poor / Layer / Layer2）|
+| 显示元数据 | `BmsHeaderDisplay` | `ChartInfo` | `#BANNER`/`#BACKBMP`/`#STAGEFILE`/`#PREVIEW` ∊ `build_metadata` |
 | SCROLL | `ScrollEvent` | `Event::Scroll` | 卷轴速度倍率 |
 | SPEED | `SpeedEvent` | `Event::Speed` | 视觉间距关键帧，线性插值 |
 
