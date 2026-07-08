@@ -262,6 +262,13 @@ pub struct Messages {
     pub measure_lengths: Vec<MeasureLength>,
     /// 基于头部命令的位置停止（`#STP`）。
     pub stp_events: Vec<StpEvent>,
+
+    /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
+    ///
+    /// 每个条目为 `(measure, channel, merged_string)`，由 `finalize_merged`
+    /// 在匹配到非事件通道时填充。处理器（`bms-processor`）读取此数据转换
+    /// 为 [`Event::Custom`](bmsrs_chart::Event::Custom)。
+    pub non_event_data: Vec<(u16, BmsChannel, String)>,
 }
 
 /// 将枚举索引 `i` 转换为 [`Position`]，集中处理 `usize → u32` 截断期望。
@@ -418,7 +425,7 @@ impl Messages {
                     self.dispatch_note_channel(&merged, measure, ch, total_objects, base);
                 }
             }
-            // 非事件通道 —— 仅保留在 raw 中。
+            // 非事件通道 —— 保留合并数据供处理器转换为 BmsCustomEvent。
             BmsChannel::BgaBaseOpacity
             | BmsChannel::BgaLayerOpacity
             | BmsChannel::BgaLayer2Opacity
@@ -433,10 +440,14 @@ impl Messages {
             | BmsChannel::BgaArgbPoor
             | BmsChannel::BgaKeyBound
             | BmsChannel::Seek
-            | BmsChannel::Bgm
-            | BmsChannel::MeasureLength
             | BmsChannel::Option
-            | BmsChannel::Unknown(_) => { /* 仅保留在 raw 中 */ }
+            | BmsChannel::Unknown(_) => {
+                // 保留合并后的字符串以供处理器延迟解析。
+                self.non_event_data.push((measure, channel, merged));
+            }
+            // BGM 与 MeasureLength 在此不可达（已在 finalize_channel
+            // 的早期分支中处理），保留分支以满足 exhaustiveness。
+            BmsChannel::Bgm | BmsChannel::MeasureLength => {}
         }
     }
 }
@@ -510,6 +521,12 @@ pub fn merge_channel(lines: &[String]) -> String {
 ///
 /// 此逻辑镜像了分词器此前的 `parse_body_objects` 逻辑，因此无论在哪个
 /// 阶段执行拆分，事件解析的一致性都能得到保证。
+///
+/// # Panics
+///
+/// 当两个连续的有效 Base62 字符在极罕见情况下不是有效的 ASCII UTF-8 时
+///  panic（实际上不会发生，因为 Base62 字符集是 ASCII 的子集）。
+#[must_use]
 #[expect(
     clippy::indexing_slicing,
     reason = "while-loop guard ensures i < len and i+1 < len before indexing"
@@ -518,7 +535,7 @@ pub fn merge_channel(lines: &[String]) -> String {
     clippy::expect_used,
     reason = "two base62 chars are valid ASCII by the is_base62 guard"
 )]
-fn split_2char_values_lenient(values: &str) -> Vec<&str> {
+pub fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let bytes = values.as_bytes();
     let mut result = Vec::new();
     let mut i = 0;

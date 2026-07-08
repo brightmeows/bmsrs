@@ -26,6 +26,7 @@
 //!   构成长音。
 //! - **LNTYPE 1 (RDM)**：通道 51–69 上的事件按 `(player, lane)` 连续配对。
 
+pub mod custom_event;
 mod long_note;
 mod position;
 
@@ -36,14 +37,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bms_parser::{Bms, BpmValue, KeyType};
-use bms_tokenizer::{BmpIndex, WavIndex};
+use bms_parser::{Bms, BpmValue, KeyType, split_2char_values_lenient};
+use bms_tokenizer::{BmpIndex, BmsChannel as RawChannel, WavIndex};
 use bmsrs_chart::{
     AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, LnJudgeHint,
     LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
+use crate::custom_event::BmsCustomEvent;
 use crate::layout::{Bme, BmsChannel, BmsLayout};
 
 use crate::long_note::{PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
@@ -59,10 +61,9 @@ pub enum ProcessError {
 
 /// BMS 处理器产出的统一事件类型。
 ///
-/// BMS 格式既无每音符扩展也无自定义事件，故泛型参数固定为
-/// `((), NoCustomEvent)`。集中于此以便内部函数统一引用，避免冗长的
-/// 全限定签名重复。
-type BmsEvent = Event<(), bmsrs_chart::NoCustomEvent>;
+/// 泛型参数固定为 `((), BmsCustomEvent)`，其中 `BmsCustomEvent`
+/// 承载引擎特定事件（BGA 不透明度、ARGB、TEXT 等）。
+type BmsEvent = Event<(), BmsCustomEvent>;
 
 /// 将 [`Bms`] 转换为 [`Chart`] 的零大小处理器。
 pub struct BmsProcessor;
@@ -79,7 +80,7 @@ impl BmsProcessor {
     /// # Errors
     ///
     /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
-    pub fn process<L>(bms: &Bms) -> Result<Chart<(), bmsrs_chart::NoCustomEvent>, ProcessError>
+    pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
     where
         L: BmsLayout,
     {
@@ -145,6 +146,9 @@ impl BmsProcessor {
         // SPEED 事件（优先级 5）。
         conv.collect_speed_events(&mut events);
 
+        // BMS 引擎特定自定义事件（优先级 6）。
+        conv.collect_custom_events(&mut events);
+
         // 排序规则收敛于 Event::sort_key（同脉冲子序约定见其文档）。
         events.sort_by_key(BmsEvent::sort_key);
 
@@ -182,9 +186,7 @@ impl BmsProcessor {
     /// # Errors
     ///
     /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
-    pub fn process_default(
-        bms: &Bms,
-    ) -> Result<Chart<(), bmsrs_chart::NoCustomEvent>, ProcessError> {
+    pub fn process_default(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
         Self::process::<Bme>(bms)
     }
 }
@@ -374,6 +376,119 @@ impl BmsConverter<'_> {
                     tick: self.table.position_to_tick(se.position),
                     rate,
                 });
+            }
+        }
+    }
+
+    /// 收集 BMS 引擎特定自定义事件。
+    ///
+    /// 从 [`Messages::non_event_data`] 读取由 parser 合并但未转换的通道数据，
+    /// 转换为 [`Event::Custom`] 变体。每个非 `"00"` 值产生一个事件。
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "channel values are single-byte bounded (0-255) or u32 resource indices"
+    )]
+    fn collect_custom_events(&self, events: &mut Vec<BmsEvent>) {
+        let non_event = &self.bms.messages.non_event_data;
+
+        // BGA 图层映射（通道 → 图层）。
+        let layer_of = |ch: RawChannel| -> Option<bmsrs_chart::BgaLayer> {
+            match ch {
+                RawChannel::BgaBaseOpacity | RawChannel::BgaArgbBase => {
+                    Some(bmsrs_chart::BgaLayer::Base)
+                }
+                RawChannel::BgaLayerOpacity | RawChannel::BgaArgbLayer => {
+                    Some(bmsrs_chart::BgaLayer::Layer)
+                }
+                RawChannel::BgaLayer2Opacity | RawChannel::BgaArgbLayer2 => {
+                    Some(bmsrs_chart::BgaLayer::Layer2)
+                }
+                RawChannel::BgaPoorOpacity | RawChannel::BgaArgbPoor => {
+                    Some(bmsrs_chart::BgaLayer::Poor)
+                }
+                _ => None,
+            }
+        };
+
+        for &(measure, ref channel, ref merged) in non_event {
+            let objects = split_2char_values_lenient(merged);
+            let total = objects.len() as u32;
+            if total == 0 {
+                continue;
+            }
+
+            for (i, obj) in objects.iter().enumerate() {
+                if *obj == "00" {
+                    continue;
+                }
+                // 值通道（0B-0E, 97, 98）使用十六进制（01-FF）；
+                // 索引通道（99, A0, A1-A5, A6, 05）使用 Base36 索引。
+                let tick = self
+                    .table
+                    .position_to_tick(bms_parser::Position::new(measure, i as u32, total));
+
+                let payload = match channel {
+                    RawChannel::BgaBaseOpacity
+                    | RawChannel::BgaLayerOpacity
+                    | RawChannel::BgaLayer2Opacity
+                    | RawChannel::BgaPoorOpacity => {
+                        let Some(layer) = layer_of(*channel) else {
+                            continue;
+                        };
+                        let opacity = u8::from_str_radix(obj, 16).unwrap_or(255);
+                        BmsCustomEvent::BgaOpacity { layer, opacity }
+                    }
+                    RawChannel::BgaArgbBase
+                    | RawChannel::BgaArgbLayer
+                    | RawChannel::BgaArgbLayer2
+                    | RawChannel::BgaArgbPoor => {
+                        let Some(layer) = layer_of(*channel) else {
+                            continue;
+                        };
+                        let (a, r, g, b) = bms_tokenizer::BmpIndex::try_from(*obj)
+                            .ok()
+                            .and_then(|idx| self.bms.visual.argb_defs.get(&idx).cloned())
+                            .map_or((255, 255, 255, 255), |p| (p.a, p.r, p.g, p.b));
+                        BmsCustomEvent::BgaArgb { layer, a, r, g, b }
+                    }
+                    RawChannel::BgaKeyBound => {
+                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        BmsCustomEvent::BgaKeyBound {
+                            resource_id: index as u32,
+                        }
+                    }
+                    RawChannel::Text => {
+                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        BmsCustomEvent::TextDisplay {
+                            text_index: index as u32,
+                        }
+                    }
+                    RawChannel::Judge => {
+                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        BmsCustomEvent::JudgeOverride { rank: index }
+                    }
+                    RawChannel::Option => {
+                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        BmsCustomEvent::OptionChange {
+                            option_id: index,
+                            value: String::new(),
+                        }
+                    }
+                    RawChannel::BgmVolume => {
+                        let vol = u8::from_str_radix(obj, 16).unwrap_or(255);
+                        BmsCustomEvent::BgmVolume { volume: vol }
+                    }
+                    RawChannel::KeyVolume => {
+                        let vol = u8::from_str_radix(obj, 16).unwrap_or(255);
+                        BmsCustomEvent::KeyVolume { volume: vol }
+                    }
+                    RawChannel::Seek => {
+                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        BmsCustomEvent::VideoSeek { position: index }
+                    }
+                    _ => continue,
+                };
+                events.push(Event::Custom { tick, payload });
             }
         }
     }

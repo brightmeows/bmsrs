@@ -9,14 +9,18 @@
 use bms_control_flow::FlowDoc;
 use bms_parser::Bms;
 use bms_processor::BmsProcessor;
+use bms_processor::custom_event::BmsCustomEvent;
 use bms_processor::layout::Bme;
 use bms_tokenizer::BmsTokenizer;
-use bmsrs_chart::{Event, NoteKind};
+use bmsrs_chart::{Chart, Event, NoteKind};
 use bmsrs_player::Player;
 
-/// 管道辅助：BMS 原文 → `Chart`。
+/// bms-processor 返回的 chart 类型。
+type BmsChart = Chart<(), BmsCustomEvent>;
+
+/// 管道辅助：BMS 原文 → `Chart<(), BmsCustomEvent>`。
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
-fn process(bms_text: &str) -> bmsrs_chart::Chart {
+fn process(bms_text: &str) -> BmsChart {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(bms_text)
         .into_iter()
@@ -27,7 +31,7 @@ fn process(bms_text: &str) -> bmsrs_chart::Chart {
 }
 
 /// 提取所有 Note 事件（含种类信息）。
-fn all_notes(chart: &bmsrs_chart::Chart) -> Vec<(u64, NoteKind)> {
+fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
     chart
         .data
         .events
@@ -43,7 +47,7 @@ fn all_notes(chart: &bmsrs_chart::Chart) -> Vec<(u64, NoteKind)> {
 }
 
 /// 提取所有 Scroll 事件。
-fn scroll_events(chart: &bmsrs_chart::Chart) -> Vec<(u64, f64)> {
+fn scroll_events(chart: &BmsChart) -> Vec<(u64, f64)> {
     chart
         .data
         .events
@@ -59,7 +63,7 @@ fn scroll_events(chart: &bmsrs_chart::Chart) -> Vec<(u64, f64)> {
 }
 
 /// 提取所有 Speed 事件。
-fn speed_events(chart: &bmsrs_chart::Chart) -> Vec<(u64, f64)> {
+fn speed_events(chart: &BmsChart) -> Vec<(u64, f64)> {
     chart
         .data
         .events
@@ -75,7 +79,7 @@ fn speed_events(chart: &bmsrs_chart::Chart) -> Vec<(u64, f64)> {
 }
 
 /// 提取 Long `Note`（`NoteKind::Long`）事件。
-fn long_notes(chart: &bmsrs_chart::Chart) -> Vec<(u64, u64)> {
+fn long_notes(chart: &BmsChart) -> Vec<(u64, u64)> {
     chart
         .data
         .events
@@ -516,7 +520,7 @@ impl bms_control_flow::BranchRng for TestRng {
     }
 }
 
-fn process_with_cf(bms_text: &str) -> bmsrs_chart::Chart {
+fn process_with_cf(bms_text: &str) -> BmsChart {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(bms_text)
         .into_iter()
@@ -773,4 +777,104 @@ fn bmspec_6_speed_interpolation() {
         (player.spacing_at(2400) - 1.0).abs() < 1e-9,
         "after last kf"
     );
+}
+
+// BmsCustomEvent 集成测试
+
+/// BGA Base Opacity（通道 0B）产生 `BmsCustomEvent::BgaOpacity`。
+#[test]
+fn bga_opacity_custom_event() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#0010B:FF00000000000000\n");
+    let customs: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Custom {
+                payload: BmsCustomEvent::BgaOpacity { layer, opacity },
+                ..
+            } => Some((*layer, *opacity)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(customs.len(), 1, "should produce one BgaOpacity event");
+    assert_eq!(customs[0], (bmsrs_chart::BgaLayer::Base, 0xFF));
+}
+
+/// TEXT 通道（99）产生 `BmsCustomEvent::TextDisplay`。
+#[test]
+fn text_display_custom_event() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00199:0100000000000000\n");
+    let texts: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Custom {
+                payload: BmsCustomEvent::TextDisplay { text_index },
+                ..
+            } => Some(*text_index),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(texts.len(), 1);
+    assert_eq!(texts[0], 1);
+}
+
+/// BGM Volume（通道 97）产生 `BmsCustomEvent::BgmVolume`。
+#[test]
+fn bgm_volume_custom_event() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00197:8000000000000000\n");
+    let vols: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Custom {
+                payload: BmsCustomEvent::BgmVolume { volume },
+                ..
+            } => Some(*volume),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(vols.len(), 1);
+    assert_eq!(vols[0], 0x80);
+}
+
+/// Option 通道（A6）产生 `BmsCustomEvent::OptionChange`。
+#[test]
+fn option_change_custom_event() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A6:0500000000000000\n");
+    let opts: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Custom {
+                payload: BmsCustomEvent::OptionChange { option_id, .. },
+                ..
+            } => Some(*option_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(opts.len(), 1);
+    assert_eq!(opts[0], 5, "option_id should be decoded as base36");
+}
+
+/// 自定义事件插入后不影响原生事件的排序与查询。
+#[test]
+fn custom_events_dont_affect_note_queries() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00111:0100000000000000\n#0010B:FF00000000000000\n");
+    let player = Player::new(chart);
+    let note_count = player
+        .events_in_range(0..2000)
+        .iter()
+        .filter(|e| matches!(e, Event::Note { .. }))
+        .count();
+    assert_eq!(note_count, 1, "note should still be present");
 }

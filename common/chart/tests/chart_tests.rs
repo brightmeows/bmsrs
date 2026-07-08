@@ -6,9 +6,9 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, CustomEvent as _,
-    Damage, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind, NoteSide,
-    SongInfo, StopEvent, TimingTrack,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, Lane,
+    LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind, NoteSide, SongInfo, StopEvent,
+    TimingTrack,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -534,10 +534,4 @@ fn stop_event_fields() {
     assert_eq!(se.duration, 192);
 }
 
-// NoCustomEvent
-
-#[test]
-fn no_custom_event_default() {
-    let nce = NoCustomEvent;
-    assert_eq!(nce.tick(), 0);
-}
+// NoCustomEvent — 纯标记类型，无行为需测试。

@@ -106,7 +106,15 @@ pub enum Event<T, C: CustomEvent = NoCustomEvent> {
         tick: u64,
     },
     /// 格式特有的自定义事件。
-    Custom(C),
+    ///
+    /// tick 提取到变体外统一存储，自定义事件类型自身无需重复定义 tick；
+    /// `payload` 仅携带格式特有的语义数据（如 BGA 颜色、透明度等）。
+    Custom {
+        /// 脉冲位置。
+        tick: u64,
+        /// 格式特有的负载数据。
+        payload: C,
+    },
 }
 
 impl<T, C: CustomEvent> Event<T, C> {
@@ -124,16 +132,16 @@ impl<T, C: CustomEvent> Event<T, C> {
             Self::Stop { .. } => 3,
             Self::Scroll { .. } => 4,
             Self::Speed { .. } => 5,
-            Self::Custom(_) => 6,
+            Self::Custom { .. } => 6,
         }
     }
 
     /// 统一返回此事件的脉冲位置，与变体无关。
     #[must_use]
-    pub fn tick(&self) -> u64 {
+    pub const fn tick(&self) -> u64 {
         match self {
-            Self::Custom(c) => c.tick(),
-            Self::Note { tick, .. }
+            Self::Custom { tick, .. }
+            | Self::Note { tick, .. }
             | Self::Bgm { tick, .. }
             | Self::Bpm { tick, .. }
             | Self::Stop { tick, .. }
@@ -149,7 +157,7 @@ impl<T, C: CustomEvent> Event<T, C> {
     /// 收敛“同脉冲事件子序”约定（见 [`priority`](Self::priority)）。
     /// 处理器应以本方法作为事件排序的唯一入口，避免排序规则散落多处。
     #[must_use]
-    pub fn sort_key(&self) -> (u64, u8) {
+    pub const fn sort_key(&self) -> (u64, u8) {
         (self.tick(), self.priority())
     }
 }
@@ -169,23 +177,17 @@ impl NoteExt for () {}
 
 // CustomEvent trait
 
-/// 格式特有的自定义事件类型 trait。
+/// 格式特有的自定义事件类型 trait（标记 trait）。
 ///
-/// 自定义事件参与统一的已排序时间线。处理器必须在稳定排序前以期望的
-/// 同脉冲顺序插入它们。
-pub trait CustomEvent: Clone + Debug + PartialEq + Eq {
-    /// 此自定义事件的脉冲位置。
-    fn tick(&self) -> u64;
-}
+/// tick 统一存储在 [`Event::Custom`] 变体中，
+/// 无需每个自定义事件类型自己存储或暴露。
+pub trait CustomEvent: Clone + Debug + PartialEq + Eq {}
 
 /// 哨兵类型：无自定义事件。
 ///
-/// 当 `C = NoCustomEvent` 时，`Custom` 变体永远不会被构造。
+/// 当 `C = NoCustomEvent` 时，Custom 变体携带此类型，
+/// 但因 [`Event::Custom`] 统一存储 tick，效率不受影响。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NoCustomEvent;
 
-impl CustomEvent for NoCustomEvent {
-    fn tick(&self) -> u64 {
-        0
-    }
-}
+impl CustomEvent for NoCustomEvent {}

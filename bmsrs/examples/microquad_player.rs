@@ -43,6 +43,7 @@ use std::time::{Duration, Instant};
 
 use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
+use bmsrs::bms::processor::custom_event::BmsCustomEvent;
 use bmsrs::bms::tokenizer::BmsTokenizer;
 use bmsrs::chart::{
     AudioAsset, Chart, ChartData, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent,
@@ -169,7 +170,7 @@ fn load_chart(path: &Path) -> Result<(Chart<(), NoCustomEvent>, PathBuf), String
 
     match extension.to_lowercase().as_str() {
         "bms" | "bme" | "bml" | "pms" => {
-            let chart = load_bms(path)?;
+            let chart = normalize_bms_chart(load_bms(path)?);
             Ok((chart, base_path))
         }
         "bmson" => {
@@ -180,8 +181,8 @@ fn load_chart(path: &Path) -> Result<(Chart<(), NoCustomEvent>, PathBuf), String
     }
 }
 
-/// 加载 BMS 格式谱面。
-fn load_bms(path: &Path) -> Result<Chart<(), NoCustomEvent>, String> {
+/// 加载 BMS 格式谱面（保留引擎特定自定义事件）。
+fn load_bms(path: &Path) -> Result<Chart<(), BmsCustomEvent>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("无法读取文件 {}: {e}", path.display()))?;
 
     // BMS 文件通常使用 Shift-JIS 编码。
@@ -213,6 +214,64 @@ fn load_bmson(path: &Path) -> Result<Chart<(), NoCustomEvent>, String> {
 
     // 剥离扩展数据，统一为 Chart<()>。
     Ok(normalize_chart(chart))
+}
+
+/// 将 `Chart<(), BmsCustomEvent>` 转换为 `Chart<(), NoCustomEvent>`，
+/// 丢弃 BMS 引擎特定的自定义事件（渲染器无需处理它们）。
+fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEvent> {
+    Chart {
+        song: chart.song,
+        chart: chart.chart,
+        data: ChartData {
+            resolution: chart.data.resolution,
+            timing: chart.data.timing,
+            judge_multiplier: chart.data.judge_multiplier,
+            life_multiplier: chart.data.life_multiplier,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            events: chart
+                .data
+                .events
+                .into_iter()
+                .filter(|e| !matches!(e, Event::Custom { .. }))
+                .map(|e| match e {
+                    Event::Note {
+                        tick,
+                        side,
+                        lane,
+                        kind,
+                        audio_index,
+                        ext: (),
+                    } => Event::Note {
+                        tick,
+                        side,
+                        lane,
+                        kind,
+                        audio_index,
+                        ext: (),
+                    },
+                    Event::Bgm { tick, audio_index } => Event::Bgm { tick, audio_index },
+                    Event::Bpm { tick, bpm } => Event::Bpm { tick, bpm },
+                    Event::Stop { tick, duration } => Event::Stop { tick, duration },
+                    Event::Scroll { tick, rate } => Event::Scroll { tick, rate },
+                    Event::Speed { tick, rate } => Event::Speed { tick, rate },
+                    Event::Bga {
+                        tick,
+                        layer,
+                        resource_id,
+                    } => Event::Bga {
+                        tick,
+                        layer,
+                        resource_id,
+                    },
+                    Event::Bar { tick } => Event::Bar { tick },
+                    Event::Custom { .. } => panic!("unreachable: filtered above"),
+                })
+                .collect(),
+            audio_assets: chart.data.audio_assets,
+        },
+    }
 }
 
 /// 将 `Chart<BmsonNoteExt>` 转换为 `Chart<(), NoCustomEvent>`。
@@ -271,7 +330,7 @@ const fn normalize_event(
             resource_id,
         },
         Event::Bar { tick } => Event::Bar { tick },
-        Event::Custom(c) => Event::Custom(c),
+        Event::Custom { tick, payload } => Event::Custom { tick, payload },
     }
 }
 
