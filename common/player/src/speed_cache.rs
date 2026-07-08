@@ -51,12 +51,12 @@ impl SpeedCache {
     /// 无关键帧或查询在首个关键帧之前 → 返回 `1.0`。
     /// 查询在最后一个关键帧之后 → 返回最后一个关键帧的间距。
     /// 两关键帧之间 → 线性插值。
-    #[expect(clippy::indexing_slicing, reason = "idx checks bounds before access")]
     pub fn spacing_at(&self, tick: u64) -> f64 {
-        if self.keyframes.is_empty() {
+        // 空关键帧表：默认间距 1.0。
+        let Some(first) = self.keyframes.first() else {
             return 1.0;
-        }
-        if tick < self.keyframes[0].tick {
+        };
+        if tick < first.tick {
             return 1.0;
         }
 
@@ -66,13 +66,17 @@ impl SpeedCache {
             return 1.0;
         }
         if next_idx >= self.keyframes.len() {
-            #[expect(clippy::indexing_slicing, reason = "len > 0 && next_idx >= len")]
-            return self.keyframes[self.keyframes.len() - 1].rate;
+            // keyframes 非空（已由 first() 确认第一个元素存在）。
+            #[expect(clippy::unwrap_used, reason = "keyframes confirmed non-empty above")]
+            return self.keyframes.last().unwrap().rate;
         }
 
-        // 在 keyframes[next_idx - 1] 与 keyframes[next_idx] 之间插值。
-        let prev = &self.keyframes[next_idx - 1];
-        let next = &self.keyframes[next_idx];
+        // keyframes[next_idx - 1] 与 keyframes[next_idx] 皆存在：
+        // next_idx > 0（上方的 == 0 分支），next_idx < len（上方的 >= len 分支）。
+        //
+        // 直接索引比 .get().unwrap() 更清晰且不需要额外 expect。
+        #[expect(clippy::indexing_slicing, reason = "bounds confirmed by checks above")]
+        let (prev, next) = (&self.keyframes[next_idx - 1], &self.keyframes[next_idx]);
         // 同一脉冲上的多个 SPEED 关键帧（畸形输入）会导致除零产生 NaN；
         // 此时不插值，直接取后插入关键帧的值（与“后者覆盖前者”语义一致）。
         if next.tick == prev.tick {

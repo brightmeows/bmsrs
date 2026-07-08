@@ -83,15 +83,15 @@ impl BmsBase {
     /// Base36 与 Base62 使用相同的数字映射；Base16 请使用
     /// [`BmsIndex::as_u8_hex`]。输入必须恰好为 2 字符且每个字符有效。
     #[must_use]
-    #[expect(clippy::indexing_slicing, reason = "guarded by bytes.len() == 2 above")]
     pub fn decode(self, s: &str) -> Option<u16> {
-        let bytes = s.as_bytes();
-        if bytes.len() != 2 {
-            return None;
+        match s.as_bytes() {
+            [b1, b2] => {
+                let hi = base36_digit_value(*b1)?;
+                let lo = base36_digit_value(*b2)?;
+                Some(hi * 36 + lo)
+            }
+            _ => None,
         }
-        let hi = base36_digit_value(bytes[0])?;
-        let lo = base36_digit_value(bytes[1])?;
-        Some(hi * 36 + lo)
     }
 }
 
@@ -260,18 +260,16 @@ impl fmt::Display for BmsIndex {
     }
 }
 
-#[expect(clippy::indexing_slicing, reason = "guarded by match on bytes.len()")]
 impl TryFrom<&str> for BmsIndex {
     type Error = BmsIndexError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        let bytes = s.as_bytes();
-        match bytes.len() {
-            1 if is_base62(bytes[0]) => Ok(Self {
-                bytes: [bytes[0], 0],
+        match s.as_bytes() {
+            [b] if is_base62(*b) => Ok(Self {
+                bytes: [*b, 0],
             }),
-            2 if is_base62(bytes[0]) && is_base62(bytes[1]) => Ok(Self {
-                bytes: [bytes[0], bytes[1]],
+            [a, b] if is_base62(*a) && is_base62(*b) => Ok(Self {
+                bytes: [*a, *b],
             }),
             _ => Err(BmsIndexError {
                 input: s.to_owned(),
@@ -467,16 +465,16 @@ impl_try_from_str!(ObjectIndex);
 #[display("{}", _0)]
 pub struct ChannelIndex(pub BmsIndex);
 
-#[expect(clippy::indexing_slicing, reason = "guarded by match on bytes.len()")]
 impl FromStr for ChannelIndex {
     type Err = BmsIndexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = s.as_bytes();
-        match bytes.len() {
-            1 if BmsBase::Base36.is_valid_char(bytes[0]) => Ok(Self(BmsIndex::from_valid([bytes[0], 0]))),
-            2 if BmsBase::Base36.is_valid_char(bytes[0]) && BmsBase::Base36.is_valid_char(bytes[1]) => {
-                Ok(Self(BmsIndex::from_valid([bytes[0], bytes[1]])))
+        match s.as_bytes() {
+            [b] if BmsBase::Base36.is_valid_char(*b) => Ok(Self(BmsIndex::from_valid([*b, 0]))),
+            [a, b]
+                if BmsBase::Base36.is_valid_char(*a) && BmsBase::Base36.is_valid_char(*b) =>
+            {
+                Ok(Self(BmsIndex::from_valid([*a, *b])))
             }
             _ => Err(BmsIndexError {
                 input: s.to_owned(),

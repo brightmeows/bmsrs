@@ -202,7 +202,6 @@ fn build_if_else_chain(branches: &[ExactBranch]) -> TokenStream {
 }
 
 /// 为非索引变体生成精确匹配分支。
-#[expect(clippy::indexing_slicing, reason = "guarded by prior len() == 1 check")]
 fn generate_exact_branches(
     variant: &syn::Variant,
     tmpl: &BmsTokenTemplate,
@@ -230,9 +229,12 @@ fn generate_exact_branches(
 
     let (condition, body) = match &variant.fields {
         syn::Fields::Unnamed(fields_unnamed) if fields_unnamed.unnamed.len() == 1 => {
+            // 长度已确认为 1，first() 必然为 Some。
+            #[expect(clippy::unwrap_used, reason = "len() == 1 confirmed above")]
+            let field = fields_unnamed.unnamed.first().unwrap();
             exact_unnamed_branch(
                 command_ident,
-                &fields_unnamed.unnamed[0].ty,
+                &field.ty,
                 cmd_str,
                 &context_str,
                 is_fallback,
@@ -726,7 +728,6 @@ fn build_indexed_tuple_body(
 ///
 /// 生成的方法按声明顺序依次调度到各子枚举的 `try_match_header`。
 /// 带 `#[bms_fallback]` 的变体（如兜底的 `Fallback` 变体）会被跳过。
-#[expect(clippy::indexing_slicing, reason = "guarded by prior len() check")]
 pub fn generate_header_dispatch(
     enum_name: &syn::Ident,
     generics: &syn::Generics,
@@ -791,7 +792,9 @@ pub fn generate_header_dispatch(
         }
 
         let variant_ident = &variant.ident;
-        let inner_type = &fields.unnamed[0].ty;
+        // 长度已确认为 1，first() 必然为 Some。
+        #[expect(clippy::unwrap_used, reason = "len() == 1 confirmed above")]
+        let inner_type = &fields.unnamed.first().unwrap().ty;
 
         // 若内部类型含父级的类型参数（如 C），其错误类型与父级一致；
         // 否则通过 BmsTokenizeError::from_ref 转换。
