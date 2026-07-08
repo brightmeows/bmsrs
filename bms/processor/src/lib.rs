@@ -394,6 +394,10 @@ impl BmsConverter<'_> {
         clippy::cast_possible_truncation,
         reason = "channel values are single-byte bounded (0-255) or u32 resource indices"
     )]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "single structured match on channel variant with short branches; extraction would lose clarity"
+    )]
     fn collect_custom_events(&self, events: &mut Vec<BmsEvent>) {
         let non_event = &self.bms.messages.non_event_data;
 
@@ -441,7 +445,9 @@ impl BmsConverter<'_> {
                         let Some(layer) = layer_of(*channel) else {
                             continue;
                         };
-                        let opacity = u8::from_str_radix(obj, 16).unwrap_or(255);
+                        let Ok(opacity) = u8::from_str_radix(obj, 16) else {
+                            continue;
+                        };
                         BmsCustomEvent::BgaOpacity { layer, opacity }
                     }
                     RawChannel::BgaArgbBase
@@ -451,10 +457,13 @@ impl BmsConverter<'_> {
                         let Some(layer) = layer_of(*channel) else {
                             continue;
                         };
-                        let (a, r, g, b) = bms_tokenizer::BmpIndex::try_from(*obj)
+                        let Some((a, r, g, b)) = bms_tokenizer::BmpIndex::try_from(*obj)
                             .ok()
                             .and_then(|idx| self.bms.visual.argb_defs.get(&idx).cloned())
-                            .map_or((255, 255, 255, 255), |p| (p.a, p.r, p.g, p.b));
+                            .map(|p| (p.a, p.r, p.g, p.b))
+                        else {
+                            continue;
+                        };
                         BmsCustomEvent::BgaArgb { layer, a, r, g, b }
                     }
                     RawChannel::BgaKeyBound => {
@@ -474,19 +483,24 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::JudgeOverride { rank: index }
                     }
                     RawChannel::Option => {
-                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
-                        BmsCustomEvent::OptionChange {
-                            option_id: index,
-                            value: String::new(),
-                        }
+                        let option_id = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        let value = bms_tokenizer::ChangeOptionIndex::try_from(*obj)
+                            .ok()
+                            .and_then(|idx| self.bms.gameplay.change_option_defs.get(&idx).cloned())
+                            .unwrap_or_default();
+                        BmsCustomEvent::OptionChange { option_id, value }
                     }
                     RawChannel::BgmVolume => {
-                        let vol = u8::from_str_radix(obj, 16).unwrap_or(255);
-                        BmsCustomEvent::BgmVolume { volume: vol }
+                        let Ok(volume) = u8::from_str_radix(obj, 16) else {
+                            continue;
+                        };
+                        BmsCustomEvent::BgmVolume { volume }
                     }
                     RawChannel::KeyVolume => {
-                        let vol = u8::from_str_radix(obj, 16).unwrap_or(255);
-                        BmsCustomEvent::KeyVolume { volume: vol }
+                        let Ok(volume) = u8::from_str_radix(obj, 16) else {
+                            continue;
+                        };
+                        BmsCustomEvent::KeyVolume { volume }
                     }
                     RawChannel::Seek => {
                         let index = u64::from_str_radix(obj, 36).unwrap_or(0);
@@ -653,6 +667,11 @@ fn find_max_measure(bms: &Bms) -> u16 {
         &bms.messages.bga_events,
         &bms.messages.stp_events,
     );
+
+    // non_event_data 存储 (measure, channel, merged_string)，遍历 measure。
+    for (measure, _, _) in &bms.messages.non_event_data {
+        max_m = max_m.max(*measure);
+    }
 
     max_m.max(1) + 1
 }

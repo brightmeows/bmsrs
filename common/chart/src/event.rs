@@ -122,7 +122,7 @@ impl<T: Eq, C: Eq + CustomEvent> Eq for EventKind<T, C> {}
 /// # 构造
 ///
 /// ```rust
-/// use bmsrs_chart::{Event, EventKind, NoteKind};
+/// use bmsrs_chart::{Event, EventKind};
 ///
 /// let ev: Event = Event::new(480, EventKind::Bar);
 /// assert_eq!(ev.tick(), 480);

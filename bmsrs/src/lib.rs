@@ -30,11 +30,10 @@ pub mod bms {
 pub mod bmson {
     /// BMSON 类型系统（v0/v1/v2）。
     ///
-    /// v0 和 v1 子模块通过下面的 `bmson_def::*` glob 重新导出
-    /// （`pub mod v0; pub mod v1;` 在 `bmson_def` 根级可见），
-    /// 因此无需显式 `pub use bmson_def::v0`。
+    /// v0 和 v1 子模块通过显式 `pub use` 和底层的 `*` glob 共同导出，
+    /// 确保即使 `bmson_def` 内部调整模块可见性也不会影响此门面。
     pub mod def {
-        pub use bmson_def::*;
+        pub use bmson_def::{v0, v1, *};
     }
 
     /// BMSON 反序列化（chumsky 实现）。

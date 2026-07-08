@@ -854,6 +854,95 @@ fn option_change_custom_event() {
     assert_eq!(opts[0], 5, "option_id should be decoded as base36");
 }
 
+/// ARGB 通道（A1-A4）需要 `#ARGBxx` 定义来解析颜色，未定义时跳过。
+#[test]
+fn argb_custom_event_skips_when_undefined() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A1:0100000000000000\n");
+    // ARGB index 01 未定义，无 `#ARGB01` 头部，因此不应产生事件。
+    let argb_count = chart
+        .data
+        .events
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::Custom(BmsCustomEvent::BgaArgb { .. })))
+        .count();
+    assert_eq!(argb_count, 0, "undefined ARGB should be skipped");
+}
+
+/// SWBGA 通道（A5）产生 `BmsCustomEvent::BgaKeyBound`。
+#[test]
+fn swbga_custom_event() {
+    let chart = process(
+        "#BPM 120\n#BMP01 bg.png\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A5:0100000000000000\n",
+    );
+    let keybounds: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::BgaKeyBound { resource_id }) => Some(*resource_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(keybounds.len(), 1);
+    assert_eq!(keybounds[0], 1, "BMP index 01 should map to resource_id 1");
+}
+
+/// Judge 通道（A0）产生 `BmsCustomEvent::JudgeOverride`。
+#[test]
+fn judge_custom_event() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A0:5000000000000000\n");
+    let judges: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::JudgeOverride { rank }) => Some(*rank),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(judges.len(), 1);
+    // "50" in base36 = 5*36 + 0 = 180
+    assert_eq!(judges[0], 180, "base36 '50' should decode to 180");
+}
+
+/// Key Volume 通道（98）产生 `BmsCustomEvent::KeyVolume`。
+#[test]
+fn key_volume_custom_event() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00198:4000000000000000\n");
+    let vols: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::KeyVolume { volume }) => Some(*volume),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(vols.len(), 1);
+    assert_eq!(vols[0], 0x40, "hex '40' should decode to 64");
+}
+
+/// Video Seek 通道（05）产生 `BmsCustomEvent::VideoSeek`。
+#[test]
+fn video_seek_custom_event() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00105:0300000000000000\n");
+    let seeks: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::VideoSeek { position }) => Some(*position),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(seeks.len(), 1);
+    assert_eq!(seeks[0], 3, "base36 '03' should decode to 3");
+}
+
 /// 自定义事件插入后不影响原生事件的排序与查询。
 #[test]
 fn custom_events_dont_affect_note_queries() {

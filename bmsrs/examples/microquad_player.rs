@@ -227,9 +227,11 @@ fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEv
             timing: chart.data.timing,
             judge_multiplier: chart.data.judge_multiplier,
             life_multiplier: chart.data.life_multiplier,
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
+            // 透传 BMS 源 chart 的 LN 提示（当前 BmsProcessor 始终输出默认值，
+            // 保留透传形式以便将来支持 LN 提示时无需修改此处）。
+            ln_type_hint: chart.data.ln_type_hint,
+            ln_judge_hint: chart.data.ln_judge_hint,
+            ln_life_hint: chart.data.ln_life_hint,
             events: chart
                 .data
                 .events

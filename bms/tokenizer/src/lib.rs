@@ -285,6 +285,10 @@ impl BmsTokenizer {
     ///
     /// 等价于 `tokenize::<Vec<_>, String>(input)`，适合需要在分词完成后
     /// 释放原输入字符串的场景（如读取文件到 `String` 后分词）。
+    ///
+    /// # Panics
+    ///
+    /// 参见 [`tokenize`](Self::tokenize) 的 Panics 说明——条件相同。
     #[must_use]
     pub fn tokenize_owned(&self, input: &str) -> TokenizeOwnedResult {
         self.tokenize(input)

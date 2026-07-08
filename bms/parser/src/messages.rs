@@ -524,8 +524,8 @@ pub fn merge_channel(lines: &[String]) -> String {
 ///
 /// # Panics
 ///
-/// 当两个连续的有效 Base62 字符在极罕见情况下不是有效的 ASCII UTF-8 时
-///  panic（实际上不会发生，因为 Base62 字符集是 ASCII 的子集）。
+/// 从逻辑上不会 panic（Base62 字符集是 ASCII 子集，`from_utf8`  不会失败）。
+/// 使用 `expect` 作为安全断言。
 #[must_use]
 #[expect(
     clippy::indexing_slicing,
