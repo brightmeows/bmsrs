@@ -149,6 +149,14 @@ pub enum ErrorStrategy {
     FailFast,
 }
 
+/// [`tokenize`](BmsTokenizer::tokenize) 返回的 owned token 向量类型。
+///
+/// 等同于 `Vec<(NonZeroUsize, Result<BmsToken<String>, BmsTokenizeError<String>>)>`。
+type TokenizeOwnedResult = Vec<(
+    NonZeroUsize,
+    Result<BmsToken<String>, BmsTokenizeError<String>>,
+)>;
+
 /// 采用 builder 风格配置的 BMS 分词器。
 ///
 /// # 示例
@@ -271,5 +279,14 @@ impl BmsTokenizer {
         }
 
         results.into_iter().collect()
+    }
+
+    /// 将 BMS 字符串分词为 owned token（`C = String`）。
+    ///
+    /// 等价于 `tokenize::<Vec<_>, String>(input)`，适合需要在分词完成后
+    /// 释放原输入字符串的场景（如读取文件到 `String` 后分词）。
+    #[must_use]
+    pub fn tokenize_owned(&self, input: &str) -> TokenizeOwnedResult {
+        self.tokenize(input)
     }
 }

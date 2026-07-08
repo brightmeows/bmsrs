@@ -29,9 +29,11 @@ pub mod bms {
 /// BMSON 格式的类型定义与转换器。
 pub mod bmson {
     /// BMSON 类型系统（v0/v1/v2）。
+    ///
+    /// v0 和 v1 子模块通过下面的 `bmson_def::*` glob 重新导出
+    /// （`pub mod v0; pub mod v1;` 在 `bmson_def` 根级可见），
+    /// 因此无需显式 `pub use bmson_def::v0`。
     pub mod def {
-        pub use bmson_def::v0;
-        pub use bmson_def::v1;
         pub use bmson_def::*;
     }
 
