@@ -19,7 +19,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::{BGA, BarLine, BpmEvent, KeyChannel, MineChannel, ModeHint, ScrollEvent, StopEvent};
+use crate::{
+    BGA, BarLine, BpmEvent, KeyChannel, LnMode, MineChannel, ModeHint, ScrollEvent, StopEvent,
+};
 
 /// v1.0.0 schema 中的顶层 bmson 对象。
 ///
@@ -169,6 +171,10 @@ pub struct BmsonInfo<'a> {
         deserialize_with = "crate::deserialize_resolution_nonzero"
     )]
     pub resolution: u64,
+
+    /// 长音类型 —— beatoraja 扩展（JSON 中为 `lnType`）。
+    #[serde(alias = "lnType", default, skip_serializing_if = "Option::is_none")]
+    pub ln_type: Option<LnMode>,
 }
 
 /// `#[serde(default)]` 在 `resolution` 等字段上使用的默认值 100.0。
@@ -218,7 +224,10 @@ impl<'a> From<Bmson<'a>> for RootBmson<'a> {
 
         let chart_data = ChartData {
             mode_hint: info.mode_hint,
-            ln_type_hint: crate::LnType::Ln,
+            ln_type_hint: info
+                .ln_type
+                .and_then(crate::ln_mode_to_type_hint)
+                .unwrap_or(crate::LnType::Ln),
             ln_judge_hint: crate::LnJudge::Normal,
             ln_life_hint: crate::LnLife::Normal,
             init_bpm: info.init_bpm,
@@ -272,6 +281,10 @@ impl<'a> From<RootBmson<'a>> for Bmson<'a> {
             preview_music: root.chart_info.preview_music,
             title_image: root.chart_info.title_image,
             resolution: root.chart_data.resolution,
+            ln_type: match root.chart_data.ln_type_hint {
+                crate::LnType::Cn => Some(crate::LnMode::Cn),
+                crate::LnType::Ln => None, // 默认 Ln，无需序列化
+            },
         };
 
         Self {

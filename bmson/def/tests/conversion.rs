@@ -159,6 +159,85 @@ fn v0_to_root_with_t_field_mapping() {
 }
 
 #[test]
+fn v1_ln_type_maps_to_ln_type_hint() {
+    let v1_json = r#"{
+        "version": "1.0.0",
+        "info": {
+            "title": "T", "subtitle": "", "artist": "A", "subartists": [],
+            "genre": "G", "mode_hint": "beat-7k", "chart_name": "", "level": 1,
+            "init_bpm": 140.0, "judge_rank": 100, "total": 100, "resolution": 240,
+            "lnType": 2
+        },
+        "lines": null, "bpm_events": [], "stop_events": null,
+        "sound_channels": [],
+        "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
+    }"#;
+    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    assert_eq!(v1.info.ln_type, Some(bmson_def::LnMode::Cn));
+
+    let root: Bmson = v1.into();
+    assert_eq!(root.chart_data.ln_type_hint, bmson_def::LnType::Cn);
+}
+
+#[test]
+fn v1_ln_type_default_none() {
+    let v1_json = r#"{
+        "version": "1.0.0",
+        "info": {
+            "title": "T", "subtitle": "", "artist": "A", "subartists": [],
+            "genre": "G", "mode_hint": "beat-7k", "chart_name": "", "level": 1,
+            "init_bpm": 140.0, "judge_rank": 100, "total": 100, "resolution": 240
+        },
+        "lines": null, "bpm_events": [], "stop_events": null,
+        "sound_channels": [],
+        "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
+    }"#;
+    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    assert_eq!(v1.info.ln_type, None);
+
+    let root: Bmson = v1.into();
+    assert_eq!(root.chart_data.ln_type_hint, bmson_def::LnType::Ln);
+}
+
+#[test]
+fn v1_root_to_v1_ln_type_roundtrip() {
+    let v1_json = r#"{
+        "version": "1.0.0",
+        "info": {
+            "title": "T", "subtitle": "", "artist": "A", "subartists": [],
+            "genre": "G", "mode_hint": "beat-7k", "chart_name": "", "level": 1,
+            "init_bpm": 140.0, "judge_rank": 100, "total": 100, "resolution": 240,
+            "lnType": 2
+        },
+        "lines": null, "bpm_events": [], "stop_events": null,
+        "sound_channels": [],
+        "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
+    }"#;
+    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    let root: Bmson = v1.clone().into();
+    let back: bmson_def::v1::Bmson = root.into();
+    assert_eq!(back.info.ln_type, v1.info.ln_type);
+}
+
+#[test]
+fn v0_info_ln_type_maps_to_ln_type_hint() {
+    let v0_json = r#"{
+        "info": {
+            "title": "T", "artist": "A", "genre": "G", "level": 1,
+            "initBPM": 140.0, "judgeRank": 100, "total": 100,
+            "lnType": 2
+        },
+        "bpmNotes": [], "stopNotes": [], "soundChannel": [],
+        "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
+    }"#;
+    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    assert_eq!(v0.info.ln_type, Some(bmson_def::LnMode::Cn));
+
+    let root: Bmson = v0.try_into().unwrap();
+    assert_eq!(root.chart_data.ln_type_hint, bmson_def::LnType::Cn);
+}
+
+#[test]
 fn v0_init_bpm_negative_is_error() {
     let v0_json = r#"{
         "info": {"title": "T", "artist": "A", "genre": "G", "level": 1, "initBPM": -10, "judgeRank": 100, "total": 100},

@@ -27,6 +27,7 @@ fn make_v1_bmson() -> v1::Bmson<'static> {
             preview_music: None,
             title_image: None,
             resolution: 240,
+            ln_type: None,
         },
         lines: None,
         bpm_events: vec![BpmEvent { y: 960, bpm: 180.0 }],

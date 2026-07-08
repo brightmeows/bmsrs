@@ -9,7 +9,8 @@
 //! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, NoteKind, NoteSide, TimingTrack,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+//!     NoteKind, NoteSide, TimingTrack,
 //! };
 //! use bmsrs_player::Player;
 //!
@@ -21,6 +22,9 @@
 //!         timing: TimingTrack::new(120.0, vec![], vec![]),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
+//!         ln_type_hint: LnTypeHint::default(),
+//!         ln_judge_hint: LnJudgeHint::default(),
+//!         ln_life_hint: LnLifeHint::default(),
 //!         events: vec![Event::Note {
 //!             tick: 480,
 //!             side: NoteSide::P1,

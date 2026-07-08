@@ -44,7 +44,10 @@ use std::time::{Duration, Instant};
 use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::tokenizer::BmsTokenizer;
-use bmsrs::chart::{AudioAsset, Chart, ChartData, Event, Lane, NoCustomEvent, NoteKind, NoteSide};
+use bmsrs::chart::{
+    AudioAsset, Chart, ChartData, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent,
+    NoteKind, NoteSide,
+};
 use bmsrs::player::Player;
 use clap::Parser;
 use kira::sound::static_sound::StaticSoundData;
@@ -224,6 +227,9 @@ fn normalize_chart(
             timing: chart.data.timing,
             judge_multiplier: chart.data.judge_multiplier,
             life_multiplier: chart.data.life_multiplier,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: chart.data.events.into_iter().map(normalize_event).collect(),
             audio_assets: chart.data.audio_assets,
         },

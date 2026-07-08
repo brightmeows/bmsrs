@@ -7,7 +7,8 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, CustomEvent as _,
-    Damage, Event, Lane, NoCustomEvent, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
+    Damage, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind, NoteSide,
+    SongInfo, StopEvent, TimingTrack,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -35,6 +36,9 @@ fn chart_construction_is_empty_by_default() {
             timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![],
             audio_assets: vec![],
         },
@@ -57,6 +61,9 @@ fn chart_construction() {
             timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![Event::Note {
                 tick: 0,
                 side: NoteSide::P1,
@@ -100,6 +107,9 @@ fn chart_data_last_tick_empty() {
         timing: TimingTrack::new(120.0, vec![], vec![]),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
+        ln_type_hint: LnTypeHint::default(),
+        ln_judge_hint: LnJudgeHint::default(),
+        ln_life_hint: LnLifeHint::default(),
         events: vec![],
         audio_assets: vec![],
     };
@@ -113,6 +123,9 @@ fn chart_data_last_tick_with_events() {
         timing: TimingTrack::new(120.0, vec![], vec![]),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
+        ln_type_hint: LnTypeHint::default(),
+        ln_judge_hint: LnJudgeHint::default(),
+        ln_life_hint: LnLifeHint::default(),
         events: vec![Event::Bar { tick: 0 }, Event::Bar { tick: 960 }],
         audio_assets: vec![],
     };
@@ -126,6 +139,9 @@ fn chart_data_duration() {
         timing: TimingTrack::new(120.0, vec![], vec![]),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
+        ln_type_hint: LnTypeHint::default(),
+        ln_judge_hint: LnJudgeHint::default(),
+        ln_life_hint: LnLifeHint::default(),
         events: vec![Event::Bar { tick: 960 }],
         audio_assets: vec![],
     };

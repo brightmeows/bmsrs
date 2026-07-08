@@ -37,8 +37,8 @@
 //! ```
 //! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
-//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, NoteKind, NoteSide,
-//!     TimingTrack,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+//!     NoteKind, NoteSide, TimingTrack,
 //! };
 //!
 //! let chart: Chart = Chart {
@@ -52,6 +52,9 @@
 //!         timing: TimingTrack::new(120.0, vec![], vec![]),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
+//!         ln_type_hint: LnTypeHint::default(),
+//!         ln_judge_hint: LnJudgeHint::default(),
+//!         ln_life_hint: LnLifeHint::default(),
 //!         events: vec![Event::Note {
 //!             tick: 0,
 //!             side: NoteSide::P1,
@@ -131,6 +134,12 @@ pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     pub judge_multiplier: f64,
     /// 血量槽倍率（`1.0` = 标准）。
     pub life_multiplier: f64,
+    /// 谱面级长音类型提示（BMSON LN/CN）。
+    pub ln_type_hint: LnTypeHint,
+    /// 谱面级长音判定提示。
+    pub ln_judge_hint: LnJudgeHint,
+    /// 谱面级长音血量提示。
+    pub ln_life_hint: LnLifeHint,
     /// 全部计时事件，按脉冲升序排列。
     pub events: Vec<Event<T, C>>,
     /// 音符与 BGM 事件引用的音频素材。

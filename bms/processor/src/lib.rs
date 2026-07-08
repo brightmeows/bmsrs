@@ -39,8 +39,8 @@ use std::time::Duration;
 use bms_parser::{Bms, BpmValue, KeyType};
 use bms_tokenizer::{BmpIndex, WavIndex};
 use bmsrs_chart::{
-    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, NoteKind,
-    SongInfo, StopEvent, TimingTrack,
+    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, LnJudgeHint,
+    LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
@@ -161,6 +161,9 @@ impl BmsProcessor {
                 timing,
                 judge_multiplier: 1.0,
                 life_multiplier: 1.0,
+                ln_type_hint: LnTypeHint::default(),
+                ln_judge_hint: LnJudgeHint::default(),
+                ln_life_hint: LnLifeHint::default(),
                 events,
                 audio_assets,
             },

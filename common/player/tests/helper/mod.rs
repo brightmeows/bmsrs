@@ -1,5 +1,6 @@
 use bmsrs_chart::{
-    Chart, ChartData, ChartInfo, Event, Lane, NoteKind, NoteSide, SongInfo, TimingTrack,
+    Chart, ChartData, ChartInfo, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind,
+    NoteSide, SongInfo, TimingTrack,
 };
 
 /// 测试用的默认参数事件类型。
@@ -14,6 +15,9 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
             timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events,
             audio_assets: vec![],
         },

@@ -475,3 +475,15 @@ pub fn detect_version(json: &str) -> Result<DetectedVersion, BmsonError> {
         Err(BmsonError::UnknownVersion(version.to_owned()))
     }
 }
+
+/// 将 [`LnMode`]（数值 1/2/3，含 HCN）映射到 [`LnType`]（ln/cn，不含 HCN）。
+///
+/// HCN 和 Ln 均映射为 `None`（前者无等价、后者为默认值），
+/// 由调用方通过 `unwrap_or(LnType::Ln)` 处理。
+#[must_use]
+pub(crate) const fn ln_mode_to_type_hint(lt: LnMode) -> Option<LnType> {
+    match lt {
+        LnMode::Cn => Some(LnType::Cn),
+        LnMode::Hcn | LnMode::Ln => None,
+    }
+}

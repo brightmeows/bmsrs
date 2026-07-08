@@ -253,6 +253,33 @@ fn key_channel_roundtrip() {
 }
 
 #[test]
+fn chart_data_ln_hints_roundtrip() {
+    let json = r#"{
+        "version": "2.0.0",
+        "song_info": { "title": "T", "artist": "A", "genre": "G" },
+        "chart_info": {
+            "subtitle": "", "subartists": [], "chart_name": "", "level": 1,
+            "bga": { "bga_header": [], "bga_events": [], "layer_events": [], "poor_events": [] }
+        },
+        "chart_data": {
+            "init_bpm": 140.0, "lines": null, "bpm_events": [], "stop_events": [], "sound_channels": [],
+            "ln_type_hint": "cn", "ln_judge_hint": "ticks", "ln_life_hint": "ticks"
+        }
+    }"#;
+    let bmson: Bmson = serde_json::from_str(json).unwrap();
+    assert_eq!(bmson.chart_data.ln_type_hint, LnType::Cn);
+    assert_eq!(bmson.chart_data.ln_judge_hint, LnJudge::Ticks);
+    assert_eq!(bmson.chart_data.ln_life_hint, LnLife::Ticks);
+
+    // 往返序列化
+    let json_out = serde_json::to_string(&bmson).unwrap();
+    let back: Bmson = serde_json::from_str(&json_out).unwrap();
+    assert_eq!(back.chart_data.ln_type_hint, LnType::Cn);
+    assert_eq!(back.chart_data.ln_judge_hint, LnJudge::Ticks);
+    assert_eq!(back.chart_data.ln_life_hint, LnLife::Ticks);
+}
+
+#[test]
 fn bga_default_is_empty() {
     let bga = BGA::default();
     assert!(bga.bga_header.is_empty());

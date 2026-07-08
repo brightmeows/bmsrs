@@ -705,3 +705,17 @@ fn note_ext_fields() {
     assert_eq!(ext.pan, Some(100));
     assert_eq!(ext.release_sound, Some(true));
 }
+
+#[test]
+fn chart_level_ln_hints_propagate() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.ln_type_hint = bmson_def::LnType::Cn;
+    bmson.chart_data.ln_judge_hint = bmson_def::LnJudge::Ticks;
+    bmson.chart_data.ln_life_hint = bmson_def::LnLife::Ticks;
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    assert_eq!(chart.data.ln_type_hint, LnTypeHint::Cn);
+    assert_eq!(chart.data.ln_judge_hint, LnJudgeHint::Ticks);
+    assert_eq!(chart.data.ln_life_hint, LnLifeHint::Ticks);
+    Ok(())
+}

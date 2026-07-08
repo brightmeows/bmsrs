@@ -5,7 +5,8 @@ mod helper;
 use std::num::NonZeroU8;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartData, ChartInfo, Damage, Event, NoteKind, SongInfo, TimingTrack,
+    BpmChange, Chart, ChartData, ChartInfo, Damage, Event, LnJudgeHint, LnLifeHint, LnTypeHint,
+    NoteKind, SongInfo, TimingTrack,
     mode::{Lane, NoteSide},
 };
 use bmsrs_player::Player;
@@ -137,6 +138,9 @@ fn bgm_in_range_returns_events() {
             timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![
                 Event::Bgm {
                     tick: 0,
@@ -171,6 +175,9 @@ fn scroll_rate_at_returns_latest_multiplier() {
             timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![
                 Event::Scroll {
                     tick: 240,
@@ -202,6 +209,9 @@ fn bar_lines_in_range_returns_subset() {
             timing: TimingTrack::new(120.0, vec![], vec![]),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![
                 Event::Bar { tick: 0 },
                 Event::Bar { tick: 960 },
@@ -235,6 +245,9 @@ fn current_bpm_returns_active_bpm() {
             ),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![],
             audio_assets: vec![],
         },
@@ -290,6 +303,9 @@ fn duration_to_tick_with_bpm_changes_and_stops() {
             ),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![],
             audio_assets: vec![],
         },
@@ -332,6 +348,9 @@ fn duration_to_tick_stop_does_not_advance() {
             ),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
             events: vec![],
             audio_assets: vec![],
         },
