@@ -268,7 +268,10 @@ pub struct Messages {
 ///
 /// BMS 每通道每小节的内容数量（对象行数 × 每行值数）在实际谱面中
 /// 远小于 `u32::MAX`，截断是安全的。
-#[expect(clippy::cast_possible_truncation, reason = "BMS per-channel per-measure value count fits in u32")]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "BMS per-channel per-measure value count fits in u32"
+)]
 const fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
     Position::new(measure, i as u32, denom)
 }
@@ -333,7 +336,13 @@ impl Messages {
     }
 
     /// 将单个通道的多行数据分派到对应的最终化方法。
-    fn finalize_channel(&mut self, channel: BmsChannel, lines: &[String], measure: u16, base: BmsBase) {
+    fn finalize_channel(
+        &mut self,
+        channel: BmsChannel,
+        lines: &[String],
+        measure: u16,
+        base: BmsBase,
+    ) {
         match channel {
             // BGM：每行独立（多声部）。
             BmsChannel::Bgm => self.finalize_bgm_lines(lines, measure, base),
@@ -345,7 +354,10 @@ impl Messages {
     }
 
     /// 处理 BGM 通道的最终化：每行独立处理（多声部）。
-    #[expect(clippy::cast_possible_truncation, reason = "BMS measure value count fits in u32")]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "BMS measure value count fits in u32"
+    )]
     fn finalize_bgm_lines(&mut self, lines: &[String], measure: u16, base: BmsBase) {
         for line in lines {
             let objects = split_2char_values_lenient(line);
@@ -362,8 +374,17 @@ impl Messages {
     }
 
     /// 处理其他通道的最终化：按位置合并后按事件类型分发。
-    #[expect(clippy::cast_possible_truncation, reason = "BMS measure value count fits in u32")]
-    fn finalize_merged(&mut self, channel: BmsChannel, lines: &[String], measure: u16, base: BmsBase) {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "BMS measure value count fits in u32"
+    )]
+    fn finalize_merged(
+        &mut self,
+        channel: BmsChannel,
+        lines: &[String],
+        measure: u16,
+        base: BmsBase,
+    ) {
         let merged = if lines.len() <= 1 {
             lines.first().cloned().unwrap_or_default()
         } else {
@@ -374,11 +395,21 @@ impl Messages {
 
         match channel {
             BmsChannel::BpmChange => self.push_bpm_absolute_full(&merged, measure, total_objects),
-            BmsChannel::ExtendedBpm => self.push_bpm_reference_full(&merged, measure, total_objects, base),
-            BmsChannel::BgaBase => self.push_bga_full(&merged, measure, BgaLayer::Base, total_objects, base),
-            BmsChannel::BgaPoor => self.push_bga_full(&merged, measure, BgaLayer::Poor, total_objects, base),
-            BmsChannel::BgaLayer => self.push_bga_full(&merged, measure, BgaLayer::Layer, total_objects, base),
-            BmsChannel::BgaLayer2 => self.push_bga_full(&merged, measure, BgaLayer::Layer2, total_objects, base),
+            BmsChannel::ExtendedBpm => {
+                self.push_bpm_reference_full(&merged, measure, total_objects, base);
+            }
+            BmsChannel::BgaBase => {
+                self.push_bga_full(&merged, measure, BgaLayer::Base, total_objects, base);
+            }
+            BmsChannel::BgaPoor => {
+                self.push_bga_full(&merged, measure, BgaLayer::Poor, total_objects, base);
+            }
+            BmsChannel::BgaLayer => {
+                self.push_bga_full(&merged, measure, BgaLayer::Layer, total_objects, base);
+            }
+            BmsChannel::BgaLayer2 => {
+                self.push_bga_full(&merged, measure, BgaLayer::Layer2, total_objects, base);
+            }
             BmsChannel::Stop => self.push_stop_full(&merged, measure, total_objects, base),
             BmsChannel::Scroll => self.push_scroll_full(&merged, measure, total_objects, base),
             BmsChannel::Speed => self.push_speed_full(&merged, measure, total_objects, base),

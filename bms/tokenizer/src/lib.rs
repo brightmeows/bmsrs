@@ -220,6 +220,10 @@ impl BmsTokenizer {
     ///   错误以逐元素的 [`Result::Err`] 嵌入。
     /// - [`ErrorStrategy::FailFast`]：在首个错误处停止。集合
     ///   包含至（并包含）错误行为止的结果。
+    ///
+    /// # Panics
+    ///
+    /// 输入行数超过 `usize` 上限时 panic（实际 BMS 文件不可能达到此上限）。
     #[must_use]
     pub fn tokenize<'a, Out, C>(&self, input: &'a str) -> Out
     where
@@ -238,9 +242,13 @@ impl BmsTokenizer {
                     continue;
                 }
 
-                // 此处 line_number 始终 >= 1（首次使用前
-                // 从 0 自增）；回退分支不可达。
-                let nz_line = NonZeroUsize::new(line_number).unwrap_or(NonZeroUsize::MAX);
+                // `line_number` 首次使用前从 0 自增，此处永远 >= 1。
+                #[expect(
+                    clippy::expect_used,
+                    reason = "line_number always >= 1, guaranteed by increment-before-use"
+                )]
+                let nz_line = NonZeroUsize::new(line_number)
+                    .expect("line_number always >= 1, guaranteed by increment-before-use");
 
                 let result: Result<BmsToken<C>, BmsTokenizeError<C>> =
                     match parse_message_line::<C>(trimmed) {

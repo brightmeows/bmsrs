@@ -37,14 +37,13 @@ use crate::{BmsTokenAttr, IntoTokensError};
 /// Base-62 字符：`0`–`9`、`A`–`Z`、`a`–`z`。
 #[inline]
 #[must_use]
-#[expect(clippy::redundant_pub_crate, reason = "needed for sibling module access")]
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "needed for sibling module access"
+)]
 pub(crate) const fn is_base62(b: u8) -> bool {
     matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
 }
-
-
-
-
 
 // BmsBase —— 运行时字符集枚举
 
@@ -265,12 +264,8 @@ impl TryFrom<&str> for BmsIndex {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s.as_bytes() {
-            [b] if is_base62(*b) => Ok(Self {
-                bytes: [*b, 0],
-            }),
-            [a, b] if is_base62(*a) && is_base62(*b) => Ok(Self {
-                bytes: [*a, *b],
-            }),
+            [b] if is_base62(*b) => Ok(Self { bytes: [*b, 0] }),
+            [a, b] if is_base62(*a) && is_base62(*b) => Ok(Self { bytes: [*a, *b] }),
             _ => Err(BmsIndexError {
                 input: s.to_owned(),
             }),
@@ -301,7 +296,10 @@ const fn hex_digit_value(b: u8) -> Option<u8> {
 
 /// 将单个 Base-36 ASCII 字节解码为数值（0–35）。
 #[must_use]
-#[expect(clippy::redundant_pub_crate, reason = "needed for parent module BmsIndex access")]
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "needed for parent module BmsIndex access"
+)]
 pub(crate) const fn base36_digit_value(b: u8) -> Option<u16> {
     match b {
         b'0'..=b'9' => Some((b - b'0') as u16),
@@ -310,8 +308,6 @@ pub(crate) const fn base36_digit_value(b: u8) -> Option<u16> {
         _ => None,
     }
 }
-
-
 
 // 错误类型
 
@@ -471,9 +467,7 @@ impl FromStr for ChannelIndex {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.as_bytes() {
             [b] if BmsBase::Base36.is_valid_char(*b) => Ok(Self(BmsIndex::from_valid([*b, 0]))),
-            [a, b]
-                if BmsBase::Base36.is_valid_char(*a) && BmsBase::Base36.is_valid_char(*b) =>
-            {
+            [a, b] if BmsBase::Base36.is_valid_char(*a) && BmsBase::Base36.is_valid_char(*b) => {
                 Ok(Self(BmsIndex::from_valid([*a, *b])))
             }
             _ => Err(BmsIndexError {
