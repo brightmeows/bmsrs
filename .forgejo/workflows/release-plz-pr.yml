@@ -7,7 +7,7 @@ on:
 jobs:
   release-plz-pr:
     name: Prepare release PR
-    runs-on: codeberg-tiny
+    runs-on: codeberg-small
     container:
       image: ghcr.io/catthehacker/ubuntu:rust-latest
 
