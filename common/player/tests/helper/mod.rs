@@ -1,6 +1,6 @@
 use bmsrs_chart::{
-    Chart, ChartData, ChartInfo, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind,
-    NoteSide, SongInfo, TimingTrack,
+    Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+    NoteKind, NoteSide, SongInfo, TimingTrack,
 };
 
 /// 测试用的默认参数事件类型。
@@ -25,12 +25,14 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
 }
 
 pub const fn note(tick: u64, lane: Lane, kind: NoteKind) -> Evt {
-    Event::Note {
+    Event::new(
         tick,
-        side: NoteSide::P1,
-        lane,
-        kind,
-        audio_index: None,
-        ext: (),
-    }
+        EventKind::Note {
+            side: NoteSide::P1,
+            lane,
+            kind,
+            audio_index: None,
+            ext: (),
+        },
+    )
 }

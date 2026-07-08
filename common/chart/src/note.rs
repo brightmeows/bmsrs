@@ -1,7 +1,7 @@
 //! 音符种类定义。
 //!
 //! 音符位置（`NoteSide`、`Lane`）直接携带于
-//! [`Event::Note`](crate::Event::Note) 中。每音符的格式扩展使用
+//! [`EventKind::Note`](crate::EventKind::Note) 中。每音符的格式扩展使用
 //! [`NoteExt`](crate::NoteExt) trait。
 
 use std::fmt::Debug;

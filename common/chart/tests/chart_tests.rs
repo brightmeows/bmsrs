@@ -6,9 +6,9 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, Lane,
-    LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind, NoteSide, SongInfo, StopEvent,
-    TimingTrack,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event,
+    EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind, NoteSide,
+    SongInfo, StopEvent, TimingTrack,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -64,14 +64,16 @@ fn chart_construction() {
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
-            events: vec![Event::Note {
-                tick: 0,
-                side: NoteSide::P1,
-                lane: key(1),
-                kind: NoteKind::Normal,
-                audio_index: None,
-                ext: (),
-            }],
+            events: vec![Event::new(
+                0,
+                EventKind::Note {
+                    side: NoteSide::P1,
+                    lane: key(1),
+                    kind: NoteKind::Normal,
+                    audio_index: None,
+                    ext: (),
+                },
+            )],
             audio_assets: vec![],
         },
     };
@@ -126,7 +128,10 @@ fn chart_data_last_tick_with_events() {
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
-        events: vec![Event::Bar { tick: 0 }, Event::Bar { tick: 960 }],
+        events: vec![
+            Event::new(0, EventKind::Bar),
+            Event::new(960, EventKind::Bar),
+        ],
         audio_assets: vec![],
     };
     assert_eq!(data.last_tick(), 960);
@@ -142,7 +147,7 @@ fn chart_data_duration() {
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
-        events: vec![Event::Bar { tick: 960 }],
+        events: vec![Event::new(960, EventKind::Bar)],
         audio_assets: vec![],
     };
     // 960 ticks at 120 BPM with resolution 240 = 2 seconds
@@ -153,25 +158,23 @@ fn chart_data_duration() {
 
 #[test]
 fn event_tick_accessor() {
-    assert_eq!(Event::<(), NoCustomEvent>::Bar { tick: 42 }.tick(), 42);
+    assert_eq!(Event::<()>::new(42, EventKind::Bar).tick(), 42);
     assert_eq!(
-        Event::<(), NoCustomEvent>::Note {
-            tick: 100,
-            side: NoteSide::P1,
-            lane: key(1),
-            kind: NoteKind::Normal,
-            audio_index: None,
-            ext: (),
-        }
+        Event::<()>::new(
+            100,
+            EventKind::Note {
+                side: NoteSide::P1,
+                lane: key(1),
+                kind: NoteKind::Normal,
+                audio_index: None,
+                ext: (),
+            },
+        )
         .tick(),
         100
     );
     assert_eq!(
-        Event::<(), NoCustomEvent>::Bpm {
-            tick: 200,
-            bpm: 180.0,
-        }
-        .tick(),
+        Event::<()>::new(200, EventKind::Bpm { bpm: 180.0 },).tick(),
         200
     );
 }
@@ -179,70 +182,60 @@ fn event_tick_accessor() {
 #[test]
 fn event_priority_order() {
     assert!(
-        Event::<(), NoCustomEvent>::Bar { tick: 0 }.priority()
-            < Event::<(), NoCustomEvent>::Note {
-                tick: 0,
+        Event::<()>::new(0, EventKind::Bar).priority()
+            < Event::<()>::new(
+                0,
+                EventKind::Note {
+                    side: NoteSide::P1,
+                    lane: key(1),
+                    kind: NoteKind::Normal,
+                    audio_index: None,
+                    ext: (),
+                },
+            )
+            .priority()
+    );
+    assert!(
+        Event::<()>::new(
+            0,
+            EventKind::Note {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
                 audio_index: None,
-                ext: ()
-            }
-            .priority()
-    );
-    assert!(
-        Event::<(), NoCustomEvent>::Note {
-            tick: 0,
-            side: NoteSide::P1,
-            lane: key(1),
-            kind: NoteKind::Normal,
-            audio_index: None,
-            ext: ()
-        }
+                ext: (),
+            },
+        )
         .priority()
-            < Event::<(), NoCustomEvent>::Bpm {
-                tick: 0,
-                bpm: 120.0
-            }
-            .priority()
+            < Event::<()>::new(0, EventKind::Bpm { bpm: 120.0 },).priority()
     );
     assert!(
-        Event::<(), NoCustomEvent>::Bpm {
-            tick: 0,
-            bpm: 120.0
-        }
-        .priority()
-            < Event::<(), NoCustomEvent>::Stop {
-                tick: 0,
-                duration: 192
-            }
-            .priority()
+        Event::<()>::new(0, EventKind::Bpm { bpm: 120.0 },).priority()
+            < Event::<()>::new(0, EventKind::Stop { duration: 192 },).priority()
     );
     assert!(
-        Event::<(), NoCustomEvent>::Stop {
-            tick: 0,
-            duration: 192
-        }
-        .priority()
-            < Event::<(), NoCustomEvent>::Scroll { tick: 0, rate: 1.0 }.priority()
+        Event::<()>::new(0, EventKind::Stop { duration: 192 },).priority()
+            < Event::<()>::new(0, EventKind::Scroll { rate: 1.0 }).priority()
     );
     assert!(
-        Event::<(), NoCustomEvent>::Scroll { tick: 0, rate: 1.0 }.priority()
-            < Event::<(), NoCustomEvent>::Speed { tick: 0, rate: 1.0 }.priority()
+        Event::<()>::new(0, EventKind::Scroll { rate: 1.0 }).priority()
+            < Event::<()>::new(0, EventKind::Speed { rate: 1.0 }).priority()
     );
 }
 
 #[test]
 fn event_bga_fields() {
-    let ev = Event::<(), NoCustomEvent>::Bga {
-        tick: 480,
-        layer: BgaLayer::Layer2,
-        resource_id: 3,
-    };
+    let ev = Event::<()>::new(
+        480,
+        EventKind::Bga {
+            layer: BgaLayer::Layer2,
+            resource_id: 3,
+        },
+    );
     assert_eq!(ev.tick(), 480);
-    if let Event::Bga {
+    if let EventKind::Bga {
         layer, resource_id, ..
-    } = ev
+    } = ev.kind
     {
         assert_eq!(layer, BgaLayer::Layer2);
         assert_eq!(resource_id, 3);
@@ -253,24 +246,26 @@ fn event_bga_fields() {
 
 #[test]
 fn event_note_with_ext() {
-    let ev = Event::<(), NoCustomEvent>::Note {
-        tick: 240,
-        side: NoteSide::P2,
-        lane: Lane::Scratch(nz(1)),
-        kind: NoteKind::Mine {
-            damage: Damage::new(25.0),
+    let ev = Event::<()>::new(
+        240,
+        EventKind::Note {
+            side: NoteSide::P2,
+            lane: Lane::Scratch(nz(1)),
+            kind: NoteKind::Mine {
+                damage: Damage::new(25.0),
+            },
+            audio_index: Some(0),
+            ext: (),
         },
-        audio_index: Some(0),
-        ext: (),
-    };
+    );
     assert_eq!(ev.tick(), 240);
-    if let Event::Note {
+    if let EventKind::Note {
         side,
         lane,
         kind,
         audio_index,
         ..
-    } = ev
+    } = ev.kind
     {
         assert_eq!(side, NoteSide::P2);
         assert_eq!(lane, Lane::Scratch(nz(1)));

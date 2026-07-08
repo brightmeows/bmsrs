@@ -267,7 +267,7 @@ pub struct Messages {
     ///
     /// 每个条目为 `(measure, channel, merged_string)`，由 `finalize_merged`
     /// 在匹配到非事件通道时填充。处理器（`bms-processor`）读取此数据转换
-    /// 为 [`Event::Custom`](bmsrs_chart::Event::Custom)。
+    /// 为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
     pub non_event_data: Vec<(u16, BmsChannel, String)>,
 }
 

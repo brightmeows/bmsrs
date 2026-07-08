@@ -5,8 +5,8 @@ mod helper;
 use std::num::NonZeroU8;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartData, ChartInfo, Damage, Event, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoteKind, SongInfo, TimingTrack,
+    BpmChange, Chart, ChartData, ChartInfo, Damage, Event, EventKind, LnJudgeHint, LnLifeHint,
+    LnTypeHint, NoteKind, SongInfo, TimingTrack,
     mode::{Lane, NoteSide},
 };
 use bmsrs_player::Player;
@@ -142,18 +142,9 @@ fn bgm_in_range_returns_events() {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![
-                Event::Bgm {
-                    tick: 0,
-                    audio_index: 0,
-                },
-                Event::Bgm {
-                    tick: 480,
-                    audio_index: 1,
-                },
-                Event::Bgm {
-                    tick: 960,
-                    audio_index: 2,
-                },
+                Event::new(0, EventKind::Bgm { audio_index: 0 }),
+                Event::new(480, EventKind::Bgm { audio_index: 1 }),
+                Event::new(960, EventKind::Bgm { audio_index: 2 }),
             ],
             audio_assets: vec![],
         },
@@ -179,14 +170,8 @@ fn scroll_rate_at_returns_latest_multiplier() {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![
-                Event::Scroll {
-                    tick: 240,
-                    rate: 2.0,
-                },
-                Event::Scroll {
-                    tick: 720,
-                    rate: 0.5,
-                },
+                Event::new(240, EventKind::Scroll { rate: 2.0 }),
+                Event::new(720, EventKind::Scroll { rate: 0.5 }),
             ],
             audio_assets: vec![],
         },
@@ -213,9 +198,9 @@ fn bar_lines_in_range_returns_subset() {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![
-                Event::Bar { tick: 0 },
-                Event::Bar { tick: 960 },
-                Event::Bar { tick: 1920 },
+                Event::new(0, EventKind::Bar),
+                Event::new(960, EventKind::Bar),
+                Event::new(1920, EventKind::Bar),
             ],
             audio_assets: vec![],
         },

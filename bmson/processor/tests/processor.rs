@@ -12,7 +12,7 @@ use bmson_def::{
 use bmson_processor::layout::{Beat, GenericLayout, Pms};
 use bmson_processor::{BmsonNoteExt, BmsonProcessor};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{BgaLayer, Event, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
+use bmsrs_chart::{BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -97,16 +97,15 @@ fn process_basic_note() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
-                tick,
+            if let EventKind::Note {
                 side,
                 lane,
                 kind,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = e
+            } = &e.kind
             {
-                Some((*tick, *side, *lane, *kind))
+                Some((e.tick(), *side, *lane, *kind))
             } else {
                 None
             }
@@ -173,12 +172,12 @@ fn process_beat_layout_maps_both_sides() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
+            if let EventKind::Note {
                 side,
                 lane,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = e
+            } = &e.kind
             {
                 Some((*side, *lane))
             } else {
@@ -223,11 +222,11 @@ fn process_pms_layout_single_player() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
+            if let EventKind::Note {
                 side,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = e
+            } = &e.kind
             {
                 Some(*side)
             } else {
@@ -271,12 +270,12 @@ fn process_generic_layout_n_keys() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
+            if let EventKind::Note {
                 side,
                 lane,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = e
+            } = &e.kind
             {
                 Some((*side, *lane))
             } else {
@@ -314,8 +313,8 @@ fn process_default_routes_by_mode_hint() -> TestResult {
     });
     let chart_beat = BmsonProcessor::process_default(&bmson_beat)?;
     assert!(chart_beat.data.events.iter().any(|e| matches!(
-        e,
-        Event::Note {
+        &e.kind,
+        EventKind::Note {
             ext: BmsonNoteExt { .. },
             ..
         }
@@ -342,8 +341,8 @@ fn process_default_routes_by_mode_hint() -> TestResult {
     });
     let chart_pms = BmsonProcessor::process_default(&bmson_pms)?;
     assert!(chart_pms.data.events.iter().any(|e| matches!(
-        e,
-        Event::Note {
+        &e.kind,
+        EventKind::Note {
             ext: BmsonNoteExt { .. },
             ..
         }
@@ -367,8 +366,8 @@ fn process_bpm_events() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Bpm { tick, bpm } = e {
-                Some((*tick, *bpm))
+            if let EventKind::Bpm { bpm } = &e.kind {
+                Some((e.tick(), *bpm))
             } else {
                 None
             }
@@ -395,8 +394,8 @@ fn process_stop_events() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Stop { tick, duration } = e {
-                Some((*tick, *duration))
+            if let EventKind::Stop { duration } = &e.kind {
+                Some((e.tick(), *duration))
             } else {
                 None
             }
@@ -422,8 +421,8 @@ fn process_scroll_events() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Scroll { tick, rate } = e {
-                Some((*tick, *rate))
+            if let EventKind::Scroll { rate } = &e.kind {
+                Some((e.tick(), *rate))
             } else {
                 None
             }
@@ -455,8 +454,8 @@ fn process_bga_events() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Bga { tick, layer, .. } = e {
-                Some((*tick, *layer))
+            if let EventKind::Bga { layer, .. } = &e.kind {
+                Some((e.tick(), *layer))
             } else {
                 None
             }
@@ -499,11 +498,11 @@ fn process_long_note() -> TestResult {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
+            if let EventKind::Note {
                 kind: NoteKind::Long { duration },
                 ext: BmsonNoteExt { .. },
                 ..
-            } = e
+            } = &e.kind
             {
                 Some(*duration)
             } else {
@@ -560,8 +559,8 @@ fn process_bgm_note_skips_playable_pulse() -> TestResult {
         .iter()
         .filter(|e| {
             matches!(
-                e,
-                Event::Note {
+                &e.kind,
+                EventKind::Note {
                     ext: BmsonNoteExt { .. },
                     ..
                 }
@@ -612,13 +611,8 @@ fn bar_lines_auto_generated() -> TestResult {
         .data
         .events
         .iter()
-        .filter_map(|e| {
-            if let Event::Bar { tick } = e {
-                Some(*tick)
-            } else {
-                None
-            }
-        })
+        .filter(|e| matches!(&e.kind, EventKind::Bar))
+        .map(Event::tick)
         .collect();
 
     assert!(!bars.is_empty());
@@ -677,13 +671,8 @@ fn bar_lines_from_explicit_lines() -> TestResult {
         .data
         .events
         .iter()
-        .filter_map(|e| {
-            if let Event::Bar { tick } = e {
-                Some(*tick)
-            } else {
-                None
-            }
-        })
+        .filter(|e| matches!(&e.kind, EventKind::Bar))
+        .map(Event::tick)
         .collect();
 
     assert_eq!(bars, vec![0, 960, 1920]);

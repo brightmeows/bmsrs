@@ -13,8 +13,8 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartData, ChartInfo, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoteKind, NoteSide, SongInfo, StopEvent, TimingCache, TimingTrack,
+    BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
+    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingCache, TimingTrack,
 };
 use bmsrs_player::Player;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
@@ -40,14 +40,16 @@ fn build_chart(n: usize) -> Chart {
 
     for i in 0..n {
         let tick = (i as u64) * RESOLUTION; // 每拍一个音符
-        events.push(Event::Note {
+        events.push(Event::new(
             tick,
-            side: NoteSide::P1,
-            lane: Lane::Key(KEY1),
-            kind: NoteKind::Normal,
-            audio_index: None,
-            ext: (),
-        });
+            EventKind::Note {
+                side: NoteSide::P1,
+                lane: Lane::Key(KEY1),
+                kind: NoteKind::Normal,
+                audio_index: None,
+                ext: (),
+            },
+        ));
     }
 
     // 每隔 50 个音符插入一次 BPM 变更。
@@ -55,7 +57,7 @@ fn build_chart(n: usize) -> Chart {
     for i in (0..n).step_by(50) {
         let tick = (i as u64) * RESOLUTION;
         let bpm = 120.0 + ((i % 200) as f64);
-        events.push(Event::Bpm { tick, bpm });
+        events.push(Event::new(tick, EventKind::Bpm { bpm }));
         bpm_changes.push(BpmChange { tick, bpm });
     }
 
@@ -63,10 +65,12 @@ fn build_chart(n: usize) -> Chart {
     let mut stops = Vec::new();
     for i in (0..n).step_by(100) {
         let tick = (i as u64) * RESOLUTION;
-        events.push(Event::Stop {
+        events.push(Event::new(
             tick,
-            duration: RESOLUTION,
-        });
+            EventKind::Stop {
+                duration: RESOLUTION,
+            },
+        ));
         stops.push(StopEvent {
             tick,
             duration: RESOLUTION,
@@ -176,14 +180,16 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
     // 每拍一个 Note。
     for i in 0..n_notes {
         let tick = (i as u64) * RESOLUTION;
-        events.push(Event::Note {
+        events.push(Event::new(
             tick,
-            side: NoteSide::P1,
-            lane: Lane::Key(KEY1),
-            kind: NoteKind::Normal,
-            audio_index: None,
-            ext: (),
-        });
+            EventKind::Note {
+                side: NoteSide::P1,
+                lane: Lane::Key(KEY1),
+                kind: NoteKind::Normal,
+                audio_index: None,
+                ext: (),
+            },
+        ));
     }
 
     // 每拍 bgm_per_beat 个 BGM（均布于拍内）。
@@ -191,10 +197,7 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         let beat_start = (i as u64) * RESOLUTION;
         for j in 0..bgm_per_beat {
             let tick = beat_start + (RESOLUTION * j as u64 / bgm_per_beat.max(1) as u64);
-            events.push(Event::Bgm {
-                tick,
-                audio_index: 0,
-            });
+            events.push(Event::new(tick, EventKind::Bgm { audio_index: 0 }));
         }
     }
 

@@ -4,7 +4,7 @@
 //! 提供 O(log n) 的滚动速度查询与累积位置查询，替代每次调用时的 O(n)
 //! 线性扫描。
 
-use bmsrs_chart::{CustomEvent, Event, NoteExt};
+use bmsrs_chart::{CustomEvent, Event, EventKind, NoteExt};
 
 /// 预计算的滚动速度段。
 struct ScrollSegment {
@@ -18,7 +18,7 @@ struct ScrollSegment {
 
 /// 预计算的滚动速度与位置缓存。
 ///
-/// 存储已排序的速度段，每个段对应一次 [`Event::Scroll`] 变更。
+/// 存储已排序的速度段，每个段对应一次 [`EventKind::Scroll`] 变更。
 /// 查询时通过二分查找定位生效段，将 O(n) 降为 O(log n)。
 ///
 /// 位置计算将滚动速度对时间积分：`position += rate * delta_beats`，
@@ -44,8 +44,8 @@ impl ScrollCache {
         let raw_segments: Vec<(u64, f64)> = events
             .iter()
             .filter_map(|e| {
-                if let Event::Scroll { tick, rate } = e {
-                    Some((*tick, *rate))
+                if let EventKind::Scroll { rate } = &e.kind {
+                    Some((e.tick(), *rate))
                 } else {
                     None
                 }
@@ -128,7 +128,7 @@ mod tests {
     fn make_scroll_events(pairs: &[(u64, f64)]) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
         pairs
             .iter()
-            .map(|&(tick, rate)| Event::Scroll { tick, rate })
+            .map(|&(tick, rate)| Event::new(tick, EventKind::Scroll { rate }))
             .collect()
     }
 
@@ -183,7 +183,7 @@ mod tests {
         let end = events.partition_point(|e| e.tick() <= tick);
         let mut rate = 1.0;
         for event in &events[..end] {
-            if let Event::Scroll { rate: sc_rate, .. } = event {
+            if let EventKind::Scroll { rate: sc_rate } = &event.kind {
                 rate = *sc_rate;
             }
         }

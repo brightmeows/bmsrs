@@ -2,21 +2,23 @@
 
 use std::num::NonZeroU8;
 
-use bmsrs_chart::{Damage, Event, Lane, NoteKind, NoteSide};
+use bmsrs_chart::{Damage, Event, EventKind, Lane, NoteKind, NoteSide};
 
 #[test]
 fn event_note_fields() {
-    let ev: Event<()> = Event::Note {
-        tick: 240,
-        side: NoteSide::P1,
-        lane: Lane::Key(NonZeroU8::new(5).unwrap()),
-        kind: NoteKind::Long { duration: 480 },
-        audio_index: None,
-        ext: (),
-    };
+    let ev: Event<()> = Event::new(
+        240,
+        EventKind::Note {
+            side: NoteSide::P1,
+            lane: Lane::Key(NonZeroU8::new(5).unwrap()),
+            kind: NoteKind::Long { duration: 480 },
+            audio_index: None,
+            ext: (),
+        },
+    );
     assert_eq!(ev.tick(), 240);
-    match ev {
-        Event::Note {
+    match ev.kind {
+        EventKind::Note {
             side, lane, kind, ..
         } => {
             assert_eq!(side, NoteSide::P1);

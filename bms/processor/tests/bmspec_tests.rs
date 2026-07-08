@@ -12,7 +12,7 @@ use bms_processor::BmsProcessor;
 use bms_processor::custom_event::BmsCustomEvent;
 use bms_processor::layout::Bme;
 use bms_tokenizer::BmsTokenizer;
-use bmsrs_chart::{Chart, Event, NoteKind};
+use bmsrs_chart::{Chart, EventKind, NoteKind};
 use bmsrs_player::Player;
 
 /// bms-processor 返回的 chart 类型。
@@ -37,8 +37,8 @@ fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note { tick, kind, .. } = e {
-                Some((*tick, *kind))
+            if let EventKind::Note { kind, .. } = &e.kind {
+                Some((e.tick(), *kind))
             } else {
                 None
             }
@@ -53,8 +53,8 @@ fn scroll_events(chart: &BmsChart) -> Vec<(u64, f64)> {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Scroll { tick, rate } = e {
-                Some((*tick, *rate))
+            if let EventKind::Scroll { rate } = &e.kind {
+                Some((e.tick(), *rate))
             } else {
                 None
             }
@@ -69,8 +69,8 @@ fn speed_events(chart: &BmsChart) -> Vec<(u64, f64)> {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Speed { tick, rate } = e {
-                Some((*tick, *rate))
+            if let EventKind::Speed { rate } = &e.kind {
+                Some((e.tick(), *rate))
             } else {
                 None
             }
@@ -85,13 +85,12 @@ fn long_notes(chart: &BmsChart) -> Vec<(u64, u64)> {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
-                tick,
+            if let EventKind::Note {
                 kind: NoteKind::Long { duration },
                 ..
-            } = e
+            } = &e.kind
             {
-                Some((*tick, *duration))
+                Some((e.tick(), *duration))
             } else {
                 None
             }
@@ -241,7 +240,7 @@ fn bmspec_1_05_bpm_change() {
         .data
         .events
         .iter()
-        .any(|e| matches!(e, Event::Bpm { .. }));
+        .any(|e| matches!(&e.kind, EventKind::Bpm { .. }));
     assert!(has_bpm, "should have BPM events");
 
     // The note should be at 3 seconds
@@ -790,11 +789,10 @@ fn bga_opacity_custom_event() {
         .data
         .events
         .iter()
-        .filter_map(|e| match e {
-            Event::Custom {
-                payload: BmsCustomEvent::BgaOpacity { layer, opacity },
-                ..
-            } => Some((*layer, *opacity)),
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::BgaOpacity { layer, opacity }) => {
+                Some((*layer, *opacity))
+            }
             _ => None,
         })
         .collect();
@@ -811,11 +809,8 @@ fn text_display_custom_event() {
         .data
         .events
         .iter()
-        .filter_map(|e| match e {
-            Event::Custom {
-                payload: BmsCustomEvent::TextDisplay { text_index },
-                ..
-            } => Some(*text_index),
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::TextDisplay { text_index }) => Some(*text_index),
             _ => None,
         })
         .collect();
@@ -832,11 +827,8 @@ fn bgm_volume_custom_event() {
         .data
         .events
         .iter()
-        .filter_map(|e| match e {
-            Event::Custom {
-                payload: BmsCustomEvent::BgmVolume { volume },
-                ..
-            } => Some(*volume),
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::BgmVolume { volume }) => Some(*volume),
             _ => None,
         })
         .collect();
@@ -853,11 +845,8 @@ fn option_change_custom_event() {
         .data
         .events
         .iter()
-        .filter_map(|e| match e {
-            Event::Custom {
-                payload: BmsCustomEvent::OptionChange { option_id, .. },
-                ..
-            } => Some(*option_id),
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::OptionChange { option_id, .. }) => Some(*option_id),
             _ => None,
         })
         .collect();
@@ -874,7 +863,7 @@ fn custom_events_dont_affect_note_queries() {
     let note_count = player
         .events_in_range(0..2000)
         .iter()
-        .filter(|e| matches!(e, Event::Note { .. }))
+        .filter(|e| matches!(&e.kind, EventKind::Note { .. }))
         .count();
     assert_eq!(note_count, 1, "note should still be present");
 }

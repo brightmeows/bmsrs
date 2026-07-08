@@ -1,7 +1,7 @@
 //! 音频素材类型。
 //!
 //! BGM 事件现归入统一的 [`Event`](crate::Event) 枚举 ——
-//! 参见 [`crate::Event::Bgm`]。
+//! 参见 [`crate::EventKind::Bgm`]。
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

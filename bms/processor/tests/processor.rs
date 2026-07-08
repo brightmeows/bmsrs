@@ -7,7 +7,7 @@ use bms_processor::BmsProcessor;
 use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
 use bms_tokenizer::{BpmIndex, LnObjIndex};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{Event, NoteKind};
+use bmsrs_chart::{EventKind, NoteKind};
 
 /// 在测试中构造有效 [`BmsChannel`] 的简写。
 fn ch(player: u8, lane: u8) -> BmsChannel {
@@ -88,16 +88,15 @@ fn process_basic_note() {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
-                tick,
+            if let EventKind::Note {
                 side,
                 lane,
                 kind,
                 ext: (),
                 ..
-            } = e
+            } = &e.kind
             {
-                Some((*tick, *side, *lane, *kind))
+                Some((e.tick(), *side, *lane, *kind))
             } else {
                 None
             }
@@ -131,7 +130,7 @@ fn process_key7_note_lands_on_key_seven() {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note { lane, ext: (), .. } = e {
+            if let EventKind::Note { lane, ext: (), .. } = &e.kind {
                 Some(*lane)
             } else {
                 None
@@ -183,8 +182,8 @@ fn process_bgm_events_mapped() {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Bgm { tick, .. } = e {
-                Some(*tick)
+            if let EventKind::Bgm { .. } = &e.kind {
+                Some(e.tick())
             } else {
                 None
             }
@@ -240,7 +239,7 @@ fn process_default_uses_bme_and_maps_both_sides() {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note { side, lane, .. } = e {
+            if let EventKind::Note { side, lane, .. } = &e.kind {
                 Some((*side, *lane))
             } else {
                 None
@@ -285,13 +284,12 @@ fn process_lnobj_produces_long_note() {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note {
-                tick,
+            if let EventKind::Note {
                 kind: NoteKind::Long { .. },
                 ..
-            } = e
+            } = &e.kind
             {
-                Some(*tick)
+                Some(e.tick())
             } else {
                 None
             }
@@ -329,13 +327,7 @@ fn process_bar_lines_generated() {
         .data
         .events
         .iter()
-        .filter_map(|e| {
-            if let Event::Bar { tick } = e {
-                Some(*tick)
-            } else {
-                None
-            }
-        })
+        .filter_map(|e| matches!(&e.kind, EventKind::Bar).then_some(e.tick()))
         .collect();
     assert!(!bar_lines.is_empty());
     assert_eq!(bar_lines[0], 0);
@@ -364,7 +356,7 @@ fn process_invisible_note_mapped() {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Note { kind, ext: (), .. } = e {
+            if let EventKind::Note { kind, ext: (), .. } = &e.kind {
                 Some(*kind)
             } else {
                 None
@@ -445,8 +437,8 @@ fn lnobj_end_marker_plays_bgm() {
         .events
         .iter()
         .filter_map(|e| {
-            if let Event::Bgm { tick, audio_index } = e {
-                Some((*tick, *audio_index))
+            if let EventKind::Bgm { audio_index } = &e.kind {
+                Some((e.tick(), *audio_index))
             } else {
                 None
             }
@@ -484,7 +476,7 @@ fn lnobj_bgm_no_event_for_unmatched_lno() {
         .data
         .events
         .iter()
-        .filter(|e| matches!(e, Event::Bgm { .. }))
+        .filter(|e| matches!(&e.kind, EventKind::Bgm { .. }))
         .count();
     assert_eq!(bgm_count, 0, "orphan LNOBJ marker should not emit BGM");
 }

@@ -3,7 +3,7 @@
 //! [`SpeedCache`] 存储已排序的 SPEED 关键帧，在查询时对相邻关键帧
 //! 之间的间距值进行线性插值。
 
-use bmsrs_chart::{CustomEvent, Event, NoteExt};
+use bmsrs_chart::{CustomEvent, Event, EventKind, NoteExt};
 
 /// SPEED 关键帧：脉冲位置与间距倍率。
 #[derive(Clone, Copy, Debug)]
@@ -16,7 +16,7 @@ struct SpeedKeyframe {
 
 /// SPEED 间距插值缓存。
 ///
-/// 构建时从 [`Event::Speed`] 事件收集关键帧。`spacing_at(tick)` 在
+/// 构建时从 [`EventKind::Speed`] 事件收集关键帧。`spacing_at(tick)` 在
 /// 相邻关键帧之间执行线性插值；若查询位置在首个关键帧之前，返回 `1.0`
 /// （默认间距值）。
 pub struct SpeedCache {
@@ -33,9 +33,9 @@ impl SpeedCache {
         let keyframes: Vec<SpeedKeyframe> = events
             .iter()
             .filter_map(|e| {
-                if let Event::Speed { tick, rate } = e {
+                if let EventKind::Speed { rate } = &e.kind {
                     Some(SpeedKeyframe {
-                        tick: *tick,
+                        tick: e.tick(),
                         rate: *rate,
                     })
                 } else {
@@ -95,7 +95,7 @@ mod tests {
     fn make_speed_events(pairs: &[(u64, f64)]) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
         pairs
             .iter()
-            .map(|&(tick, rate)| Event::Speed { tick, rate })
+            .map(|&(tick, rate)| Event::new(tick, EventKind::Speed { rate }))
             .collect()
     }
 

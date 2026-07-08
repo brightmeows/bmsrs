@@ -4,7 +4,7 @@ mod helper;
 
 use std::num::NonZeroU8;
 
-use bmsrs_chart::{Event, Lane, NoteKind, NoteSide};
+use bmsrs_chart::{Event, EventKind, Lane, NoteKind, NoteSide};
 use helper::make_test_chart;
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -15,14 +15,16 @@ const fn nz(n: u8) -> NonZeroU8 {
 }
 
 const fn note(tick: u64) -> Event<()> {
-    Event::Note {
+    Event::new(
         tick,
-        side: NoteSide::P1,
-        lane: Lane::Key(nz(1)),
-        kind: NoteKind::Normal,
-        audio_index: None,
-        ext: (),
-    }
+        EventKind::Note {
+            side: NoteSide::P1,
+            lane: Lane::Key(nz(1)),
+            kind: NoteKind::Normal,
+            audio_index: None,
+            ext: (),
+        },
+    )
 }
 
 #[test]
@@ -41,10 +43,7 @@ fn last_tick_from_notes() {
 fn last_tick_from_bgm_beyond_notes() {
     let chart = make_test_chart(vec![
         note(480),
-        Event::Bgm {
-            tick: 1920,
-            audio_index: 0,
-        },
+        Event::new(1920, EventKind::Bgm { audio_index: 0 }),
     ]);
     assert_eq!(chart.data.last_tick(), 1920);
 }

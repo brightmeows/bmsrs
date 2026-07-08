@@ -9,8 +9,8 @@
 //! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-//!     NoteKind, NoteSide, TimingTrack,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
+//!     LnTypeHint, NoteKind, NoteSide, TimingTrack,
 //! };
 //! use bmsrs_player::Player;
 //!
@@ -25,14 +25,16 @@
 //!         ln_type_hint: LnTypeHint::default(),
 //!         ln_judge_hint: LnJudgeHint::default(),
 //!         ln_life_hint: LnLifeHint::default(),
-//!         events: vec![Event::Note {
-//!             tick: 480,
-//!             side: NoteSide::P1,
-//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!             kind: NoteKind::Normal,
-//!             audio_index: None,
-//!             ext: (),
-//!         }],
+//!         events: vec![Event::new(
+//!             480,
+//!             EventKind::Note {
+//!                 side: NoteSide::P1,
+//!                 lane: Lane::Key(NonZeroU8::new(1).unwrap()),
+//!                 kind: NoteKind::Normal,
+//!                 audio_index: None,
+//!                 ext: (),
+//!             },
+//!         )],
 //!         audio_assets: vec![],
 //!     },
 //! };
@@ -51,8 +53,8 @@ use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaResource, Chart, CustomEvent, Event, Lane, NoCustomEvent, NoteExt, NoteKind,
-    NoteSide, TimingCache,
+    AudioAsset, BgaResource, Chart, CustomEvent, Event, EventKind, Lane, NoCustomEvent, NoteExt,
+    NoteKind, NoteSide, TimingCache,
 };
 
 use crate::scroll_cache::ScrollCache;
@@ -186,7 +188,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     ) -> impl Iterator<Item = &Event<T, C>> {
         self.events_in_range(range)
             .iter()
-            .filter(|e| matches!(e, Event::Note { .. }))
+            .filter(|e| matches!(e.kind, EventKind::Note { .. }))
     }
 
     /// 返回 `range` 范围内位于 `(side, lane)` 的 Note 事件的迭代器。
@@ -197,7 +199,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         range: impl RangeBounds<u64>,
     ) -> impl Iterator<Item = &Event<T, C>> {
         self.notes_in_range(range).filter(
-            move |e| matches!(e, Event::Note { side: s, lane: l, .. } if *s == side && *l == lane),
+            move |e| matches!(e.kind, EventKind::Note { side: s, lane: l, .. } if s == side && l == lane),
         )
     }
 
@@ -211,8 +213,8 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     ) -> impl Iterator<Item = &Event<T, C>> {
         self.notes_in_range(range).filter(|e| {
             matches!(
-                e,
-                Event::Note {
+                e.kind,
+                EventKind::Note {
                     kind: NoteKind::Normal | NoteKind::Long { .. },
                     ..
                 }
@@ -224,7 +226,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     pub fn bgm_in_range(&self, range: impl RangeBounds<u64>) -> impl Iterator<Item = &Event<T, C>> {
         self.events_in_range(range)
             .iter()
-            .filter(|e| matches!(e, Event::Bgm { .. }))
+            .filter(|e| matches!(e.kind, EventKind::Bgm { .. }))
     }
 
     /// 返回音频素材表。
@@ -257,7 +259,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
 
     /// 返回 `tick` 处的 SPEED 插值间距倍率。
     ///
-    /// 在相邻 `Event::Speed` 关键帧之间执行线性插值。
+    /// 在相邻 `EventKind::Speed` 关键帧之间执行线性插值。
     /// 首个关键帧之前 → `1.0`；最后一个之后 → 最后一个关键帧的值。
     #[must_use]
     pub fn spacing_at(&self, tick: u64) -> f64 {
@@ -271,7 +273,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     ) -> impl Iterator<Item = &Event<T, C>> {
         self.events_in_range(range)
             .iter()
-            .filter(|e| matches!(e, Event::Bar { .. }))
+            .filter(|e| matches!(e.kind, EventKind::Bar))
     }
 
     /// 返回 `range` 范围内 BGA 事件的迭代器。
@@ -283,7 +285,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     ) -> impl Iterator<Item = &Event<T, C>> {
         self.events_in_range(range)
             .iter()
-            .filter(|e| matches!(e, Event::Bga { .. }))
+            .filter(|e| matches!(e.kind, EventKind::Bga { .. }))
     }
 
     /// 返回 BGA 资源。

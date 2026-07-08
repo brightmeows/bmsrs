@@ -46,8 +46,8 @@ use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
 use bmsrs::bms::tokenizer::BmsTokenizer;
 use bmsrs::chart::{
-    AudioAsset, Chart, ChartData, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent,
-    NoteKind, NoteSide,
+    AudioAsset, Chart, ChartData, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+    NoCustomEvent, NoteKind, NoteSide,
 };
 use bmsrs::player::Player;
 use clap::Parser;
@@ -234,39 +234,41 @@ fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEv
                 .data
                 .events
                 .into_iter()
-                .filter(|e| !matches!(e, Event::Custom { .. }))
-                .map(|e| match e {
-                    Event::Note {
-                        tick,
-                        side,
-                        lane,
-                        kind,
-                        audio_index,
-                        ext: (),
-                    } => Event::Note {
-                        tick,
-                        side,
-                        lane,
-                        kind,
-                        audio_index,
-                        ext: (),
-                    },
-                    Event::Bgm { tick, audio_index } => Event::Bgm { tick, audio_index },
-                    Event::Bpm { tick, bpm } => Event::Bpm { tick, bpm },
-                    Event::Stop { tick, duration } => Event::Stop { tick, duration },
-                    Event::Scroll { tick, rate } => Event::Scroll { tick, rate },
-                    Event::Speed { tick, rate } => Event::Speed { tick, rate },
-                    Event::Bga {
-                        tick,
-                        layer,
-                        resource_id,
-                    } => Event::Bga {
-                        tick,
-                        layer,
-                        resource_id,
-                    },
-                    Event::Bar { tick } => Event::Bar { tick },
-                    Event::Custom { .. } => panic!("unreachable: filtered above"),
+                .filter(|e| !matches!(e.kind, EventKind::Custom(_)))
+                .map(|e| {
+                    let tick = e.tick();
+                    match e.kind {
+                        EventKind::Note {
+                            side,
+                            lane,
+                            kind,
+                            audio_index,
+                            ext: (),
+                        } => Event::new(
+                            tick,
+                            EventKind::Note {
+                                side,
+                                lane,
+                                kind,
+                                audio_index,
+                                ext: (),
+                            },
+                        ),
+                        EventKind::Bgm { audio_index } => {
+                            Event::new(tick, EventKind::Bgm { audio_index })
+                        }
+                        EventKind::Bpm { bpm } => Event::new(tick, EventKind::Bpm { bpm }),
+                        EventKind::Stop { duration } => {
+                            Event::new(tick, EventKind::Stop { duration })
+                        }
+                        EventKind::Scroll { rate } => Event::new(tick, EventKind::Scroll { rate }),
+                        EventKind::Speed { rate } => Event::new(tick, EventKind::Speed { rate }),
+                        EventKind::Bga { layer, resource_id } => {
+                            Event::new(tick, EventKind::Bga { layer, resource_id })
+                        }
+                        EventKind::Bar => Event::new(tick, EventKind::Bar),
+                        EventKind::Custom(_) => panic!("unreachable: filtered above"),
+                    }
                 })
                 .collect(),
             audio_assets: chart.data.audio_assets,
@@ -299,38 +301,34 @@ fn normalize_chart(
 const fn normalize_event(
     event: Event<bmsrs::bmson::processor::BmsonNoteExt, NoCustomEvent>,
 ) -> Event<(), NoCustomEvent> {
-    match event {
-        Event::Note {
-            tick,
+    let tick = event.tick();
+    match event.kind {
+        EventKind::Note {
             side,
             lane,
             kind,
             audio_index,
             ..
-        } => Event::Note {
+        } => Event::new(
             tick,
-            side,
-            lane,
-            kind,
-            audio_index,
-            ext: (),
-        },
-        Event::Bgm { tick, audio_index } => Event::Bgm { tick, audio_index },
-        Event::Bpm { tick, bpm } => Event::Bpm { tick, bpm },
-        Event::Stop { tick, duration } => Event::Stop { tick, duration },
-        Event::Scroll { tick, rate } => Event::Scroll { tick, rate },
-        Event::Speed { tick, rate } => Event::Speed { tick, rate },
-        Event::Bga {
-            tick,
-            layer,
-            resource_id,
-        } => Event::Bga {
-            tick,
-            layer,
-            resource_id,
-        },
-        Event::Bar { tick } => Event::Bar { tick },
-        Event::Custom { tick, payload } => Event::Custom { tick, payload },
+            EventKind::Note {
+                side,
+                lane,
+                kind,
+                audio_index,
+                ext: (),
+            },
+        ),
+        EventKind::Bgm { audio_index } => Event::new(tick, EventKind::Bgm { audio_index }),
+        EventKind::Bpm { bpm } => Event::new(tick, EventKind::Bpm { bpm }),
+        EventKind::Stop { duration } => Event::new(tick, EventKind::Stop { duration }),
+        EventKind::Scroll { rate } => Event::new(tick, EventKind::Scroll { rate }),
+        EventKind::Speed { rate } => Event::new(tick, EventKind::Speed { rate }),
+        EventKind::Bga { layer, resource_id } => {
+            Event::new(tick, EventKind::Bga { layer, resource_id })
+        }
+        EventKind::Bar => Event::new(tick, EventKind::Bar),
+        EventKind::Custom(payload) => Event::new(tick, EventKind::Custom(payload)),
     }
 }
 
@@ -470,9 +468,9 @@ fn render_note(
     current_scroll_pos: f64,
     player: &Player<(), NoCustomEvent>,
 ) {
-    let Event::Note {
+    let EventKind::Note {
         kind, lane, side, ..
-    } = event
+    } = &event.kind
     else {
         return;
     };
@@ -587,12 +585,12 @@ fn render_notes(player: &Player<(), NoCustomEvent>) {
         let note_scroll_pos = player.scroll_position_at(note_tick);
         let scroll_diff = note_scroll_pos - current_scroll_pos;
 
-        match event {
-            Event::Bar { .. } => {
+        match &event.kind {
+            EventKind::Bar => {
                 let y = note_screen_y(scroll_diff, 1.0);
                 render_bar_line(y);
             }
-            Event::Note { .. } => {
+            EventKind::Note { .. } => {
                 render_note(event, scroll_diff, current_scroll_pos, player);
             }
             _ => {}
@@ -669,9 +667,9 @@ fn process_audio_events(
     missed_sounds: &mut u32,
 ) {
     for event in new_events {
-        let audio_idx = match event {
-            Event::Note { audio_index, .. } => *audio_index,
-            Event::Bgm { audio_index, .. } => Some(*audio_index),
+        let audio_idx = match &event.kind {
+            EventKind::Note { audio_index, .. } => *audio_index,
+            EventKind::Bgm { audio_index } => Some(*audio_index),
             _ => continue,
         };
         let Some(idx) = audio_idx else {

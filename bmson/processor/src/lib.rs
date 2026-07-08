@@ -29,9 +29,9 @@ use std::time::Duration;
 
 use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, Lane,
-    LnJudgeHint, LnLifeHint, LnTypeHint, NoteExt, NoteKind, NoteSide, SongInfo, StopEvent,
-    TimingCache, TimingTrack,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event,
+    EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteExt, NoteKind, NoteSide, SongInfo,
+    StopEvent, TimingCache, TimingTrack,
 };
 use thiserror::Error;
 
@@ -159,41 +159,54 @@ impl BmsonProcessor {
         process_mine_channels(&bmson.mine_channels, decode, &mut audio_assets, &mut events);
         process_key_channels(&bmson.key_channels, decode, &mut audio_assets, &mut events);
 
-        events.extend(data.bpm_events.iter().map(|e| Event::Bpm {
-            tick: e.y,
-            bpm: e.bpm,
+        events.extend(
+            data.bpm_events
+                .iter()
+                .map(|e| Event::new(e.y, EventKind::Bpm { bpm: e.bpm })),
+        );
+        events.extend(data.stop_events.iter().map(|e| {
+            Event::new(
+                e.y,
+                EventKind::Stop {
+                    duration: e.duration,
+                },
+            )
         }));
-        events.extend(data.stop_events.iter().map(|e| Event::Stop {
-            tick: e.y,
-            duration: e.duration,
-        }));
-        events.extend(bmson.scroll_events.iter().map(|e| Event::Scroll {
-            tick: e.y,
-            rate: e.rate,
-        }));
+        events.extend(
+            bmson
+                .scroll_events
+                .iter()
+                .map(|e| Event::new(e.y, EventKind::Scroll { rate: e.rate })),
+        );
 
         let bga = &bmson.chart_info.bga;
 
         for e in &bga.bga_events {
-            events.push(Event::Bga {
-                tick: e.y,
-                layer: BgaLayer::Base,
-                resource_id: e.id as u32,
-            });
+            events.push(Event::new(
+                e.y,
+                EventKind::Bga {
+                    layer: BgaLayer::Base,
+                    resource_id: e.id as u32,
+                },
+            ));
         }
         for e in &bga.layer_events {
-            events.push(Event::Bga {
-                tick: e.y,
-                layer: BgaLayer::Layer,
-                resource_id: e.id as u32,
-            });
+            events.push(Event::new(
+                e.y,
+                EventKind::Bga {
+                    layer: BgaLayer::Layer,
+                    resource_id: e.id as u32,
+                },
+            ));
         }
         for e in &bga.poor_events {
-            events.push(Event::Bga {
-                tick: e.y,
-                layer: BgaLayer::Poor,
-                resource_id: e.id as u32,
-            });
+            events.push(Event::new(
+                e.y,
+                EventKind::Bga {
+                    layer: BgaLayer::Poor,
+                    resource_id: e.id as u32,
+                },
+            ));
         }
 
         // 小节线从完整事件集（含 BGA）的末尾脉冲推算范围，避免漏掉 tick
@@ -276,10 +289,7 @@ fn process_sound_channels(
                     continue;
                 }
                 if let Some(idx) = audio_idx {
-                    events.push(Event::Bgm {
-                        tick: ne.y,
-                        audio_index: idx,
-                    });
+                    events.push(Event::new(ne.y, EventKind::Bgm { audio_index: idx }));
                 }
             } else {
                 let Some((side, lane)) = decode(ne.x) else {
@@ -290,14 +300,16 @@ fn process_sound_channels(
                 } else {
                     NoteKind::Normal
                 };
-                events.push(Event::Note {
-                    tick: ne.y,
-                    side,
-                    lane,
-                    kind,
-                    audio_index: audio_idx,
-                    ext: build_note_ext(ne),
-                });
+                events.push(Event::new(
+                    ne.y,
+                    EventKind::Note {
+                        side,
+                        lane,
+                        kind,
+                        audio_index: audio_idx,
+                        ext: build_note_ext(ne),
+                    },
+                ));
             }
         }
 
@@ -376,16 +388,18 @@ fn process_mine_channels(
             let Some((side, lane)) = decode(mn.x) else {
                 continue;
             };
-            events.push(Event::Note {
-                tick: mn.y,
-                side,
-                lane,
-                kind: NoteKind::Mine {
-                    damage: Damage::new(mn.damage),
+            events.push(Event::new(
+                mn.y,
+                EventKind::Note {
+                    side,
+                    lane,
+                    kind: NoteKind::Mine {
+                        damage: Damage::new(mn.damage),
+                    },
+                    audio_index: Some(mine_audio_idx),
+                    ext: BmsonNoteExt::default(),
                 },
-                audio_index: Some(mine_audio_idx),
-                ext: BmsonNoteExt::default(),
-            });
+            ));
         }
     }
 }
@@ -413,14 +427,16 @@ fn process_key_channels(
             let Some((side, lane)) = decode(kn.x) else {
                 continue;
             };
-            events.push(Event::Note {
-                tick: kn.y,
-                side,
-                lane,
-                kind: NoteKind::Invisible,
-                audio_index: Some(key_audio_idx),
-                ext: BmsonNoteExt::default(),
-            });
+            events.push(Event::new(
+                kn.y,
+                EventKind::Note {
+                    side,
+                    lane,
+                    kind: NoteKind::Invisible,
+                    audio_index: Some(key_audio_idx),
+                    ext: BmsonNoteExt::default(),
+                },
+            ));
         }
     }
 }
@@ -509,10 +525,15 @@ fn build_bar_lines(
     last_tick: u64,
 ) -> Vec<Event<BmsonNoteExt>> {
     if let Some(vec) = lines {
-        return vec.iter().map(|bl| Event::Bar { tick: bl.y }).collect();
+        return vec
+            .iter()
+            .map(|bl| Event::new(bl.y, EventKind::Bar))
+            .collect();
     }
 
     let step = resolution * 4;
     let count = last_tick / step + 1;
-    (0..=count).map(|i| Event::Bar { tick: i * step }).collect()
+    (0..=count)
+        .map(|i| Event::new(i * step, EventKind::Bar))
+        .collect()
 }

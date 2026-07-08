@@ -40,8 +40,8 @@ use std::time::Duration;
 use bms_parser::{Bms, BpmValue, KeyType, split_2char_values_lenient};
 use bms_tokenizer::{BmpIndex, BmsChannel as RawChannel, WavIndex};
 use bmsrs_chart::{
-    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, LnJudgeHint,
-    LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent, TimingTrack,
+    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, EventKind,
+    LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent, TimingTrack,
 };
 use thiserror::Error;
 
@@ -134,10 +134,12 @@ impl BmsProcessor {
 
         // 停止事件（优先级 3）—— 重新遍历计时停止事件。
         for se in &timing.stops {
-            events.push(Event::Stop {
-                tick: se.tick,
-                duration: se.duration,
-            });
+            events.push(Event::new(
+                se.tick,
+                EventKind::Stop {
+                    duration: se.duration,
+                },
+            ));
         }
 
         // SCROLL 事件（优先级 4）。
@@ -235,14 +237,16 @@ impl BmsConverter<'_> {
                 if let Some((note_side, note_lane)) =
                     BmsChannel::new(side, lane).and_then(L::map_channel)
                 {
-                    ev.push(Event::Note {
+                    ev.push(Event::new(
                         tick,
-                        side: note_side,
-                        lane: note_lane,
-                        kind,
-                        audio_index: audio,
-                        ext: (),
-                    });
+                        EventKind::Note {
+                            side: note_side,
+                            lane: note_lane,
+                            kind,
+                            audio_index: audio,
+                            ext: (),
+                        },
+                    ));
                 }
             };
 
@@ -310,10 +314,10 @@ impl BmsConverter<'_> {
     fn collect_bgm(&self, wav_map: &BTreeMap<WavIndex, u32>, events: &mut Vec<BmsEvent>) {
         for be in &self.bms.messages.bgm_events {
             if let Some(&audio) = wav_map.get(&be.wav_id) {
-                events.push(Event::Bgm {
-                    tick: self.table.position_to_tick(be.position),
-                    audio_index: audio,
-                });
+                events.push(Event::new(
+                    self.table.position_to_tick(be.position),
+                    EventKind::Bgm { audio_index: audio },
+                ));
             }
         }
     }
@@ -338,10 +342,10 @@ impl BmsConverter<'_> {
                 && *ne.wav_id == *ln_obj
                 && let Some(&audio) = wav_map.get(&ne.wav_id)
             {
-                events.push(Event::Bgm {
-                    tick: self.table.position_to_tick(ne.position),
-                    audio_index: audio,
-                });
+                events.push(Event::new(
+                    self.table.position_to_tick(ne.position),
+                    EventKind::Bgm { audio_index: audio },
+                ));
             }
         }
     }
@@ -349,10 +353,12 @@ impl BmsConverter<'_> {
     /// 构建 BPM 事件（用于统一时间线）。
     fn collect_bpm_events(&self, events: &mut Vec<BmsEvent>) {
         for bc in &self.bms.messages.bpm_changes {
-            events.push(Event::Bpm {
-                tick: self.table.position_to_tick(bc.position),
-                bpm: self.resolve_bpm(bc.value),
-            });
+            events.push(Event::new(
+                self.table.position_to_tick(bc.position),
+                EventKind::Bpm {
+                    bpm: self.resolve_bpm(bc.value),
+                },
+            ));
         }
     }
 
@@ -360,10 +366,10 @@ impl BmsConverter<'_> {
     fn collect_scroll_events(&self, events: &mut Vec<BmsEvent>) {
         for se in &self.bms.messages.scroll_events {
             if let Some(&rate) = self.bms.timing.scroll_defs.get(&se.scroll_id) {
-                events.push(Event::Scroll {
-                    tick: self.table.position_to_tick(se.position),
-                    rate,
-                });
+                events.push(Event::new(
+                    self.table.position_to_tick(se.position),
+                    EventKind::Scroll { rate },
+                ));
             }
         }
     }
@@ -372,10 +378,10 @@ impl BmsConverter<'_> {
     fn collect_speed_events(&self, events: &mut Vec<BmsEvent>) {
         for se in &self.bms.messages.speed_events {
             if let Some(&rate) = self.bms.timing.speed_defs.get(&se.speed_id) {
-                events.push(Event::Speed {
-                    tick: self.table.position_to_tick(se.position),
-                    rate,
-                });
+                events.push(Event::new(
+                    self.table.position_to_tick(se.position),
+                    EventKind::Speed { rate },
+                ));
             }
         }
     }
@@ -383,7 +389,7 @@ impl BmsConverter<'_> {
     /// 收集 BMS 引擎特定自定义事件。
     ///
     /// 从 [`Messages::non_event_data`] 读取由 parser 合并但未转换的通道数据，
-    /// 转换为 [`Event::Custom`] 变体。每个非 `"00"` 值产生一个事件。
+    /// 转换为 [`EventKind::Custom`] 变体。每个非 `"00"` 值产生一个事件。
     #[expect(
         clippy::cast_possible_truncation,
         reason = "channel values are single-byte bounded (0-255) or u32 resource indices"
@@ -488,7 +494,7 @@ impl BmsConverter<'_> {
                     }
                     _ => continue,
                 };
-                events.push(Event::Custom { tick, payload });
+                events.push(Event::new(tick, EventKind::Custom(payload)));
             }
         }
     }
@@ -497,11 +503,13 @@ impl BmsConverter<'_> {
     fn collect_bga(&self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>, events: &mut Vec<BmsEvent>) {
         for be in &self.bms.messages.bga_events {
             if let Some(&(resource_id, _)) = bmp_map.get(&be.bmp_id) {
-                events.push(Event::Bga {
-                    tick: self.table.position_to_tick(be.position),
-                    layer: be.layer,
-                    resource_id,
-                });
+                events.push(Event::new(
+                    self.table.position_to_tick(be.position),
+                    EventKind::Bga {
+                        layer: be.layer,
+                        resource_id,
+                    },
+                ));
             }
         }
     }
@@ -702,6 +710,6 @@ fn build_bar_events(table: &MeasureTable) -> Vec<BmsEvent> {
     table
         .bar_ticks()
         .iter()
-        .map(|&tick| Event::Bar { tick })
+        .map(|&tick| Event::new(tick, EventKind::Bar))
         .collect()
 }

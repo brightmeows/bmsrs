@@ -4,8 +4,8 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartData, ChartInfo, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
+    BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
+    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 use bmsrs_player::Player;
 
@@ -46,24 +46,20 @@ fn make_test_chart() -> Chart {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![
-                Event::Bar { tick: 0 },
-                Event::Bgm {
-                    tick: 240,
-                    audio_index: 0,
-                },
-                Event::Note {
-                    tick: 480,
-                    side: NoteSide::P1,
-                    lane: key(1),
-                    kind: NoteKind::Normal,
-                    audio_index: None,
-                    ext: (),
-                },
-                Event::Bar { tick: 960 },
-                Event::Bpm {
-                    tick: 960,
-                    bpm: 180.0,
-                },
+                Event::new(0, EventKind::Bar),
+                Event::new(240, EventKind::Bgm { audio_index: 0 }),
+                Event::new(
+                    480,
+                    EventKind::Note {
+                        side: NoteSide::P1,
+                        lane: key(1),
+                        kind: NoteKind::Normal,
+                        audio_index: None,
+                        ext: (),
+                    },
+                ),
+                Event::new(960, EventKind::Bar),
+                Event::new(960, EventKind::Bpm { bpm: 180.0 }),
             ],
             audio_assets: vec![],
         },
@@ -194,8 +190,8 @@ fn player_notes_in_range() {
     let notes: Vec<_> = player
         .notes_in_range(..)
         .filter_map(|e| {
-            if let Event::Note { tick, .. } = e {
-                Some(*tick)
+            if let EventKind::Note { .. } = &e.kind {
+                Some(e.tick())
             } else {
                 None
             }
@@ -212,8 +208,8 @@ fn player_notes_in_lane() {
     let notes_p1k1: Vec<_> = player
         .notes_in_lane(NoteSide::P1, key(1), ..)
         .filter_map(|e| {
-            if let Event::Note { tick, .. } = e {
-                Some(*tick)
+            if let EventKind::Note { .. } = &e.kind {
+                Some(e.tick())
             } else {
                 None
             }
@@ -252,8 +248,8 @@ fn player_bgm_in_range() {
     let bgm: Vec<_> = player
         .bgm_in_range(..)
         .filter_map(|e| {
-            if let Event::Bgm { tick, .. } = e {
-                Some(*tick)
+            if let EventKind::Bgm { .. } = &e.kind {
+                Some(e.tick())
             } else {
                 None
             }
@@ -269,13 +265,8 @@ fn player_bar_lines_in_range() {
 
     let bars: Vec<_> = player
         .bar_lines_in_range(..)
-        .filter_map(|e| {
-            if let Event::Bar { tick } = e {
-                Some(*tick)
-            } else {
-                None
-            }
-        })
+        .filter(|e| matches!(&e.kind, EventKind::Bar))
+        .map(Event::tick)
         .collect();
     assert_eq!(bars, vec![0, 960]);
 }
@@ -302,10 +293,10 @@ fn player_scroll_rate_default() {
 #[test]
 fn player_scroll_rate_with_events() {
     let mut chart = make_test_chart();
-    chart.data.events.push(Event::Scroll {
-        tick: 480,
-        rate: 2.0,
-    });
+    chart
+        .data
+        .events
+        .push(Event::new(480, EventKind::Scroll { rate: 2.0 }));
     let player = Player::new(chart);
 
     // Before scroll event

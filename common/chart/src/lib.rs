@@ -37,8 +37,8 @@
 //! ```
 //! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
-//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-//!     NoteKind, NoteSide, TimingTrack,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
+//!     LnTypeHint, NoteKind, NoteSide, TimingTrack,
 //! };
 //!
 //! let chart: Chart = Chart {
@@ -55,14 +55,16 @@
 //!         ln_type_hint: LnTypeHint::default(),
 //!         ln_judge_hint: LnJudgeHint::default(),
 //!         ln_life_hint: LnLifeHint::default(),
-//!         events: vec![Event::Note {
-//!             tick: 0,
-//!             side: NoteSide::P1,
-//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!             kind: NoteKind::Normal,
-//!             audio_index: None,
-//!             ext: (),
-//!         }],
+//!         events: vec![Event::new(
+//!             0,
+//!             EventKind::Note {
+//!                 side: NoteSide::P1,
+//!                 lane: Lane::Key(NonZeroU8::new(1).unwrap()),
+//!                 kind: NoteKind::Normal,
+//!                 audio_index: None,
+//!                 ext: (),
+//!             },
+//!         )],
 //!         audio_assets: vec![],
 //!     },
 //! };
@@ -78,7 +80,7 @@ pub mod timing;
 pub mod visual;
 
 pub use audio::AudioAsset;
-pub use event::{CustomEvent, Event, NoCustomEvent, NoteExt};
+pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack};

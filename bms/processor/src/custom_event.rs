@@ -2,8 +2,8 @@
 //!
 //! 这些事件由 [`BmsProcessor`](crate::BmsProcessor) 从 BMS 通道（如 BGA 不透明度、
 //! ARGB 颜色、TEXT、OPTION 等）转换而来，存储在
-//! [`Event::Custom`](bmsrs_chart::Event::Custom) 变体中。
-//! tick 统一由 [`Event::Custom`](bmsrs_chart::Event::Custom) 存储，
+//! [`EventKind::Custom`](bmsrs_chart::EventKind::Custom) 变体中。
+//! tick 统一由 [`Event`](bmsrs_chart::Event) 存储，
 //! 本类型的变体不含 tick。
 
 use bmsrs_chart::{BgaLayer, CustomEvent};
@@ -12,15 +12,14 @@ use bmsrs_chart::{BgaLayer, CustomEvent};
 ///
 /// # 设计原则
 ///
-/// - 所有变体**不含** `tick` 字段——tick 由 [`Event::Custom`](bmsrs_chart::Event::Custom)
-///   统一存储。
+/// - 所有变体**不含** `tick` 字段——tick 由 [`Event`](bmsrs_chart::Event) 统一存储。
 /// - 仅包含引擎特定的事件；通用概念（音符、BPM、BGA 等）由
 ///   [`Event`](bmsrs_chart::Event) 的原生变体承载。
 ///
 /// # 标记 trait
 ///
 /// 本类型实现 [`CustomEvent`]（无方法标记 trait），
-/// 作为 [`Event::Custom`](bmsrs_chart::Event::Custom) 的 `C` 类型参数使用。
+/// 作为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom) 的 `C` 类型参数使用。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BmsCustomEvent {
     /// BGA 图层不透明度变更（通道 `0B`–`0E`）。

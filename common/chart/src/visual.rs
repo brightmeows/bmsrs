@@ -1,8 +1,8 @@
 //! 视觉元素：BGA 图层类型与资源声明。
 //!
 //! 小节线、滚动变更与 BGA 事件现归入统一的 [`Event`](crate::Event)
-//! 枚举 —— 参见 [`crate::Event::Bar`]、[`crate::Event::Scroll`] 与
-//! [`crate::Event::Bga`]。
+//! 枚举 —— 参见 [`crate::EventKind::Bar`]、[`crate::EventKind::Scroll`] 与
+//! [`crate::EventKind::Bga`]。
 
 use std::path::PathBuf;
 
