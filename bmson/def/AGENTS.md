@@ -10,7 +10,7 @@ bmson JSON 格式类型定义（v0/v1/v2）。纯数据模型。
 |------|------|
 | `common.rs` | 通用类型（`NoteEvent`、`BpmEvent`、`BGA`、`ModeHint` 等）——从 crate 根 re-export |
 | `v0.rs` / `v1.rs` | 版本特有类型 + `From`/`TryFrom` 转换 trait |
-| `v2` 目录 | v2 版本的特有类型（作为独立 mod）|
+| `lib.rs`（根） | v2 版本的特有类型（`Bmson` v2、`SongInfo`、`ChartInfo`、`ChartData`）——在 crate 根定义，无需独立 mod |
 
 `v0` 和 `v1` 是**独立模块**——各有自己的 `Bmson`、`BmsonInfo`、`SoundChannel`。
 从 `bmson_def::v0` 或 `bmson_def::v1` 导入。

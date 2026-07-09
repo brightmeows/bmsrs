@@ -332,6 +332,7 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
                 .into_iter()
                 .map(|en| StopEvent {
                     y: en.y,
+                    // 负值经 round() as u64 在 Rust 1.45+ 饱和为 0（非法输入被钳位）。
                     duration: en.v.round() as u64,
                 })
                 .collect(),

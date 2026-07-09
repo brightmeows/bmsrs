@@ -159,6 +159,35 @@ fn v0_to_root_with_t_field_mapping() {
 }
 
 #[test]
+fn v1_to_root_with_t_field_mapping() {
+    let v1_json = r#"{
+        "version": "1.0.0",
+        "info": {
+            "title": "T", "subtitle": "", "artist": "A", "subartists": [],
+            "genre": "G", "mode_hint": "beat-7k", "chart_name": "", "level": 1,
+            "init_bpm": 140.0, "judge_rank": 100, "total": 100, "resolution": 240
+        },
+        "lines": null, "bpm_events": [], "stop_events": null,
+        "sound_channels": [{
+            "name": "ln.wav",
+            "notes": [
+                {"x": 1, "y": 0, "l": 240, "c": false, "t": 2},
+                {"x": 3, "y": 480, "l": 240, "c": false}
+            ]
+        }],
+        "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
+    }"#;
+    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    let root: Bmson = v1.into();
+
+    let notes = &root.chart_data.sound_channels[0].note_events;
+    assert_eq!(notes[0].t, Some(LnMode::Cn));
+    assert_eq!(notes[0].ln_type_hint, Some(bmson_def::LnType::Cn));
+    assert_eq!(notes[1].t, None);
+    assert_eq!(notes[1].ln_type_hint, None);
+}
+
+#[test]
 fn v1_ln_type_maps_to_ln_type_hint() {
     let v1_json = r#"{
         "version": "1.0.0",
