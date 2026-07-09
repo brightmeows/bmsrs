@@ -178,6 +178,25 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
 
     // 事件查询
 
+    /// 计算可见时间窗口对应的脉冲范围。
+    ///
+    /// `reaction` 为判定线下方的可见历史时长，`lookahead` 为判定线上方的
+    /// 预见未来时长。返回 `(start_tick, end_tick)`，可直接传给
+    /// [`events_in_range`](Self::events_in_range)。
+    ///
+    /// 内部执行两次 [`TimingCache::duration_to_tick`]（O(log n)），
+    /// 封装了 `current_time ± duration → tick` 的换算逻辑。
+    #[must_use]
+    pub fn visible_tick_range(&self, reaction: Duration, lookahead: Duration) -> (u64, u64) {
+        let current = self.current_time();
+        let start = current.checked_sub(reaction).unwrap_or(Duration::ZERO);
+        let end = current.checked_add(lookahead).unwrap_or(Duration::MAX);
+        (
+            self.cache.duration_to_tick(start),
+            self.cache.duration_to_tick(end),
+        )
+    }
+
     /// 返回 `range` 范围内的全部事件。
     ///
     /// 事件按脉冲升序排列（由谱面保证）。

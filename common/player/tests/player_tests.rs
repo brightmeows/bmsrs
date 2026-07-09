@@ -415,3 +415,33 @@ fn player_advance_with_stop() {
     player.advance(Duration::from_secs_f64(0.7));
     assert_eq!(player.current_tick(), 336);
 }
+
+// visible_tick_range
+
+#[test]
+fn visible_tick_range_at_start_covers_negative_reaction() {
+    let chart = make_test_chart();
+    let player = Player::new(chart);
+
+    // 当前在 tick 0，reaction 1s 向前被钳位为 0。
+    let (start, end) = player.visible_tick_range(Duration::from_secs(1), Duration::from_secs(2));
+    assert_eq!(start, 0);
+    // 120 BPM, resolution 240: 2s = 4 beats = 960 ticks
+    assert_eq!(end, 960);
+}
+
+#[test]
+fn visible_tick_range_at_midpoint_returns_symmetric_window() {
+    let chart = make_test_chart();
+    let mut player = Player::new(chart);
+
+    // 前进到 1s（在 120 BPM 段：1s = 2 beats = 480 ticks）。
+    player.advance(Duration::from_secs_f64(1.0));
+    assert_eq!(player.current_tick(), 480);
+
+    let (start, end) =
+        player.visible_tick_range(Duration::from_millis(500), Duration::from_millis(500));
+    // 0.5s 前 = tick 240, 0.5s 后 = tick 720（仍在 120 BPM 段）。
+    assert_eq!(start, 240);
+    assert_eq!(end, 720);
+}
