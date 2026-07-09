@@ -21,7 +21,7 @@ enum State {
     /// 在块注释中遇到 `*` 之后（可能是 `*/`）。
     BlockMaybeEnd,
     /// 在 `"..."` 引号字符串中——注释标记为字面字符。
-    InString(u8),
+    InString,
 }
 
 /// 从源文本中剥离 BMS 注释，返回 owned 的 [`String`]。
@@ -66,7 +66,7 @@ pub fn preprocess(input: &str) -> String {
             State::Normal => match b {
                 b'"' => {
                     out.push('"');
-                    state = State::InString(0);
+                    state = State::InString;
                     i += 1;
                 }
                 b';' if at_line_start(bytes, i) => {
@@ -83,13 +83,11 @@ pub fn preprocess(input: &str) -> String {
                         i += 2;
                     }
                     _ => {
-                        out.push('/');
-                        i += 1;
+                        i += push_raw(input, &mut out, i);
                     }
                 },
                 _ => {
-                    out.push(b as char);
-                    i += 1;
+                    i += push_raw(input, &mut out, i);
                 }
             },
 
@@ -122,27 +120,42 @@ pub fn preprocess(input: &str) -> String {
                 }
             },
 
-            State::InString(escape) => {
-                if *escape == 0 && b == b'\\' {
-                    out.push(b as char);
+            State::InString => {
+                if b == b'\\' {
+                    out.push('\\');
                     i += 1;
-                    if let Some(&next) = bytes.get(i) {
-                        out.push(next as char);
-                        i += 1;
+                    if i < bytes.len() {
+                        i += push_raw(input, &mut out, i);
                     }
-                } else if *escape == 0 && b == b'"' {
+                } else if b == b'"' {
                     out.push('"');
                     state = State::Normal;
                     i += 1;
                 } else {
-                    out.push(b as char);
-                    i += 1;
+                    i += push_raw(input, &mut out, i);
                 }
             }
         }
     }
 
     out
+}
+
+/// 将 `input` 中从位置 `start` 开始的一个完整 UTF-8 字符原样追加到 `out`，
+/// 返回该字符占用的字节数。
+///
+/// 注释标记均为 ASCII 字符，因此非 ASCII 内容（如中日韩标题）可整段保留，
+/// 无需逐字节扫描。`start` 由调用方保证位于字符边界且小于 `input` 长度，
+/// 故切片不会 panic 且 `chars().next()` 必返回 `Some`。
+#[expect(clippy::string_slice, reason = "start 由调用方保证位于 UTF-8 字符边界")]
+#[expect(
+    clippy::expect_used,
+    reason = "start < input.len() 由 while 循环边界保证，chars 必非空"
+)]
+fn push_raw(input: &str, out: &mut String, start: usize) -> usize {
+    let ch = input[start..].chars().next().expect("start 在边界内");
+    out.push(ch);
+    ch.len_utf8()
 }
 
 /// 检查 `bytes` 中位置 `i` 是否位于行首（或仅在引导空白之后），

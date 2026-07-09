@@ -116,3 +116,24 @@ fn no_comments_passthrough() {
     let input = "#TITLE Song\n#BPM 120\n#00111:1122";
     assert_eq!(preprocess(input), input);
 }
+
+#[test]
+fn multibyte_title_preserved_unchanged() {
+    // 中日韩标题在去注释后必须原样保留，UTF-8 字节序列不被逐字节重映射为码点
+    assert_eq!(preprocess("#TITLE 譜面テスト"), "#TITLE 譜面テスト");
+}
+
+#[test]
+fn multibyte_title_before_inline_comment_preserved() {
+    // 行内 `//` 注释前的多字节字符必须完整保留，仅剥离注释部分
+    assert_eq!(preprocess("#TITLE 譜面 // 注釈"), "#TITLE 譜面 ");
+}
+
+#[test]
+fn multibyte_inside_string_preserved() {
+    // 引号字符串内的多字节字符与注释标记一同原样保留
+    assert_eq!(
+        preprocess("#TITLE \"譜面//テスト\""),
+        "#TITLE \"譜面//テスト\""
+    );
+}
