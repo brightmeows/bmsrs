@@ -73,7 +73,9 @@ impl ScrollCache {
                 rate,
             });
         }
-        // 添加一个尾段，以支持 tick 超出最后一个事件时的位置+速度查询。
+        // 尾段：覆盖 tick 超出最后一个事件时的查询。非空事件列表下与最后
+        // 一段等价（partition_point.saturating_sub(1) 回退到最后一段），
+        // 但对空事件列表提供默认常量段（tick=0, rate=1.0）。
         segments.push(ScrollSegment {
             start_tick: raw_segments.last().map_or(0, |&(t, _)| t),
             start_position: pos,

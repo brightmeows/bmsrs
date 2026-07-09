@@ -296,6 +296,7 @@ impl Eq for TimingTrack {}
 // TimingCache —— 预计算计时索引
 
 /// 计时轨中 BPM 恒定的一段。
+#[derive(Debug)]
 struct BpmSegment {
     /// 本段起始的脉冲位置。
     start_tick: u64,
@@ -310,6 +311,7 @@ struct BpmSegment {
 /// 将单调的 `total_seconds(tick)` 函数拆分为若干段：`BPM` 恒定的线性段
 /// （脉冲随时间推进）与停止冻结段（脉冲恒定、时间跳过停止时长）。
 /// 各段 `sec_lo` 严格递增，支持 O(log n) 二分查找。
+#[derive(Debug)]
 struct InvSeg {
     /// 本段起始的实际时间（秒）。
     sec_lo: f64,
@@ -338,6 +340,7 @@ struct InvSeg {
 /// 两部分均使用二分查找，每次查询为 O(log n)。语义与
 /// [`TimingTrack::tick_to_duration`] / [`TimingTrack::duration_to_tick`]
 /// 一致，是它们的加速版本。
+#[derive(Debug)]
 pub struct TimingCache {
     /// 按 `start_tick` 排序的 BPM 段。
     bpm_segments: Vec<BpmSegment>,
