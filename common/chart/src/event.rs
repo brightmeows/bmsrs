@@ -103,6 +103,105 @@ impl<T, C: CustomEvent> EventKind<T, C> {
             Self::Custom(_) => 6,
         }
     }
+
+    /// 将 `Custom` 变体的负载从 `C` 映射为 `D`，其余变体原样重新构造。
+    ///
+    /// 用于在保持非 `Custom` 变体不变的前提下，改变事件的
+    /// [`CustomEvent`] 类型参数。典型场景：丢弃引擎特定自定义事件，
+    /// 将 `Chart<T, BmsCustomEvent>` 转换为 `Chart<T, NoCustomEvent>`。
+    ///
+    /// # 示例
+    ///
+    /// ```
+    /// use bmsrs_chart::{EventKind, NoCustomEvent};
+    ///
+    /// let kind: EventKind<(), NoCustomEvent> = EventKind::Bar;
+    /// let mapped = kind.map_custom(|_| NoCustomEvent);
+    /// assert!(matches!(mapped, EventKind::Bar));
+    /// ```
+    #[must_use]
+    pub fn map_custom<F, D: CustomEvent>(self, f: F) -> EventKind<T, D>
+    where
+        F: FnOnce(C) -> D,
+    {
+        match self {
+            Self::Note {
+                side,
+                lane,
+                kind,
+                audio_index,
+                ext,
+            } => EventKind::Note {
+                side,
+                lane,
+                kind,
+                audio_index,
+                ext,
+            },
+            Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
+            Self::Bpm { bpm } => EventKind::Bpm { bpm },
+            Self::Stop { duration } => EventKind::Stop { duration },
+            Self::Scroll { rate } => EventKind::Scroll { rate },
+            Self::Speed { rate } => EventKind::Speed { rate },
+            Self::Bga { layer, resource_id } => EventKind::Bga { layer, resource_id },
+            Self::Bar => EventKind::Bar,
+            Self::Custom(c) => EventKind::Custom(f(c)),
+        }
+    }
+
+    /// 将 `Note` 变体的 `ext` 字段从 `T` 映射为 `U`，其余变体原样重新构造。
+    ///
+    /// 用于在保持非 `Note` 变体不变的前提下，改变事件的
+    /// [`NoteExt`] 类型参数。典型场景：剥离 BMSON 扩展数据，
+    /// 将 `Chart<BmsonNoteExt>` 转换为 `Chart<()>`。
+    ///
+    /// # 示例
+    ///
+    /// ```
+    /// use std::num::NonZeroU8;
+    /// use bmsrs_chart::{EventKind, Lane, NoteKind, NoteSide};
+    ///
+    /// let kind = EventKind::<i32, bmsrs_chart::NoCustomEvent>::Note {
+    ///     side: NoteSide::P1,
+    ///     lane: Lane::Key(NonZeroU8::new(1).unwrap()),
+    ///     kind: NoteKind::Normal,
+    ///     audio_index: None,
+    ///     ext: 42,
+    /// };
+    /// let mapped = kind.map_ext(|_| ());
+    /// if let EventKind::Note { ext, .. } = mapped {
+    ///     assert_eq!(ext, ());
+    /// }
+    /// ```
+    #[must_use]
+    pub fn map_ext<U, F>(self, f: F) -> EventKind<U, C>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Self::Note {
+                side,
+                lane,
+                kind,
+                audio_index,
+                ext,
+            } => EventKind::Note {
+                side,
+                lane,
+                kind,
+                audio_index,
+                ext: f(ext),
+            },
+            Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
+            Self::Bpm { bpm } => EventKind::Bpm { bpm },
+            Self::Stop { duration } => EventKind::Stop { duration },
+            Self::Scroll { rate } => EventKind::Scroll { rate },
+            Self::Speed { rate } => EventKind::Speed { rate },
+            Self::Bga { layer, resource_id } => EventKind::Bga { layer, resource_id },
+            Self::Bar => EventKind::Bar,
+            Self::Custom(c) => EventKind::Custom(c),
+        }
+    }
 }
 
 // 手动实现 Eq：所有 f64 字段（Bpm.bpm、Scroll.rate、Speed.rate）保证

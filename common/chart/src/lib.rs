@@ -229,18 +229,16 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// `NoteExt` 类型可改变（例如从 `BmsonNoteExt` 剥离为 `()`），
     /// `CustomEvent` 类型保持不变。
     ///
+    /// 若需同时改变 `CustomEvent` 类型或过滤事件，请用
+    /// [`filter_map_events`](Self::filter_map_events)。
+    ///
     /// # 示例
     ///
     /// ```rust
     /// # use bmsrs_chart::{ChartData, Event, NoteExt, NoCustomEvent, EventKind};
     /// # fn example(data: ChartData<(), NoCustomEvent>) {
     /// let mapped: ChartData<(), NoCustomEvent> = data.map_events(|e| {
-    ///     let tick = e.tick();
-    ///     match e.kind {
-    ///         EventKind::Note { side, lane, kind, audio_index, ext: () } =>
-    ///             Event::new(tick, EventKind::Note { side, lane, kind, audio_index, ext: () }),
-    ///         other => Event::new(tick, other),
-    ///     }
+    ///     Event::new(e.tick(), e.kind.map_ext(|_| ()))
     /// });
     /// # }
     /// ```
@@ -260,6 +258,55 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
             judge_deltas: self.judge_deltas,
             life_deltas: self.life_deltas,
             events: self.events.into_iter().map(f).collect(),
+            audio_assets: self.audio_assets,
+        }
+    }
+
+    /// 通过映射+过滤函数转换所有事件，可同时改变 `T` 和 `C` 两个泛型参数。
+    ///
+    /// 返回 [`None`] 的事件被丢弃。其余字段不变。
+    ///
+    /// 与 [`map_events`](Self::map_events) 的区别：
+    /// - `map_events` 仅改变 `T: NoteExt`，保留 `C: CustomEvent` 不变；
+    /// - `filter_map_events` 可同时改变两者，且支持丢弃事件。
+    ///
+    /// 典型场景：将 `Chart<T, BmsCustomEvent>` 转换为 `Chart<U, NoCustomEvent>`，
+    /// 同时丢弃所有 `Custom` 事件。
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// # use bmsrs_chart::{
+    /// #     ChartData, Event, EventKind, NoCustomEvent, NoteExt,
+    /// #     CustomEvent,
+    /// # };
+    /// # fn example(data: ChartData<(), NoCustomEvent>) {
+    /// // 丢弃 Custom 事件，将其余事件的 C 类型转换为 NoCustomEvent
+    /// let mapped: ChartData<(), NoCustomEvent> = data.filter_map_events(|e| {
+    ///     let tick = e.tick();
+    ///     match e.kind {
+    ///         EventKind::Custom(_) => None,
+    ///         kind => Some(Event::new(tick, kind.map_custom(|_| NoCustomEvent))),
+    ///     }
+    /// });
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn filter_map_events<U: NoteExt, D: CustomEvent>(
+        self,
+        f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
+    ) -> ChartData<U, D> {
+        ChartData {
+            resolution: self.resolution,
+            timing: self.timing,
+            judge_multiplier: self.judge_multiplier,
+            life_multiplier: self.life_multiplier,
+            ln_type_hint: self.ln_type_hint,
+            ln_judge_hint: self.ln_judge_hint,
+            ln_life_hint: self.ln_life_hint,
+            judge_deltas: self.judge_deltas,
+            life_deltas: self.life_deltas,
+            events: self.events.into_iter().filter_map(f).collect(),
             audio_assets: self.audio_assets,
         }
     }
@@ -293,6 +340,21 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
             song: self.song,
             chart: self.chart,
             data: self.data.map_events(f),
+        }
+    }
+
+    /// 通过映射+过滤函数转换所有事件，可同时改变 `T` 和 `C` 两个泛型参数。
+    ///
+    /// 见 [`ChartData::filter_map_events`]。
+    #[must_use]
+    pub fn filter_map_events<U: NoteExt, D: CustomEvent>(
+        self,
+        f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
+    ) -> Chart<U, D> {
+        Chart {
+            song: self.song,
+            chart: self.chart,
+            data: self.data.filter_map_events(f),
         }
     }
 }

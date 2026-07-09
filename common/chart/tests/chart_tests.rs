@@ -537,3 +537,147 @@ fn stop_event_fields() {
 }
 
 // NoCustomEvent — 纯标记类型，无行为需测试。
+
+// EventKind::map_custom / map_ext
+
+/// 测试用自定义事件类型。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct TestCustom(String);
+
+impl bmsrs_chart::CustomEvent for TestCustom {}
+
+#[test]
+fn map_custom_preserves_non_custom_variants() {
+    let kind: EventKind<(), TestCustom> = EventKind::Bpm { bpm: 180.0 };
+    let mapped = kind.map_custom(|_| NoCustomEvent);
+    assert!(matches!(mapped, EventKind::Bpm { bpm: 180.0 }));
+}
+
+#[test]
+fn map_custom_applies_fn_to_custom_variant() {
+    let kind: EventKind<(), TestCustom> = EventKind::Custom(TestCustom("hello".into()));
+    let mapped: EventKind<(), NoCustomEvent> = kind.map_custom(|_| NoCustomEvent);
+    assert!(matches!(mapped, EventKind::Custom(NoCustomEvent)));
+}
+
+#[test]
+fn map_ext_preserves_non_note_variants() {
+    let kind: EventKind<i32, NoCustomEvent> = EventKind::Bar;
+    let mapped = kind.map_ext(|_| ());
+    assert!(matches!(mapped, EventKind::Bar));
+}
+
+#[test]
+fn map_ext_applies_fn_to_note_variant() {
+    let kind = EventKind::<i32, NoCustomEvent>::Note {
+        side: NoteSide::P1,
+        lane: key(1),
+        kind: NoteKind::Normal,
+        audio_index: None,
+        ext: 42,
+    };
+    let mapped = kind.map_ext(|e| {
+        assert_eq!(e, 42);
+    });
+    if let EventKind::Note { ext, .. } = mapped {
+        assert_eq!(ext, ());
+    } else {
+        panic!("expected Note");
+    }
+}
+
+// ChartData / Chart::filter_map_events
+
+fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
+    ChartData {
+        resolution: 240,
+        timing: TimingTrack::simple(120.0),
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
+        ln_type_hint: LnTypeHint::default(),
+        ln_judge_hint: LnJudgeHint::default(),
+        ln_life_hint: LnLifeHint::default(),
+        judge_deltas: None,
+        life_deltas: None,
+        events: vec![
+            Event::bar(0),
+            Event::new(
+                240,
+                EventKind::Note {
+                    side: NoteSide::P1,
+                    lane: key(1),
+                    kind: NoteKind::Normal,
+                    audio_index: None,
+                    ext: (),
+                },
+            ),
+            Event::bpm(480, 180.0),
+        ],
+        audio_assets: vec![],
+    }
+}
+
+#[test]
+fn filter_map_events_preserves_all_when_none_filtered() {
+    let data = make_simple_chart_data();
+    let mapped: ChartData<(), NoCustomEvent> = data
+        .filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))));
+    assert_eq!(mapped.events.len(), 3);
+    assert_eq!(mapped.resolution, 240);
+    assert!((mapped.timing.init_bpm() - 120.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn filter_map_events_drops_custom_events() {
+    let data = ChartData {
+        resolution: 240,
+        timing: TimingTrack::simple(120.0),
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
+        ln_type_hint: LnTypeHint::default(),
+        ln_judge_hint: LnJudgeHint::default(),
+        ln_life_hint: LnLifeHint::default(),
+        judge_deltas: None,
+        life_deltas: None,
+        events: vec![
+            Event::bar(0),
+            Event::new(0, EventKind::<(), NoCustomEvent>::Custom(NoCustomEvent)),
+            Event::bpm(240, 150.0),
+        ],
+        audio_assets: vec![],
+    };
+
+    let mapped: ChartData<(), NoCustomEvent> = data.filter_map_events(|e| {
+        let tick = e.tick();
+        match e.kind {
+            EventKind::Custom(_) => None,
+            kind => Some(Event::new(tick, kind.map_custom(|_| NoCustomEvent))),
+        }
+    });
+
+    assert_eq!(mapped.events.len(), 2);
+    assert!(matches!(mapped.events[0].kind, EventKind::Bar));
+    assert!(matches!(mapped.events[1].kind, EventKind::Bpm { .. }));
+}
+
+#[test]
+fn chart_filter_map_events_preserves_metadata() {
+    let chart = Chart {
+        song: SongInfo {
+            title: "Test".into(),
+            ..Default::default()
+        },
+        chart: ChartInfo {
+            chart_name: "HYPER".into(),
+            ..Default::default()
+        },
+        data: make_simple_chart_data(),
+    };
+
+    let mapped: Chart<(), NoCustomEvent> = chart
+        .filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))));
+
+    assert_eq!(mapped.song.title, "Test");
+    assert_eq!(mapped.chart.chart_name, "HYPER");
+    assert_eq!(mapped.data.events.len(), 3);
+}
