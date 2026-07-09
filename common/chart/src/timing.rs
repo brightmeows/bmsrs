@@ -91,6 +91,14 @@ impl TimingEvent {
     }
 }
 
+/// 检查 BPM 值是否有效（有限且非零）。
+///
+/// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在消费点被跳过，
+/// 保持上一个有效 BPM 不变——与 beatoraja 行为一致。
+const fn is_valid_bpm(bpm: f64) -> bool {
+    bpm.is_finite() && bpm != 0.0
+}
+
 impl TimingTrack {
     /// 创建一个新的计时轨。
     ///
@@ -191,7 +199,9 @@ impl TimingTrack {
             }
             match event {
                 TimingEvent::Bpm(bpm) => {
-                    current_bpm = *bpm;
+                    if is_valid_bpm(*bpm) {
+                        current_bpm = *bpm;
+                    }
                 }
                 TimingEvent::Stop(duration) => {
                     // 仅当停止严格位于目标脉冲之前时才计入停止时间。
@@ -278,7 +288,9 @@ impl TimingTrack {
 
             match event {
                 TimingEvent::Bpm(bpm) => {
-                    current_bpm = *bpm;
+                    if is_valid_bpm(*bpm) {
+                        current_bpm = *bpm;
+                    }
                 }
                 TimingEvent::Stop(stop_duration) => {
                     let stop_seconds = *stop_duration as f64 / res * 60.0 / current_bpm.abs();
@@ -417,6 +429,10 @@ impl TimingCache {
         let mut current_bpm = timing.init_bpm;
 
         for bc in &sorted_bpm_changes {
+            // 跳过无效 BPM 变更（0、NaN、无穷），保持当前 BPM 不变。
+            if !is_valid_bpm(bc.bpm) {
+                continue;
+            }
             if bc.tick > current_tick {
                 current_seconds += (bc.tick - current_tick) as f64 / res * 60.0 / current_bpm.abs();
                 current_tick = bc.tick;
@@ -588,6 +604,10 @@ fn build_inv(
         }
         match ev {
             TimingEvent::Bpm(b) => {
+                // 跳过无效 BPM 变更，保持当前 BPM 不变。
+                if !is_valid_bpm(b) {
+                    continue;
+                }
                 cur_bpm = b;
                 inv.push(InvSeg {
                     sec_lo: cur_sec,
@@ -775,5 +795,82 @@ mod tests {
 
         // 应与 TimingTrack（内部通过 cached_events 排序）一致。
         assert_eq!(timing.tick_to_duration(480, RES), expected);
+    }
+
+    #[test]
+    fn zero_bpm_change_skipped() {
+        // BPM 变更到 0.0 被跳过，保持 120 BPM。
+        // 旧实现中 60.0 / 0.0 = inf，from_secs_f64 会 panic。
+        let timing = TimingTrack::new(
+            120.0,
+            vec![BpmChange {
+                tick: 240,
+                bpm: 0.0,
+            }],
+            vec![],
+        );
+        let cache = TimingCache::new(&timing, RES);
+
+        // tick 480 at 120 BPM = 1.0s（保持初始 BPM）。
+        let expected = Duration::from_secs(1);
+        assert_eq!(cache.tick_to_duration(480), expected);
+        assert_eq!(timing.tick_to_duration(480, RES), expected);
+    }
+
+    #[test]
+    fn nan_bpm_change_skipped() {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![BpmChange {
+                tick: 240,
+                bpm: f64::NAN,
+            }],
+            vec![],
+        );
+        let cache = TimingCache::new(&timing, RES);
+
+        // NaN BPM 被跳过，保持 120 BPM。
+        assert_eq!(cache.tick_to_duration(480), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn inf_bpm_change_skipped() {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![BpmChange {
+                tick: 240,
+                bpm: f64::INFINITY,
+            }],
+            vec![],
+        );
+        let cache = TimingCache::new(&timing, RES);
+
+        // Inf BPM 被跳过，保持 120 BPM。
+        assert_eq!(cache.tick_to_duration(480), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn valid_bpm_after_invalid_one_works() {
+        // 无效 BPM（0.0）被跳过后，后续有效 BPM 变更（60.0）应正常生效。
+        let timing = TimingTrack::new(
+            120.0,
+            vec![
+                BpmChange {
+                    tick: 240,
+                    bpm: 0.0,
+                },
+                BpmChange {
+                    tick: 480,
+                    bpm: 60.0,
+                },
+            ],
+            vec![],
+        );
+        let cache = TimingCache::new(&timing, RES);
+
+        // tick 0-480 at 120 BPM = 1.0s，tick 480-720 at 60 BPM = 1.0s。
+        let expected = Duration::from_secs(2);
+        assert_eq!(cache.tick_to_duration(720), expected);
+        assert_eq!(timing.tick_to_duration(720, RES), expected);
     }
 }
