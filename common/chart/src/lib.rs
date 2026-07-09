@@ -223,6 +223,46 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     pub fn sort_events(&mut self) {
         self.events.sort_by_key(Event::sort_key);
     }
+
+    /// 通过映射函数转换所有事件，返回新的 `ChartData`，其余字段不变。
+    ///
+    /// `NoteExt` 类型可改变（例如从 `BmsonNoteExt` 剥离为 `()`），
+    /// `CustomEvent` 类型保持不变。
+    ///
+    /// # 示例
+    ///
+    /// ```rust
+    /// # use bmsrs_chart::{ChartData, Event, NoteExt, NoCustomEvent, EventKind};
+    /// # fn example(data: ChartData<(), NoCustomEvent>) {
+    /// let mapped: ChartData<(), NoCustomEvent> = data.map_events(|e| {
+    ///     let tick = e.tick();
+    ///     match e.kind {
+    ///         EventKind::Note { side, lane, kind, audio_index, ext: () } =>
+    ///             Event::new(tick, EventKind::Note { side, lane, kind, audio_index, ext: () }),
+    ///         other => Event::new(tick, other),
+    ///     }
+    /// });
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn map_events<U: NoteExt>(
+        self,
+        f: impl FnMut(Event<T, C>) -> Event<U, C>,
+    ) -> ChartData<U, C> {
+        ChartData {
+            resolution: self.resolution,
+            timing: self.timing,
+            judge_multiplier: self.judge_multiplier,
+            life_multiplier: self.life_multiplier,
+            ln_type_hint: self.ln_type_hint,
+            ln_judge_hint: self.ln_judge_hint,
+            ln_life_hint: self.ln_life_hint,
+            judge_deltas: self.judge_deltas,
+            life_deltas: self.life_deltas,
+            events: self.events.into_iter().map(f).collect(),
+            audio_assets: self.audio_assets,
+        }
+    }
 }
 
 /// 顶层谱面 —— 对应 BMSON v2 的 `Bmson` 根对象。
@@ -242,3 +282,17 @@ pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
 }
 
 impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Chart<T, C> {}
+
+impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
+    /// 通过映射函数转换所有事件，返回新的 `Chart`，其余字段不变。
+    ///
+    /// 见 [`ChartData::map_events`]。
+    #[must_use]
+    pub fn map_events<U: NoteExt>(self, f: impl FnMut(Event<T, C>) -> Event<U, C>) -> Chart<U, C> {
+        Chart {
+            song: self.song,
+            chart: self.chart,
+            data: self.data.map_events(f),
+        }
+    }
+}
