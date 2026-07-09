@@ -30,7 +30,7 @@ fn audio_asset_bmson_slice_style() {
 
 #[test]
 fn bgm_event_fields() {
-    let ev: Event<()> = Event::new(960, EventKind::Bgm { audio_index: 3 });
+    let ev: Event<()> = Event::bgm(960, 3);
     assert_eq!(ev.tick(), 960);
     assert!(
         matches!(ev.kind, EventKind::Bgm { audio_index: 3, .. }),

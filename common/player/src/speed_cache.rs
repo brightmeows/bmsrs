@@ -95,7 +95,7 @@ mod tests {
     fn make_speed_events(pairs: &[(u64, f64)]) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
         pairs
             .iter()
-            .map(|&(tick, rate)| Event::new(tick, EventKind::Speed { rate }))
+            .map(|&(tick, rate)| Event::speed(tick, rate))
             .collect()
     }
 

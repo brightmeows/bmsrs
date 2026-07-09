@@ -57,7 +57,7 @@ fn build_chart(n: usize) -> Chart {
     for i in (0..n).step_by(50) {
         let tick = (i as u64) * RESOLUTION;
         let bpm = 120.0 + ((i % 200) as f64);
-        events.push(Event::new(tick, EventKind::Bpm { bpm }));
+        events.push(Event::bpm(tick, bpm));
         bpm_changes.push(BpmChange { tick, bpm });
     }
 
@@ -199,7 +199,7 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         let beat_start = (i as u64) * RESOLUTION;
         for j in 0..bgm_per_beat {
             let tick = beat_start + (RESOLUTION * j as u64 / bgm_per_beat.max(1) as u64);
-            events.push(Event::new(tick, EventKind::Bgm { audio_index: 0 }));
+            events.push(Event::bgm(tick, 0));
         }
     }
 

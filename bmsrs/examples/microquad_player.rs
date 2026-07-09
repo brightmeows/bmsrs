@@ -257,19 +257,15 @@ fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEv
                                 ext: (),
                             },
                         ),
-                        EventKind::Bgm { audio_index } => {
-                            Event::new(tick, EventKind::Bgm { audio_index })
-                        }
-                        EventKind::Bpm { bpm } => Event::new(tick, EventKind::Bpm { bpm }),
-                        EventKind::Stop { duration } => {
-                            Event::new(tick, EventKind::Stop { duration })
-                        }
-                        EventKind::Scroll { rate } => Event::new(tick, EventKind::Scroll { rate }),
-                        EventKind::Speed { rate } => Event::new(tick, EventKind::Speed { rate }),
+                        EventKind::Bgm { audio_index } => Event::bgm(tick, audio_index),
+                        EventKind::Bpm { bpm } => Event::bpm(tick, bpm),
+                        EventKind::Stop { duration } => Event::stop(tick, duration),
+                        EventKind::Scroll { rate } => Event::scroll(tick, rate),
+                        EventKind::Speed { rate } => Event::speed(tick, rate),
                         EventKind::Bga { layer, resource_id } => {
                             Event::new(tick, EventKind::Bga { layer, resource_id })
                         }
-                        EventKind::Bar => Event::new(tick, EventKind::Bar),
+                        EventKind::Bar => Event::bar(tick),
                         EventKind::Custom(_) => panic!("unreachable: filtered above"),
                     }
                 })
@@ -326,15 +322,15 @@ const fn normalize_event(
                 ext: (),
             },
         ),
-        EventKind::Bgm { audio_index } => Event::new(tick, EventKind::Bgm { audio_index }),
-        EventKind::Bpm { bpm } => Event::new(tick, EventKind::Bpm { bpm }),
-        EventKind::Stop { duration } => Event::new(tick, EventKind::Stop { duration }),
-        EventKind::Scroll { rate } => Event::new(tick, EventKind::Scroll { rate }),
-        EventKind::Speed { rate } => Event::new(tick, EventKind::Speed { rate }),
+        EventKind::Bgm { audio_index } => Event::bgm(tick, audio_index),
+        EventKind::Bpm { bpm } => Event::bpm(tick, bpm),
+        EventKind::Stop { duration } => Event::stop(tick, duration),
+        EventKind::Scroll { rate } => Event::scroll(tick, rate),
+        EventKind::Speed { rate } => Event::speed(tick, rate),
         EventKind::Bga { layer, resource_id } => {
             Event::new(tick, EventKind::Bga { layer, resource_id })
         }
-        EventKind::Bar => Event::new(tick, EventKind::Bar),
+        EventKind::Bar => Event::bar(tick),
         EventKind::Custom(payload) => Event::new(tick, EventKind::Custom(payload)),
     }
 }

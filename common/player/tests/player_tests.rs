@@ -46,8 +46,8 @@ fn make_test_chart() -> Chart {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![
-                Event::new(0, EventKind::Bar),
-                Event::new(240, EventKind::Bgm { audio_index: 0 }),
+                Event::bar(0),
+                Event::bgm(240, 0),
                 Event::new(
                     480,
                     EventKind::Note {
@@ -58,8 +58,8 @@ fn make_test_chart() -> Chart {
                         ext: (),
                     },
                 ),
-                Event::new(960, EventKind::Bar),
-                Event::new(960, EventKind::Bpm { bpm: 180.0 }),
+                Event::bar(960),
+                Event::bpm(960, 180.0),
             ],
             judge_deltas: None,
             life_deltas: None,
@@ -295,10 +295,7 @@ fn player_scroll_rate_default() {
 #[test]
 fn player_scroll_rate_with_events() {
     let mut chart = make_test_chart();
-    chart
-        .data
-        .events
-        .push(Event::new(480, EventKind::Scroll { rate: 2.0 }));
+    chart.data.events.push(Event::scroll(480, 2.0));
     chart.data.sort_events();
     let player = Player::new(chart);
 

@@ -124,7 +124,7 @@ impl<T: Eq, C: Eq + CustomEvent> Eq for EventKind<T, C> {}
 /// ```rust
 /// use bmsrs_chart::{Event, EventKind};
 ///
-/// let ev: Event = Event::new(480, EventKind::Bar);
+/// let ev: Event = Event::bar(480);
 /// assert_eq!(ev.tick(), 480);
 /// assert_eq!(ev.kind.priority(), 0);
 /// ```
@@ -168,6 +168,44 @@ impl<T: NoteExt, C: CustomEvent> Event<T, C> {
     #[must_use]
     pub const fn sort_key(&self) -> (u64, u8) {
         (self.tick, self.kind.priority())
+    }
+
+    // 便利构造器
+
+    /// 创建小节线事件。
+    #[must_use]
+    pub const fn bar(tick: u64) -> Self {
+        Self::new(tick, EventKind::Bar)
+    }
+
+    /// 创建 BGM 事件。
+    #[must_use]
+    pub const fn bgm(tick: u64, audio_index: u32) -> Self {
+        Self::new(tick, EventKind::Bgm { audio_index })
+    }
+
+    /// 创建 BPM 变更事件。
+    #[must_use]
+    pub const fn bpm(tick: u64, bpm: f64) -> Self {
+        Self::new(tick, EventKind::Bpm { bpm })
+    }
+
+    /// 创建停止事件。
+    #[must_use]
+    pub const fn stop(tick: u64, duration: u64) -> Self {
+        Self::new(tick, EventKind::Stop { duration })
+    }
+
+    /// 创建滚动速度变更事件。
+    #[must_use]
+    pub const fn scroll(tick: u64, rate: f64) -> Self {
+        Self::new(tick, EventKind::Scroll { rate })
+    }
+
+    /// 创建 SPEED 关键帧事件。
+    #[must_use]
+    pub const fn speed(tick: u64, rate: f64) -> Self {
+        Self::new(tick, EventKind::Speed { rate })
     }
 }
 

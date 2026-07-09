@@ -145,10 +145,6 @@ impl BmsonProcessor {
         clippy::cast_possible_truncation,
         reason = "BGA header/event ids are in the u32 range for practical charts"
     )]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "process_body 集中了全部事件类型的转换逻辑；拆分会增加间接性而非清晰度"
-    )]
     fn process_body(
         bmson: &bmson_def::Bmson<'_>,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
@@ -174,11 +170,7 @@ impl BmsonProcessor {
         process_mine_channels(&bmson.mine_channels, decode, &mut audio_assets, &mut events);
         process_key_channels(&bmson.key_channels, decode, &mut audio_assets, &mut events);
 
-        events.extend(
-            data.bpm_events
-                .iter()
-                .map(|e| Event::new(e.y, EventKind::Bpm { bpm: e.bpm })),
-        );
+        events.extend(data.bpm_events.iter().map(|e| Event::bpm(e.y, e.bpm)));
         events.extend(data.stop_events.iter().map(|e| {
             Event::new(
                 e.y,
@@ -191,7 +183,7 @@ impl BmsonProcessor {
             bmson
                 .scroll_events
                 .iter()
-                .map(|e| Event::new(e.y, EventKind::Scroll { rate: e.rate })),
+                .map(|e| Event::scroll(e.y, e.rate)),
         );
 
         let bga = &bmson.chart_info.bga;
@@ -319,7 +311,7 @@ fn process_sound_channels(
                     continue;
                 }
                 if let Some(idx) = audio_idx {
-                    events.push(Event::new(ne.y, EventKind::Bgm { audio_index: idx }));
+                    events.push(Event::bgm(ne.y, idx));
                 }
             } else {
                 let Some((side, lane)) = decode(ne.x) else {
@@ -556,15 +548,10 @@ fn build_bar_lines(
     last_tick: u64,
 ) -> Vec<Event<BmsonNoteExt>> {
     if let Some(vec) = lines {
-        return vec
-            .iter()
-            .map(|bl| Event::new(bl.y, EventKind::Bar))
-            .collect();
+        return vec.iter().map(|bl| Event::bar(bl.y)).collect();
     }
 
     let step = resolution * 4;
     let count = last_tick / step + 1;
-    (0..=count)
-        .map(|i| Event::new(i * step, EventKind::Bar))
-        .collect()
+    (0..=count).map(|i| Event::bar(i * step)).collect()
 }

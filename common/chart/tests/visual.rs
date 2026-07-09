@@ -5,13 +5,13 @@ use std::path::PathBuf;
 
 #[test]
 fn bar_event_tick() {
-    let ev: Event<()> = Event::new(960, EventKind::Bar);
+    let ev: Event<()> = Event::bar(960);
     assert_eq!(ev.tick(), 960);
 }
 
 #[test]
 fn scroll_event_fields() {
-    let ev: Event<()> = Event::new(480, EventKind::Scroll { rate: 2.0 });
+    let ev: Event<()> = Event::scroll(480, 2.0);
     assert_eq!(ev.tick(), 480);
     assert!(
         matches!(ev.kind, EventKind::Scroll { rate, .. } if (rate - 2.0).abs() < f64::EPSILON),

@@ -137,12 +137,7 @@ impl BmsProcessor {
 
         // 停止事件（优先级 3）—— 重新遍历计时停止事件。
         for se in timing.stops() {
-            conv.events.push(Event::new(
-                se.tick,
-                EventKind::Stop {
-                    duration: se.duration,
-                },
-            ));
+            conv.events.push(Event::stop(se.tick, se.duration));
         }
 
         // SCROLL 事件（优先级 4）。
@@ -338,10 +333,8 @@ impl BmsConverter<'_> {
     fn collect_bgm(&mut self, wav_map: &BTreeMap<WavIndex, u32>) {
         for be in &self.bms.messages.bgm_events {
             if let Some(&audio) = wav_map.get(&be.wav_id) {
-                self.events.push(Event::new(
-                    self.table.position_to_tick(be.position),
-                    EventKind::Bgm { audio_index: audio },
-                ));
+                self.events
+                    .push(Event::bgm(self.table.position_to_tick(be.position), audio));
             }
         }
     }
@@ -361,10 +354,8 @@ impl BmsConverter<'_> {
                 && *ne.wav_id == *ln_obj
                 && let Some(&audio) = wav_map.get(&ne.wav_id)
             {
-                self.events.push(Event::new(
-                    self.table.position_to_tick(ne.position),
-                    EventKind::Bgm { audio_index: audio },
-                ));
+                self.events
+                    .push(Event::bgm(self.table.position_to_tick(ne.position), audio));
             }
         }
     }
@@ -372,11 +363,9 @@ impl BmsConverter<'_> {
     /// 构建 BPM 事件（用于统一时间线）。
     fn collect_bpm_events(&mut self) {
         for bc in &self.bms.messages.bpm_changes {
-            self.events.push(Event::new(
+            self.events.push(Event::bpm(
                 self.table.position_to_tick(bc.position),
-                EventKind::Bpm {
-                    bpm: self.resolve_bpm(bc.value),
-                },
+                self.resolve_bpm(bc.value),
             ));
         }
     }
@@ -385,9 +374,9 @@ impl BmsConverter<'_> {
     fn collect_scroll_events(&mut self) {
         for se in &self.bms.messages.scroll_events {
             if let Some(&rate) = self.bms.timing.scroll_defs.get(&se.scroll_id) {
-                self.events.push(Event::new(
+                self.events.push(Event::scroll(
                     self.table.position_to_tick(se.position),
-                    EventKind::Scroll { rate },
+                    rate,
                 ));
             }
         }
@@ -397,10 +386,8 @@ impl BmsConverter<'_> {
     fn collect_speed_events(&mut self) {
         for se in &self.bms.messages.speed_events {
             if let Some(&rate) = self.bms.timing.speed_defs.get(&se.speed_id) {
-                self.events.push(Event::new(
-                    self.table.position_to_tick(se.position),
-                    EventKind::Speed { rate },
-                ));
+                self.events
+                    .push(Event::speed(self.table.position_to_tick(se.position), rate));
             }
         }
     }
@@ -754,6 +741,6 @@ fn build_bar_events(table: &MeasureTable) -> Vec<BmsEvent> {
     table
         .bar_ticks()
         .iter()
-        .map(|&tick| Event::new(tick, EventKind::Bar))
+        .map(|&tick| Event::bar(tick))
         .collect()
 }

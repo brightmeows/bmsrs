@@ -136,10 +136,7 @@ fn chart_data_last_tick_with_events() {
         ln_life_hint: LnLifeHint::default(),
         judge_deltas: None,
         life_deltas: None,
-        events: vec![
-            Event::new(0, EventKind::Bar),
-            Event::new(960, EventKind::Bar),
-        ],
+        events: vec![Event::bar(0), Event::bar(960)],
         audio_assets: vec![],
     };
     assert_eq!(data.last_tick(), 960);
@@ -157,7 +154,7 @@ fn chart_data_duration() {
         ln_life_hint: LnLifeHint::default(),
         judge_deltas: None,
         life_deltas: None,
-        events: vec![Event::new(960, EventKind::Bar)],
+        events: vec![Event::bar(960)],
         audio_assets: vec![],
     };
     // 960 ticks at 120 BPM with resolution 240 = 2 seconds
@@ -168,7 +165,7 @@ fn chart_data_duration() {
 
 #[test]
 fn event_tick_accessor() {
-    assert_eq!(Event::<()>::new(42, EventKind::Bar).tick(), 42);
+    assert_eq!(Event::<()>::bar(42).tick(), 42);
     assert_eq!(
         Event::<()>::new(
             100,
@@ -192,7 +189,7 @@ fn event_tick_accessor() {
 #[test]
 fn event_priority_order() {
     assert!(
-        Event::<()>::new(0, EventKind::Bar).priority()
+        Event::<()>::bar(0).priority()
             < Event::<()>::new(
                 0,
                 EventKind::Note {

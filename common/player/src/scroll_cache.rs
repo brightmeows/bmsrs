@@ -130,7 +130,7 @@ mod tests {
     fn make_scroll_events(pairs: &[(u64, f64)]) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
         pairs
             .iter()
-            .map(|&(tick, rate)| Event::new(tick, EventKind::Scroll { rate }))
+            .map(|&(tick, rate)| Event::scroll(tick, rate))
             .collect()
     }
 
