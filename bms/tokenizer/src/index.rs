@@ -457,9 +457,54 @@ impl_try_from_str!(ObjectIndex);
 ///
 /// 按默认 Base62 不同，它按 Base36（`0-9A-Z`）校验。
 /// 使用 [`as_u8_hex`](BmsIndex::as_u8_hex) 转换为字节值。
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display)]
+///
+/// # 构造
+///
+/// 通过 [`FromStr`] 解析（验证 Base36），或通过
+/// [`ChannelIndex::from_valid`] 直接从已知有效的 Bytes 构建。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[display("{}", _0)]
-pub struct ChannelIndex(pub BmsIndex);
+pub struct ChannelIndex(BmsIndex);
+
+impl ChannelIndex {
+    /// 从已知有效的 Base36 字节对构造（不校验）。
+    ///
+    /// 调用方必须保证 `bytes` 中的每个字符都在 `0-9A-Z` 范围内。
+    #[inline]
+    #[must_use]
+    pub const fn from_valid(bytes: [u8; 2]) -> Self {
+        Self(BmsIndex::from_valid(bytes))
+    }
+
+    /// 返回底层索引的字节表示。
+    #[inline]
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    /// 将 `ChannelIndex` 解释为大写十六进制表示的字节值。
+    /// 返回 `None` 若任一字符不在 `0-9A-F` 范围。
+    #[inline]
+    #[must_use]
+    pub fn as_u8_hex(&self) -> Option<u8> {
+        self.0.as_u8_hex()
+    }
+
+    /// 返回底层索引的引用。
+    #[inline]
+    #[must_use]
+    pub const fn as_bms_index(&self) -> &BmsIndex {
+        &self.0
+    }
+
+    /// 转换为底层索引。
+    #[inline]
+    #[must_use]
+    pub const fn into_bms_index(self) -> BmsIndex {
+        self.0
+    }
+}
 
 impl FromStr for ChannelIndex {
     type Err = BmsIndexError;

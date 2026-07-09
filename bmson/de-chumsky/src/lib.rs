@@ -23,6 +23,7 @@
 //! JSON 问题而失败，可手动恢复该值：
 //!
 //! ```rust
+//! # use bmson_de_chumsky::BmsonParser;
 //! # use bmson_de_chumsky::json;
 //! let malformed = r#"{"key": "value",}"#; // 尾随逗号
 //! let (value, _errors) = json::parse_json(malformed);

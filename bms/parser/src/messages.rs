@@ -292,9 +292,9 @@ impl Messages {
     /// 解析事件。
     pub fn concat_raw<C: AsRef<str>>(&mut self, msg: &bms_tokenizer::BmsMessage<C>) {
         self.raw
-            .entry(msg.track)
+            .entry(msg.track())
             .or_default()
-            .entry(msg.channel)
+            .entry(msg.channel())
             .or_default()
             .push(msg.body.as_ref().to_owned());
     }

@@ -299,6 +299,7 @@ fn player_scroll_rate_with_events() {
         .data
         .events
         .push(Event::new(480, EventKind::Scroll { rate: 2.0 }));
+    chart.data.sort_events();
     let player = Player::new(chart);
 
     // Before scroll event

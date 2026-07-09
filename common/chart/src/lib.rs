@@ -209,6 +209,20 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         self.timing
             .tick_to_duration(self.last_tick(), self.resolution)
     }
+
+    /// 确保事件按脉冲升序排列。
+    ///
+    /// [`Player`] 的二分查找（`partition_point`）依赖事件已排序。
+    /// 构造后调用一次以保证后续查询正确。
+    ///
+    /// 排序键为 [`Event::sort_key`]：同脉冲内按优先级排序
+    /// （Bar < Note/BGA/BGM < BPM < Stop < Scroll < Speed < Custom）。
+    /// 稳定排序保留同优先级的插入顺序。
+    ///
+    /// [`Player`]: https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html
+    pub fn sort_events(&mut self) {
+        self.events.sort_by_key(Event::sort_key);
+    }
 }
 
 /// 顶层谱面 —— 对应 BMSON v2 的 `Bmson` 根对象。

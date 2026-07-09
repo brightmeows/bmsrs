@@ -90,6 +90,14 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         let cache = TimingCache::new(&chart.data.timing, resolution);
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
         let speed_cache = SpeedCache::build(&chart.data.events);
+        // 调试模式：验证事件已按 sort_key 排序（EventsInRange 等查询依赖此不变量）。
+        debug_assert!(
+            chart.data.events.windows(2).all(|w| match w {
+                [a, b] => a.sort_key() <= b.sort_key(),
+                _ => true,
+            }),
+            "ChartData.events must be sorted by Event::sort_key"
+        );
         Self {
             chart,
             cache,

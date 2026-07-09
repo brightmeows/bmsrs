@@ -67,10 +67,26 @@ pub struct BmsMessage<C> {
 
     /// 0 起索引的小节号，从 [`addr`](BmsMessage::addr) 中
     /// 通道后缀之前的数字位提取。
-    pub track: u16,
+    track: u16,
     /// 通道号——[`addr`](BmsMessage::addr) 中最后 1–2 个有效的 Base62 字符
     /// （`0-9A-Za-z`），归类为 [`BmsChannel`] 枚举。
-    pub channel: BmsChannel,
+    channel: BmsChannel,
+}
+
+impl<C> BmsMessage<C> {
+    /// 返回 0 起索引的小节号。
+    #[inline]
+    #[must_use]
+    pub const fn track(&self) -> u16 {
+        self.track
+    }
+
+    /// 返回解析后的通道号。
+    #[inline]
+    #[must_use]
+    pub const fn channel(&self) -> BmsChannel {
+        self.channel
+    }
 }
 
 impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
