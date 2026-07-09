@@ -38,6 +38,7 @@
 )]
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -45,9 +46,7 @@ use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
 use bmsrs::bms::tokenizer::BmsTokenizer;
-use bmsrs::chart::{
-    AudioAsset, Chart, ChartData, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide,
-};
+use bmsrs::chart::{AudioAsset, Chart, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide};
 use bmsrs::player::Player;
 use clap::Parser;
 use kira::sound::static_sound::StaticSoundData;
@@ -192,7 +191,13 @@ fn load_bms(path: &Path) -> Result<Chart<(), BmsCustomEvent>, String> {
         BmsTokenizer::new()
             .tokenize_owned(&content)
             .into_iter()
-            .filter_map(|(_, res)| res.ok()),
+            .filter_map(|(_, res)| match res {
+                Ok(tok) => Some(tok),
+                Err(e) => {
+                    eprintln!("警告: 跳过无效 token: {e}");
+                    None
+                }
+            }),
     );
 
     // 转换为格式无关的 Chart。
@@ -219,105 +224,20 @@ fn load_bmson(path: &Path) -> Result<Chart<(), NoCustomEvent>, String> {
 /// 将 `Chart<(), BmsCustomEvent>` 转换为 `Chart<(), NoCustomEvent>`，
 /// 丢弃 BMS 引擎特定的自定义事件（渲染器无需处理它们）。
 fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEvent> {
-    let events = chart
-        .data
-        .events
-        .into_iter()
-        .filter_map(|e| {
-            if matches!(e.kind, EventKind::Custom(_)) {
-                return None;
-            }
-            let tick = e.tick();
-            #[expect(clippy::unreachable, reason = "Custom events filtered before match")]
-            Some(match e.kind {
-                EventKind::Note {
-                    side,
-                    lane,
-                    kind,
-                    audio_index,
-                    ..
-                } => Event::new(
-                    tick,
-                    EventKind::Note {
-                        side,
-                        lane,
-                        kind,
-                        audio_index,
-                        ext: (),
-                    },
-                ),
-                EventKind::Bgm { audio_index } => Event::bgm(tick, audio_index),
-                EventKind::Bpm { bpm } => Event::bpm(tick, bpm),
-                EventKind::Stop { duration } => Event::stop(tick, duration),
-                EventKind::Scroll { rate } => Event::scroll(tick, rate),
-                EventKind::Speed { rate } => Event::speed(tick, rate),
-                EventKind::Bga { layer, resource_id } => {
-                    Event::new(tick, EventKind::Bga { layer, resource_id })
-                }
-                EventKind::Bar => Event::bar(tick),
-                EventKind::Custom(_) => unreachable!("filtered above"),
-            })
-        })
-        .collect();
-    Chart {
-        song: chart.song,
-        chart: chart.chart,
-        data: ChartData {
-            resolution: chart.data.resolution,
-            timing: chart.data.timing,
-            judge_multiplier: chart.data.judge_multiplier,
-            life_multiplier: chart.data.life_multiplier,
-            ln_type_hint: chart.data.ln_type_hint,
-            ln_judge_hint: chart.data.ln_judge_hint,
-            ln_life_hint: chart.data.ln_life_hint,
-            judge_deltas: chart.data.judge_deltas,
-            life_deltas: chart.data.life_deltas,
-            events,
-            audio_assets: chart.data.audio_assets,
-        },
-    }
+    chart.filter_map_events(|e| {
+        let tick = e.tick();
+        match e.kind {
+            EventKind::Custom(_) => None,
+            kind => Some(Event::new(tick, kind.map_custom(|_| NoCustomEvent))),
+        }
+    })
 }
 
 /// 将 `Chart<BmsonNoteExt>` 转换为 `Chart<(), NoCustomEvent>`。
 fn normalize_chart(
     chart: Chart<bmsrs::bmson::processor::BmsonNoteExt, NoCustomEvent>,
 ) -> Chart<(), NoCustomEvent> {
-    chart.map_events(normalize_event)
-}
-
-/// 将 `Event<BmsonNoteExt>` 转换为 `Event<()>`，丢弃扩展数据。
-const fn normalize_event(
-    event: Event<bmsrs::bmson::processor::BmsonNoteExt, NoCustomEvent>,
-) -> Event<(), NoCustomEvent> {
-    let tick = event.tick();
-    match event.kind {
-        EventKind::Note {
-            side,
-            lane,
-            kind,
-            audio_index,
-            ..
-        } => Event::new(
-            tick,
-            EventKind::Note {
-                side,
-                lane,
-                kind,
-                audio_index,
-                ext: (),
-            },
-        ),
-        EventKind::Bgm { audio_index } => Event::bgm(tick, audio_index),
-        EventKind::Bpm { bpm } => Event::bpm(tick, bpm),
-        EventKind::Stop { duration } => Event::stop(tick, duration),
-        EventKind::Scroll { rate } => Event::scroll(tick, rate),
-        EventKind::Speed { rate } => Event::speed(tick, rate),
-        EventKind::Bga { layer, resource_id } => {
-            Event::new(tick, EventKind::Bga { layer, resource_id })
-        }
-        EventKind::Bar => Event::bar(tick),
-        EventKind::Custom(payload) => Event::new(tick, EventKind::Custom(payload)),
-    }
+    chart.map_events(|e| Event::new(e.tick(), e.kind.map_ext(|_| ())))
 }
 
 // 音频加载
@@ -547,18 +467,12 @@ fn render_note(
 /// 渲染可见音符与条形线。
 fn render_notes(player: &Player<(), NoCustomEvent>) {
     let current_tick = player.current_tick();
-    let current_time = player.current_time();
 
-    // 计算可见时间窗口。
-    let visible_start = current_time
-        .checked_sub(Duration::from_millis(REACTION_TIME_MS))
-        .unwrap_or(Duration::ZERO);
-    let visible_end = current_time
-        .checked_add(Duration::from_millis(LOOKAHEAD_TIME_MS))
-        .unwrap_or(Duration::MAX);
-
-    let start_tick = player.duration_to_tick(visible_start);
-    let end_tick = player.duration_to_tick(visible_end);
+    // 计算可见 tick 窗口。
+    let (start_tick, end_tick) = player.visible_tick_range(
+        Duration::from_millis(REACTION_TIME_MS),
+        Duration::from_millis(LOOKAHEAD_TIME_MS),
+    );
 
     // 获取当前滚动位置（以节拍为单位）。
     let current_scroll_pos = player.scroll_position_at(current_tick);
@@ -647,13 +561,16 @@ fn render_info(player: &Player<(), NoCustomEvent>, elapsed: Duration) {
 // 音频处理
 
 /// 处理新到达事件（播放音频）。
+///
+/// 使用每帧局部 [`HashSet`] 去重，同一 `(tick, audio_index)` 只播放一次。
+/// 相比持久 `HashMap`，不会随播放进度无限增长内存。
 fn process_audio_events(
     new_events: &[Event<(), NoCustomEvent>],
     audio_data: &HashMap<u32, StaticSoundData>,
     audio_manager: &mut AudioManager<DefaultBackend>,
-    played_keys: &mut HashMap<u64, Vec<Option<u32>>>,
     missed_sounds: &mut u32,
 ) {
+    let mut played = HashSet::new();
     for event in new_events {
         let audio_idx = match &event.kind {
             EventKind::Note { audio_index, .. } => *audio_index,
@@ -665,11 +582,9 @@ fn process_audio_events(
         };
 
         // 去重：同一 (tick, audio_index) 只播放一次。
-        let keys = played_keys.entry(event.tick()).or_default();
-        if keys.contains(&audio_idx) {
+        if !played.insert((event.tick(), idx)) {
             continue;
         }
-        keys.push(audio_idx);
 
         // 播放音频。
         if let Some(data) = audio_data.get(&idx)
@@ -738,7 +653,6 @@ async fn main() {
     let start_time = Instant::now();
     let mut last_tick: u64 = 0;
     let mut missed_sounds: u32 = 0;
-    let mut played_keys: HashMap<u64, Vec<Option<u32>>> = HashMap::new();
     let mut next_status_time = Duration::ZERO;
 
     println!("开始播放...");
@@ -757,7 +671,6 @@ async fn main() {
                 new_events,
                 &audio_data,
                 &mut audio_manager,
-                &mut played_keys,
                 &mut missed_sounds,
             );
         }
