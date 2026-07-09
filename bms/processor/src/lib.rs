@@ -149,7 +149,7 @@ impl BmsProcessor {
         conv.collect_speed_events(&mut events);
 
         // BMS 引擎特定自定义事件（优先级 6）。
-        conv.collect_custom_events(&mut events);
+        conv.collect_custom_events(&bmp_map, &mut events);
 
         // 排序规则收敛于 Event::sort_key（同脉冲子序约定见其文档）。
         events.sort_by_key(BmsEvent::sort_key);
@@ -267,8 +267,11 @@ impl BmsConverter<'_> {
             }
         }
 
-        // 不可见音符（按键音）。
-        for ne in &self.bms.messages.note_events {
+        // 不可见音符（按键音，跳过已消耗的 LNOBJ 配对）。
+        for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
+            if consumed.contains(&i) {
+                continue;
+            }
             if ne.key_type == KeyType::Invisible {
                 push_note(
                     self.table.position_to_tick(ne.position),
@@ -276,6 +279,21 @@ impl BmsConverter<'_> {
                     ne.lane,
                     NoteKind::Invisible,
                     wav_map.get(&ne.wav_id).copied(),
+                    events,
+                );
+            }
+        }
+
+        // LNOBJ 模式下 ch51-69 长音通道与 LNOBJ 互斥（memo/10 规范未定义）；
+        // 不静默丢弃，作为普通可见音符保留数据。
+        if self.bms.gameplay.ln_obj.is_some() {
+            for lne in &self.bms.messages.long_note_events {
+                push_note(
+                    self.table.position_to_tick(lne.position),
+                    lne.player,
+                    lne.lane,
+                    NoteKind::Normal,
+                    wav_map.get(&lne.wav_id).copied(),
                     events,
                 );
             }
@@ -398,7 +416,11 @@ impl BmsConverter<'_> {
         clippy::too_many_lines,
         reason = "single structured match on channel variant with short branches; extraction would lose clarity"
     )]
-    fn collect_custom_events(&self, events: &mut Vec<BmsEvent>) {
+    fn collect_custom_events(
+        &self,
+        bmp_map: &BTreeMap<BmpIndex, (u32, String)>,
+        events: &mut Vec<BmsEvent>,
+    ) {
         let non_event = &self.bms.messages.non_event_data;
 
         // BGA 图层映射（通道 → 图层）。
@@ -467,10 +489,15 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::BgaArgb { layer, a, r, g, b }
                     }
                     RawChannel::BgaKeyBound => {
-                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
-                        BmsCustomEvent::BgaKeyBound {
-                            resource_id: index as u32,
-                        }
+                        // 与 collect_bga 一致：经 bmp_map 查表得到 0 基枚举 id，
+                        // 而非直接使用 base36 原值，使 resource_id 可在 bga_resources 中查到。
+                        let Some(&(resource_id, _)) = bms_tokenizer::BmpIndex::try_from(*obj)
+                            .ok()
+                            .and_then(|idx| bmp_map.get(&idx))
+                        else {
+                            continue;
+                        };
+                        BmsCustomEvent::BgaKeyBound { resource_id }
                     }
                     RawChannel::Text => {
                         let index = u64::from_str_radix(obj, 36).unwrap_or(0);

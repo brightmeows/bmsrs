@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU8;
 
-use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, NoteEvent, Position};
+use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position};
 use bms_processor::BmsProcessor;
 use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
 use bms_tokenizer::{BpmIndex, LnObjIndex};
@@ -297,6 +297,47 @@ fn process_lnobj_produces_long_note() {
         .collect();
     assert_eq!(lns.len(), 1);
     assert_eq!(lns[0], 0);
+}
+
+/// LNOBJ 模式下 ch51-69 长音通道事件与 LNOBJ 互斥（memo/10 规范未定义），
+/// 但不应静默丢弃——作为普通可见音符保留。
+#[test]
+fn lnobj_preserves_long_note_channel_events_as_normal() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "a.wav".to_owned());
+    bms.audio
+        .wav_files
+        .insert("02".parse().unwrap(), "b.wav".to_owned());
+    bms.gameplay.ln_obj = Some("02".parse::<LnObjIndex>().unwrap());
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 0, 4),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    let normals: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Note {
+                kind: NoteKind::Normal,
+                ..
+            } = &e.kind
+            {
+                Some(e.tick())
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(normals, vec![0u64], "ch51-69 事件应作为普通音符保留");
 }
 
 #[test]

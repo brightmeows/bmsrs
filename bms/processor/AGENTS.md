@@ -64,6 +64,7 @@ tick = measure_starts[measure] + numer * measure_len / denom
 | 默认 BPM 130 | 符合 BMS 规范，非 `0.0` |
 | 事件排序 | Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) |
 | LNOBJ 终点 BGM | 终点标记过判定线时播放定义的 WAV |
+| LNOBJ 下 ch51-69 | 与 LNOBJ 互斥（memo/10 未定义）；不丢弃，作为普通可见音符保留 |
 | 地雷 `damage: 1.0` | 已修复为实际伤害值（见 `MineEvent.damage`）|
 | `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
 | 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是 `BmsConverter` 方法，非自由函数 |
