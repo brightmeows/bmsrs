@@ -68,6 +68,14 @@ impl MeasureTable {
     /// 将 BMS [`Position`] 转换为绝对脉冲。
     ///
     /// 小节内位置占该小节脉冲长度的 `numer / denom`。
+    ///
+    /// 使用 u128 中间运算并四舍五入，避免 u64 溢出且减少截断误差。
+    /// 旧实现的整数除法 `numer * measure_len / denom` 在短小节或高分母
+    /// 时大量位置坍缩到同一 tick（如 7-tick 小节中 1/8 位置 = 0）。
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "offset fits in u64 (bounded by measure_len)"
+    )]
     pub(crate) fn position_to_tick(&self, pos: Position) -> u64 {
         let m = usize::from(pos.measure);
         let Some(&measure_start) = self.starts.get(m) else {
@@ -80,7 +88,11 @@ impl MeasureTable {
             return measure_start;
         }
 
-        measure_start + u64::from(pos.numer) * measure_len / u64::from(pos.denom)
+        let n = u128::from(pos.numer) * u128::from(measure_len);
+        let d = u128::from(pos.denom);
+        // 四舍五入：加 d/2 后整除。
+        let offset = ((n + d / 2) / d) as u64;
+        measure_start + offset
     }
 }
 
@@ -142,5 +154,32 @@ mod tests {
         assert_eq!(table.position_to_tick(Position::new(0, 3, 4)), 540);
         assert_eq!(table.position_to_tick(Position::new(0, 4, 4)), 720);
         assert_eq!(table.position_to_tick(Position::new(1, 0, 1)), 720);
+    }
+
+    #[test]
+    fn short_measure_rounds_instead_of_truncates() {
+        // 极短小节：ratio = 0.0078125 → 960 * 0.0078125 = 7.5 → 截断为 7。
+        let lengths = vec![MeasureLength {
+            measure: 0,
+            length_ratio: 0.007_812_5,
+        }];
+        let table = MeasureTable::new(1, &lengths, RES);
+
+        // measure_len = 7。
+        // 位置 1/2：真实值 3.5 → 四舍五入 = 4（旧截断 = 3）。
+        assert_eq!(table.position_to_tick(Position::new(0, 1, 2)), 4);
+        // 位置 1/8：真实值 0.875 → 四舍五入 = 1（旧截断 = 0，与小节起点重合）。
+        assert_eq!(table.position_to_tick(Position::new(0, 1, 8)), 1);
+        // 位置 1/192：真实值 0.036 → 四舍五入 = 0。
+        assert_eq!(table.position_to_tick(Position::new(0, 1, 192)), 0);
+    }
+
+    #[test]
+    fn exact_positions_unchanged_by_rounding() {
+        // 整除的情况不应受四舍五入影响。
+        let table = MeasureTable::new(4, &[], RES);
+        assert_eq!(table.position_to_tick(Position::new(0, 1, 3)), 320);
+        assert_eq!(table.position_to_tick(Position::new(0, 1, 6)), 160);
+        assert_eq!(table.position_to_tick(Position::new(0, 5, 6)), 800);
     }
 }
