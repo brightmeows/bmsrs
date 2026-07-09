@@ -190,6 +190,7 @@ fn no_endrandom_block_not_in_top_level() -> TestResult {
 
 #[test]
 fn elseif_and_else_roundtrip() -> TestResult {
+    // 非标准写法（每分支独立 #ENDIF）：roundtrip 应忠实保留输入结构。
     let items = build_doc(
         "#RANDOM 3\n\
          #IF 1\n\
@@ -212,6 +213,39 @@ fn elseif_and_else_roundtrip() -> TestResult {
             "EndIf".to_owned(),
             "ElseIf(2)".to_owned(),
             "EndIf".to_owned(),
+            "Else".to_owned(),
+            "EndIf".to_owned(),
+            "EndRandom".to_owned(),
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn standard_elseif_chain_roundtrip() -> TestResult {
+    // 标准写法（memo/13）：#IF…#ELSEIF…#ELSE 共享单个 #ENDIF，
+    // 构成一条互斥链。roundtrip 后必须仍为单个 #ENDIF。
+    let items = build_doc(
+        "#RANDOM 3\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ELSEIF 2\n\
+         #00101:22\n\
+         #ELSE\n\
+         #00101:33\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    let tokens = items.to_tokens();
+    let cfs = cf_debug(&tokens);
+
+    assert_eq!(
+        cfs,
+        vec![
+            "Random(3)".to_owned(),
+            "If(1)".to_owned(),
+            "ElseIf(2)".to_owned(),
             "Else".to_owned(),
             "EndIf".to_owned(),
             "EndRandom".to_owned(),

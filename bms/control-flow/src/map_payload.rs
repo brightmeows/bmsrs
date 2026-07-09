@@ -5,7 +5,9 @@
 //! 的载荷视图（例如由 `FlowDoc<TokenPayload<C>>` 构建出
 //! `FlowDoc<Bms>`）。
 
-use crate::{FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch, SwitchBlock, SwitchCase};
+use crate::{
+    FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch, RandomChain, SwitchBlock, SwitchCase,
+};
 
 impl<P> FlowDoc<P> {
     /// 用 `f` 转换每个载荷片段，保留控制流骨架。
@@ -69,10 +71,10 @@ fn map_block<P, Q, E>(
         FlowBlock::Random(r) => FlowBlock::Random(RandomBlock {
             value: r.value,
             has_end_random: r.has_end_random,
-            branches: r
-                .branches
+            chains: r
+                .chains
                 .into_iter()
-                .map(|branch| map_random_branch(branch, f))
+                .map(|chain| map_random_chain(chain, f))
                 .collect::<Result<Vec<_>, E>>()?,
         }),
         FlowBlock::Switch(s) => FlowBlock::Switch(SwitchBlock {
@@ -83,6 +85,20 @@ fn map_block<P, Q, E>(
                 .map(|case| map_switch_case(case, f))
                 .collect::<Result<Vec<_>, E>>()?,
         }),
+    })
+}
+
+/// 映射单条互斥分支链内的载荷。
+fn map_random_chain<P, Q, E>(
+    chain: RandomChain<P>,
+    f: &mut impl FnMut(P) -> Result<Q, E>,
+) -> Result<RandomChain<Q>, E> {
+    Ok(RandomChain {
+        branches: chain
+            .branches
+            .into_iter()
+            .map(|branch| map_random_branch(branch, f))
+            .collect::<Result<Vec<_>, E>>()?,
     })
 }
 

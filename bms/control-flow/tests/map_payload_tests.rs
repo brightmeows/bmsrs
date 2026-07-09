@@ -49,18 +49,18 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
     let Some(FlowNode::Block(FlowBlock::Random(r))) = counted.get(1) else {
         panic!("expected Random block");
     };
-    assert_eq!(r.branches.len(), 2);
+    assert_eq!(r.chains.len(), 2);
 
-    // 分支 1 的 body：一个含 2 个 token 的载荷片段。
-    let b1 = r.branches.first().expect("branch 1");
+    // 链 1 分支的 body：一个含 2 个 token 的载荷片段。
+    let b1 = r.chains[0].branches.first().expect("branch 1");
     assert_eq!(b1.body.len(), 1);
     let Some(FlowNode::Payload(n)) = b1.body.first() else {
         panic!("expected payload in branch 1");
     };
     assert_eq!(*n, 2);
 
-    // 分支 2 的 body：一个含 1 个 token 的载荷片段。
-    let b2 = r.branches.get(1).expect("branch 2");
+    // 链 2 分支的 body：一个含 1 个 token 的载荷片段。
+    let b2 = r.chains[1].branches.first().expect("branch 2");
     assert_eq!(b2.body.len(), 1);
     let Some(FlowNode::Payload(n2)) = b2.body.first() else {
         panic!("expected payload in branch 2");

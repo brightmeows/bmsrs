@@ -55,7 +55,22 @@ pub struct RandomBlock<P> {
     pub value: BranchValue,
     /// 闭合 `#ENDRANDOM` 是否存在。
     pub has_end_random: bool,
-    /// 块内的条件分支。
+    /// 块内的互斥分支链列表。
+    ///
+    /// 每条 [`RandomChain`] 对应一个 `#IF` … `#ENDIF` 互斥组，
+    /// 组内 `#IF`/`#ELSEIF`/`#ELSE` 共享同一个 `#ENDIF`，选择时
+    /// 按首匹配互斥执行。一个 `#RANDOM` 块可含多条独立链。
+    pub chains: Vec<RandomChain<P>>,
+}
+
+/// `#IF`-`#ELSEIF`-`#ELSE`-`#ENDIF` 互斥分支链。
+///
+/// 首条分支的 `kind` 必为 [`RandomBranchKind::If`]，后续可为
+/// [`RandomBranchKind::ElseIf`] / [`RandomBranchKind::Else`]。整条链
+/// 共享一个 `#ENDIF`；分支选择时在链内首匹配，一旦命中后续分支被跳过。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RandomChain<P> {
+    /// 此互斥链内的条件分支。
     pub branches: Vec<RandomBranch<P>>,
 }
 

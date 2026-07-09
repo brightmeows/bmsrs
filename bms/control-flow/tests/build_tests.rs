@@ -65,7 +65,7 @@ fn plain_headers_no_control_flow_packs_into_single_payload() -> TestResult {
 }
 
 #[test]
-fn simple_random_block_has_two_branches() -> TestResult {
+fn simple_random_block_has_two_chains() -> TestResult {
     let tree = build_doc(
         "#RANDOM 2\n\
          #IF 1\n\
@@ -79,30 +79,30 @@ fn simple_random_block_has_two_branches() -> TestResult {
 
     assert_eq!(tree.len(), 1);
     let block = as_random(&tree);
-    assert_eq!(block.branches.len(), 2);
+    // 两个独立的 #IF…#ENDIF 链，每条链各含一个 If 分支
+    assert_eq!(block.chains.len(), 2);
     assert_eq!(block.value, bms_control_flow::BranchValue::Max(2));
     assert!(block.has_end_random);
     assert_eq!(
-        block.branches.first().map(|b| b.kind),
+        block.chains[0].branches.first().map(|b| b.kind),
         Some(RandomBranchKind::If(1))
     );
     assert_eq!(
-        block.branches.get(1).map(|b| b.kind),
+        block.chains[1].branches.first().map(|b| b.kind),
         Some(RandomBranchKind::If(2))
     );
     Ok(())
 }
 
 #[test]
-fn random_with_elseif_else_has_three_branches() -> TestResult {
+fn random_with_elseif_else_forms_single_chain() -> TestResult {
+    // 标准写法：#IF…#ELSEIF…#ELSE 共享一个 #ENDIF，构成单条互斥链
     let tree = build_doc(
         "#RANDOM 3\n\
          #IF 1\n\
          #00101:11\n\
-         #ENDIF\n\
          #ELSEIF 2\n\
          #00101:22\n\
-         #ENDIF\n\
          #ELSE\n\
          #00101:33\n\
          #ENDIF\n\
@@ -110,17 +110,19 @@ fn random_with_elseif_else_has_three_branches() -> TestResult {
     )?;
 
     let block = as_random(&tree);
-    assert_eq!(block.branches.len(), 3);
+    assert_eq!(block.chains.len(), 1);
+    let chain = &block.chains[0];
+    assert_eq!(chain.branches.len(), 3);
     assert_eq!(
-        block.branches.first().map(|b| b.kind),
+        chain.branches.first().map(|b| b.kind),
         Some(RandomBranchKind::If(1))
     );
     assert_eq!(
-        block.branches.get(1).map(|b| b.kind),
+        chain.branches.get(1).map(|b| b.kind),
         Some(RandomBranchKind::ElseIf(2))
     );
     assert_eq!(
-        block.branches.get(2).map(|b| b.kind),
+        chain.branches.get(2).map(|b| b.kind),
         Some(RandomBranchKind::Else)
     );
     Ok(())
@@ -333,15 +335,15 @@ fn branch_body_packs_consecutive_tokens_into_payload() -> TestResult {
     )?;
 
     let block = as_random(&tree);
-    // 分支 1 有两个连续 token 被打包为一个载荷节点。
-    let branch1 = block.branches.first().expect("branch 1");
+    // 链 1 分支有两个连续 token 被打包为一个载荷节点。
+    let branch1 = block.chains[0].branches.first().expect("branch 1");
     assert_eq!(branch1.body.len(), 1);
     let Some(FlowNode::Payload(p1)) = branch1.body.first() else {
         panic!("expected payload in branch 1");
     };
     assert_eq!(p1.tokens.len(), 2);
-    // 分支 2 有单个 token 被打包为一个载荷节点。
-    let branch2 = block.branches.get(1).expect("branch 2");
+    // 链 2 分支有单个 token 被打包为一个载荷节点。
+    let branch2 = block.chains[1].branches.first().expect("branch 2");
     assert_eq!(branch2.body.len(), 1);
     Ok(())
 }

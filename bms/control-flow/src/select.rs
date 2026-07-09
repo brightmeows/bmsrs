@@ -65,24 +65,33 @@ fn select_block<C: Clone + PartialEq>(
                 BranchValue::Max(max) => rng.gen_range(max),
                 BranchValue::Set(n) => n,
             };
-            let selected_index = r
-                .branches
-                .iter()
-                .position(|branch| match branch.kind {
-                    RandomBranchKind::If(v) | RandomBranchKind::ElseIf(v) => v == value,
-                    RandomBranchKind::Else => true,
-                })
-                .unwrap_or(r.branches.len());
 
-            if let Some(branch) = r.branches.get(selected_index) {
-                for node in &branch.body {
-                    select_node(node, rng, output, decisions);
+            // 每条互斥链（#IF…#ENDIF）独立按首匹配选择；同一 #RANDOM
+            // 块的多条链共享同一个随机值。selected_index 记录第一条链
+            // 的选择（单链场景即唯一选择），供 BranchSelection 断言。
+            let mut first_selected = 0;
+            for (chain_idx, chain) in r.chains.iter().enumerate() {
+                let selected_index = chain
+                    .branches
+                    .iter()
+                    .position(|branch| match branch.kind {
+                        RandomBranchKind::If(v) | RandomBranchKind::ElseIf(v) => v == value,
+                        RandomBranchKind::Else => true,
+                    })
+                    .unwrap_or(chain.branches.len());
+                if chain_idx == 0 {
+                    first_selected = selected_index;
+                }
+                if let Some(branch) = chain.branches.get(selected_index) {
+                    for node in &branch.body {
+                        select_node(node, rng, output, decisions);
+                    }
                 }
             }
 
             decisions.push(BlockDecision {
                 value,
-                selected_index,
+                selected_index: first_selected,
             });
         }
         FlowBlock::Switch(s) => {

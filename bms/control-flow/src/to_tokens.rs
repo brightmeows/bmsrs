@@ -49,18 +49,21 @@ fn push_block_tokens<C: Clone + PartialEq>(
             };
             output.push(BmsToken::Header(BmsHeader::ControlFlow(open)));
 
-            for branch in &r.branches {
-                let branch_header = match branch.kind {
-                    RandomBranchKind::If(v) => BmsHeaderControlFlow::If(v),
-                    RandomBranchKind::ElseIf(v) => BmsHeaderControlFlow::ElseIf(v),
-                    RandomBranchKind::Else => BmsHeaderControlFlow::Else,
-                };
-                output.push(BmsToken::Header(BmsHeader::ControlFlow(branch_header)));
+            for chain in &r.chains {
+                for branch in &chain.branches {
+                    let branch_header = match branch.kind {
+                        RandomBranchKind::If(v) => BmsHeaderControlFlow::If(v),
+                        RandomBranchKind::ElseIf(v) => BmsHeaderControlFlow::ElseIf(v),
+                        RandomBranchKind::Else => BmsHeaderControlFlow::Else,
+                    };
+                    output.push(BmsToken::Header(BmsHeader::ControlFlow(branch_header)));
 
-                for node in &branch.body {
-                    push_node_tokens(node, output);
+                    for node in &branch.body {
+                        push_node_tokens(node, output);
+                    }
                 }
 
+                // 整条互斥链（#IF…#ELSEIF…#ELSE）共享一个 #ENDIF
                 output.push(BmsToken::Header(BmsHeader::ControlFlow(
                     BmsHeaderControlFlow::EndIf,
                 )));

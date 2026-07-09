@@ -95,10 +95,8 @@ fn random_else_fallback_selected_when_no_match() -> TestResult {
         "#RANDOM 3\n\
          #IF 1\n\
          #WAV01 kick.wav\n\
-         #ENDIF\n\
-         #IF 2\n\
+         #ELSEIF 2\n\
          #WAV02 snare.wav\n\
-         #ENDIF\n\
          #ELSE\n\
          #WAV03 hihat.wav\n\
          #ENDIF\n\
@@ -363,13 +361,10 @@ fn elseif_first_match_wins() -> TestResult {
         "#RANDOM 5\n\
          #IF 1\n\
          #WAV01 a.wav\n\
-         #ENDIF\n\
          #ELSEIF 2\n\
          #WAV01 b.wav\n\
-         #ENDIF\n\
          #ELSEIF 3\n\
          #WAV01 c.wav\n\
-         #ENDIF\n\
          #ELSE\n\
          #WAV01 d.wav\n\
          #ENDIF\n\
@@ -393,13 +388,10 @@ fn elseif_no_match_falls_to_else() -> TestResult {
         "#RANDOM 5\n\
          #IF 1\n\
          #WAV01 a.wav\n\
-         #ENDIF\n\
          #ELSEIF 2\n\
          #WAV01 b.wav\n\
-         #ENDIF\n\
          #ELSEIF 3\n\
          #WAV01 c.wav\n\
-         #ENDIF\n\
          #ELSE\n\
          #WAV01 d.wav\n\
          #ENDIF\n\

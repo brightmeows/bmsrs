@@ -80,10 +80,13 @@ fn walk(nodes: &[FlowNode<Bms>], depth: usize) {
                 );
             }
             FlowNode::Block(FlowBlock::Random(r)) => {
-                println!("{indent}▸ #RANDOM ({} branches)", r.branches.len());
-                for branch in &r.branches {
-                    println!("{indent}  branch {:?}", branch.kind);
-                    walk(&branch.body, depth + 2);
+                println!("{indent}▸ #RANDOM ({} chains)", r.chains.len());
+                for chain in &r.chains {
+                    println!("{indent}  chain ({} branches)", chain.branches.len());
+                    for branch in &chain.branches {
+                        println!("{indent}    branch {:?}", branch.kind);
+                        walk(&branch.body, depth + 3);
+                    }
                 }
             }
             FlowNode::Block(FlowBlock::Switch(s)) => {

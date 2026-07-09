@@ -7,7 +7,7 @@ use itertools::Itertools as _;
 
 use crate::{
     BranchValue, ControlFlowError, FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch,
-    RandomBranchKind, SwitchBlock, SwitchCase, SwitchCaseKind, TokenPayload,
+    RandomBranchKind, RandomChain, SwitchBlock, SwitchCase, SwitchCaseKind, TokenPayload,
 };
 
 /// 尚未打包为载荷节点的待定 `(line, token)` 对。
@@ -19,8 +19,10 @@ struct RandomState<C: Clone + PartialEq> {
     value: BranchValue,
     /// 是否已遇到 `#ENDRANDOM`。
     has_end_random: bool,
-    /// 已完成的分支。
-    branches: Vec<RandomBranch<TokenPayload<C>>>,
+    /// 已完成的互斥分支链。
+    chains: Vec<RandomChain<TokenPayload<C>>>,
+    /// 当前互斥链（`#IF`…`#ENDIF` 组）内已收集的分支（不含 `current_branch`）。
+    current_chain: Option<Vec<RandomBranch<TokenPayload<C>>>>,
     /// 正在构建的分支。
     current_branch: Option<RandomBranch<TokenPayload<C>>>,
     /// 当前分支累积、尚未打包的 token。
@@ -127,7 +129,8 @@ impl<C: Clone + PartialEq> Builder<C> {
                 self.stack.push(StackEntry::Random(RandomState {
                     value: BranchValue::Max(*max),
                     has_end_random: false,
-                    branches: Vec::new(),
+                    chains: Vec::new(),
+                    current_chain: None,
                     current_branch: None,
                     pending: Vec::new(),
                 }));
@@ -137,7 +140,8 @@ impl<C: Clone + PartialEq> Builder<C> {
                 self.stack.push(StackEntry::Random(RandomState {
                     value: BranchValue::Set(*max),
                     has_end_random: false,
-                    branches: Vec::new(),
+                    chains: Vec::new(),
+                    current_chain: None,
                     current_branch: None,
                     pending: Vec::new(),
                 }));
@@ -152,12 +156,14 @@ impl<C: Clone + PartialEq> Builder<C> {
                     .find_random()
                     .ok_or(ControlFlowError::UnmatchedEndIf { line })?;
                 self.finalize_random_branch(idx);
+                self.finalize_random_chain(idx);
             }
             BmsHeaderControlFlow::EndRandom => {
                 let idx = self
                     .find_random()
                     .ok_or(ControlFlowError::UnmatchedEndRandom { line })?;
                 self.finalize_random_branch(idx);
+                self.finalize_random_chain(idx);
                 if let Some(StackEntry::Random(state)) = self.stack.get_mut(idx) {
                     state.has_end_random = true;
                 }
@@ -208,6 +214,9 @@ impl<C: Clone + PartialEq> Builder<C> {
     }
 
     /// 在最近的 `Random` 块中开启一个新分支。
+    ///
+    /// `#IF` 同时开启一条新的互斥链（`#IF`…`#ENDIF` 组）；
+    /// `#ELSEIF` / `#ELSE` 则追加到当前链。
     fn start_branch(
         &mut self,
         line: NonZeroUsize,
@@ -217,7 +226,16 @@ impl<C: Clone + PartialEq> Builder<C> {
             .find_random()
             .ok_or(ControlFlowError::UnmatchedIf { line })?;
         self.finalize_random_branch(idx);
+        // `#IF` 开启新互斥链；`#ELSEIF`/`#ELSE` 追加到当前链。
+        if matches!(kind, RandomBranchKind::If(_)) {
+            self.finalize_random_chain(idx);
+            if let Some(StackEntry::Random(state)) = self.stack.get_mut(idx) {
+                state.current_chain = Some(Vec::new());
+            }
+        }
         if let Some(StackEntry::Random(state)) = self.stack.get_mut(idx) {
+            // 防御：`#ELSEIF`/`#ELSE` 无前置 `#IF` 时也确保有当前链。
+            state.current_chain.get_or_insert_with(Vec::new);
             state.current_branch = Some(RandomBranch {
                 kind,
                 body: Vec::new(),
@@ -246,16 +264,31 @@ impl<C: Clone + PartialEq> Builder<C> {
         Ok(())
     }
 
-    /// 将待定 token 打包到当前分支中，并将其移入 `branches`。
+    /// 将待定 token 打包到当前分支中，并将其移入当前互斥链。
     fn finalize_random_branch(&mut self, idx: usize) {
         if let Some(StackEntry::Random(state)) = self.stack.get_mut(idx) {
             flush_into(
                 &mut state.pending,
                 state.current_branch.as_mut().map(|b| &mut b.body),
             );
-            if let Some(branch) = state.current_branch.take() {
-                state.branches.push(branch);
+            if let Some(branch) = state.current_branch.take()
+                && let Some(chain) = state.current_chain.as_mut()
+            {
+                chain.push(branch);
             }
+        }
+    }
+
+    /// 将当前互斥链（若非空）移入 `chains`。
+    ///
+    /// 在 `#ENDIF`、`#ENDRANDOM` 或下一条 `#IF` 链开始时调用，
+    /// 标志当前 `#IF`…`#ENDIF` 组的分支已全部收集完毕。
+    fn finalize_random_chain(&mut self, idx: usize) {
+        if let Some(StackEntry::Random(state)) = self.stack.get_mut(idx)
+            && let Some(branches) = state.current_chain.take()
+            && !branches.is_empty()
+        {
+            state.chains.push(RandomChain { branches });
         }
     }
 
@@ -296,13 +329,20 @@ impl<C: Clone + PartialEq> Builder<C> {
                         &mut state.pending,
                         state.current_branch.as_mut().map(|b| &mut b.body),
                     );
-                    if let Some(branch) = state.current_branch.take() {
-                        state.branches.push(branch);
+                    if let Some(branch) = state.current_branch.take()
+                        && let Some(chain) = state.current_chain.as_mut()
+                    {
+                        chain.push(branch);
+                    }
+                    if let Some(branches) = state.current_chain.take()
+                        && !branches.is_empty()
+                    {
+                        state.chains.push(RandomChain { branches });
                     }
                     FlowBlock::Random(RandomBlock {
                         value: state.value,
                         has_end_random: state.has_end_random,
-                        branches: state.branches,
+                        chains: state.chains,
                     })
                 }
                 StackEntry::Switch(mut state) => {

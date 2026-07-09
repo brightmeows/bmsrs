@@ -59,6 +59,7 @@ let flat2 = tree.to_tokens();
 | 规则 | 说明 |
 |------|------|
 | 独立于 `bms-parser` | 本 crate 不依赖 parser；`FlowDoc<Bms>` 由下游构建 |
+| `#IF`…`#ENDIF` 互斥链 | `#IF`/`#ELSEIF`/`#ELSE` 共享单个 `#ENDIF`，建模为 `RandomChain`；一个 `#RANDOM` 块可含多条独立链，选择时各链按首匹配互斥执行 |
 | `#SWITCH` 中的 `#SKIP` | fall-through 控制；无 `#SKIP` = 继续执行下一个 case |
 | `SequenceRng` | 测试用确定性 RNG，预定义返回值序列 |
 | `StdRng` 或 `ThreadRng` | 自动满足 `BranchRng`（blanket impl）|
