@@ -626,13 +626,10 @@ fn parse_case() {
 
 #[test]
 fn parse_skip() {
-    let result = bms_tokenizer::parse_header_line::<&str>("#SKIP 1", &['#', '%'])
+    let result = bms_tokenizer::parse_header_line::<&str>("#SKIP", &['#', '%'])
         .unwrap()
         .unwrap();
-    assert_eq!(
-        result,
-        BmsHeader::ControlFlow(BmsHeaderControlFlow::Skip(1))
-    );
+    assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::Skip));
 }
 
 #[test]

@@ -78,10 +78,12 @@ pub enum BmsHeaderControlFlow {
     /// `#CASE N`——当 switch 值等于 `N` 时激活的分支。
     #[bms_token("#CASE {}")]
     Case(u64),
-    /// `#SKIP N`——跳过 `N` 行（在 `#SWITCH` 块内用于跳过
-    /// 不需要的 case）。
-    #[bms_token("#SKIP {}")]
-    Skip(u64),
+    /// `#SKIP`——`#SWITCH` 块内的 fall-through 跳转标记（无参数）。
+    ///
+    /// 当标签匹配的 `#CASE` 与下一个 `#CASE`/`#DEF` 之间存在 `#SKIP` 时，
+    /// 解析从 `#SKIP` 跳到 `#ENDSW`，不再执行后续分支。
+    #[bms_token("#SKIP")]
+    Skip,
     /// `#DEF`——`#SWITCH` 块内的默认分支。
     #[bms_token("#DEF")]
     Def,

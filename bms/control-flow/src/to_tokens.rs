@@ -92,7 +92,7 @@ fn push_block_tokens<C: Clone + PartialEq>(
 
                 if case.has_skip {
                     output.push(BmsToken::Header(BmsHeader::ControlFlow(
-                        BmsHeaderControlFlow::Skip(0),
+                        BmsHeaderControlFlow::Skip,
                     )));
                 }
             }

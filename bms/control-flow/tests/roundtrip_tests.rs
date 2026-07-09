@@ -226,7 +226,7 @@ fn skip_preserved_in_switch() -> TestResult {
         "#SWITCH 2\n\
          #CASE 1\n\
          #00101:11\n\
-         #SKIP 1\n\
+         #SKIP\n\
          #CASE 2\n\
          #00101:22\n\
          #ENDSW",
@@ -240,7 +240,7 @@ fn skip_preserved_in_switch() -> TestResult {
         vec![
             "Switch(2)".to_owned(),
             "Case(1)".to_owned(),
-            "Skip(0)".to_owned(),
+            "Skip".to_owned(),
             "Case(2)".to_owned(),
             "EndSwitch".to_owned(),
         ]
@@ -277,10 +277,10 @@ fn switch_def_with_skip_roundtrip() -> TestResult {
         "#SWITCH 3\n\
          #CASE 1\n\
          #00101:11\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #DEF\n\
          #00101:22\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW",
     )?;
 
@@ -292,9 +292,9 @@ fn switch_def_with_skip_roundtrip() -> TestResult {
         vec![
             "Switch(3)".to_owned(),
             "Case(1)".to_owned(),
-            "Skip(0)".to_owned(),
+            "Skip".to_owned(),
             "Def".to_owned(),
-            "Skip(0)".to_owned(),
+            "Skip".to_owned(),
             "EndSwitch".to_owned(),
         ]
     );
@@ -307,7 +307,7 @@ fn switch_only_def_roundtrip() -> TestResult {
         "#SWITCH 3\n\
          #DEF\n\
          #00101:11\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW",
     )?;
 
@@ -319,7 +319,7 @@ fn switch_only_def_roundtrip() -> TestResult {
         vec![
             "Switch(3)".to_owned(),
             "Def".to_owned(),
-            "Skip(0)".to_owned(),
+            "Skip".to_owned(),
             "EndSwitch".to_owned(),
         ]
     );

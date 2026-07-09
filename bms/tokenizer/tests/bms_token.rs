@@ -348,10 +348,13 @@ fn control_setrandom_roundtrip() {
 
 #[test]
 fn control_skip_roundtrip() {
-    let parsed = BmsHeaderControlFlow::try_match_header("SKIP", "1")
+    let parsed = BmsHeaderControlFlow::try_match_header("SKIP", "")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderControlFlow::Skip(1));
+    assert_eq!(parsed, BmsHeaderControlFlow::Skip);
+    let (cmd, val) = parsed.format_header();
+    assert_eq!(cmd, "#SKIP");
+    assert_eq!(val, "");
 }
 
 #[test]

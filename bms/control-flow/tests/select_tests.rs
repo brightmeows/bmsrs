@@ -172,7 +172,7 @@ fn switch_stops_at_skip() -> TestResult {
         "#SWITCH 2\n\
          #CASE 1\n\
          #WAV01 kick.wav\n\
-         #SKIP 1\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV02 snare.wav\n\
          #ENDSW",
@@ -422,13 +422,13 @@ fn switch_def_fallback() -> TestResult {
         "#SWITCH 3\n\
          #CASE 1\n\
          #WAV01 a.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV01 b.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #DEF\n\
          #WAV01 c.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW",
     )?;
 
@@ -470,7 +470,7 @@ fn switch_only_def_selected_when_no_case() -> TestResult {
         "#SWITCH 3\n\
          #DEF\n\
          #WAV01 a.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW",
     )?;
 
@@ -536,7 +536,7 @@ fn nested_three_levels_selection() -> TestResult {
          #WAV02 fallback.wav\n\
          #ENDIF\n\
          #ENDRANDOM\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW\n\
          #ENDIF\n\
          #ENDRANDOM",
@@ -616,15 +616,15 @@ fn switch_in_switch_select() -> TestResult {
          #SWITCH 2\n\
          #CASE 1\n\
          #WAV02 b.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV03 c.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV04 d.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW",
     )?;
 
@@ -661,10 +661,10 @@ fn nested_random_in_switch_select() -> TestResult {
          #WAV03 c.wav\n\
          #ENDIF\n\
          #ENDRANDOM\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV04 d.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW",
     )?;
 
@@ -696,10 +696,10 @@ fn nested_switch_in_random_select() -> TestResult {
          #SWITCH 2\n\
          #CASE 1\n\
          #WAV02 b.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV03 c.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW\n\
          #ELSE\n\
          #WAV04 d.wav\n\
@@ -739,21 +739,21 @@ fn switch_insane_multi_level_select() -> TestResult {
          #WAV03 c.wav\n\
          #ENDIF\n\
          #ENDRANDOM\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV04 d.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 3\n\
          #WAV05 e.wav\n\
          #SWITCH 2\n\
          #CASE 1\n\
          #WAV06 f.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #CASE 2\n\
          #WAV07 g.wav\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW\n\
-         #SKIP 0\n\
+         #SKIP\n\
          #ENDSW",
     )?;
 
@@ -804,7 +804,7 @@ fn random_zero_yields_empty_branch_without_panicking() -> TestResult {
 #[test]
 fn switch_zero_yields_empty_branch_without_panicking() -> TestResult {
     // `#SWITCH 0` 是格式错误的（空范围）；遵循同样的优雅空块约定。
-    let doc = build_doc("#SWITCH 0\n#CASE 1\n#WAV01 a.wav\n#SKIP 0\n#ENDSW")?;
+    let doc = build_doc("#SWITCH 0\n#CASE 1\n#WAV01 a.wav\n#SKIP\n#ENDSW")?;
     let (tokens, decisions) = doc.select_branches(&mut SequenceRng::new(&[]));
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(decisions.decisions[0].value, 0);

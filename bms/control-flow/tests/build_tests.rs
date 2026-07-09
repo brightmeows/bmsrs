@@ -158,7 +158,7 @@ fn switch_with_def_and_skip_flags_set() -> TestResult {
         "#SWITCH 2\n\
          #CASE 1\n\
          #00101:11\n\
-         #SKIP 1\n\
+         #SKIP\n\
          #DEF\n\
          #00101:22\n\
          #ENDSW",

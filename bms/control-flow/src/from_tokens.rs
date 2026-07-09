@@ -190,7 +190,7 @@ impl<C: Clone + PartialEq> Builder<C> {
             }
             BmsHeaderControlFlow::Case(v) => self.start_case(line, SwitchCaseKind::Case(*v))?,
             BmsHeaderControlFlow::Def => self.start_case(line, SwitchCaseKind::Def)?,
-            BmsHeaderControlFlow::Skip(_) => {
+            BmsHeaderControlFlow::Skip => {
                 let idx = self
                     .find_switch()
                     .ok_or(ControlFlowError::UnexpectedControlFlow {
