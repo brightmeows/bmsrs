@@ -46,6 +46,8 @@ use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
 use bmsrs::bms::tokenizer::BmsTokenizer;
+use bmsrs::bmson::de::BmsonParser;
+use bmsrs::bmson::processor::{BmsonNoteExt, BmsonProcessor};
 use bmsrs::chart::{AudioAsset, Chart, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide};
 use bmsrs::player::Player;
 use clap::Parser;
@@ -210,12 +212,11 @@ fn load_bmson(path: &Path) -> Result<Chart<(), NoCustomEvent>, String> {
         .map_err(|e| format!("无法读取文件 {}: {e}", path.display()))?;
 
     // 使用 bmson-de-chumsky 解析（支持 v0/v1/v2）。
-    let bmson = bmsrs::bmson::de::BmsonParser::parse(&content)
-        .map_err(|e| format!("BMSON 解析失败: {e}"))?;
+    let bmson = BmsonParser::parse(&content).map_err(|e| format!("BMSON 解析失败: {e}"))?;
 
     // 转换为 Chart<BmsonNoteExt>。
-    let chart = bmsrs::bmson::processor::BmsonProcessor::process_default(&bmson)
-        .map_err(|e| format!("BMSON 处理失败: {e}"))?;
+    let chart =
+        BmsonProcessor::process_default(&bmson).map_err(|e| format!("BMSON 处理失败: {e}"))?;
 
     // 剥离扩展数据，统一为 Chart<()>。
     Ok(normalize_chart(chart))
@@ -234,9 +235,7 @@ fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEv
 }
 
 /// 将 `Chart<BmsonNoteExt>` 转换为 `Chart<(), NoCustomEvent>`。
-fn normalize_chart(
-    chart: Chart<bmsrs::bmson::processor::BmsonNoteExt, NoCustomEvent>,
-) -> Chart<(), NoCustomEvent> {
+fn normalize_chart(chart: Chart<BmsonNoteExt, NoCustomEvent>) -> Chart<(), NoCustomEvent> {
     chart.map_events(|e| Event::new(e.tick(), e.kind.map_ext(|_| ())))
 }
 
