@@ -19,6 +19,8 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events,
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     }

@@ -55,6 +55,8 @@
 //!         ln_type_hint: LnTypeHint::default(),
 //!         ln_judge_hint: LnJudgeHint::default(),
 //!         ln_life_hint: LnLifeHint::default(),
+//!         judge_deltas: None,
+//!         life_deltas: None,
 //!         events: vec![Event::new(
 //!             0,
 //!             EventKind::Note {
@@ -120,6 +122,44 @@ pub struct ChartInfo {
     pub bga_resources: Vec<BgaResource>,
 }
 
+/// 自定义判定窗口偏移（DJ.NEXT 扩展）。
+///
+/// 每个字段指定该判定等级窗口的额外偏移（毫秒）。源自 BMSON 的
+/// `judgement_deltas`，BMS 谱面无此概念（处理器填 `None`）。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct JudgementDeltas {
+    /// PERFECT 窗口的额外偏移（毫秒）。
+    pub perfect: u64,
+    /// GREAT 窗口的额外偏移（毫秒）。
+    pub great: u64,
+    /// GOOD 窗口的额外偏移（毫秒）。
+    pub good: u64,
+    /// MISS 窗口的额外偏移（毫秒）。
+    pub miss: u64,
+}
+
+/// 自定义血量槽增量（DJ.NEXT 扩展）。
+///
+/// 每个字段指定该判定等级的血量变化（百分比），负值表示扣除。
+/// 源自 BMSON 的 `life_deltas`，BMS 谱面无此概念（处理器填 `None`）。
+///
+/// 保证不含 NaN（BMSON 经 serde 反序列化，JSON 不含 NaN）。
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LifeDeltas {
+    // 手动实现 Eq：保证不含 NaN。
+    /// PERFECT 时的血量变化（百分比，可为负）。
+    pub perfect: f64,
+    /// GREAT 时的血量变化（百分比，可为负）。
+    pub great: f64,
+    /// GOOD 时的血量变化（百分比，可为负）。
+    pub good: f64,
+    /// MISS 时的血量变化（百分比，可为负）。
+    pub miss: f64,
+}
+
+// LifeDeltas 保证不含 NaN，故可安全实现 Eq。
+impl Eq for LifeDeltas {}
+
 /// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
 ///
 /// 不实现 [`Default`]：合法状态要求 `resolution > 0` 且
@@ -127,7 +167,7 @@ pub struct ChartInfo {
 /// 调用方必须显式提供这些值（各处理器均以字面量构造）。
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    // 手动实现 Eq：judge_multiplier 与 life_multiplier 保证不含 NaN。
+    // 手动实现 Eq：judge_multiplier、life_multiplier 与 LifeDeltas 保证不含 NaN。
     /// 每个四分音符的脉冲数（节拍分辨率）。
     pub resolution: u64,
     /// 用于脉冲 ↔ 秒换算的计时轨。
@@ -142,6 +182,10 @@ pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     pub ln_judge_hint: LnJudgeHint,
     /// 谱面级长音血量提示。
     pub ln_life_hint: LnLifeHint,
+    /// 自定义判定窗口偏移（DJ.NEXT 扩展，BMS 为 `None`）。
+    pub judge_deltas: Option<JudgementDeltas>,
+    /// 自定义血量槽增量（DJ.NEXT 扩展，BMS 为 `None`）。
+    pub life_deltas: Option<LifeDeltas>,
     /// 全部计时事件，按脉冲升序排列。
     pub events: Vec<Event<T, C>>,
     /// 音符与 BGM 事件引用的音频素材。

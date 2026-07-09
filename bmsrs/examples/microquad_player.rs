@@ -273,6 +273,8 @@ fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEv
                     }
                 })
                 .collect(),
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: chart.data.audio_assets,
         },
     }
@@ -294,6 +296,8 @@ fn normalize_chart(
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: chart.data.events.into_iter().map(normalize_event).collect(),
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: chart.data.audio_assets,
         },
     }

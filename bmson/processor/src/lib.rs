@@ -68,6 +68,9 @@ pub enum ProcessError {
     /// `init_bpm` 必须为非零有限值。
     #[error("init_bpm must be non-zero finite, got {0}")]
     InvalidBpm(f64),
+    /// `generic-nkeys` 模式的按键数必须为正且在 `u16` 范围内。
+    #[error("generic-nkeys key count must be in 1..=65535, got {0}")]
+    InvalidKeyCount(u64),
 }
 
 /// 将 [`bmson_def::Bmson`] 转换为 [`Chart<BmsonNoteExt>`] 的零大小处理器。
@@ -113,7 +116,10 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// - 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 `u16` 范围，
+    ///   返回 [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
+    ///   被静默丢弃）。
     pub fn process_default(
         bmson: &bmson_def::Bmson<'_>,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
@@ -122,7 +128,12 @@ impl BmsonProcessor {
                 Self::process::<Pms>(bmson)
             }
             bmson_def::ModeHint::Generic(n) => {
-                let keys = u16::try_from(n).unwrap_or(0);
+                let keys = u16::try_from(n)
+                    .ok()
+                    .ok_or(ProcessError::InvalidKeyCount(n))?;
+                if keys == 0 {
+                    return Err(ProcessError::InvalidKeyCount(n));
+                }
                 Self::process_nkeys(bmson, keys)
             }
             _ => Self::process::<Beat>(bmson),
@@ -133,6 +144,10 @@ impl BmsonProcessor {
     #[expect(
         clippy::cast_possible_truncation,
         reason = "BGA header/event ids are in the u32 range for practical charts"
+    )]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "process_body 集中了全部事件类型的转换逻辑；拆分会增加间接性而非清晰度"
     )]
     fn process_body(
         bmson: &bmson_def::Bmson<'_>,
@@ -234,6 +249,21 @@ impl BmsonProcessor {
                 ln_type_hint: ln_type_to_hint(data.ln_type_hint),
                 ln_judge_hint: ln_judge_to_hint(data.ln_judge_hint),
                 ln_life_hint: ln_life_to_hint(data.ln_life_hint),
+                judge_deltas: data
+                    .judge_deltas
+                    .as_ref()
+                    .map(|d| bmsrs_chart::JudgementDeltas {
+                        perfect: d.perfect,
+                        great: d.great,
+                        good: d.good,
+                        miss: d.miss,
+                    }),
+                life_deltas: data.life_deltas.as_ref().map(|d| bmsrs_chart::LifeDeltas {
+                    perfect: d.perfect,
+                    great: d.great,
+                    good: d.good,
+                    miss: d.miss,
+                }),
                 events,
                 audio_assets,
             },

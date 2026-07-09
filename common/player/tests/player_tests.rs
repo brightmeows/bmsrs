@@ -61,6 +61,8 @@ fn make_test_chart() -> Chart {
                 Event::new(960, EventKind::Bar),
                 Event::new(960, EventKind::Bpm { bpm: 180.0 }),
             ],
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     }

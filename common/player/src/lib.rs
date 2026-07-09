@@ -25,6 +25,8 @@
 //!         ln_type_hint: LnTypeHint::default(),
 //!         ln_judge_hint: LnJudgeHint::default(),
 //!         ln_life_hint: LnLifeHint::default(),
+//!         judge_deltas: None,
+//!         life_deltas: None,
 //!         events: vec![Event::new(
 //!             480,
 //!             EventKind::Note {

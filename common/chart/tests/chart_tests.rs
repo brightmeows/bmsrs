@@ -39,6 +39,8 @@ fn chart_construction_is_empty_by_default() {
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
             events: vec![],
             audio_assets: vec![],
         },
@@ -64,6 +66,8 @@ fn chart_construction() {
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
             events: vec![Event::new(
                 0,
                 EventKind::Note {
@@ -112,6 +116,8 @@ fn chart_data_last_tick_empty() {
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
+        judge_deltas: None,
+        life_deltas: None,
         events: vec![],
         audio_assets: vec![],
     };
@@ -128,6 +134,8 @@ fn chart_data_last_tick_with_events() {
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
+        judge_deltas: None,
+        life_deltas: None,
         events: vec![
             Event::new(0, EventKind::Bar),
             Event::new(960, EventKind::Bar),
@@ -147,6 +155,8 @@ fn chart_data_duration() {
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
+        judge_deltas: None,
+        life_deltas: None,
         events: vec![Event::new(960, EventKind::Bar)],
         audio_assets: vec![],
     };

@@ -14,6 +14,8 @@ pub fn make_test_chart(events: Vec<Event<()>>) -> Chart {
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
             events,
             audio_assets: vec![],
         },

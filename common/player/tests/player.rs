@@ -146,6 +146,8 @@ fn bgm_in_range_returns_events() {
                 Event::new(480, EventKind::Bgm { audio_index: 1 }),
                 Event::new(960, EventKind::Bgm { audio_index: 2 }),
             ],
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     };
@@ -173,6 +175,8 @@ fn scroll_rate_at_returns_latest_multiplier() {
                 Event::new(240, EventKind::Scroll { rate: 2.0 }),
                 Event::new(720, EventKind::Scroll { rate: 0.5 }),
             ],
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     };
@@ -202,6 +206,8 @@ fn bar_lines_in_range_returns_subset() {
                 Event::new(960, EventKind::Bar),
                 Event::new(1920, EventKind::Bar),
             ],
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     };
@@ -234,6 +240,8 @@ fn current_bpm_returns_active_bpm() {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![],
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     };
@@ -292,6 +300,8 @@ fn duration_to_tick_with_bpm_changes_and_stops() {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![],
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     };
@@ -337,6 +347,8 @@ fn duration_to_tick_stop_does_not_advance() {
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![],
+            judge_deltas: None,
+            life_deltas: None,
             audio_assets: vec![],
         },
     };
