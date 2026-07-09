@@ -7,14 +7,14 @@ const RES: u64 = 240;
 
 #[test]
 fn constant_bpm_tick_zero_is_zero() {
-    let timing = TimingTrack::new(120.0, vec![], vec![]);
+    let timing = TimingTrack::simple(120.0);
     let result = timing.tick_to_duration(0, RES);
     assert_eq!(result, Duration::ZERO);
 }
 
 #[test]
 fn constant_bpm_120_one_beat_is_half_second() {
-    let timing = TimingTrack::new(120.0, vec![], vec![]);
+    let timing = TimingTrack::simple(120.0);
     // 分辨率 240 下 240 脉冲 = 1 拍。
     // 120 BPM 下：1 拍 = 0.5s
     let result = timing.tick_to_duration(240, RES);
@@ -23,7 +23,7 @@ fn constant_bpm_120_one_beat_is_half_second() {
 
 #[test]
 fn constant_bpm_120_two_beats_is_one_second() {
-    let timing = TimingTrack::new(120.0, vec![], vec![]);
+    let timing = TimingTrack::simple(120.0);
     let result = timing.tick_to_duration(480, RES);
     assert_eq!(result, Duration::from_secs(1));
 }
@@ -132,7 +132,7 @@ fn bpm_before_stop_at_same_tick() {
 
 #[test]
 fn duration_to_tick_constant_bpm() {
-    let timing = TimingTrack::new(120.0, vec![], vec![]);
+    let timing = TimingTrack::simple(120.0);
     assert_eq!(timing.duration_to_tick(Duration::ZERO, RES), 0);
     assert_eq!(
         timing.duration_to_tick(Duration::from_millis(500), RES),

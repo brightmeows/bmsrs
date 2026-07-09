@@ -105,6 +105,15 @@ impl TimingTrack {
         }
     }
 
+    /// 创建仅含初始 BPM、无 BPM 变更和无停止的计时轨。
+    ///
+    /// 等价于 `TimingTrack::new(bpm, vec![], vec![])`，但无需手动传递
+    /// 空向量，在测试和简单场景中更简洁。
+    #[must_use]
+    pub const fn simple(init_bpm: f64) -> Self {
+        Self::new(init_bpm, Vec::new(), Vec::new())
+    }
+
     /// 由 `bpm_changes` 与停止事件构造已排序的事件列表。
     ///
     /// 第一次调用时构建并缓存结果，后续调用返回缓存引用。
@@ -610,7 +619,7 @@ mod tests {
 
     #[test]
     fn constant_bpm_tick_zero_is_zero() {
-        let timing = TimingTrack::new(120.0, vec![], vec![]);
+        let timing = TimingTrack::simple(120.0);
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(0);
@@ -619,7 +628,7 @@ mod tests {
 
     #[test]
     fn constant_bpm_120_one_beat_is_half_second() {
-        let timing = TimingTrack::new(120.0, vec![], vec![]);
+        let timing = TimingTrack::simple(120.0);
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(240);
@@ -679,7 +688,7 @@ mod tests {
 
     #[test]
     fn matches_timing_track_constant_bpm() {
-        let timing = TimingTrack::new(150.0, vec![], vec![]);
+        let timing = TimingTrack::simple(150.0);
         let cache = TimingCache::new(&timing, RES);
 
         for tick in [0u64, 100, 240, 480, 960, 1920] {

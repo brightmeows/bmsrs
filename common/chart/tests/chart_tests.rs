@@ -33,7 +33,7 @@ fn chart_construction_is_empty_by_default() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::new(120.0, vec![], vec![]),
+            timing: TimingTrack::simple(120.0),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -60,7 +60,7 @@ fn chart_construction() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::new(120.0, vec![], vec![]),
+            timing: TimingTrack::simple(120.0),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -110,7 +110,7 @@ fn chart_data_last_tick_empty() {
     // 空事件列表 → last_tick() 返回 0。
     let data = ChartData::<(), NoCustomEvent> {
         resolution: 240,
-        timing: TimingTrack::new(120.0, vec![], vec![]),
+        timing: TimingTrack::simple(120.0),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),
@@ -128,7 +128,7 @@ fn chart_data_last_tick_empty() {
 fn chart_data_last_tick_with_events() {
     let data: ChartData = ChartData {
         resolution: 240,
-        timing: TimingTrack::new(120.0, vec![], vec![]),
+        timing: TimingTrack::simple(120.0),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),
@@ -149,7 +149,7 @@ fn chart_data_last_tick_with_events() {
 fn chart_data_duration() {
     let data: ChartData = ChartData {
         resolution: 240,
-        timing: TimingTrack::new(120.0, vec![], vec![]),
+        timing: TimingTrack::simple(120.0),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),
@@ -417,13 +417,13 @@ fn timing_track_default() {
 
 #[test]
 fn timing_track_new() {
-    let tt = TimingTrack::new(120.0, vec![], vec![]);
+    let tt = TimingTrack::simple(120.0);
     assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
 fn tick_to_duration_constant_bpm() {
-    let tt = TimingTrack::new(120.0, vec![], vec![]);
+    let tt = TimingTrack::simple(120.0);
     // 240 ticks at 120 BPM with resolution 240 = 0.5s
     let dur = tt.tick_to_duration(240, 240);
     assert!((dur.as_secs_f64() - 0.5).abs() < 1e-9);
@@ -465,7 +465,7 @@ fn tick_to_duration_with_stop() {
 
 #[test]
 fn duration_to_tick_constant_bpm() {
-    let tt = TimingTrack::new(120.0, vec![], vec![]);
+    let tt = TimingTrack::simple(120.0);
     // 0.5s at 120 BPM with resolution 240 = 240 ticks
     let tick = tt.duration_to_tick(Duration::from_secs_f64(0.5), 240);
     assert_eq!(tick, 240);
@@ -491,30 +491,30 @@ fn duration_to_tick_with_stop() {
 
 #[test]
 fn duration_to_tick_zero_duration() {
-    let tt = TimingTrack::new(120.0, vec![], vec![]);
+    let tt = TimingTrack::simple(120.0);
     let tick = tt.duration_to_tick(Duration::ZERO, 240);
     assert_eq!(tick, 0);
 }
 
 #[test]
 fn tick_to_duration_zero_tick() {
-    let tt = TimingTrack::new(120.0, vec![], vec![]);
+    let tt = TimingTrack::simple(120.0);
     let dur = tt.tick_to_duration(0, 240);
     assert!(dur.is_zero());
 }
 
 #[test]
 fn timing_track_clone_resets_cache() {
-    let tt = TimingTrack::new(120.0, vec![], vec![]);
+    let tt = TimingTrack::simple(120.0);
     let _primed = tt.tick_to_duration(240, 240);
     assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
 fn timing_track_partial_eq() {
-    let a = TimingTrack::new(120.0, vec![], vec![]);
-    let b = TimingTrack::new(120.0, vec![], vec![]);
-    let c = TimingTrack::new(140.0, vec![], vec![]);
+    let a = TimingTrack::simple(120.0);
+    let b = TimingTrack::simple(120.0);
+    let c = TimingTrack::simple(140.0);
     assert_eq!(a, b);
     assert_ne!(a, c);
 }

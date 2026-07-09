@@ -210,7 +210,7 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: RESOLUTION,
-            timing: TimingTrack::new(120.0, vec![], vec![]),
+            timing: TimingTrack::simple(120.0),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),

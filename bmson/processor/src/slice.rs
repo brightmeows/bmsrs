@@ -123,7 +123,7 @@ mod tests {
     const RES: u64 = 240;
 
     fn timing_120() -> TimingCache {
-        TimingCache::new(&TimingTrack::new(120.0, vec![], vec![]), RES)
+        TimingCache::new(&TimingTrack::simple(120.0), RES)
     }
 
     #[test]

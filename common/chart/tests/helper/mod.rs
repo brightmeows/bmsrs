@@ -8,7 +8,7 @@ pub fn make_test_chart(events: Vec<Event<()>>) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::new(120.0, vec![], vec![]),
+            timing: TimingTrack::simple(120.0),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
