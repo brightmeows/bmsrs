@@ -314,8 +314,7 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
             mode_hint: info.mode_hint.unwrap_or(crate::ModeHint::Beat7k),
             ln_type_hint: info
                 .ln_type
-                .and_then(crate::ln_mode_to_type_hint)
-                .unwrap_or(crate::LnType::Ln),
+                .map_or(crate::LnType::Ln, crate::ln_mode_to_type_hint),
             ln_judge_hint: crate::LnJudge::Normal,
             ln_life_hint: crate::LnLife::Normal,
             init_bpm: info.init_bpm,
@@ -347,10 +346,10 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
                         .map(|mut note| {
                             // 将 v0 't' 字段 → v2 'ln_type_hint'（如果尚未设置）。
                             if note.ln_type_hint.is_none() {
-                                note.ln_type_hint = note.t.as_ref().and_then(|t| match t {
-                                    LnMode::Hcn => None, // HCN 没有 LnType 等价物
-                                    LnMode::Ln => Some(crate::LnType::Ln),
-                                    LnMode::Cn => Some(crate::LnType::Cn),
+                                note.ln_type_hint = note.t.map(|t| match t {
+                                    LnMode::Ln => crate::LnType::Ln,
+                                    LnMode::Cn => crate::LnType::Cn,
+                                    LnMode::Hcn => crate::LnType::Hcn,
                                 });
                             }
                             note
@@ -460,9 +459,10 @@ impl<'a> TryFrom<crate::Bmson<'a>> for Bmson<'a> {
                         .map(|mut note| {
                             // 将 v2 'ln_type_hint' → v0 't'（如果尚未设置）。
                             if note.t.is_none() {
-                                note.t = note.ln_type_hint.as_ref().map(|h| match h {
+                                note.t = note.ln_type_hint.map(|h| match h {
                                     crate::LnType::Ln => LnMode::Ln,
                                     crate::LnType::Cn => LnMode::Cn,
+                                    crate::LnType::Hcn => LnMode::Hcn,
                                 });
                             }
                             note

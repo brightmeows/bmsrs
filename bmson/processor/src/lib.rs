@@ -50,8 +50,8 @@ pub struct BmsonNoteExt {
     pub pan: Option<i8>,
     /// 释放音 / BSS 标志（bmson `up`）。
     pub release_sound: Option<bool>,
-    /// beatoraja 长音模式（bmson `t`，1=LN/2=CN/3=HCN）。
-    pub beatoraja_ln_mode: Option<u64>,
+    /// 长音模式（bmson `t` 字段，beatoraja 扩展，1=LN/2=CN/3=HCN）。
+    pub ln_mode: Option<u64>,
     /// 每音符的 LN 类型提示覆盖（bmson v2）。
     pub ln_type_hint: Option<LnTypeHint>,
     /// 每音符的 LN 判定提示覆盖（bmson v2）。
@@ -325,7 +325,7 @@ fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
         vol: ne.vol,
         pan: ne.pan,
         release_sound: ne.up,
-        beatoraja_ln_mode: ne.t.map(ln_mode_to_u64),
+        ln_mode: ne.t.map(ln_mode_to_u64),
         ln_type_hint: ne.ln_type_hint.map(ln_type_to_hint),
         ln_judge_hint: ne.ln_judge_hint.map(ln_judge_to_hint),
         ln_life_hint: ne.ln_life_hint.map(ln_life_to_hint),
@@ -337,7 +337,7 @@ const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
     match m {
         bmson_def::LnMode::Cn => 2,
         bmson_def::LnMode::Hcn => 3,
-        _ => 1,
+        _ => 1, // Ln + #[non_exhaustive] fallback
     }
 }
 
@@ -345,7 +345,8 @@ const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
 const fn ln_type_to_hint(lt: bmson_def::LnType) -> LnTypeHint {
     match lt {
         bmson_def::LnType::Cn => LnTypeHint::Cn,
-        _ => LnTypeHint::Ln,
+        bmson_def::LnType::Hcn => LnTypeHint::Hcn,
+        _ => LnTypeHint::Ln, // Ln + #[non_exhaustive] fallback
     }
 }
 

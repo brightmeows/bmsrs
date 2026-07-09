@@ -226,8 +226,7 @@ impl<'a> From<Bmson<'a>> for RootBmson<'a> {
             mode_hint: info.mode_hint,
             ln_type_hint: info
                 .ln_type
-                .and_then(crate::ln_mode_to_type_hint)
-                .unwrap_or(crate::LnType::Ln),
+                .map_or(crate::LnType::Ln, crate::ln_mode_to_type_hint),
             ln_judge_hint: crate::LnJudge::Normal,
             ln_life_hint: crate::LnLife::Normal,
             init_bpm: info.init_bpm,
@@ -283,6 +282,7 @@ impl<'a> From<RootBmson<'a>> for Bmson<'a> {
             resolution: root.chart_data.resolution,
             ln_type: match root.chart_data.ln_type_hint {
                 crate::LnType::Cn => Some(crate::LnMode::Cn),
+                crate::LnType::Hcn => Some(crate::LnMode::Hcn),
                 crate::LnType::Ln => None, // 默认 Ln，无需序列化
             },
         };

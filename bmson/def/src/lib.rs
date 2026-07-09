@@ -476,15 +476,12 @@ pub fn detect_version(json: &str) -> Result<DetectedVersion, BmsonError> {
     }
 }
 
-/// 将 [`LnMode`]（数值 1/2/3，含 HCN）映射到 [`LnType`]（ln/cn，不含 HCN）。
-///
-/// HCN 和 Ln 均映射为 `None`（前者因 v2 schema 无 HCN 概念、
-/// 后者为默认值），调用方通过 `unwrap_or(LnType::Ln)` 处理。
-/// 这与按音符的 HCN `t` 字段转换逻辑一致。
+/// 将 [`LnMode`]（数值 1/2/3）映射到 [`LnType`]（ln/cn/hcn）。
 #[must_use]
-pub(crate) const fn ln_mode_to_type_hint(lt: LnMode) -> Option<LnType> {
+pub(crate) const fn ln_mode_to_type_hint(lt: LnMode) -> LnType {
     match lt {
-        LnMode::Cn => Some(LnType::Cn),
-        LnMode::Hcn | LnMode::Ln => None,
+        LnMode::Ln => LnType::Ln,
+        LnMode::Cn => LnType::Cn,
+        LnMode::Hcn => LnType::Hcn,
     }
 }

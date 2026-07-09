@@ -62,7 +62,10 @@ pub enum NoteKind {
     Invisible,
 }
 
-/// 谱面级或按音符的长音类型提示（BMSON LN/CN）。
+/// 谱面级或按音符的长音类型提示。
+///
+/// `Ln` 和 `Cn` 对应 BMSON v2 标准值 `"ln"`/`"cn"`。
+/// `Hcn` 是 beatoraja 扩展，不属于 v2 标准。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LnTypeHint {
     /// 长音（LN）—— 仅在按下时判定。
@@ -70,6 +73,8 @@ pub enum LnTypeHint {
     Ln,
     /// 充电音（CN）—— 在按下和释放时都判定。
     Cn,
+    /// 地狱充电音（HCN）—— beatoraja 扩展，非标准。
+    Hcn,
 }
 
 /// 谱面级或按音符的长音判定提示。

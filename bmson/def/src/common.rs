@@ -119,16 +119,19 @@ impl<'de> Deserialize<'de> for ModeHint {
     }
 }
 
-/// 长音类型提示（`"ln"` 或 `"cn"`）。
+/// 长音类型提示。
 ///
 /// 可在谱面级设置（[`crate::ChartData::ln_type_hint`]），并可按音符覆盖
 /// （[`NoteEvent::ln_type_hint`]）。
 ///
-/// | 值 | 含义 |
-/// |---|---|
-/// | `ln` | 仅在按下时判定 |
-/// | `cn` | 在按下和释放时都判定 |
+/// | 值 | 含义 | 来源 |
+/// |---|---|---|
+/// | `ln` | 仅在按下时判定 | v2 标准 |
+/// | `cn` | 在按下和释放时都判定 | v2 标准 |
+/// | `hcn` | 地狱充电音，按住期间判定更严格 | beatoraja 扩展 |
 ///
+/// ⚠️ `hcn` 是 beatoraja 扩展，不属于 bmson v2 核心规范。
+/// 播放器若不支持 HCN，应将其降级为 `cn` 处理。
 #[derive(Clone, Debug, Default, PartialEq, Eq, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
@@ -138,6 +141,8 @@ pub enum LnType {
     Ln,
     /// 充电音（CN）—— 在按下和释放时都判定。
     Cn,
+    /// 地狱充电音（HCN）—— beatoraja 扩展，非 v2 标准。
+    Hcn,
 }
 
 /// 长音判定提示（`"normal"` 或 `"ticks"`）。

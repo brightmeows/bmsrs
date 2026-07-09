@@ -685,7 +685,7 @@ fn note_ext_fields() {
         vol: Some(-50),
         pan: Some(100),
         release_sound: Some(true),
-        beatoraja_ln_mode: Some(2),
+        ln_mode: Some(2),
         ln_type_hint: Some(LnTypeHint::Cn),
         ln_judge_hint: Some(LnJudgeHint::Ticks),
         ln_life_hint: Some(LnLifeHint::Normal),
