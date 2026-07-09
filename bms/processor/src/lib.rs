@@ -107,13 +107,6 @@ impl BmsProcessor {
         let timing = TimingTrack::new(init_bpm, bpm_changes, stops);
 
         let bmp_map = build_bmp_map(&bms.visual.bmp_files);
-        let bga_resources = bmp_map
-            .values()
-            .map(|(resource_id, path)| BgaResource {
-                id: *resource_id,
-                path: path.clone().into(),
-            })
-            .collect();
 
         let (paired_lns, consumed) = conv.pair_long_notes();
 
@@ -150,15 +143,12 @@ impl BmsProcessor {
         // 排序规则收敛于 Event::sort_key（同脉冲子序约定见其文档）。
         conv.events.sort_by_key(BmsEvent::sort_key);
 
-        let (song, chart_info) = conv.build_metadata();
+        let (song, chart_info) = conv.build_metadata(&bmp_map);
         let events = conv.events;
 
         Ok(Chart {
             song,
-            chart: ChartInfo {
-                bga_resources,
-                ..chart_info
-            },
+            chart: chart_info,
             data: ChartData {
                 resolution: RESOLUTION,
                 timing,
@@ -613,10 +603,17 @@ impl BmsConverter<'_> {
             .collect()
     }
 
-    /// 从 BMS 元数据构建 [`SongInfo`] 与 [`ChartInfo`]。
+    /// 从 BMS 元数据与 BMP 映射构建 [`SongInfo`] 与 [`ChartInfo`]。
     #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "play level is non-negative")]
-    fn build_metadata(&self) -> (SongInfo, ChartInfo) {
+    fn build_metadata(&self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>) -> (SongInfo, ChartInfo) {
+        let bga_resources: Vec<BgaResource> = bmp_map
+            .values()
+            .map(|(resource_id, path)| BgaResource {
+                id: *resource_id,
+                path: path.clone().into(),
+            })
+            .collect();
         (
             SongInfo {
                 title: self.bms.metadata.title.clone().unwrap_or_default(),
@@ -643,7 +640,7 @@ impl BmsConverter<'_> {
                 eyecatch_image: self.bms.display.stage_file.clone(),
                 banner_image: self.bms.display.banner.clone(),
                 preview_music: self.bms.display.preview.clone(),
-                ..ChartInfo::default()
+                bga_resources,
             },
         )
     }
