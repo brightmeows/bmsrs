@@ -15,7 +15,6 @@ readme.workspace = true
 [dependencies]
 bms-tokenizer.workspace = true
 bmsrs-chart.workspace = true
-itertools.workspace = true
 
 [lib]
 

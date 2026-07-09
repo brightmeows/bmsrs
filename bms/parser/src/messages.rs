@@ -306,20 +306,19 @@ impl Messages {
     ///
     /// - **BGM**（`ch01`）：每行独立处理，产生带各行分母的事件（支持
     ///   多声部）。
-    /// - **`ch02` / `chA6`**（小节长度 / 选项）：仅使用**最后一**行
-    ///   （这些类标量通道最后胜出）。
+    /// - **`ch02`**（小节长度）：仅使用**最后一**行（类标量通道最后胜出）。
     /// - **`ch03`**（通过十六进制变更 BPM）：与其他可玩通道一样进行
     ///   按位置合并。`"00"` 条目被过滤掉（休止 = 无 BPM 变更）。
-    /// - **所有其他通道**：所有行在解析前通过 `merge_channel` 进行
-    ///   **按位置合并**，遵循后续行覆盖非 `00` 位置而 `"00"` 保留的
-    ///   规格规则。
+    /// - **所有其他通道**（含 `chA6` 选项）：所有行在解析前通过
+    ///   `merge_channel` 进行**按位置合并**，遵循后续行覆盖非 `"00"`
+    ///   位置而 `"00"` 保留的规格规则。
     ///
-    /// 多次调用会追加重复事件；请在全部数据加载后恰好调用一次。
+    /// 先清除已有解析结果再重新解析，因此可安全重复调用。
     ///
     /// `base` 控制索引归一化：在标准 Base36 模式下索引被转为大写以进行
     /// 不区分大小写的查找；在 Base62 模式下保留原始大小写。
     pub fn finalize(&mut self, base: BmsBase) {
-        // 清除已有的解析结果，使 finalize 可安全调用一次。
+        // 清除已有的解析结果，使 finalize 可安全重复调用。
         self.bgm_events.clear();
         self.note_events.clear();
         self.long_note_events.clear();
@@ -330,6 +329,7 @@ impl Messages {
         self.speed_events.clear();
         self.bga_events.clear();
         self.measure_lengths.clear();
+        self.non_event_data.clear();
 
         let raw = std::mem::take(&mut self.raw);
 
@@ -876,5 +876,3 @@ impl Messages {
         }
     }
 }
-
-// 测试

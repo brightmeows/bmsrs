@@ -210,7 +210,6 @@ version = "0.1.0"
 dependencies = [
  "bms-tokenizer",
  "bmsrs-chart",
- "itertools 0.15.0",
 ]
 
 [[package]]

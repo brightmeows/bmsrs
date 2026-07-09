@@ -432,3 +432,14 @@ fn bpm_00_mixed_with_real() {
     assert_eq!(msgs.bpm_changes[0].value, BpmValue::Absolute(127.0));
     assert_eq!(msgs.bpm_changes[1].value, BpmValue::Absolute(170.0));
 }
+
+#[test]
+fn finalize_idempotent_does_not_duplicate_non_event_data() {
+    // chA6（选项）走 finalize_merged，产生 non_event_data 条目。
+    let mut msgs = parse_one("#001A6:0100000000000000");
+    let first_count = msgs.non_event_data.len();
+    assert!(first_count > 0, "chA6 应产生 non_event_data 条目");
+    // 重复调用 finalize 不应追加重复条目
+    msgs.finalize(BmsBase::Base36);
+    assert_eq!(msgs.non_event_data.len(), first_count);
+}
