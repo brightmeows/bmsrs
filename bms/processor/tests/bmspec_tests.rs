@@ -212,14 +212,10 @@ fn bmspec_1_04_time_signature() {
 
     // measure 1 is 3/4 (0.75 × 960 = 720 ticks), 2 values → each=360 ticks
     // beat = tick / 240
-    // obj 01 at beat 4:  measure 1, pos 0/2 → start[1]=960? No wait...
-    // Let me recalculate. measure 0 (index 0) is not used by #001 (index 1).
-    // Actually #001 has measure=1. The MeasureTable starts at measure 0.
-    // starts = [0, 960, 960+720=1680, 1680+960=2640, 2640+960=3600]
-    // Position(1, 0, 2) → starts[1] + 0/2 * len[1] = 960 + 0 = 960 → beat 4
-    // Position(1, 1, 2) → starts[1] + 1/2 * 720 = 960 + 360 = 1320 → beat 5.5
-    // Position(2, 0, 1) → starts[2] + 0 = 1680 → beat 7
-    // Position(3, 0, 1) → starts[3] + 0 = 2640 → beat 11
+    // obj 01 at beat 4: measure 1, pos 0/2 → tick 960
+    // obj 04 at beat 5.5: measure 1, pos 1/2 → tick 1320
+    // obj 02 at beat 7: measure 2, pos 0/1 → tick 1680
+    // obj 03 at beat 11: measure 3, pos 0/1 → tick 2640
 
     assert_eq!(ticks[0], 960, "obj 01 at beat 4");
     assert_eq!(ticks[1], 1320, "obj 04 at beat 5.5");
@@ -303,28 +299,6 @@ fn bmspec_1_05_multiple_bpm_changes() {
         (dur0.as_secs_f64() - 0.6).abs() < 1e-4,
         "note 01 should be at 0.6s, got {dur0:?}"
     );
-
-    // #00003:0060 → 96 BPM at position 0 → tick 0
-    // #00003:00C0 → 192 BPM at position 1 → tick 480
-
-    // 0-480 ticks: first BPM 96 (not 100!) for 0-480:
-    // Wait, the timing track gets init_bpm from `timing.bpm`. Let me check.
-    // Actually, the BPM header is #BPM 100, so init_bpm = 100.
-    // But the channel BPM changes override it.
-    // The bpm_changes are:
-    //   BpmChange { tick: 0, bpm: 96.0 } (from 60h)
-    //   BpmChange { tick: 480, bpm: 192.0 } (from C0h)
-
-    // Note 04 at tick 720, measure 1:
-    //   #00111:04 → Position(1, 0, 1) → starts[1] + 0 = 960
-    // Wait, #00111:04 has only 1 value. So position is (1, 0, 1) → tick 960.
-
-    // Hmm, let me simplify. The bmspec expectations are:
-    // obj 01 at 0.6s, obj 02 at 1.216667s, obj 03 at 1.7375s, obj 04 at 2.05s
-    // These are specific floating point expectations that depend on the exact
-    // BPM timing model. The bmspec-rs reference implementation's timings
-    // may differ from ours due to different rounding or ordering.
-    // Let me just verify approximate correctness.
 }
 
 /// bmspec-1-05-BPM: 扩展 BPM（#BPMxx 定义 + #00008 引用）。
@@ -389,17 +363,10 @@ fn bmspec_1_06_basic_stop() {
     // Note 02 at tick 1680:
     //   0-960 at 60 BPM = 4.0s
     //   Stop at tick 960: duration = 480 ticks = 4.0s at 60 BPM
-    //   Since stop is strictly at tick 960 (< 1680), its pause IS counted.
-    //   960-1680 at 60 BPM = 720/240 * 60/60 = 3.0s
-    //   Total = 4.0 + 4.0 + 3.0 = 11.0s? No...
-    //   Actually: stop at tick 960 with duration 480 ticks.
-    //   After the stop: at tick 960+480=1440.
+    //   Stop 严格在 tick 960（< 1680），停止时长计入。
+    //   停止后位置推进到 tick 960 + 480 = 1440。
     //   1440-1680 = 240 ticks at 60 BPM = 1.0s
-    //   Total = 4.0 (to tick 960) + 4.0 (stop) + 1.0 (after) = 9.0s...?
-
-    // Hmm the bmspec says "object 01 should be at 4 seconds" and
-    // "object 02 should be at 8 seconds".
-    // Let me just check what the timing track gives us.
+    //   合计 = 4.0 + 4.0 + 1.0 = 9.0s
 
     let dur1 = chart.data.timing.tick_to_duration(notes[0].0, resolution);
 
