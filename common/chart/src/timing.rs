@@ -401,6 +401,11 @@ impl TimingCache {
 
         // 构造 BPM 段（不含停止的累积秒数）。
         // BPM 段存储原始值（可能为负），时序计算使用 |bpm|。
+        // 先按 tick 排序（与停止事件的处理一致），防止输入未排序时
+        // current_seconds 累加出错。
+        let mut sorted_bpm_changes = timing.bpm_changes.clone();
+        sorted_bpm_changes.sort_by_key(|bc| bc.tick);
+
         let mut bpm_segments = vec![BpmSegment {
             start_tick: 0,
             start_seconds: 0.0,
@@ -411,7 +416,7 @@ impl TimingCache {
         let mut current_seconds = 0.0f64;
         let mut current_bpm = timing.init_bpm;
 
-        for bc in &timing.bpm_changes {
+        for bc in &sorted_bpm_changes {
             if bc.tick > current_tick {
                 current_seconds += (bc.tick - current_tick) as f64 / res * 60.0 / current_bpm.abs();
                 current_tick = bc.tick;
@@ -741,5 +746,34 @@ mod tests {
         assert!((cache.bpm_at_tick(0) - 120.0).abs() < 1e-9);
         assert!((cache.bpm_at_tick(480) - 200.0).abs() < 1e-9);
         assert!((cache.bpm_at_tick(960) - 200.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn unsorted_bpm_changes_sorted_internally() {
+        // BPM 变更顺序为 tick 480 → 240（未排序）。
+        // 若不排序，bpm_segments 的 current_seconds 累加会出错。
+        let timing = TimingTrack::new(
+            120.0,
+            vec![
+                BpmChange {
+                    tick: 480,
+                    bpm: 200.0,
+                },
+                BpmChange {
+                    tick: 240,
+                    bpm: 60.0,
+                },
+            ],
+            vec![],
+        );
+        let cache = TimingCache::new(&timing, RES);
+
+        // 240 tick = 1 拍（resolution 240）。
+        // tick 0-240 at 120 BPM = 0.5s，tick 240-480 at 60 BPM = 1.0s。
+        let expected = Duration::from_millis(1500);
+        assert_eq!(cache.tick_to_duration(480), expected);
+
+        // 应与 TimingTrack（内部通过 cached_events 排序）一致。
+        assert_eq!(timing.tick_to_duration(480, RES), expected);
     }
 }
