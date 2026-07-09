@@ -99,6 +99,14 @@ const fn is_valid_bpm(bpm: f64) -> bool {
     bpm.is_finite() && bpm != 0.0
 }
 
+/// 将秒数安全转换为 [`Duration`]，避免溢出 panic。
+///
+/// 负值与 NaN 钳位为 [`Duration::ZERO`]，超出 [`Duration::MAX`] 的值
+/// 钳位为 [`Duration::MAX`]。正常范围内的值不受影响。
+fn safe_from_secs_f64(secs: f64) -> Duration {
+    Duration::try_from_secs_f64(secs.max(0.0)).unwrap_or(Duration::MAX)
+}
+
 impl TimingTrack {
     /// 创建一个新的计时轨。
     ///
@@ -219,7 +227,7 @@ impl TimingTrack {
             seconds += delta / res * 60.0 / current_bpm.abs();
         }
 
-        Duration::from_secs_f64(seconds)
+        safe_from_secs_f64(seconds)
     }
 
     /// 将实际时间 [`Duration`] 换算为最近的脉冲位置。
@@ -499,7 +507,7 @@ impl TimingCache {
             0.0
         };
 
-        Duration::from_secs_f64(base + stop_pause)
+        safe_from_secs_f64(base + stop_pause)
     }
 
     /// 返回 `tick` 处生效的 BPM。
@@ -872,5 +880,28 @@ mod tests {
         let expected = Duration::from_secs(2);
         assert_eq!(cache.tick_to_duration(720), expected);
         assert_eq!(timing.tick_to_duration(720, RES), expected);
+    }
+
+    #[test]
+    fn extreme_stop_does_not_panic() {
+        // 极长停止（u64::MAX 脉冲）+ 极低 BPM（0.1）产生超大秒数，
+        // 超出 Duration::MAX。旧实现中 from_secs_f64 会 panic。
+        // u64::MAX / 240 * 60 / 0.1 ≈ 4.6e19 > Duration::MAX (1.8e19)。
+        let timing = TimingTrack::new(
+            0.1,
+            vec![],
+            vec![StopEvent {
+                tick: 0,
+                duration: u64::MAX,
+            }],
+        );
+        let cache = TimingCache::new(&timing, RES);
+
+        // 应返回 Duration::MAX 而非 panic。
+        let result = cache.tick_to_duration(1);
+        assert_eq!(result, Duration::MAX);
+
+        let result_track = timing.tick_to_duration(1, RES);
+        assert_eq!(result_track, Duration::MAX);
     }
 }
