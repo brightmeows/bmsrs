@@ -141,10 +141,6 @@ impl BmsonProcessor {
     }
 
     /// 自定义解码逻辑的公开入口（内部使用）。
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "BGA header/event ids are in the u32 range for practical charts"
-    )]
     fn process_body(
         bmson: &bmson_def::Bmson<'_>,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
@@ -160,72 +156,25 @@ impl BmsonProcessor {
         let timing_cache = TimingCache::new(&timing, resolution);
         let playable_pulses = collect_playable_pulses(&data.sound_channels);
 
-        let (mut audio_assets, mut events) = process_sound_channels(
-            &data.sound_channels,
+        let mut conv = BmsonConverter {
+            bmson,
             decode,
-            &timing_cache,
-            &playable_pulses,
-        );
-
-        process_mine_channels(&bmson.mine_channels, decode, &mut audio_assets, &mut events);
-        process_key_channels(&bmson.key_channels, decode, &mut audio_assets, &mut events);
-
-        events.extend(data.bpm_events.iter().map(|e| Event::bpm(e.y, e.bpm)));
-        events.extend(data.stop_events.iter().map(|e| {
-            Event::new(
-                e.y,
-                EventKind::Stop {
-                    duration: e.duration,
-                },
-            )
-        }));
-        events.extend(
-            bmson
-                .scroll_events
-                .iter()
-                .map(|e| Event::scroll(e.y, e.rate)),
-        );
-
-        let bga = &bmson.chart_info.bga;
-
-        for e in &bga.bga_events {
-            events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Base,
-                    resource_id: e.id as u32,
-                },
-            ));
-        }
-        for e in &bga.layer_events {
-            events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Layer,
-                    resource_id: e.id as u32,
-                },
-            ));
-        }
-        for e in &bga.poor_events {
-            events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Poor,
-                    resource_id: e.id as u32,
-                },
-            ));
-        }
-
-        // 小节线从完整事件集（含 BGA）的末尾脉冲推算范围，避免漏掉 tick
-        // 大于音符的 BGA 事件导致覆盖不足。
-        let last_tick = events.iter().map(Event::tick).max().unwrap_or(0);
-        events.extend(build_bar_lines(
-            data.lines.as_deref(),
+            timing: timing_cache,
             resolution,
-            last_tick,
-        ));
+            audio_assets: Vec::new(),
+            events: Vec::new(),
+        };
 
-        events.sort_by_key(Event::sort_key);
+        conv.process_sound_channels(&playable_pulses);
+        conv.process_mine_channels();
+        conv.process_key_channels();
+        conv.collect_bpm_events();
+        conv.collect_stop_events();
+        conv.collect_scroll_events();
+        conv.collect_bga_events();
+        conv.build_bar_lines();
+
+        conv.events.sort_by_key(Event::sort_key);
 
         let song_info = build_song_info(bmson);
         let chart_info = build_chart_info(bmson);
@@ -256,10 +205,225 @@ impl BmsonProcessor {
                     good: d.good,
                     miss: d.miss,
                 }),
-                events,
-                audio_assets,
+                events: conv.events,
+                audio_assets: conv.audio_assets,
             },
         })
+    }
+}
+
+/// BMSON → [`Chart`] 转换上下文。
+///
+/// 持有源文档 [`bmson_def::Bmson`]、解码函数与预计算的计时缓存，
+/// 同时拥有 `audio_assets` 和 `events` 两个累加缓冲区，使各转换步骤
+/// 以 `&mut self` 方法组织而非自由函数 + `&mut` 参数。仅供
+/// [`BmsonProcessor::process_body`] 内部使用。
+struct BmsonConverter<'a> {
+    /// 源 BMSON 文档。
+    bmson: &'a bmson_def::Bmson<'a>,
+    /// 通道解码函数（`x` → `(side, lane)`）。
+    decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
+    /// 预计算的计时缓存。
+    timing: TimingCache,
+    /// 节拍分辨率。
+    resolution: u64,
+    /// 正在构建的音频素材向量。
+    audio_assets: Vec<AudioAsset>,
+    /// 正在构建的事件向量。
+    events: Vec<Event<BmsonNoteExt>>,
+}
+
+impl BmsonConverter<'_> {
+    /// 收集 BPM 变更事件。
+    fn collect_bpm_events(&mut self) {
+        self.events.extend(
+            self.bmson
+                .chart_data
+                .bpm_events
+                .iter()
+                .map(|e| Event::bpm(e.y, e.bpm)),
+        );
+    }
+
+    /// 收集停止事件。
+    fn collect_stop_events(&mut self) {
+        self.events.extend(
+            self.bmson
+                .chart_data
+                .stop_events
+                .iter()
+                .map(|e| Event::stop(e.y, e.duration)),
+        );
+    }
+
+    /// 收集 SCROLL 事件。
+    fn collect_scroll_events(&mut self) {
+        self.events.extend(
+            self.bmson
+                .scroll_events
+                .iter()
+                .map(|e| Event::scroll(e.y, e.rate)),
+        );
+    }
+
+    /// 收集 BGA 事件（三层：Base / Layer / Poor）。
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "BGA header/event ids are in the u32 range for practical charts"
+    )]
+    fn collect_bga_events(&mut self) {
+        let bga = &self.bmson.chart_info.bga;
+        for e in &bga.bga_events {
+            self.events.push(Event::new(
+                e.y,
+                EventKind::Bga {
+                    layer: BgaLayer::Base,
+                    resource_id: e.id as u32,
+                },
+            ));
+        }
+        for e in &bga.layer_events {
+            self.events.push(Event::new(
+                e.y,
+                EventKind::Bga {
+                    layer: BgaLayer::Layer,
+                    resource_id: e.id as u32,
+                },
+            ));
+        }
+        for e in &bga.poor_events {
+            self.events.push(Event::new(
+                e.y,
+                EventKind::Bga {
+                    layer: BgaLayer::Poor,
+                    resource_id: e.id as u32,
+                },
+            ));
+        }
+    }
+
+    /// 从小节线定义或 4/4 默认值构建小节线事件。
+    fn build_bar_lines(&mut self) {
+        let last_tick = self.events.iter().map(Event::tick).max().unwrap_or(0);
+        self.events.extend(build_bar_lines(
+            self.bmson.chart_data.lines.as_deref(),
+            self.resolution,
+            last_tick,
+        ));
+    }
+    /// 处理音频通道：切片、创建音符/BGM 事件。
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "audio asset count fits in u32 for practical charts"
+    )]
+    fn process_sound_channels(&mut self, playable_pulses: &BTreeSet<u64>) {
+        for channel in &self.bmson.chart_data.sound_channels {
+            let sliced = slice_channel(channel, &self.timing);
+
+            for ne in &channel.note_events {
+                let audio_idx = sliced
+                    .pulse_to_index
+                    .get(&ne.y)
+                    .copied()
+                    .map(|idx| (idx + self.audio_assets.len()) as u32);
+
+                if ne.is_bgm() {
+                    if playable_pulses.contains(&ne.y) {
+                        continue;
+                    }
+                    if let Some(idx) = audio_idx {
+                        self.events.push(Event::bgm(ne.y, idx));
+                    }
+                } else {
+                    let Some((side, lane)) = (self.decode)(ne.x) else {
+                        continue;
+                    };
+                    let kind = if ne.l > 0 {
+                        NoteKind::Long { duration: ne.l }
+                    } else {
+                        NoteKind::Normal
+                    };
+                    self.events.push(Event::new(
+                        ne.y,
+                        EventKind::Note {
+                            side,
+                            lane,
+                            kind,
+                            audio_index: audio_idx,
+                            ext: build_note_ext(ne),
+                        },
+                    ));
+                }
+            }
+
+            self.audio_assets.extend(sliced.assets);
+        }
+    }
+
+    /// 处理地雷通道：每个通道贡献一个整文件 `AudioAsset` 和地雷音符。
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "audio asset count fits in u32 for practical charts"
+    )]
+    fn process_mine_channels(&mut self) {
+        for mc in &self.bmson.mine_channels {
+            let mine_audio_idx = self.audio_assets.len() as u32;
+            self.audio_assets.push(AudioAsset {
+                path: Arc::from(mc.name.to_path_buf()),
+                start: Duration::ZERO,
+                duration: None,
+            });
+
+            for mn in &mc.notes {
+                let Some((side, lane)) = (self.decode)(mn.x) else {
+                    continue;
+                };
+                self.events.push(Event::new(
+                    mn.y,
+                    EventKind::Note {
+                        side,
+                        lane,
+                        kind: NoteKind::Mine {
+                            damage: Damage::new(mn.damage),
+                        },
+                        audio_index: Some(mine_audio_idx),
+                        ext: BmsonNoteExt::default(),
+                    },
+                ));
+            }
+        }
+    }
+
+    /// 处理按键（不可见）通道：结构与地雷通道相同。
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "audio asset count fits in u32 for practical charts"
+    )]
+    fn process_key_channels(&mut self) {
+        for kc in &self.bmson.key_channels {
+            let key_audio_idx = self.audio_assets.len() as u32;
+            self.audio_assets.push(AudioAsset {
+                path: Arc::from(kc.name.to_path_buf()),
+                start: Duration::ZERO,
+                duration: None,
+            });
+
+            for kn in &kc.notes {
+                let Some((side, lane)) = (self.decode)(kn.x) else {
+                    continue;
+                };
+                self.events.push(Event::new(
+                    kn.y,
+                    EventKind::Note {
+                        side,
+                        lane,
+                        kind: NoteKind::Invisible,
+                        audio_index: Some(key_audio_idx),
+                        ext: BmsonNoteExt::default(),
+                    },
+                ));
+            }
+        }
     }
 }
 
@@ -280,65 +444,6 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
         data.bpm_events.iter().map(build_bpm_change).collect(),
         data.stop_events.iter().map(build_stop_event).collect(),
     )
-}
-
-/// 处理音频通道：切片、创建音符/BGM 事件。
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "audio asset count fits in u32 for practical charts"
-)]
-fn process_sound_channels(
-    channels: &[bmson_def::SoundChannel<'_>],
-    decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    timing: &TimingCache,
-    playable_pulses: &BTreeSet<u64>,
-) -> (Vec<AudioAsset>, Vec<Event<BmsonNoteExt>>) {
-    let mut audio_assets = Vec::new();
-    let mut events = Vec::new();
-
-    for channel in channels {
-        let sliced = slice_channel(channel, timing);
-
-        for ne in &channel.note_events {
-            let audio_idx = sliced
-                .pulse_to_index
-                .get(&ne.y)
-                .copied()
-                .map(|idx| (idx + audio_assets.len()) as u32);
-
-            if ne.is_bgm() {
-                if playable_pulses.contains(&ne.y) {
-                    continue;
-                }
-                if let Some(idx) = audio_idx {
-                    events.push(Event::bgm(ne.y, idx));
-                }
-            } else {
-                let Some((side, lane)) = decode(ne.x) else {
-                    continue;
-                };
-                let kind = if ne.l > 0 {
-                    NoteKind::Long { duration: ne.l }
-                } else {
-                    NoteKind::Normal
-                };
-                events.push(Event::new(
-                    ne.y,
-                    EventKind::Note {
-                        side,
-                        lane,
-                        kind,
-                        audio_index: audio_idx,
-                        ext: build_note_ext(ne),
-                    },
-                ));
-            }
-        }
-
-        audio_assets.extend(sliced.assets);
-    }
-
-    (audio_assets, events)
 }
 
 /// 从 BMSON [`NoteEvent`](bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。
@@ -385,82 +490,6 @@ const fn ln_life_to_hint(ll: bmson_def::LnLife) -> LnLifeHint {
     match ll {
         bmson_def::LnLife::Ticks => LnLifeHint::Ticks,
         _ => LnLifeHint::Normal,
-    }
-}
-
-/// 处理地雷通道：每个通道贡献一个整文件 `AudioAsset`。
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "audio asset count fits in u32 for practical charts"
-)]
-fn process_mine_channels(
-    channels: &[bmson_def::MineChannel<'_>],
-    decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    audio_assets: &mut Vec<AudioAsset>,
-    events: &mut Vec<Event<BmsonNoteExt>>,
-) {
-    for mc in channels {
-        let mine_audio_idx = audio_assets.len() as u32;
-        audio_assets.push(AudioAsset {
-            path: Arc::from(mc.name.to_path_buf()),
-            start: Duration::ZERO,
-            duration: None,
-        });
-
-        for mn in &mc.notes {
-            let Some((side, lane)) = decode(mn.x) else {
-                continue;
-            };
-            events.push(Event::new(
-                mn.y,
-                EventKind::Note {
-                    side,
-                    lane,
-                    kind: NoteKind::Mine {
-                        damage: Damage::new(mn.damage),
-                    },
-                    audio_index: Some(mine_audio_idx),
-                    ext: BmsonNoteExt::default(),
-                },
-            ));
-        }
-    }
-}
-
-/// 处理按键（不可见）通道：结构与地雷通道相同。
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "audio asset count fits in u32 for practical charts"
-)]
-fn process_key_channels(
-    channels: &[bmson_def::KeyChannel<'_>],
-    decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    audio_assets: &mut Vec<AudioAsset>,
-    events: &mut Vec<Event<BmsonNoteExt>>,
-) {
-    for kc in channels {
-        let key_audio_idx = audio_assets.len() as u32;
-        audio_assets.push(AudioAsset {
-            path: Arc::from(kc.name.to_path_buf()),
-            start: Duration::ZERO,
-            duration: None,
-        });
-
-        for kn in &kc.notes {
-            let Some((side, lane)) = decode(kn.x) else {
-                continue;
-            };
-            events.push(Event::new(
-                kn.y,
-                EventKind::Note {
-                    side,
-                    lane,
-                    kind: NoteKind::Invisible,
-                    audio_index: Some(key_audio_idx),
-                    ext: BmsonNoteExt::default(),
-                },
-            ));
-        }
     }
 }
 
