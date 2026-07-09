@@ -91,7 +91,11 @@ impl BmsProcessor {
 
         let max_measure = find_max_measure(bms);
         let table = MeasureTable::new(max_measure, &bms.messages.measure_lengths, RESOLUTION);
-        let conv = BmsConverter { bms, table: &table };
+        let mut conv = BmsConverter {
+            bms,
+            table: &table,
+            events: Vec::with_capacity(1024),
+        };
 
         let (wav_map, audio_assets) = build_audio_assets(&bms.audio.wav_files);
         let bpm_changes = conv.build_bpm_changes();
@@ -112,29 +116,28 @@ impl BmsProcessor {
             .collect();
 
         let (paired_lns, consumed) = conv.pair_long_notes();
-        let mut events = Vec::new();
 
         // 小节线优先（优先级 0）。
-        events.extend(build_bar_events(&table));
+        conv.events.extend(build_bar_events(&table));
 
         // 音符（优先级 1）。
-        conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed, &mut events);
+        conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed);
 
         // BGM（优先级 1）。
-        conv.collect_bgm(&wav_map, &mut events);
+        conv.collect_bgm(&wav_map);
 
         // LNOBJ 终点标记作为 BGM 播放（按 BMS 规范）。
-        conv.collect_lnobj_bgm(&wav_map, &consumed, &mut events);
+        conv.collect_lnobj_bgm(&wav_map, &consumed);
 
         // BGA（优先级 1）。
-        conv.collect_bga(&bmp_map, &mut events);
+        conv.collect_bga(&bmp_map);
 
         // BPM 变更（优先级 2）。
-        conv.collect_bpm_events(&mut events);
+        conv.collect_bpm_events();
 
         // 停止事件（优先级 3）—— 重新遍历计时停止事件。
         for se in timing.stops() {
-            events.push(Event::new(
+            conv.events.push(Event::new(
                 se.tick,
                 EventKind::Stop {
                     duration: se.duration,
@@ -143,18 +146,19 @@ impl BmsProcessor {
         }
 
         // SCROLL 事件（优先级 4）。
-        conv.collect_scroll_events(&mut events);
+        conv.collect_scroll_events();
 
         // SPEED 事件（优先级 5）。
-        conv.collect_speed_events(&mut events);
+        conv.collect_speed_events();
 
         // BMS 引擎特定自定义事件（优先级 6）。
-        conv.collect_custom_events(&bmp_map, &mut events);
+        conv.collect_custom_events(&bmp_map);
 
         // 排序规则收敛于 Event::sort_key（同脉冲子序约定见其文档）。
-        events.sort_by_key(BmsEvent::sort_key);
+        conv.events.sort_by_key(BmsEvent::sort_key);
 
         let (song, chart_info) = conv.build_metadata();
+        let events = conv.events;
 
         Ok(Chart {
             song,
@@ -197,15 +201,16 @@ impl BmsProcessor {
 
 /// BMS → [`Chart`] 转换上下文。
 ///
-/// 持有在多个转换步骤间共享的源文档 [`Bms`] 与预计算的小节脉冲表
-/// [`MeasureTable`]，使各步骤以方法形式组织，避免 `&Bms` 与
-/// `&MeasureTable` 在每个辅助函数签名中重复。仅供
-/// [`BmsProcessor::process`] 内部使用。
+/// 持有源文档 [`Bms`]、小节脉冲表 [`MeasureTable`] 以及正在构建的
+/// 事件缓冲区，使各 `collect_*` 步骤直接写入内部 `events`，无需调用方
+/// 传入 `&mut Vec`。仅供 [`BmsProcessor::process`] 内部使用。
 struct BmsConverter<'a> {
     /// 源 BMS 文档。
     bms: &'a Bms,
     /// 小节 → 累计脉冲查找表。
     table: &'a MeasureTable,
+    /// 正在构建的事件向量，最终由 [`BmsProcessor::process`] 提取。
+    events: Vec<BmsEvent>,
 }
 
 impl BmsConverter<'_> {
@@ -228,11 +233,10 @@ impl BmsConverter<'_> {
 
     /// 收集全部可玩音符到事件向量中。
     fn collect_notes<L: BmsLayout>(
-        &self,
+        &mut self,
         wav_map: &BTreeMap<WavIndex, u32>,
         paired_lns: &[PairedLn],
         consumed: &BTreeSet<usize>,
-        events: &mut Vec<BmsEvent>,
     ) {
         let push_note =
             |tick: u64, side, lane, kind: NoteKind, audio: Option<u32>, ev: &mut Vec<BmsEvent>| {
@@ -264,7 +268,7 @@ impl BmsConverter<'_> {
                     ne.lane,
                     NoteKind::Normal,
                     wav_map.get(&ne.wav_id).copied(),
-                    events,
+                    &mut self.events,
                 );
             }
         }
@@ -281,7 +285,7 @@ impl BmsConverter<'_> {
                     ne.lane,
                     NoteKind::Invisible,
                     wav_map.get(&ne.wav_id).copied(),
-                    events,
+                    &mut self.events,
                 );
             }
         }
@@ -296,7 +300,7 @@ impl BmsConverter<'_> {
                     lne.lane,
                     NoteKind::Normal,
                     wav_map.get(&lne.wav_id).copied(),
-                    events,
+                    &mut self.events,
                 );
             }
         }
@@ -311,7 +315,7 @@ impl BmsConverter<'_> {
                     duration: ln.duration,
                 },
                 wav_map.get(&ln.wav_id).copied(),
-                events,
+                &mut self.events,
             );
         }
 
@@ -325,16 +329,16 @@ impl BmsConverter<'_> {
                     damage: Damage::new(me.damage),
                 },
                 None,
-                events,
+                &mut self.events,
             );
         }
     }
 
     /// 收集 BGM 事件到事件向量中。
-    fn collect_bgm(&self, wav_map: &BTreeMap<WavIndex, u32>, events: &mut Vec<BmsEvent>) {
+    fn collect_bgm(&mut self, wav_map: &BTreeMap<WavIndex, u32>) {
         for be in &self.bms.messages.bgm_events {
             if let Some(&audio) = wav_map.get(&be.wav_id) {
-                events.push(Event::new(
+                self.events.push(Event::new(
                     self.table.position_to_tick(be.position),
                     EventKind::Bgm { audio_index: audio },
                 ));
@@ -348,12 +352,7 @@ impl BmsConverter<'_> {
     /// 终点标记经过判定线时，其 WAV 文件作为 BGM 播放。此函数遍历
     /// [`pair_lnobj`] 返回的 `consumed` 音符索引，为每个终点标记生成一个
     /// BGM 事件。
-    fn collect_lnobj_bgm(
-        &self,
-        wav_map: &BTreeMap<WavIndex, u32>,
-        consumed: &BTreeSet<usize>,
-        events: &mut Vec<BmsEvent>,
-    ) {
+    fn collect_lnobj_bgm(&mut self, wav_map: &BTreeMap<WavIndex, u32>, consumed: &BTreeSet<usize>) {
         let Some(ln_obj) = self.bms.gameplay.ln_obj else {
             return;
         };
@@ -362,7 +361,7 @@ impl BmsConverter<'_> {
                 && *ne.wav_id == *ln_obj
                 && let Some(&audio) = wav_map.get(&ne.wav_id)
             {
-                events.push(Event::new(
+                self.events.push(Event::new(
                     self.table.position_to_tick(ne.position),
                     EventKind::Bgm { audio_index: audio },
                 ));
@@ -371,9 +370,9 @@ impl BmsConverter<'_> {
     }
 
     /// 构建 BPM 事件（用于统一时间线）。
-    fn collect_bpm_events(&self, events: &mut Vec<BmsEvent>) {
+    fn collect_bpm_events(&mut self) {
         for bc in &self.bms.messages.bpm_changes {
-            events.push(Event::new(
+            self.events.push(Event::new(
                 self.table.position_to_tick(bc.position),
                 EventKind::Bpm {
                     bpm: self.resolve_bpm(bc.value),
@@ -383,10 +382,10 @@ impl BmsConverter<'_> {
     }
 
     /// 构建 SCROLL 变更事件。
-    fn collect_scroll_events(&self, events: &mut Vec<BmsEvent>) {
+    fn collect_scroll_events(&mut self) {
         for se in &self.bms.messages.scroll_events {
             if let Some(&rate) = self.bms.timing.scroll_defs.get(&se.scroll_id) {
-                events.push(Event::new(
+                self.events.push(Event::new(
                     self.table.position_to_tick(se.position),
                     EventKind::Scroll { rate },
                 ));
@@ -395,10 +394,10 @@ impl BmsConverter<'_> {
     }
 
     /// 构建 SPEED（视觉音符间距）关键帧事件。
-    fn collect_speed_events(&self, events: &mut Vec<BmsEvent>) {
+    fn collect_speed_events(&mut self) {
         for se in &self.bms.messages.speed_events {
             if let Some(&rate) = self.bms.timing.speed_defs.get(&se.speed_id) {
-                events.push(Event::new(
+                self.events.push(Event::new(
                     self.table.position_to_tick(se.position),
                     EventKind::Speed { rate },
                 ));
@@ -418,11 +417,7 @@ impl BmsConverter<'_> {
         clippy::too_many_lines,
         reason = "single structured match on channel variant with short branches; extraction would lose clarity"
     )]
-    fn collect_custom_events(
-        &self,
-        bmp_map: &BTreeMap<BmpIndex, (u32, String)>,
-        events: &mut Vec<BmsEvent>,
-    ) {
+    fn collect_custom_events(&mut self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>) {
         let non_event = &self.bms.messages.non_event_data;
 
         // BGA 图层映射（通道 → 图层）。
@@ -537,16 +532,17 @@ impl BmsConverter<'_> {
                     }
                     _ => continue,
                 };
-                events.push(Event::new(tick, EventKind::Custom(payload)));
+                self.events
+                    .push(Event::new(tick, EventKind::Custom(payload)));
             }
         }
     }
 
     /// 从 BGA 事件与 BMP 文件定义构建 BGA 事件。
-    fn collect_bga(&self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>, events: &mut Vec<BmsEvent>) {
+    fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>) {
         for be in &self.bms.messages.bga_events {
             if let Some(&(resource_id, _)) = bmp_map.get(&be.bmp_id) {
-                events.push(Event::new(
+                self.events.push(Event::new(
                     self.table.position_to_tick(be.position),
                     EventKind::Bga {
                         layer: be.layer,
