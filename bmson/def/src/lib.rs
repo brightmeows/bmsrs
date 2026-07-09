@@ -413,7 +413,7 @@ pub enum DetectedVersion {
 
 /// 通过扫描 JSON 谱面文件的 `"version"` 字段来检测 bmson 格式版本。
 ///
-/// 此函数执行**轻量级字符串扫描**而非完整 JSON 解析，因此适合作为
+/// 此方法执行**轻量级字符串扫描**而非完整 JSON 解析，因此适合作为
 /// 分发到版本特有反序列化器之前的第一步。
 ///
 /// # 检测逻辑
@@ -429,50 +429,57 @@ pub enum DetectedVersion {
 /// # 示例
 ///
 /// ```rust
-/// # use bmson_def::DetectedVersion;
 /// let json = r#"{"version":"2.0.0","song_info":{}}"#;
-/// assert_eq!(bmson_def::detect_version(json).unwrap(), DetectedVersion::V2);
+/// assert_eq!(bmson_def::DetectedVersion::detect(json).unwrap(), bmson_def::DetectedVersion::V2);
 /// ```
 ///
 /// # Errors
 ///
 /// 当找到 `"version"` 字段但其值不是字符串，或不以 `'0'`、`'1'`、`'2'`
 /// 开头时，返回 [`BmsonError::UnknownVersion`]。
-#[expect(
-    clippy::string_slice,
-    reason = "JSON bytes for \"version\" key and ASCII version strings; byte indexing is safe"
-)]
-pub fn detect_version(json: &str) -> Result<DetectedVersion, BmsonError> {
-    // 扫描字面量子串以查找 `"version"` 键。
-    let Some(key_pos) = json.find("\"version\"") else {
-        return Ok(DetectedVersion::V0);
-    };
+impl DetectedVersion {
+    /// 扫描 JSON 字符串并检测 bmson 版本。
+    ///
+    /// # Errors
+    ///
+    /// 当 `"version"` 字段存在但无法识别时，返回
+    /// [`BmsonError::UnknownVersion`]。
+    #[expect(
+        clippy::string_slice,
+        reason = "JSON bytes for \"version\" key and ASCII version strings; byte indexing is safe"
+    )]
+    pub fn detect(json: &str) -> Result<Self, BmsonError> {
+        // 扫描字面量子串以查找 `"version"` 键。
+        let Some(key_pos) = json.find("\"version\"") else {
+            return Ok(Self::V0);
+        };
 
-    let mut rest = &json[key_pos + 9..];
-    // 跳过空白，预期 `:`。
-    rest = rest.trim_start();
-    rest = rest.strip_prefix(':').ok_or_else(|| {
-        BmsonError::UnknownVersion("malformed version field: expected ':'".into())
-    })?;
-    // 跳过空白，预期开头的 `"`。
-    rest = rest.trim_start();
-    rest = rest.strip_prefix('"').ok_or_else(|| {
-        BmsonError::UnknownVersion("malformed version field: expected string".into())
-    })?;
-    // 查找闭合的 `"`。
-    let end = rest
-        .find('"')
-        .ok_or_else(|| BmsonError::UnknownVersion("unterminated version string".into()))?;
-    let version = &rest[..end];
+        let mut rest = &json[key_pos + 9..];
+        // 跳过空白，预期 `:`。
+        rest = rest.trim_start();
+        rest = rest.strip_prefix(':').ok_or_else(|| {
+            BmsonError::UnknownVersion("malformed version field: expected ':'".into())
+        })?;
+        // 跳过空白，预期开头的 `"`。
+        rest = rest.trim_start();
+        rest = rest.strip_prefix('"').ok_or_else(|| {
+            BmsonError::UnknownVersion("malformed version field: expected string".into())
+        })?;
+        // 查找闭合的 `"`。
+        let end = rest
+            .find('"')
+            .ok_or_else(|| BmsonError::UnknownVersion("unterminated version string".into()))?;
+        let version = &rest[..end];
 
-    if version.starts_with('2') {
-        Ok(DetectedVersion::V2)
-    } else if version.starts_with('1') {
-        Ok(DetectedVersion::V1)
-    } else if version.starts_with('0') {
-        Ok(DetectedVersion::V0)
-    } else {
-        Err(BmsonError::UnknownVersion(version.to_owned()))
+        if version.starts_with('2') {
+            Ok(Self::V2)
+        } else if version.starts_with('1') {
+            Ok(Self::V1)
+        } else if version.starts_with('0') {
+            Ok(Self::V0)
+        } else {
+            Err(BmsonError::UnknownVersion(version.to_owned()))
+        }
     }
 }
 

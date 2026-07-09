@@ -2,11 +2,11 @@
 
 mod helper;
 
-use bmson_de_chumsky::{BmsonDeError, from_str};
+use bmson_de_chumsky::{BmsonDeError, BmsonParser};
 
 #[test]
 fn v2_roundtrip_parses_successfully() {
-    let bmson = from_str(helper::minimal_v2_json()).unwrap();
+    let bmson = BmsonParser::parse(helper::minimal_v2_json()).unwrap();
     assert_eq!(bmson.song_info.title, "T");
     assert_eq!(bmson.song_info.artist, "A");
     assert_eq!(bmson.song_info.genre, "G");
@@ -15,7 +15,7 @@ fn v2_roundtrip_parses_successfully() {
 
 #[test]
 fn v1_is_converted_to_v2() {
-    let bmson = from_str(helper::minimal_v1_json()).unwrap();
+    let bmson = BmsonParser::parse(helper::minimal_v1_json()).unwrap();
     assert_eq!(bmson.song_info.title, "T");
     assert_eq!(bmson.song_info.artist, "A");
     assert_eq!(bmson.chart_info.level, 1);
@@ -23,7 +23,7 @@ fn v1_is_converted_to_v2() {
 
 #[test]
 fn v0_is_converted_to_v2() {
-    let bmson = from_str(helper::minimal_v0_json()).unwrap();
+    let bmson = BmsonParser::parse(helper::minimal_v0_json()).unwrap();
     assert_eq!(bmson.song_info.title, "T");
     assert_eq!(bmson.song_info.artist, "A");
     assert_eq!(bmson.chart_info.level, 1);
@@ -32,7 +32,7 @@ fn v0_is_converted_to_v2() {
 #[test]
 fn unknown_version_returns_error() {
     let json = r#"{"version":"3.0.0","song_info":{"title":"T","artist":"A","genre":"G"},"chart_info":{"subtitle":"","subartists":[],"chart_name":"","level":1,"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}},"chart_data":{"init_bpm":140.0,"lines":null,"bpm_events":[],"stop_events":[],"sound_channels":[]}}"#;
-    let result = from_str(json);
+    let result = BmsonParser::parse(json);
     assert!(result.is_err());
     match result {
         Err(BmsonDeError::UnknownVersion(_)) => {}
@@ -43,20 +43,20 @@ fn unknown_version_returns_error() {
 
 #[test]
 fn malformed_json_returns_parse_error() {
-    let result = from_str("not json at all");
+    let result = BmsonParser::parse("not json at all");
     assert!(result.is_err());
 }
 
 #[test]
 fn empty_input_returns_parse_error() {
-    let result = from_str("");
+    let result = BmsonParser::parse("");
     assert!(result.is_err());
 }
 
 #[test]
 fn v0_negative_bpm_returns_conversion_error() {
     let json = r#"{"info":{"title":"T","artist":"A","genre":"G","initBPM":-1.0,"level":1},"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}}"#;
-    let result = from_str(json);
+    let result = BmsonParser::parse(json);
     assert!(result.is_err());
     match result {
         Err(BmsonDeError::V0Conversion(_)) => {}
@@ -68,7 +68,7 @@ fn v0_negative_bpm_returns_conversion_error() {
 #[test]
 fn v1_missing_required_field_returns_deserialize_error() {
     let json = r#"{"version":"1.0.0","info":{"title":"T","genre":"G","init_bpm":140.0,"level":1},"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}}"#;
-    let result = from_str(json);
+    let result = BmsonParser::parse(json);
     assert!(result.is_err());
     match result {
         Err(BmsonDeError::Deserialize {
@@ -82,7 +82,7 @@ fn v1_missing_required_field_returns_deserialize_error() {
 #[test]
 fn trailing_comma_in_v2_returns_deserialize_with_diagnostics() {
     let json = r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},}"#;
-    let result = from_str(json);
+    let result = BmsonParser::parse(json);
     assert!(result.is_err());
     match &result {
         Err(BmsonDeError::Deserialize { message, .. }) => {
@@ -99,7 +99,7 @@ fn trailing_comma_in_v2_returns_deserialize_with_diagnostics() {
 #[test]
 fn v2_with_sound_channels_roundtrip() {
     let json = r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},"chart_info":{"subtitle":"","subartists":[],"chart_name":"","level":5,"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}},"chart_data":{"init_bpm":180.0,"lines":null,"bpm_events":[{"y":0,"bpm":180.0}],"stop_events":[],"sound_channels":[{"name":"kick.wav","note_events":[{"x":1,"y":0,"l":0,"c":false}]},{"name":"snare.wav","note_events":[{"x":3,"y":240,"l":0,"c":false}]}]}}"#;
-    let bmson = from_str(json).unwrap();
+    let bmson = BmsonParser::parse(json).unwrap();
     assert_eq!(bmson.chart_info.level, 5);
     assert_eq!(bmson.chart_data.bpm_events.len(), 1);
     assert_eq!(bmson.chart_data.sound_channels.len(), 2);
@@ -112,7 +112,7 @@ fn v2_with_sound_channels_roundtrip() {
 #[test]
 fn v1_with_stop_events_roundtrip() {
     let json = r#"{"version":"1.0.0","info":{"title":"T","artist":"A","genre":"G","init_bpm":140.0,"level":1},"bpm_events":[{"y":0,"bpm":140.0}],"stop_events":[{"y":480,"duration":240}],"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}}"#;
-    let bmson = from_str(json).unwrap();
+    let bmson = BmsonParser::parse(json).unwrap();
     assert_eq!(bmson.chart_data.bpm_events.len(), 1);
     assert_eq!(bmson.chart_data.stop_events.len(), 1);
     let Some(stop) = bmson.chart_data.stop_events.first() else {
@@ -124,7 +124,7 @@ fn v1_with_stop_events_roundtrip() {
 #[test]
 fn v0_with_sound_channel_roundtrip() {
     let json = r#"{"info":{"title":"T","artist":"A","genre":"G","initBPM":140.0,"level":1},"soundChannel":[{"name":"hat.wav","notes":[{"x":2,"y":120,"l":0,"c":false}]}],"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}}"#;
-    let bmson = from_str(json).unwrap();
+    let bmson = BmsonParser::parse(json).unwrap();
     assert_eq!(bmson.chart_data.sound_channels.len(), 1);
     let Some(sc) = bmson.chart_data.sound_channels.first() else {
         panic!("expected at least one sound channel");
@@ -138,7 +138,7 @@ fn v0_with_sound_channel_roundtrip() {
 #[test]
 fn v2_scroll_events_roundtrip() {
     let json = r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},"chart_info":{"subtitle":"","subartists":[],"chart_name":"","level":1,"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}},"chart_data":{"init_bpm":140.0,"lines":null,"bpm_events":[],"stop_events":[],"sound_channels":[]},"scroll_events":[{"y":0,"rate":1.0},{"y":960,"rate":2.0}]}"#;
-    let bmson = from_str(json).unwrap();
+    let bmson = BmsonParser::parse(json).unwrap();
     assert_eq!(bmson.scroll_events.len(), 2);
     let Some(se) = bmson.scroll_events.get(1) else {
         panic!("expected second scroll event");
