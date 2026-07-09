@@ -46,8 +46,7 @@ use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
 use bmsrs::bms::tokenizer::BmsTokenizer;
 use bmsrs::chart::{
-    AudioAsset, Chart, ChartData, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoCustomEvent, NoteKind, NoteSide,
+    AudioAsset, Chart, ChartData, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide,
 };
 use bmsrs::player::Player;
 use clap::Parser;
@@ -191,7 +190,7 @@ fn load_bms(path: &Path) -> Result<Chart<(), BmsCustomEvent>, String> {
     // 分词后直接送入解析器，避免不必要的中间收集。
     let bms = Bms::from_flat_tokens(
         BmsTokenizer::new()
-            .tokenize::<Vec<_>, String>(&content)
+            .tokenize_owned(&content)
             .into_iter()
             .filter_map(|(_, res)| res.ok()),
     );
@@ -220,6 +219,46 @@ fn load_bmson(path: &Path) -> Result<Chart<(), NoCustomEvent>, String> {
 /// 将 `Chart<(), BmsCustomEvent>` 转换为 `Chart<(), NoCustomEvent>`，
 /// 丢弃 BMS 引擎特定的自定义事件（渲染器无需处理它们）。
 fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEvent> {
+    let events = chart
+        .data
+        .events
+        .into_iter()
+        .filter_map(|e| {
+            if matches!(e.kind, EventKind::Custom(_)) {
+                return None;
+            }
+            let tick = e.tick();
+            #[expect(clippy::unreachable, reason = "Custom events filtered before match")]
+            Some(match e.kind {
+                EventKind::Note {
+                    side,
+                    lane,
+                    kind,
+                    audio_index,
+                    ..
+                } => Event::new(
+                    tick,
+                    EventKind::Note {
+                        side,
+                        lane,
+                        kind,
+                        audio_index,
+                        ext: (),
+                    },
+                ),
+                EventKind::Bgm { audio_index } => Event::bgm(tick, audio_index),
+                EventKind::Bpm { bpm } => Event::bpm(tick, bpm),
+                EventKind::Stop { duration } => Event::stop(tick, duration),
+                EventKind::Scroll { rate } => Event::scroll(tick, rate),
+                EventKind::Speed { rate } => Event::speed(tick, rate),
+                EventKind::Bga { layer, resource_id } => {
+                    Event::new(tick, EventKind::Bga { layer, resource_id })
+                }
+                EventKind::Bar => Event::bar(tick),
+                EventKind::Custom(_) => unreachable!("filtered above"),
+            })
+        })
+        .collect();
     Chart {
         song: chart.song,
         chart: chart.chart,
@@ -228,50 +267,12 @@ fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEv
             timing: chart.data.timing,
             judge_multiplier: chart.data.judge_multiplier,
             life_multiplier: chart.data.life_multiplier,
-            // 透传 BMS 源 chart 的 LN 提示（当前 BmsProcessor 始终输出默认值，
-            // 保留透传形式以便将来支持 LN 提示时无需修改此处）。
             ln_type_hint: chart.data.ln_type_hint,
             ln_judge_hint: chart.data.ln_judge_hint,
             ln_life_hint: chart.data.ln_life_hint,
-            events: chart
-                .data
-                .events
-                .into_iter()
-                .filter(|e| !matches!(e.kind, EventKind::Custom(_)))
-                .map(|e| {
-                    let tick = e.tick();
-                    match e.kind {
-                        EventKind::Note {
-                            side,
-                            lane,
-                            kind,
-                            audio_index,
-                            ext: (),
-                        } => Event::new(
-                            tick,
-                            EventKind::Note {
-                                side,
-                                lane,
-                                kind,
-                                audio_index,
-                                ext: (),
-                            },
-                        ),
-                        EventKind::Bgm { audio_index } => Event::bgm(tick, audio_index),
-                        EventKind::Bpm { bpm } => Event::bpm(tick, bpm),
-                        EventKind::Stop { duration } => Event::stop(tick, duration),
-                        EventKind::Scroll { rate } => Event::scroll(tick, rate),
-                        EventKind::Speed { rate } => Event::speed(tick, rate),
-                        EventKind::Bga { layer, resource_id } => {
-                            Event::new(tick, EventKind::Bga { layer, resource_id })
-                        }
-                        EventKind::Bar => Event::bar(tick),
-                        EventKind::Custom(_) => panic!("unreachable: filtered above"),
-                    }
-                })
-                .collect(),
-            judge_deltas: None,
-            life_deltas: None,
+            judge_deltas: chart.data.judge_deltas,
+            life_deltas: chart.data.life_deltas,
+            events,
             audio_assets: chart.data.audio_assets,
         },
     }
@@ -281,23 +282,7 @@ fn normalize_bms_chart(chart: Chart<(), BmsCustomEvent>) -> Chart<(), NoCustomEv
 fn normalize_chart(
     chart: Chart<bmsrs::bmson::processor::BmsonNoteExt, NoCustomEvent>,
 ) -> Chart<(), NoCustomEvent> {
-    Chart {
-        song: chart.song,
-        chart: chart.chart,
-        data: ChartData {
-            resolution: chart.data.resolution,
-            timing: chart.data.timing,
-            judge_multiplier: chart.data.judge_multiplier,
-            life_multiplier: chart.data.life_multiplier,
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            events: chart.data.events.into_iter().map(normalize_event).collect(),
-            judge_deltas: None,
-            life_deltas: None,
-            audio_assets: chart.data.audio_assets,
-        },
-    }
+    chart.map_events(normalize_event)
 }
 
 /// 将 `Event<BmsonNoteExt>` 转换为 `Event<()>`，丢弃扩展数据。
@@ -605,7 +590,7 @@ fn render_notes(player: &Player<(), NoCustomEvent>) {
 fn render_info(player: &Player<(), NoCustomEvent>, elapsed: Duration) {
     let bpm = player.current_bpm();
     let tick = player.current_tick();
-    let total_ticks = player.chart().data.events.last().map_or(0, Event::tick);
+    let total_ticks = player.chart().data.last_tick();
 
     draw_text(format!("BPM: {bpm:.1}"), 10.0, 24.0, 20.0, COLOR_INFO_TEXT);
 
@@ -797,7 +782,7 @@ async fn main() {
         render_info(&player, elapsed);
 
         // 检查播放是否结束。
-        if current_tick >= player.chart().data.events.last().map_or(0, Event::tick) {
+        if current_tick >= player.chart().data.last_tick() {
             draw_text(
                 "♪ 播放完毕 ♪",
                 SCREEN_WIDTH / 2.0 - 80.0,
