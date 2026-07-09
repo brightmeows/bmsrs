@@ -136,9 +136,7 @@ impl BmsProcessor {
         conv.collect_bpm_events();
 
         // 停止事件（优先级 3）—— 重新遍历计时停止事件。
-        for se in timing.stops() {
-            conv.events.push(Event::stop(se.tick, se.duration));
-        }
+        conv.collect_stop_events(timing.stops());
 
         // SCROLL 事件（优先级 4）。
         conv.collect_scroll_events();
@@ -389,6 +387,13 @@ impl BmsConverter<'_> {
                 self.events
                     .push(Event::speed(self.table.position_to_tick(se.position), rate));
             }
+        }
+    }
+
+    /// 从已构建的停止事件切片生成 Stop 事件。
+    fn collect_stop_events(&mut self, stops: &[StopEvent]) {
+        for se in stops {
+            self.events.push(Event::stop(se.tick, se.duration));
         }
     }
 
