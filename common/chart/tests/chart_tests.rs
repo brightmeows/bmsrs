@@ -410,15 +410,15 @@ fn unit_note_ext() {
 #[test]
 fn timing_track_default() {
     let tt = TimingTrack::default();
-    assert!((tt.init_bpm - 120.0).abs() < f64::EPSILON);
-    assert!(tt.bpm_changes.is_empty());
-    assert!(tt.stops.is_empty());
+    assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
+    assert!(tt.bpm_changes().is_empty());
+    assert!(tt.stops().is_empty());
 }
 
 #[test]
 fn timing_track_new() {
     let tt = TimingTrack::new(120.0, vec![], vec![]);
-    assert!((tt.init_bpm - 120.0).abs() < f64::EPSILON);
+    assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
@@ -507,7 +507,7 @@ fn tick_to_duration_zero_tick() {
 fn timing_track_clone_resets_cache() {
     let tt = TimingTrack::new(120.0, vec![], vec![]);
     let _primed = tt.tick_to_duration(240, 240);
-    assert!((tt.init_bpm - 120.0).abs() < f64::EPSILON);
+    assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]

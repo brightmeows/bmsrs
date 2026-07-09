@@ -353,8 +353,8 @@ fn process_bpm_change_reference_resolved() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
 
-    assert_eq!(chart.data.timing.bpm_changes.len(), 1);
-    assert!((chart.data.timing.bpm_changes[0].bpm - 200.0).abs() < 1e-9);
+    assert_eq!(chart.data.timing.bpm_changes().len(), 1);
+    assert!((chart.data.timing.bpm_changes()[0].bpm - 200.0).abs() < 1e-9);
 }
 
 #[test]

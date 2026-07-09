@@ -17,16 +17,41 @@ use std::time::Duration;
 /// （BMSON 脉冲、BMS 小节）换算为脉冲。
 ///
 /// 合并的 BPM/停止事件列表在首次需要时惰性计算并缓存，避免重复构建。
+///
+/// # 构造后不可变性
+///
+/// `init_bpm`、`bpm_changes`、`stops` 构造后为只读（通过 getter 访问），
+/// 以保证 `events_cache` 始终有效。修改应通过构建新 `TimingTrack` 完成。
 #[derive(Debug)]
 pub struct TimingTrack {
     /// 脉冲 0 处的初始 BPM。
-    pub init_bpm: f64,
+    pub(crate) init_bpm: f64,
     /// BPM 变更事件，按脉冲升序排列。
-    pub bpm_changes: Vec<BpmChange>,
+    pub(crate) bpm_changes: Vec<BpmChange>,
     /// 停止（暂停）事件，按脉冲升序排列。
-    pub stops: Vec<StopEvent>,
+    pub(crate) stops: Vec<StopEvent>,
     /// 惰性缓存的合并事件列表（BPM 变更 + 停止，已排序）。
     events_cache: OnceLock<Vec<(u64, TimingEvent)>>,
+}
+
+impl TimingTrack {
+    /// 返回初始 BPM。
+    #[must_use]
+    pub const fn init_bpm(&self) -> f64 {
+        self.init_bpm
+    }
+
+    /// 返回 BPM 变更事件切片。
+    #[must_use]
+    pub fn bpm_changes(&self) -> &[BpmChange] {
+        &self.bpm_changes
+    }
+
+    /// 返回停止事件切片。
+    #[must_use]
+    pub fn stops(&self) -> &[StopEvent] {
+        &self.stops
+    }
 }
 
 /// BPM 变更事件。

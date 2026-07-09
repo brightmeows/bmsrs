@@ -133,7 +133,7 @@ impl BmsProcessor {
         conv.collect_bpm_events(&mut events);
 
         // 停止事件（优先级 3）—— 重新遍历计时停止事件。
-        for se in &timing.stops {
+        for se in timing.stops() {
             events.push(Event::new(
                 se.tick,
                 EventKind::Stop {
