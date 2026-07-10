@@ -20,7 +20,7 @@ pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{
     BgaEvent, BgmEvent, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength, Messages,
-    MineEvent, NoteEvent, Position, ScrollEvent, SpeedEvent, StopEvent, StpEvent,
+    MineEvent, NonEventData, NoteEvent, Position, ScrollEvent, SpeedEvent, StopEvent, StpEvent,
     split_2char_values_lenient,
 };
 pub use metadata::Metadata;

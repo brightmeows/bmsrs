@@ -226,6 +226,20 @@ pub struct StpEvent {
     pub duration_ms: f64,
 }
 
+/// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
+///
+/// 由最终化阶段在匹配到非事件通道时填充，处理器（`bms-processor`）
+/// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NonEventData {
+    /// 小节号。
+    pub measure: u16,
+    /// 通道类型。
+    pub channel: BmsChannel,
+    /// 合并后的通道值字符串。
+    pub data: String,
+}
+
 // 消息容器
 
 /// 原始与已解析通道消息数据的容器。
@@ -265,10 +279,10 @@ pub struct Messages {
 
     /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
     ///
-    /// 每个条目为 `(measure, channel, merged_string)`，由 `finalize_merged`
-    /// 在匹配到非事件通道时填充。处理器（`bms-processor`）读取此数据转换
-    /// 为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
-    pub non_event_data: Vec<(u16, BmsChannel, String)>,
+    /// 每个条目包含小节号、通道类型与合并后的通道值字符串，由
+    /// `finalize_merged` 在匹配到非事件通道时填充。处理器（`bms-processor`）
+    /// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+    pub non_event_data: Vec<NonEventData>,
 }
 
 /// 将枚举索引 `i` 转换为 [`Position`]，集中处理 `usize → u32` 截断期望。
@@ -443,7 +457,11 @@ impl Messages {
             | BmsChannel::Option
             | BmsChannel::Unknown(_) => {
                 // 保留合并后的字符串以供处理器延迟解析。
-                self.non_event_data.push((measure, channel, merged));
+                self.non_event_data.push(NonEventData {
+                    measure,
+                    channel,
+                    data: merged,
+                });
             }
             // BGM 与 MeasureLength 在此不可达（已在 finalize_channel
             // 的早期分支中处理），保留分支以满足 exhaustiveness。
