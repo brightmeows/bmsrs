@@ -24,6 +24,7 @@ use std::fmt;
 use std::num::NonZeroUsize;
 
 mod channel;
+pub mod encoding;
 mod error;
 mod header;
 mod index;
@@ -50,6 +51,8 @@ pub use index::{
 pub use message::BmsMessage;
 pub use message::parse_message_line;
 pub use preprocess::preprocess;
+
+pub use encoding::{BmsEncoding, detect_encoding};
 
 /// BMS 头部值的统一 trait。
 ///
@@ -190,9 +193,10 @@ fn find_inline_comment(s: &str) -> Option<usize> {
 /// # 示例
 ///
 /// ```
-/// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy};
+/// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy, BmsEncoding};
 /// let tokens: Vec<_> = BmsTokenizer::new()
 ///     .error_strategy(ErrorStrategy::CollectAll)
+///     .encoding(BmsEncoding::ShiftJis)
 ///     .tokenize::<_, &str>("#TITLE My Song\n#00101:11");
 /// ```
 #[derive(Debug, Clone)]
@@ -201,6 +205,8 @@ pub struct BmsTokenizer {
     error_strategy: ErrorStrategy,
     /// 允许的头部命令前缀字符。
     header_prefixes: Vec<char>,
+    /// 预设的编码（可选）。设置后 `tokenize_bytes` 跳过检测直接使用此编码。
+    encoding: Option<BmsEncoding>,
 }
 
 impl Default for BmsTokenizer {
@@ -208,6 +214,7 @@ impl Default for BmsTokenizer {
         Self {
             error_strategy: ErrorStrategy::default(),
             header_prefixes: vec!['#', '%'],
+            encoding: None,
         }
     }
 }
@@ -234,6 +241,16 @@ impl BmsTokenizer {
     #[must_use]
     pub fn header_prefixes(mut self, prefixes: &[char]) -> Self {
         self.header_prefixes = prefixes.to_vec();
+        self
+    }
+
+    /// 预设文件编码。设置后在调用 [`tokenize_bytes`](Self::tokenize_bytes) 时
+    /// 跳过自动检测，直接使用此编码解码。
+    ///
+    /// 不影响 [`tokenize`](Self::tokenize)（后者始终接受 UTF-8 `&str`）。
+    #[must_use]
+    pub const fn encoding(mut self, encoding: BmsEncoding) -> Self {
+        self.encoding = Some(encoding);
         self
     }
 
@@ -336,5 +353,22 @@ impl BmsTokenizer {
     #[must_use]
     pub fn tokenize_owned(&self, input: &str) -> TokenizeOwnedResult {
         self.tokenize(input)
+    }
+
+    /// 将 BMS 字节数据分词为 owned token。
+    ///
+    /// 内部自动检测编码（除非通过 [`encoding`](Self::encoding) 预设），
+    /// 解码为 UTF-8 后调用 [`tokenize`](Self::tokenize)。
+    ///
+    /// 始终产生 `C = String` 的 owned token。
+    ///
+    /// # Panics
+    ///
+    /// 参见 [`tokenize`](Self::tokenize) 的 Panics 说明——条件相同。
+    #[must_use]
+    pub fn tokenize_bytes(&self, input: &[u8]) -> TokenizeOwnedResult {
+        let encoding = self.encoding.unwrap_or_else(|| detect_encoding(input));
+        let decoded = encoding.decode(input);
+        self.tokenize(&decoded)
     }
 }
