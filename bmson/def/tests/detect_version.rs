@@ -84,9 +84,8 @@ fn detect_multiline_json() {
 }
 
 #[test]
-fn detect_first_version_wins() {
-    // 当多个 "version" 键存在时，取第一个。
-    // 当前实现使用 `find` 扫描，因此第一处匹配胜出。
+fn detect_ignores_nested_version_key() {
+    // 嵌套对象中的 "version" 键不参与顶层版本检测。
     let json = r#"{"song_info":{"version":"1.0.0"},"chart_info":{},"chart_data":{}}"#;
-    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V1);
+    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V0);
 }

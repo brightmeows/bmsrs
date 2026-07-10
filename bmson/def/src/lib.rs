@@ -449,12 +449,43 @@ impl DetectedVersion {
         reason = "JSON bytes for \"version\" key and ASCII version strings; byte indexing is safe"
     )]
     pub fn detect(json: &str) -> Result<Self, BmsonError> {
-        // 扫描字面量子串以查找 `"version"` 键。
-        let Some(key_pos) = json.find("\"version\"") else {
+        // 逐字节扫描 JSON，跟踪花括号深度，仅匹配顶层 `"version"` 键。
+        let mut depth: u8 = 0;
+        let mut in_string = false;
+        let mut string_start: usize = 0;
+        let mut key_pos: Option<usize> = None;
+
+        let mut chars = json.char_indices();
+        while let Some((i, ch)) = chars.next() {
+            if in_string {
+                if ch == '\\' {
+                    // 跳过转义字符。
+                    chars.next();
+                } else if ch == '"' {
+                    in_string = false;
+                    if depth == 1 && &json[string_start..i] == "version" {
+                        key_pos = Some(string_start - 1);
+                        break;
+                    }
+                }
+            } else {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => depth = depth.saturating_sub(1),
+                    '"' => {
+                        in_string = true;
+                        string_start = i + 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let Some(pos) = key_pos else {
             return Ok(Self::V0);
         };
 
-        let mut rest = &json[key_pos + 9..];
+        let mut rest = &json[pos + 9..];
         // 跳过空白，预期 `:`。
         rest = rest.trim_start();
         rest = rest.strip_prefix(':').ok_or_else(|| {

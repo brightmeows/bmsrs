@@ -212,3 +212,13 @@ fn detect_version_not_first_key() {
         DetectedVersion::V2
     );
 }
+
+#[test]
+fn detect_nested_version_before_top_level() {
+    // 嵌套 version 不会干扰顶层 version 检测。
+    let json = r#"{"chart_name": {"version": "1.0.0"}, "version": "2.0.0"}"#;
+    assert_eq!(
+        bmson_def::DetectedVersion::detect(json).unwrap(),
+        DetectedVersion::V2
+    );
+}
