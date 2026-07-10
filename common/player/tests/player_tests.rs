@@ -445,3 +445,53 @@ fn visible_tick_range_at_midpoint_returns_symmetric_window() {
     assert_eq!(start, 240);
     assert_eq!(end, 720);
 }
+
+#[test]
+#[should_panic(expected = "ZeroResolution")]
+fn player_new_panics_on_zero_resolution() {
+    let chart: Chart = Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 0,
+            timing: TimingTrack::simple(120.0),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events: vec![],
+            audio_assets: vec![],
+        },
+    };
+    drop(Player::new(chart));
+}
+
+#[test]
+fn player_new_sorts_unsorted_events() {
+    let chart: Chart = Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack::simple(120.0),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events: vec![
+                Event::new(480, EventKind::Bar),
+                Event::new(0, EventKind::Bar),
+            ],
+            audio_assets: vec![],
+        },
+    };
+    let player = Player::new(chart);
+    let events = &player.chart().data.events;
+    assert!(events[0].tick() < events[1].tick());
+}
