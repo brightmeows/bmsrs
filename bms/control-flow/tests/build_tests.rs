@@ -443,3 +443,10 @@ fn switch_case_bodies_pack_consecutive_tokens() -> TestResult {
     assert_eq!(case2.body.len(), 1);
     Ok(())
 }
+
+#[test]
+fn empty_switch_block_creates_non_empty_doc() -> TestResult {
+    let tree = build_doc("#SWITCH 2\n#ENDSW")?;
+    assert!(!tree.is_empty());
+    Ok(())
+}
