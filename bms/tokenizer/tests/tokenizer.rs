@@ -39,6 +39,32 @@ fn tokenize_semicolon_comment() {
 }
 
 #[test]
+fn inline_slash_comment_with_whitespace_prefix_stripped() {
+    // 空白前置的 `//` 视为行内注释，剥离注释部分
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#TITLE Song // comment");
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(
+        tokens[0].1,
+        Ok(BmsToken::Header(BmsHeader::Metadata(
+            BmsHeaderMetadata::Title("Song")
+        )))
+    ));
+}
+
+#[test]
+fn url_double_slash_without_whitespace_preserved() {
+    // `://` 中的 `//` 前一字符为 `:`（非空白），不视为注释
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("%URL https://example.com");
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(
+        tokens[0].1,
+        Ok(BmsToken::Header(BmsHeader::Metadata(
+            BmsHeaderMetadata::Url("https://example.com")
+        )))
+    ));
+}
+
+#[test]
 fn tokenize_single_header() {
     let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#TITLE My Song");
     assert_eq!(tokens.len(), 1);
@@ -334,7 +360,7 @@ fn custom_prefix_filters_percent() {
 #[test]
 fn custom_prefix_accepts_percent_only() {
     // 仅 `%` 前缀时，`#TITLE` 被跳过，但 `%URL` 被解析。
-    let bms = "#TITLE Song\n%URL example.com";
+    let bms = "#TITLE Song\n%URL https://example.com";
     let tokens: Vec<_> = BmsTokenizer::new()
         .header_prefixes(&['%'])
         .tokenize::<_, &str>(bms);
@@ -342,7 +368,7 @@ fn custom_prefix_accepts_percent_only() {
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Url("example.com")
+            BmsHeaderMetadata::Url("https://example.com")
         )))
     ));
 }

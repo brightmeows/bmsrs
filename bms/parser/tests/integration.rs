@@ -139,7 +139,7 @@ fn full_header_parse() {
 #MAKER creator
 #COMMENT hello
 #CHARSET UTF-8
-%URL example.com
+%URL https://example.com
 %EMAIL user@example.com
 #PLAYER 1
 #RANK 2
@@ -171,7 +171,7 @@ fn full_header_parse() {
     assert_eq!(bms.metadata.maker.as_deref(), Some("creator"));
     assert_eq!(bms.metadata.comment.as_deref(), Some("hello"));
     assert_eq!(bms.metadata.charset.as_deref(), Some("UTF-8"));
-    assert_eq!(bms.metadata.url.as_deref(), Some("example.com"));
+    assert_eq!(bms.metadata.url.as_deref(), Some("https://example.com"));
     assert_eq!(bms.metadata.email.as_deref(), Some("user@example.com"));
 
     // 游玩
