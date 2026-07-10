@@ -377,6 +377,37 @@ fn bmspec_1_06_basic_stop() {
     );
 }
 
+/// bmspec-1-06-STOP: STOP 与 BPM 同 tick 时序——BPM（优先级 2）应在 STOP（优先级 3）之前
+/// 生效。覆盖 A11 场景。
+#[test]
+fn bmspec_1_06_stop_on_same_beat_as_bpm() {
+    let chart = process(
+        "#BPM 60\n\
+         #BPM01 120\n\
+         #STOP01 96\n\
+         #00108:0100\n\
+         #00109:0100\n\
+         #00211:01\n",
+    );
+
+    let notes = all_notes(&chart);
+    assert_eq!(notes.len(), 1, "should have 1 note");
+    let resolution = chart.data.resolution;
+
+    // BPM 变更为 120 与 STOP 同在 tick 960（measure 1, pos 0/2）。
+    // 事件排序：BPM(2) 先于 STOP(3)。
+    //   tick 0-960 at 60 BPM = 4.0s
+    //   STOP 480 ticks at 120 BPM（BPM 已变更）= 1.0s
+    //   tick 960-1920 at 120 BPM = 2.0s
+    //   合计 = 7.0s
+    // 若 BPM 在 STOP 之后变更：STOP 480 ticks at 60 BPM = 2.0s → 合计 8.0s
+    let dur = chart.data.timing.tick_to_duration(notes[0].0, resolution);
+    assert!(
+        (dur.as_secs_f64() - 7.0).abs() < 1e-6,
+        "expected note at 7.0s (BPM before STOP), got {dur:?}"
+    );
+}
+
 /// bmspec-2-LNOBJ: 长音对象配对。
 #[test]
 fn bmspec_2_lnobj() {
