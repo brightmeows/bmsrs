@@ -38,8 +38,11 @@ impl<P> FlowDoc<P> {
         self,
         mut f: impl FnMut(P) -> Result<Q, E>,
     ) -> Result<FlowDoc<Q>, E> {
-        let root = map_nodes(self.0, &mut f)?;
-        Ok(FlowDoc(root))
+        let root = map_nodes(self.nodes, &mut f)?;
+        Ok(FlowDoc {
+            nodes: root,
+            warnings: Vec::new(),
+        })
     }
 }
 

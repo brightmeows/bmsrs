@@ -51,7 +51,7 @@ let flat2 = tree.to_tokens();
 | `#IF`/`#ENDIF` | 路由到最近的 `RandomBlock` |
 | `#CASE`/`#SKIP` | 路由到最近的 `SwitchBlock` |
 | 分支内开新块（如 `#SWITCH` 在 `#IF 1` 内）| 保持包含 |
-| 缺失 `#ENDRANDOM` | 块静默丢弃（栈未刷新）|
+| 缺失 `#ENDRANDOM` | 内容提升到顶层 + 记录 ControlFlowWarning |
 | 开嵌套块前 | 刷新当前作用域待定 token 到 payload 节点 |
 
 ## 非显而易见的规则

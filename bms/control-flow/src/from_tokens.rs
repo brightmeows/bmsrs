@@ -6,8 +6,9 @@ use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsToken};
 use itertools::Itertools as _;
 
 use crate::{
-    BranchValue, ControlFlowError, FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranch,
-    RandomBranchKind, RandomChain, SwitchBlock, SwitchCase, SwitchCaseKind, TokenPayload,
+    BranchValue, ControlFlowError, ControlFlowWarning, FlowBlock, FlowDoc, FlowNode, RandomBlock,
+    RandomBranch, RandomBranchKind, RandomChain, SwitchBlock, SwitchCase, SwitchCaseKind,
+    TokenPayload,
 };
 
 /// 尚未打包为载荷节点的待定 `(line, token)` 对。
@@ -19,6 +20,8 @@ struct RandomState<C: Clone + PartialEq> {
     value: BranchValue,
     /// 是否已遇到 `#ENDRANDOM`。
     has_end_random: bool,
+    /// 块起始命令的行号。
+    start_line: NonZeroUsize,
     /// 已完成的互斥分支链。
     chains: Vec<RandomChain<TokenPayload<C>>>,
     /// 当前互斥链（`#IF`…`#ENDIF` 组）内已收集的分支（不含 `current_branch`）。
@@ -33,6 +36,8 @@ struct RandomState<C: Clone + PartialEq> {
 struct SwitchState<C: Clone + PartialEq> {
     /// 分支值的确定方式。
     value: BranchValue,
+    /// 块起始命令的行号。
+    start_line: NonZeroUsize,
     /// 已完成的 case。
     cases: Vec<SwitchCase<TokenPayload<C>>>,
     /// 正在构建的 case。
@@ -76,7 +81,17 @@ impl<C: Clone + PartialEq> Builder<C> {
     /// 刷新所有剩余待定 token 并产出完成的树。
     fn finish(mut self) -> FlowDoc<TokenPayload<C>> {
         self.flush();
-        FlowDoc(self.top_level)
+        let mut warnings = Vec::new();
+        // 处理栈残留：未闭合的块内容提升到顶层
+        for entry in self.stack {
+            let (nodes, warning) = flatten_entry(entry);
+            self.top_level.extend(nodes);
+            warnings.push(warning);
+        }
+        FlowDoc {
+            nodes: self.top_level,
+            warnings,
+        }
     }
 
     /// 将非控制流 token 缓存到当前作用域的待定列表。
@@ -129,6 +144,7 @@ impl<C: Clone + PartialEq> Builder<C> {
                 self.stack.push(StackEntry::Random(RandomState {
                     value: BranchValue::Max(*max),
                     has_end_random: false,
+                    start_line: line,
                     chains: Vec::new(),
                     current_chain: None,
                     current_branch: None,
@@ -140,6 +156,7 @@ impl<C: Clone + PartialEq> Builder<C> {
                 self.stack.push(StackEntry::Random(RandomState {
                     value: BranchValue::Set(*max),
                     has_end_random: false,
+                    start_line: line,
                     chains: Vec::new(),
                     current_chain: None,
                     current_branch: None,
@@ -173,6 +190,7 @@ impl<C: Clone + PartialEq> Builder<C> {
                 self.flush();
                 self.stack.push(StackEntry::Switch(SwitchState {
                     value: BranchValue::Max(*max),
+                    start_line: line,
                     cases: Vec::new(),
                     current_case: None,
                     pending: Vec::new(),
@@ -182,6 +200,7 @@ impl<C: Clone + PartialEq> Builder<C> {
                 self.flush();
                 self.stack.push(StackEntry::Switch(SwitchState {
                     value: BranchValue::Set(*max),
+                    start_line: line,
                     cases: Vec::new(),
                     current_case: None,
                     pending: Vec::new(),
@@ -378,6 +397,66 @@ fn flush_into<C: Clone + PartialEq>(
     let Some(body) = body_owner else { return };
     let tokens = std::mem::take(pending);
     body.push(FlowNode::Payload(TokenPayload { tokens }));
+}
+
+/// 将未闭合的栈条目展平为顶层节点列表 + 警告。
+fn flatten_entry<C: Clone + PartialEq>(
+    entry: StackEntry<C>,
+) -> (Vec<FlowNode<TokenPayload<C>>>, ControlFlowWarning) {
+    match entry {
+        StackEntry::Random(mut state) => {
+            // finalize 残留 branch + chain
+            flush_into(
+                &mut state.pending,
+                state.current_branch.as_mut().map(|b| &mut b.body),
+            );
+            if let Some(branch) = state.current_branch.take()
+                && let Some(chain) = state.current_chain.as_mut()
+            {
+                chain.push(branch);
+            }
+            if let Some(branches) = state.current_chain.take()
+                && !branches.is_empty()
+            {
+                state.chains.push(RandomChain { branches });
+            }
+            // 提取所有 chain 中所有 branch 的 body 节点
+            let nodes = state
+                .chains
+                .into_iter()
+                .flat_map(|chain| chain.branches.into_iter())
+                .flat_map(|branch| branch.body.into_iter())
+                .collect();
+            (
+                nodes,
+                ControlFlowWarning::UnclosedBlock {
+                    block_kind: "RANDOM",
+                    line: state.start_line,
+                },
+            )
+        }
+        StackEntry::Switch(mut state) => {
+            flush_into(
+                &mut state.pending,
+                state.current_case.as_mut().map(|c| &mut c.body),
+            );
+            if let Some(case) = state.current_case.take() {
+                state.cases.push(case);
+            }
+            let nodes = state
+                .cases
+                .into_iter()
+                .flat_map(|case| case.body.into_iter())
+                .collect();
+            (
+                nodes,
+                ControlFlowWarning::UnclosedBlock {
+                    block_kind: "SWITCH",
+                    line: state.start_line,
+                },
+            )
+        }
+    }
 }
 
 impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {

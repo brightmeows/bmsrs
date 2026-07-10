@@ -29,6 +29,6 @@ mod select;
 mod to_tokens;
 mod types;
 
-pub use error::ControlFlowError;
+pub use error::{ControlFlowError, ControlFlowWarning};
 pub use rng::BranchRng;
 pub use types::*;
