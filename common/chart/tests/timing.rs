@@ -227,6 +227,78 @@ fn cache_duration_to_tick_matches_timing_track() {
     }
 }
 
+// F6: TimingTrack extreme values
+
+/// `u64::MAX / 2` 不会导致溢出 panic。
+#[test]
+fn extreme_large_tick_no_panic() {
+    let timing = TimingTrack::simple(120.0).unwrap();
+    let large_tick = u64::MAX / 2;
+    let dur = timing.tick_to_duration(large_tick, RES);
+    assert!(dur.as_secs() > 0);
+    // roundtrip 不应 panic
+    let _tick = timing.duration_to_tick(dur, RES);
+}
+
+/// 极小 BPM（0.001）。
+#[test]
+fn extreme_small_bpm() {
+    let timing = TimingTrack::simple(0.001).unwrap();
+    // 0.001 BPM：1 tick（240 res）≈ 60/0.001 * 1/240 = 250s
+    let dur = timing.tick_to_duration(1, RES);
+    assert!(dur.as_secs_f64() > 240.0);
+}
+
+/// 极大 BPM（1e6）。
+#[test]
+fn extreme_large_bpm() {
+    let timing = TimingTrack::simple(1_000_000.0).unwrap();
+    // 1e6 BPM：240 ticks = 1 beat = 60/1e6 s = 0.00006s
+    let dur = timing.tick_to_duration(RES, RES);
+    assert!(dur.as_secs_f64() < 0.001);
+}
+
+/// 极长曲目（>1 小时）的时间换算。
+#[test]
+fn very_long_song() {
+    let timing = TimingTrack::simple(60.0).unwrap();
+    // 60 BPM、分辨率 240：1 小时 = 60 分 = 3600 拍 = 864000 ticks
+    let one_hour_ticks = 240 * 60 * 60; // 864000
+    let dur = timing.tick_to_duration(one_hour_ticks, RES);
+    assert!((dur.as_secs_f64() - 3600.0).abs() < 1.0);
+    // roundtrip
+    let back = timing.duration_to_tick(dur, RES);
+    assert_eq!(back, one_hour_ticks);
+}
+
+/// BPM 极端值交替。
+#[test]
+fn alternating_bpm_extremes() {
+    let timing = TimingTrack::new(
+        0.001,
+        vec![
+            BpmChange {
+                tick: 240,
+                bpm: 1_000_000.0,
+            },
+            BpmChange {
+                tick: 480,
+                bpm: 0.001,
+            },
+        ],
+        vec![],
+    )
+    .unwrap();
+    // 0–240 ticks at 0.001 BPM ≈ 240 * 60/0.001 / 240 = 60000s
+    // 240–480 ticks at 1e6 BPM ≈ 240 * 60/1e6 / 240 = 0.00006s
+    // 480+ ticks at 0.001 BPM again
+    let dur_240 = timing.tick_to_duration(240, RES);
+    assert!(dur_240.as_secs_f64() > 50_000.0);
+    let dur_480 = timing.tick_to_duration(480, RES);
+    // 240 ticks at 0.001 BPM ≈ 60000s + 240 ticks at 1e6 BPM ≈ 0.00006s
+    assert!((dur_480.as_secs_f64() - dur_240.as_secs_f64() - 0.00006).abs() < 1e-6);
+}
+
 #[test]
 fn roundtrip_tick_to_duration_and_back() {
     let timing = TimingTrack::new(
