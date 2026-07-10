@@ -6,8 +6,8 @@ use std::num::NonZeroU8;
 use std::path::Path;
 
 use bmson_def::{
-    BGA, BGAEvent, BGAHeader, BpmEvent, ChartData, ChartInfo, LnType, ModeHint, NoteEvent,
-    SongInfo, SoundChannel, StopEvent,
+    BGA, BGAEvent, BGAHeader, BpmEvent, ChartData, ChartInfo, KeyChannel, KeyNote, LnType,
+    ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
 };
 use bmson_processor::layout::{Beat, GenericLayout, Pms};
 use bmson_processor::{BmsonNoteExt, BmsonProcessor};
@@ -404,6 +404,72 @@ fn process_stop_events() -> TestResult {
 
     assert_eq!(stop_evts.len(), 1);
     assert_eq!(stop_evts[0], (480, 192));
+    Ok(())
+}
+
+#[test]
+fn scroll_events_converts_negative_values() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson
+        .scroll_events
+        .push(bmson_def::ScrollEvent { y: 0, rate: -1.0 });
+    bmson
+        .scroll_events
+        .push(bmson_def::ScrollEvent { y: 960, rate: -0.5 });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+
+    let scroll_evts: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Scroll { rate } = &e.kind {
+                Some((e.tick(), *rate))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(scroll_evts.len(), 2);
+    assert_eq!(scroll_evts[0], (0, -1.0));
+    assert_eq!(scroll_evts[1], (960, -0.5));
+    Ok(())
+}
+
+#[test]
+fn key_channels_produces_invisible_notes() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.key_channels.push(KeyChannel {
+        name: Path::new("key.wav"),
+        notes: vec![KeyNote { x: 1, y: 0 }, KeyNote { x: 2, y: 480 }],
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+
+    let invisible_notes: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Note {
+                kind: NoteKind::Invisible,
+                lane,
+                ext: BmsonNoteExt { .. },
+                ..
+            } = &e.kind
+            {
+                Some((e.tick(), *lane))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(invisible_notes.len(), 2);
+    assert_eq!(invisible_notes[0], (0, key(1)));
+    assert_eq!(invisible_notes[1], (480, key(2)));
     Ok(())
 }
 
