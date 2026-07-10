@@ -500,7 +500,8 @@ fn player_new_accepts_negative_bpm() {
 }
 
 #[test]
-fn player_new_sorts_unsorted_events() {
+#[should_panic(expected = "未预排序")]
+fn player_new_debug_asserts_on_unsorted_events() {
     let chart: Chart = Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
@@ -521,9 +522,7 @@ fn player_new_sorts_unsorted_events() {
             audio_assets: vec![],
         },
     };
-    let player = Player::new(chart);
-    let events = &player.chart().data.events;
-    assert!(events[0].tick() < events[1].tick());
+    drop(Player::new(chart));
 }
 
 // F7: BGM 与 BGA 事件查询

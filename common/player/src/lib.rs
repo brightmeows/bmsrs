@@ -99,6 +99,12 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .data
             .validate()
             .expect("ChartData validation failed in Player::new");
+        // 排序前检测：若生产者（processor）未正确排序，debug 构建中 panic。
+        // release 构建中 debug_assert 编译期消除，下方 sort_events 作为安全网兜底。
+        debug_assert!(
+            chart.data.events.is_sorted_by_key(Event::sort_key),
+            "ChartData.events 未预排序——生产者应显式调用 sort_events"
+        );
         chart.data.sort_events();
         let resolution = chart.data.resolution;
         let cache = TimingCache::new(&chart.data.timing, resolution);
