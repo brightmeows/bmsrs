@@ -11,9 +11,10 @@ fn detect_v2_from_full_json() {
 }
 
 #[test]
-fn detect_v2_without_patch() {
+fn detect_v2_without_patch_is_error() {
+    // 裸 "2" 不是有效 SemVer 前缀，必须为 "2.x.y" 格式。
     let json = r#"{"version":"2","song_info":{}}"#;
-    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V2);
+    assert!(DetectedVersion::detect(json).is_err());
 }
 
 #[test]
@@ -29,9 +30,10 @@ fn detect_v1_from_full_json() {
 }
 
 #[test]
-fn detect_v1_without_patch() {
+fn detect_v1_without_patch_is_error() {
+    // 裸 "1" 不是有效 SemVer 前缀，必须为 "1.x.y" 格式。
     let json = r#"{"version":"1","info":{}}"#;
-    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V1);
+    assert!(DetectedVersion::detect(json).is_err());
 }
 
 #[test]
@@ -50,6 +52,20 @@ fn detect_v0_when_version_starts_with_zero() {
 fn detect_empty_object_is_v0() {
     let json = "{}";
     assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V0);
+}
+
+#[test]
+fn version_with_invalid_prefix_returns_error() {
+    // "2invalid" 虽以 '2' 开头，但不以 "2." 开头，应被拒绝。
+    let json = r#"{"version":"2invalid","song_info":{}}"#;
+    assert!(DetectedVersion::detect(json).is_err());
+}
+
+#[test]
+fn version_with_extra_digits_is_still_valid() {
+    // "2.0.0.1" 虽非标准 SemVer 但以 "2." 开头，应识别为 V2。
+    let json = r#"{"version":"2.0.0.1","song_info":{}}"#;
+    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V2);
 }
 
 #[test]

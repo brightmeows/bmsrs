@@ -384,8 +384,8 @@ pub struct ChartData<'a> {
 pub enum BmsonError {
     /// 版本字符串存在但无法识别。
     ///
-    /// 仅支持以 `"0"`（v0.2.1 遗留）、`"1"`（v1.0.0）或 `"2"`（v2.0.0-rc1）
-    /// 开头的版本。
+    /// 仅支持以 `"0."`（v0.2.1 遗留）、`"1."`（v1.0.0）或 `"2."`（v2.0.0-rc1）
+    /// 开头的 `SemVer` 版本。
     #[error("unknown bmson version: {0}")]
     UnknownVersion(String),
 
@@ -399,8 +399,8 @@ pub enum BmsonError {
 /// | 变体 | 检测依据 |
 /// |---|---|
 /// | [`V0`](DetectedVersion::V0) | 无 `"version"` 字段（遗留）|
-/// | [`V1`](DetectedVersion::V1) | `"version"` 以 `"1"` 开头 |
-/// | [`V2`](DetectedVersion::V2) | `"version"` 以 `"2"` 开头 |
+/// | [`V1`](DetectedVersion::V1) | `"version"` 以 `"1."` 开头（SemVer 前缀）|
+/// | [`V2`](DetectedVersion::V2) | `"version"` 以 `"2."` 开头（SemVer 前缀）|
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetectedVersion {
     /// v0.2.1（遗留，无 `version` 字段）。
@@ -420,9 +420,9 @@ pub enum DetectedVersion {
 ///
 /// 1. 在 JSON 文本中搜索字面量 `"version"` 键。
 /// 2. 如果找到，提取冒号后的字符串值。
-/// 3. 如果值以 `'2'` 开头 → [`V2`](DetectedVersion::V2)。
-/// 4. 如果值以 `'1'` 开头 → [`V1`](DetectedVersion::V1)。
-/// 5. 如果值以 `'0'` 开头 → [`V0`](DetectedVersion::V0)。
+/// 3. 如果值以 `"2."` 开头 → [`V2`](DetectedVersion::V2)。
+/// 4. 如果值以 `"1."` 开头 → [`V1`](DetectedVersion::V1)。
+/// 5. 如果值以 `"0."` 开头 → [`V0`](DetectedVersion::V0)。
 /// 6. 否则 → [`BmsonError::UnknownVersion`]。
 /// 7. 如果 `"version"` 不存在 → [`V0`](DetectedVersion::V0)（遗留）。
 ///
@@ -435,7 +435,7 @@ pub enum DetectedVersion {
 ///
 /// # Errors
 ///
-/// 当找到 `"version"` 字段但其值不是字符串，或不以 `'0'`、`'1'`、`'2'`
+/// 当找到 `"version"` 字段但其值不是字符串，或不以 `"0."`、`"1."`、`"2."`
 /// 开头时，返回 [`BmsonError::UnknownVersion`]。
 impl DetectedVersion {
     /// 扫描 JSON 字符串并检测 bmson 版本。
@@ -502,11 +502,11 @@ impl DetectedVersion {
             .ok_or_else(|| BmsonError::UnknownVersion("unterminated version string".into()))?;
         let version = &rest[..end];
 
-        if version.starts_with('2') {
+        if version.starts_with("2.") {
             Ok(Self::V2)
-        } else if version.starts_with('1') {
+        } else if version.starts_with("1.") {
             Ok(Self::V1)
-        } else if version.starts_with('0') {
+        } else if version.starts_with("0.") {
             Ok(Self::V0)
         } else {
             Err(BmsonError::UnknownVersion(version.to_owned()))
