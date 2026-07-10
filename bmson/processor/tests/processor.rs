@@ -7,7 +7,7 @@ use std::path::Path;
 
 use bmson_def::{
     BGA, BGAEvent, BGAHeader, BpmEvent, ChartData, ChartInfo, KeyChannel, KeyNote, LnType,
-    ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
+    MineChannel, MineNote, ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
 };
 use bmson_processor::layout::{Beat, GenericLayout, Pms};
 use bmson_processor::{BmsonNoteExt, BmsonProcessor};
@@ -470,6 +470,52 @@ fn key_channels_produces_invisible_notes() -> TestResult {
     assert_eq!(invisible_notes.len(), 2);
     assert_eq!(invisible_notes[0], (0, key(1)));
     assert_eq!(invisible_notes[1], (480, key(2)));
+    Ok(())
+}
+
+#[test]
+fn mine_channels_produces_damage_notes() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.mine_channels.push(MineChannel {
+        name: Path::new("mine.wav"),
+        notes: vec![
+            MineNote {
+                x: 1,
+                y: 0,
+                damage: 2.5,
+            },
+            MineNote {
+                x: 2,
+                y: 480,
+                damage: 1.0,
+            },
+        ],
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+
+    let mine_notes: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Note {
+                kind: NoteKind::Mine { damage },
+                lane,
+                ext: BmsonNoteExt { .. },
+                ..
+            } = &e.kind
+            {
+                Some((e.tick(), *lane, damage.get()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(mine_notes.len(), 2);
+    assert_eq!(mine_notes[0], (0, key(1), 2.5));
+    assert_eq!(mine_notes[1], (480, key(2), 1.0));
     Ok(())
 }
 
