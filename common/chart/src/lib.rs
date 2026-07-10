@@ -162,12 +162,6 @@ pub struct LifeDeltas {
 // LifeDeltas 保证不含 NaN，故可安全实现 Eq。
 impl Eq for LifeDeltas {}
 
-/// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
-///
-/// 不实现 [`Default`]：合法状态要求 `resolution > 0` 且
-/// [`timing`](TimingTrack) 的初始 BPM 为正，没有有意义的零值默认。
-/// 调用方必须显式提供这些值（各处理器均以字面量构造）。
-///
 /// `ChartData` 验证错误类型。
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]

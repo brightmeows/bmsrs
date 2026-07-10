@@ -495,3 +495,26 @@ fn player_new_sorts_unsorted_events() {
     let events = &player.chart().data.events;
     assert!(events[0].tick() < events[1].tick());
 }
+
+#[test]
+#[should_panic(expected = "InvalidBpm")]
+fn player_new_panics_on_invalid_bpm() {
+    let chart: Chart = Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack::simple(0.0),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events: vec![],
+            audio_assets: vec![],
+        },
+    };
+    drop(Player::new(chart));
+}
