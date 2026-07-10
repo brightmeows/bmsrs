@@ -287,12 +287,11 @@ fn speed_event_multiple_values() {
 
 #[test]
 fn speed_event_zero_values_preserved() {
-    // SPEED 通道不过滤 "00" —— 它遵循非 BGM 的合并语义。
+    // SPEED 通道过滤 "00"（无操作位置），仅保留有效索引。
     let msgs = parse_one("#001SP:AA00BB");
-    assert_eq!(msgs.speed_events.len(), 3);
+    assert_eq!(msgs.speed_events.len(), 2);
     assert_eq!(msgs.speed_events[0].speed_id, "AA".try_into().unwrap());
-    assert_eq!(msgs.speed_events[1].speed_id, "00".try_into().unwrap());
-    assert_eq!(msgs.speed_events[2].speed_id, "BB".try_into().unwrap());
+    assert_eq!(msgs.speed_events[1].speed_id, "BB".try_into().unwrap());
 }
 
 #[test]

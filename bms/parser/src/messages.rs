@@ -559,11 +559,14 @@ pub fn split_2char_values_lenient(values: &str) -> Vec<&str> {
 /// 将 BMS 双字符地雷索引解码为伤害值。
 ///
 /// 该索引被解释为 Base36 值（除非进制覆盖）：
-/// - `"00"` → `0.0`（无地雷，调用方应在调用前预过滤）
-/// - `"01"` → `0.5`
-/// - `"ZZ"` → [`f64::INFINITY`]（BMS 规格定义的即死）
-/// - 所有其他值 → `base36_value / 2.0`
-fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
+/// - `"00"` → [`None`]（该位置无地雷）
+/// - `"01"` → `Some(0.5)`
+/// - `"ZZ"` → `Some(f64::INFINITY)`（BMS 规格定义的即死）
+/// - 所有其他值 → `Some(base36_value / 2.0)`
+fn decode_mine_damage(val: &str, base: BmsBase) -> Option<f64> {
+    if val == "00" {
+        return None;
+    }
     let parsed = if base == BmsBase::Base62 {
         val.parse::<u16>()
             .ok()
@@ -573,9 +576,9 @@ fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
         BmsBase::Base36.decode(&upper)
     };
     match parsed {
-        Some(1295) => f64::INFINITY,
-        Some(n) => f64::from(n) / 2.0,
-        None => 1.0,
+        Some(1295) => Some(f64::INFINITY),
+        Some(n) => Some(f64::from(n) / 2.0),
+        None => Some(1.0),
     }
 }
 
@@ -656,6 +659,9 @@ impl Messages {
     /// 从完整拼接的值中解析停止事件（ch 09）。
     fn push_stop_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            if val == "00" {
+                continue;
+            }
             let Ok(stop_id) = val.parse::<StopIndex>() else {
                 continue;
             };
@@ -669,6 +675,9 @@ impl Messages {
     /// 从完整拼接的值中解析滚动事件（ch SC）。
     fn push_scroll_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            if val == "00" {
+                continue;
+            }
             let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
                 continue;
             };
@@ -682,6 +691,9 @@ impl Messages {
     /// 从完整拼接的值中解析速度关键帧事件（ch SP）。
     fn push_speed_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            if val == "00" {
+                continue;
+            }
             let Ok(speed_id) = val.parse::<SpeedIndex>() else {
                 continue;
             };
@@ -762,6 +774,9 @@ impl Messages {
         base: BmsBase,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            if val == "00" {
+                continue;
+            }
             let Ok(wav_id) = val.parse::<WavIndex>() else {
                 continue;
             };
@@ -789,11 +804,13 @@ impl Messages {
         base: BmsBase,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // "00" = 无地雷 —— 完全跳过。
+            // "00" = 无地雷 —— 完全跳过（也作为 decode_mine_damage 的快速路径）。
             if val == "00" {
                 continue;
             }
-            let damage = decode_mine_damage(val, base);
+            let Some(damage) = decode_mine_damage(val, base) else {
+                continue;
+            };
             self.mine_events.push(MineEvent {
                 position: event_pos(i, measure, total_objects),
                 player,

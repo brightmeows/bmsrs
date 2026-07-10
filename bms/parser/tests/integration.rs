@@ -726,8 +726,9 @@ fn bmspec_speed_without_channel() {
 #[test]
 fn bmspec_speed_with_channel() {
     // 等价于 bmspec-6：#SPEED01 0.5, #001SP:0001 → 速度事件。
+    // "00" 被过滤（无操作位置），仅保留 "01"。
     let bms = parse("#SPEED01 0.5\n#001SP:0001");
-    assert_eq!(bms.messages.speed_events.len(), 2);
+    assert_eq!(bms.messages.speed_events.len(), 1);
     let idx: SpeedIndex = "01".parse().unwrap();
     assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
 }
