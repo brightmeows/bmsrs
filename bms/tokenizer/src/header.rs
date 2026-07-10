@@ -12,7 +12,7 @@ pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
 pub use gameplay::{BmsHeaderGameplay, LnMode, LnType, PlayerMode, Rank};
 pub use metadata::BmsHeaderMetadata;
-pub use res_def_audio::{BmsHeaderResDefAudio, ExWavParams};
+pub use res_def_audio::{BmsHeaderResDefAudio, ExWavParams, WavCmdParams};
 pub use res_def_visual::{
     ArgbParams, AtBgaParams, BgaParams, BmsHeaderResDefVisual, ExBmpParams, SwBgaParams,
 };

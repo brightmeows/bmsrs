@@ -231,6 +231,7 @@ version = "0.1.0"
 dependencies = [
  "bms-tokenizer-derive",
  "derive_more",
+ "encoding_rs",
  "insta",
  "itertools 0.15.0",
  "proptest",

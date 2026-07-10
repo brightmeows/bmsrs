@@ -207,8 +207,15 @@ fn full_header_parse() {
 
 #[test]
 fn dropped_audio_headers_stored() {
-    let bms = parse("#WAVCMD some-cmd\n#CDDA track.bin\n#MIDIFILE song.mid\n#PATH_WAV ./sounds/");
-    assert_eq!(bms.audio.wav_cmd.as_deref(), Some("some-cmd"));
+    let bms = parse("#WAVCMD 01 05 100\n#CDDA track.bin\n#MIDIFILE song.mid\n#PATH_WAV ./sounds/");
+    assert_eq!(
+        bms.audio.wav_cmd,
+        Some(bms_parser::WavCmdParams {
+            command_id: "01".into(),
+            wav_index: "05".into(),
+            value: 100.0,
+        })
+    );
     assert_eq!(bms.audio.cdda.as_deref(), Some("track.bin"));
     assert_eq!(bms.audio.midifile.as_deref(), Some("song.mid"));
     assert_eq!(bms.audio.path_wav.as_deref(), Some("./sounds/"));
@@ -942,8 +949,22 @@ fn option_stored() {
 
 #[test]
 fn wavcmd_stored() {
+    let bms = parse("#WAVCMD 01 05 100");
+    assert_eq!(
+        bms.audio.wav_cmd,
+        Some(bms_parser::WavCmdParams {
+            command_id: "01".into(),
+            wav_index: "05".into(),
+            value: 100.0,
+        })
+    );
+}
+
+#[test]
+fn wavcmd_invalid_format_fallback() {
     let bms = parse("#WAVCMD some-command");
-    assert_eq!(bms.audio.wav_cmd.as_deref(), Some("some-command"));
+    assert!(bms.audio.wav_cmd.is_none());
+    assert!(!bms.fallback_headers.is_empty());
 }
 
 #[test]

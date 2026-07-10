@@ -6,6 +6,17 @@ use std::collections::BTreeMap;
 
 use bms_tokenizer::{BmsBase, BmsHeaderResDefAudio, WavIndex};
 
+/// `#WAVCMD` 的解析参数——音高/音量/时长覆盖。
+#[derive(Debug, Clone, PartialEq)]
+pub struct WavCmdParams {
+    /// 命令 ID（`00` = 音高、`01` = 音量、`02` = 时长）。
+    pub command_id: String,
+    /// 目标 WAV 索引。
+    pub wav_index: String,
+    /// 参数值。
+    pub value: f64,
+}
+
 /// `#EXWAV` 的扩展音频效果参数。
 ///
 /// 每个标志字符（`p`/`v`/`f`）都有一个对应的数值：
@@ -30,7 +41,7 @@ pub struct Audio {
     /// 按索引存储的 `#EXWAV` 效果参数（pvf/pan/vol/freq）。
     pub ex_wav_params: BTreeMap<WavIndex, ExWavParams>,
     /// 音频播放命令（`#WAVCMD`）。
-    pub wav_cmd: Option<String>,
+    pub wav_cmd: Option<WavCmdParams>,
     /// CD 音轨引用（`#CDDA`）。
     pub cdda: Option<String>,
     /// MIDI 文件引用（`#MIDIFILE`）。
@@ -64,7 +75,13 @@ impl Audio {
                     },
                 );
             }
-            BmsHeaderResDefAudio::WavCmd(s) => self.wav_cmd = Some(s.as_ref().to_owned()),
+            BmsHeaderResDefAudio::WavCmd { params } => {
+                self.wav_cmd = Some(WavCmdParams {
+                    command_id: params.command_id.as_ref().to_owned(),
+                    wav_index: params.wav_index.as_ref().to_owned(),
+                    value: params.value,
+                });
+            }
             BmsHeaderResDefAudio::Cdda(s) => self.cdda = Some(s.as_ref().to_owned()),
             BmsHeaderResDefAudio::Midifile(s) => self.midifile = Some(s.as_ref().to_owned()),
             BmsHeaderResDefAudio::PathWav(s) => self.path_wav = Some(s.as_ref().to_owned()),

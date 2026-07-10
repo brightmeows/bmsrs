@@ -5,7 +5,7 @@ use bms_tokenizer::{
     BmsHeaderGameplay, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
     BmsHeaderTiming, BpmIndex, ChangeOptionIndex, DifficultyLevel, ExRankIndex, LnMode, LnObjIndex,
     LnType, PlayerMode, PoorBgaMode, Rank, ScrollIndex, SeekIndex, SpeedIndex, StopIndex,
-    StpParams, TextIndex, WavIndex,
+    StpParams, TextIndex, WavCmdParams, WavIndex,
 };
 
 #[test]
@@ -407,12 +407,18 @@ fn parse_basebpm() {
 
 #[test]
 fn parse_wavcmd() {
-    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD some-command", &['#', '%'])
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 01 05 100", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
         result,
-        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd("some-command"))
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command_id: "01",
+                wav_index: "05",
+                value: 100.0,
+            }
+        })
     );
 }
 
@@ -1037,12 +1043,18 @@ fn parse_exrank_indexed() {
 
 #[test]
 fn wavcmd_not_confused_as_wav_indexed() {
-    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD test", &['#', '%'])
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 100", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
         result,
-        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd("test"))
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command_id: "00",
+                wav_index: "01",
+                value: 100.0,
+            }
+        })
     );
 }
 

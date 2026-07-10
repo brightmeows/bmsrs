@@ -6,7 +6,7 @@
 use bms_tokenizer::{
     BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ChangeOptionIndex,
-    DifficultyLevel, LnMode, LnType, PlayerMode, Rank, TextIndex,
+    DifficultyLevel, LnMode, LnType, PlayerMode, Rank, TextIndex, WavCmdParams,
 };
 
 #[test]
@@ -359,10 +359,19 @@ fn control_skip_roundtrip() {
 
 #[test]
 fn audio_wavcmd_roundtrip() {
-    let parsed = BmsHeaderResDefAudio::<&str>::try_match_header("WAVCMD", "test")
+    let parsed = BmsHeaderResDefAudio::<&str>::try_match_header("WAVCMD", "00 01 100")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderResDefAudio::WavCmd("test"));
+    assert_eq!(
+        parsed,
+        BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command_id: "00",
+                wav_index: "01",
+                value: 100.0,
+            }
+        }
+    );
 }
 
 #[test]
