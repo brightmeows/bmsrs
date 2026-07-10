@@ -12,6 +12,7 @@ use bms_tokenizer::{
 };
 use rand::SeedableRng as _;
 use rand::rngs::StdRng;
+use std::fmt::Write as _;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -801,5 +802,69 @@ fn switch_zero_yields_empty_branch_without_panicking() -> TestResult {
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(decisions.decisions[0].value, 0);
     assert!(wav_filenames(&tokens).is_empty());
+    Ok(())
+}
+
+#[test]
+fn deep_nested_random_10_levels() -> TestResult {
+    let mut bms = String::new();
+    for _ in 0..10 {
+        writeln!(bms, "#RANDOM 2")?;
+        writeln!(bms, "#IF 1")?;
+    }
+    for _ in 0..10 {
+        writeln!(bms, "#ENDIF")?;
+        writeln!(bms, "#ENDRANDOM")?;
+    }
+    let tree = build_doc(&bms)?;
+    assert!(!tree.is_empty());
+    Ok(())
+}
+
+#[test]
+fn deep_nested_random_20_levels() -> TestResult {
+    let mut bms = String::new();
+    for _ in 0..20 {
+        writeln!(bms, "#RANDOM 2")?;
+        writeln!(bms, "#IF 1")?;
+    }
+    for _ in 0..20 {
+        writeln!(bms, "#ENDIF")?;
+        writeln!(bms, "#ENDRANDOM")?;
+    }
+    let tree = build_doc(&bms)?;
+    assert!(!tree.is_empty());
+    Ok(())
+}
+
+#[test]
+fn deep_nested_random_50_levels() -> TestResult {
+    let mut bms = String::new();
+    for _ in 0..50 {
+        writeln!(bms, "#RANDOM 2")?;
+        writeln!(bms, "#IF 1")?;
+    }
+    for _ in 0..50 {
+        writeln!(bms, "#ENDIF")?;
+        writeln!(bms, "#ENDRANDOM")?;
+    }
+    let tree = build_doc(&bms)?;
+    assert!(!tree.is_empty());
+    Ok(())
+}
+
+#[test]
+fn deep_nested_switch_10_levels() -> TestResult {
+    let mut bms = String::new();
+    for _ in 0..10 {
+        writeln!(bms, "#SWITCH 2")?;
+        writeln!(bms, "#CASE 1")?;
+    }
+    for _ in 0..10 {
+        writeln!(bms, "#SKIP")?;
+        writeln!(bms, "#ENDSW")?;
+    }
+    let tree = build_doc(&bms)?;
+    assert!(!tree.is_empty());
     Ok(())
 }
