@@ -959,3 +959,135 @@ fn video_dly_stored() {
     let bms = parse("#VIDEODLY 1.5");
     assert_eq!(bms.visual.video_dly, Some(1.5));
 }
+
+// 隐式副标题
+
+#[test]
+fn implicit_subtitle_hyphen_splits() {
+    let mut meta = Metadata {
+        title: Some("main-sub-".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_tilde_splits() {
+    let mut meta = Metadata {
+        title: Some("main～sub～".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_parens_splits() {
+    let mut meta = Metadata {
+        title: Some("main(sub)".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_brackets_splits() {
+    let mut meta = Metadata {
+        title: Some("main[sub]".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_angles_splits() {
+    let mut meta = Metadata {
+        title: Some("main<sub>".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_explicit_takes_precedence() {
+    let mut meta = Metadata {
+        title: Some("main-sub-".into()),
+        subtitle: Some("explicit".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main-sub-"));
+    assert_eq!(meta.subtitle.as_deref(), Some("explicit"));
+}
+
+#[test]
+fn implicit_subtitle_none_title_noop() {
+    let mut meta = Metadata::default();
+    meta.parse_implicit_subtitle();
+    assert!(meta.title.is_none());
+    assert!(meta.subtitle.is_none());
+}
+
+#[test]
+fn implicit_subtitle_no_separator_noop() {
+    let mut meta = Metadata {
+        title: Some("plain title".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("plain title"));
+    assert!(meta.subtitle.is_none());
+}
+
+#[test]
+fn implicit_subtitle_priority_hyphen_first() {
+    // `-` 优先级最高，应优先于 `()` 匹配
+    let mut meta = Metadata {
+        title: Some("a(b)-c-".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("a(b)"));
+    assert_eq!(meta.subtitle.as_deref(), Some("c"));
+}
+
+#[test]
+fn implicit_subtitle_empty_subject_noop() {
+    let mut meta = Metadata {
+        title: Some(String::new()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some(""));
+    assert!(meta.subtitle.is_none());
+}
+
+#[test]
+fn implicit_subtitle_whitespace_handling() {
+    let mut meta = Metadata {
+        title: Some("main  - sub -  ".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_from_parse_then_call() {
+    // 解析后手动调用
+    let bms = parse("#TITLE song<ver2>\n");
+    let mut meta = bms.metadata;
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("song"));
+    assert_eq!(meta.subtitle.as_deref(), Some("ver2"));
+}
