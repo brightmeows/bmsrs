@@ -157,6 +157,34 @@ type TokenizeOwnedResult = Vec<(
     Result<BmsToken<String>, BmsTokenizeError<String>>,
 )>;
 
+/// 在 `s` 中查找第一个不在 `"..."` 字符串字面量内的 `//`。
+///
+/// 返回 `//` 的起始位置；若不存在行内注释则返回 `None`。
+#[expect(
+    clippy::indexing_slicing,
+    reason = "i < bytes.len() 由 while 循环边界保证"
+)]
+fn find_inline_comment(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut in_string = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => {
+                in_string = !in_string;
+                i += 1;
+            }
+            b'/' if !in_string && i + 1 < bytes.len() && bytes[i + 1] == b'/' => {
+                return Some(i);
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
+    None
+}
+
 /// 采用 builder 风格配置的 BMS 分词器。
 ///
 /// # 示例
@@ -250,6 +278,22 @@ impl BmsTokenizer {
                     continue;
                 }
 
+                // 处理行内 // 注释（跳过 "..." 字符串内的）
+                let line = match find_inline_comment(trimmed) {
+                    Some(pos) => {
+                        // 安全：pos 位于 ASCII `//` 处，保证为字符边界
+                        let Some(head) = trimmed.get(..pos) else {
+                            continue;
+                        };
+                        let trimmed_head = head.trim_end();
+                        if trimmed_head.is_empty() {
+                            continue;
+                        }
+                        trimmed_head
+                    }
+                    None => trimmed,
+                };
+
                 // `line_number` 首次使用前从 0 自增，此处永远 >= 1。
                 #[expect(
                     clippy::expect_used,
@@ -259,9 +303,9 @@ impl BmsTokenizer {
                     .expect("line_number always >= 1, guaranteed by increment-before-use");
 
                 let result: Result<BmsToken<C>, BmsTokenizeError<C>> =
-                    match parse_message_line::<C>(trimmed) {
+                    match parse_message_line::<C>(line) {
                         Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
-                        Ok(None) => match parse_header_line::<C>(trimmed, &self.header_prefixes) {
+                        Ok(None) => match parse_header_line::<C>(line, &self.header_prefixes) {
                             Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
                             Ok(None) => continue,
                             Err(e) => Err(e),

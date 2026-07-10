@@ -334,7 +334,7 @@ fn custom_prefix_filters_percent() {
 #[test]
 fn custom_prefix_accepts_percent_only() {
     // 仅 `%` 前缀时，`#TITLE` 被跳过，但 `%URL` 被解析。
-    let bms = "#TITLE Song\n%URL https://example.com";
+    let bms = "#TITLE Song\n%URL example.com";
     let tokens: Vec<_> = BmsTokenizer::new()
         .header_prefixes(&['%'])
         .tokenize::<_, &str>(bms);
@@ -342,7 +342,7 @@ fn custom_prefix_accepts_percent_only() {
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Url("https://example.com")
+            BmsHeaderMetadata::Url("example.com")
         )))
     ));
 }

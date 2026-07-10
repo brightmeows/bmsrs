@@ -82,6 +82,48 @@ impl Bms {
         bms
     }
 
+    /// 从原始 BMS 文本经过完整管道（分词 → 控制流展开 → 解析）构建
+    /// [`Bms`]。
+    ///
+    /// 等价于以下步骤的组合调用：
+    /// 1. 使用 [`BmsTokenizer`] 分词
+    /// 2. 跳过分词错误
+    /// 3. 使用 [`FlowDoc::from_tokens`] 构建控制流树
+    /// 4. 使用 `rng` 选择分支
+    /// 5. 使用 [`Bms::from_flat_tokens`] 解析
+    ///
+    /// 分词阶段的逐行解析错误会被静默跳过；仅控制流结构错误
+    ///（如不匹配的 `#IF` / `#ENDRANDOM`）会作为错误返回。
+    ///
+    /// # Errors
+    ///
+    /// 当控制流结构不合法时返回
+    /// [`ControlFlowError`](bms_control_flow::ControlFlowError)。
+    ///
+    /// [`BmsTokenizer`]: bms_tokenizer::BmsTokenizer
+    /// [`FlowDoc::from_tokens`]: bms_control_flow::FlowDoc::from_tokens
+    pub fn from_text<R>(
+        text: &str,
+        rng: &mut R,
+        error_strategy: bms_tokenizer::ErrorStrategy,
+    ) -> Result<Self, bms_control_flow::ControlFlowError>
+    where
+        R: bms_control_flow::BranchRng,
+    {
+        use bms_control_flow::FlowDoc;
+        use bms_tokenizer::BmsTokenizer;
+
+        let token_pairs = BmsTokenizer::new()
+            .error_strategy(error_strategy)
+            .tokenize::<Vec<_>, String>(text)
+            .into_iter()
+            .filter_map(|(line, res)| res.ok().map(|token| (line, token)));
+
+        let doc = FlowDoc::from_tokens(token_pairs)?;
+        let (flat, _) = doc.select_branches(rng);
+        Ok(Self::from_flat_tokens(flat))
+    }
+
     // 头部分发 —— 纯路由到子模块的 apply() 方法
 
     /// 将头部命令路由到对应子模块的 `apply` 方法。

@@ -208,6 +208,7 @@ dependencies = [
 name = "bms-parser"
 version = "0.1.0"
 dependencies = [
+ "bms-control-flow",
  "bms-tokenizer",
  "bmsrs-chart",
 ]
