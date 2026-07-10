@@ -516,6 +516,43 @@ fn timing_track_partial_eq() {
     assert_ne!(a, c);
 }
 
+/// 负 BPM roundtrip——`tick_to_duration` 与 `duration_to_tick` 互为反函数。
+/// 覆盖 A12 场景。
+#[test]
+fn timing_track_negative_bpm_roundtrip() {
+    let tt = TimingTrack::new(
+        120.0,
+        vec![
+            BpmChange {
+                tick: 240,
+                bpm: -60.0,
+            },
+            BpmChange {
+                tick: 720,
+                bpm: -180.0,
+            },
+            BpmChange {
+                tick: 1200,
+                bpm: 120.0,
+            },
+        ],
+        vec![StopEvent {
+            tick: 480,
+            duration: 120,
+        }],
+    );
+    let resolution = 240;
+
+    for tick in [0, 120, 240, 360, 480, 600, 720, 960, 1200, 1440] {
+        let dur = tt.tick_to_duration(tick, resolution);
+        let tick_back = tt.duration_to_tick(dur, resolution);
+        assert_eq!(
+            tick_back, tick,
+            "roundtrip failed at tick {tick}: {dur:?} → {tick_back}"
+        );
+    }
+}
+
 #[test]
 fn bpm_change_fields() {
     let bc = BpmChange {
