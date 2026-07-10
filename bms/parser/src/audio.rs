@@ -7,14 +7,14 @@ use std::collections::BTreeMap;
 use bms_tokenizer::{BmsBase, BmsHeaderResDefAudio, WavIndex};
 
 /// `#WAVCMD` 的解析参数——音高/音量/时长覆盖。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WavCmdParams {
     /// 命令 ID（`00` = 音高、`01` = 音量、`02` = 时长）。
     pub command_id: String,
     /// 目标 WAV 索引。
     pub wav_index: String,
-    /// 参数值。
-    pub value: f64,
+    /// 参数值（非负整数）。
+    pub value: u32,
 }
 
 /// `#EXWAV` 的扩展音频效果参数。

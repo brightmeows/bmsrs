@@ -117,15 +117,15 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
 /// 格式：`commandID wavIndex value`。
 /// - `commandID`：`00` = 音高、`01` = 音量、`02` = 时长
 /// - `wavIndex`：2 字符 WAV 索引
-/// - `value`：数值参数
-#[derive(Debug, Clone, PartialEq)]
+/// - `value`：非负整数参数（音高 `0-127`、音量百分比、时长）
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WavCmdParams<C> {
     /// 命令 ID（`00`、`01`、`02`）。
     pub command_id: C,
     /// 目标 WAV 索引。
     pub wav_index: C,
     /// 参数值（音高/音量/时长）。
-    pub value: f64,
+    pub value: u32,
 }
 
 impl<C: AsRef<str> + fmt::Display> fmt::Display for WavCmdParams<C> {
@@ -141,7 +141,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
         let mut parts = s.split_whitespace();
         let command_id = parts.next()?;
         let wav_index = parts.next()?;
-        let value: f64 = parts.next()?.parse().ok()?;
+        let value: u32 = parts.next()?.parse().ok()?;
         if parts.next().is_some() {
             return None;
         }

@@ -213,7 +213,7 @@ fn dropped_audio_headers_stored() {
         Some(bms_parser::WavCmdParams {
             command_id: "01".into(),
             wav_index: "05".into(),
-            value: 100.0,
+            value: 100,
         })
     );
     assert_eq!(bms.audio.cdda.as_deref(), Some("track.bin"));
@@ -955,7 +955,7 @@ fn wavcmd_stored() {
         Some(bms_parser::WavCmdParams {
             command_id: "01".into(),
             wav_index: "05".into(),
-            value: 100.0,
+            value: 100,
         })
     );
 }

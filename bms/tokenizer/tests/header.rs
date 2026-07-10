@@ -416,7 +416,7 @@ fn parse_wavcmd() {
             params: WavCmdParams {
                 command_id: "01",
                 wav_index: "05",
-                value: 100.0,
+                value: 100,
             }
         })
     );
@@ -1052,7 +1052,7 @@ fn wavcmd_not_confused_as_wav_indexed() {
             params: WavCmdParams {
                 command_id: "00",
                 wav_index: "01",
-                value: 100.0,
+                value: 100,
             }
         })
     );
