@@ -5,8 +5,9 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane,
+    LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
+    TimingTrackError,
 };
 use bmsrs_player::Player;
 
@@ -498,6 +499,261 @@ fn player_new_sorts_unsorted_events() {
     let player = Player::new(chart);
     let events = &player.chart().data.events;
     assert!(events[0].tick() < events[1].tick());
+}
+
+// F7: BGM 与 BGA 事件查询
+
+/// 创建一个带多 BGM 事件的谱面。
+fn make_chart_with_bgm() -> Chart {
+    Chart {
+        song: SongInfo {
+            title: "BGM Test".into(),
+            ..Default::default()
+        },
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack::simple(120.0).unwrap(),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events: vec![
+                Event::bar(0),
+                Event::bgm(120, 0),
+                Event::bgm(240, 1),
+                Event::bgm(360, 2),
+                Event::bar(960),
+            ],
+            audio_assets: vec![],
+        },
+    }
+}
+
+/// 创建一个带多 BGA 事件的谱面（每种图层各一个）。
+fn make_chart_with_bga() -> Chart {
+    Chart {
+        song: SongInfo {
+            title: "BGA Test".into(),
+            ..Default::default()
+        },
+        chart: ChartInfo {
+            bga_resources: vec![
+                BgaResource {
+                    id: 0,
+                    path: "base.png".into(),
+                },
+                BgaResource {
+                    id: 1,
+                    path: "layer.png".into(),
+                },
+                BgaResource {
+                    id: 2,
+                    path: "poor.png".into(),
+                },
+                BgaResource {
+                    id: 3,
+                    path: "layer2.png".into(),
+                },
+            ],
+            ..Default::default()
+        },
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack::simple(120.0).unwrap(),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events: vec![
+                Event::bar(0),
+                Event::new(
+                    120,
+                    EventKind::Bga {
+                        layer: BgaLayer::Base,
+                        resource_id: 0,
+                    },
+                ),
+                Event::new(
+                    240,
+                    EventKind::Bga {
+                        layer: BgaLayer::Layer,
+                        resource_id: 1,
+                    },
+                ),
+                Event::new(
+                    360,
+                    EventKind::Bga {
+                        layer: BgaLayer::Poor,
+                        resource_id: 2,
+                    },
+                ),
+                Event::new(
+                    480,
+                    EventKind::Bga {
+                        layer: BgaLayer::Layer2,
+                        resource_id: 3,
+                    },
+                ),
+                Event::bar(960),
+            ],
+            audio_assets: vec![],
+        },
+    }
+}
+
+/// `bgm_in_range` 返回正确的 BGM 事件。
+#[test]
+fn player_bgm_in_range_returns_events() {
+    let chart = make_chart_with_bgm();
+    let player = Player::new(chart);
+
+    let bgm: Vec<_> = player
+        .bgm_in_range(..)
+        .filter_map(|e| {
+            if let EventKind::Bgm { audio_index } = &e.kind {
+                Some((e.tick(), *audio_index))
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(bgm, vec![(120, 0), (240, 1), (360, 2)]);
+}
+
+/// `bgm_in_range` 在指定范围内返回正确的事件。
+#[test]
+fn player_bgm_in_range_subrange() {
+    let chart = make_chart_with_bgm();
+    let player = Player::new(chart);
+
+    let bgm: Vec<_> = player
+        .bgm_in_range(120..=360)
+        .filter_map(|e| {
+            if let EventKind::Bgm { .. } = &e.kind {
+                Some(e.tick())
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(bgm, vec![120, 240, 360]);
+}
+
+/// `bga_events_in_range` 返回所有图层的 BGA 事件。
+#[test]
+fn player_bga_events_base() {
+    let chart = make_chart_with_bga();
+    let player = Player::new(chart);
+
+    let bga: Vec<_> = player
+        .bga_events_in_range(..)
+        .filter_map(|e| {
+            if let EventKind::Bga { layer, resource_id } = &e.kind {
+                Some((*layer, *resource_id, e.tick()))
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(bga.len(), 4);
+    assert_eq!(bga[0], (BgaLayer::Base, 0, 120));
+    assert_eq!(bga[1], (BgaLayer::Layer, 1, 240));
+    assert_eq!(bga[2], (BgaLayer::Poor, 2, 360));
+    assert_eq!(bga[3], (BgaLayer::Layer2, 3, 480));
+}
+
+/// 按 `BgaLayer` 过滤。
+#[test]
+fn player_bga_events_filter_by_layer() {
+    let chart = make_chart_with_bga();
+    let player = Player::new(chart);
+
+    let base: Vec<_> = player
+        .bga_events_in_range(..)
+        .filter(|e| {
+            matches!(
+                &e.kind,
+                EventKind::Bga {
+                    layer: BgaLayer::Base,
+                    ..
+                }
+            )
+        })
+        .collect();
+    assert_eq!(base.len(), 1);
+    assert_eq!(base[0].tick(), 120);
+
+    let layer: Vec<_> = player
+        .bga_events_in_range(..)
+        .filter(|e| {
+            matches!(
+                &e.kind,
+                EventKind::Bga {
+                    layer: BgaLayer::Layer,
+                    ..
+                }
+            )
+        })
+        .collect();
+    assert_eq!(layer.len(), 1);
+    assert_eq!(layer[0].tick(), 240);
+
+    let poor: Vec<_> = player
+        .bga_events_in_range(..)
+        .filter(|e| {
+            matches!(
+                &e.kind,
+                EventKind::Bga {
+                    layer: BgaLayer::Poor,
+                    ..
+                }
+            )
+        })
+        .collect();
+    assert_eq!(poor.len(), 1);
+    assert_eq!(poor[0].tick(), 360);
+
+    let layer2: Vec<_> = player
+        .bga_events_in_range(..)
+        .filter(|e| {
+            matches!(
+                &e.kind,
+                EventKind::Bga {
+                    layer: BgaLayer::Layer2,
+                    ..
+                }
+            )
+        })
+        .collect();
+    assert_eq!(layer2.len(), 1);
+    assert_eq!(layer2[0].tick(), 480);
+}
+
+/// 多 BGM 通道（不同 `audio_index`）。
+#[test]
+fn player_bgm_multiple_channels() {
+    let chart = make_chart_with_bgm();
+    let player = Player::new(chart);
+
+    let mut bgm_pairs: Vec<_> = player
+        .bgm_in_range(..)
+        .filter_map(|e| {
+            if let EventKind::Bgm { audio_index } = &e.kind {
+                Some((e.tick(), *audio_index))
+            } else {
+                None
+            }
+        })
+        .collect();
+    bgm_pairs.sort_unstable();
+    assert_eq!(bgm_pairs, vec![(120, 0), (240, 1), (360, 2)]);
 }
 
 #[test]
