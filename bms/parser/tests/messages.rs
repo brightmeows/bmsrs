@@ -7,8 +7,13 @@ use bms_parser::*;
 use bms_tokenizer::{BmsBase, BmsChannel, BmsToken, BmsTokenizer, BpmIndex, WavIndex};
 use bmsrs_chart::BgaLayer;
 
-/// 辅助函数：通过 Messages 解析单条标准消息行（`#xxxYY:body`）。
+/// 辅助函数：通过 Messages 解析单条标准消息行（`#xxxYY:body`），使用 Base36。
 fn parse_one(line: &str) -> Messages {
+    parse_one_with_base(line, BmsBase::Base36)
+}
+
+/// 辅助函数：通过 Messages 解析单条标准消息行，并指定进制。
+fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
     let tokens: Vec<_> = BmsTokenizer::new()
         .tokenize::<Vec<_>, &str>(line)
         .into_iter()
@@ -20,7 +25,7 @@ fn parse_one(line: &str) -> Messages {
             msgs.concat_raw(msg);
         }
     }
-    msgs.finalize(BmsBase::Base36);
+    msgs.finalize(base);
     msgs
 }
 
@@ -441,4 +446,32 @@ fn finalize_idempotent_does_not_duplicate_non_event_data() {
     // 重复调用 finalize 不应追加重复条目
     msgs.finalize(BmsBase::Base36);
     assert_eq!(msgs.non_event_data.len(), first_count);
+}
+
+#[test]
+fn base62_note_lowercase_wav_index_preserved() {
+    let msgs = parse_one_with_base("#00111:aa", BmsBase::Base62);
+    assert_eq!(
+        msgs.note_events[0].wav_id,
+        WavIndex::try_from("aa").unwrap()
+    );
+}
+
+#[test]
+fn base62_note_uppercase_wav_index_preserved() {
+    let msgs = parse_one_with_base("#00111:AA", BmsBase::Base62);
+    assert_eq!(
+        msgs.note_events[0].wav_id,
+        WavIndex::try_from("AA").unwrap()
+    );
+}
+
+#[test]
+fn base62_lowercase_and_uppercase_wav_indices_are_distinct() {
+    let msgs_lower = parse_one_with_base("#00111:aa", BmsBase::Base62);
+    let msgs_upper = parse_one_with_base("#00111:AA", BmsBase::Base62);
+    assert_ne!(
+        msgs_lower.note_events[0].wav_id,
+        msgs_upper.note_events[0].wav_id
+    );
 }
