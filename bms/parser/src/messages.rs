@@ -783,8 +783,8 @@ impl Messages {
 
     /// 从完整拼接的值中解析长音事件（ch 51–69）。
     ///
-    /// 保留 `"00"` 条目——LNTYPE 2 (MGQ) 中 "00" 是释放标记，
-    /// 由 `pair_lntype2` 使用。`pair_lntype1` 内部也会过滤 "00"，
+    /// 保留 `"00"` 条目——LNTYPE 2 (MGQ) 中 `"00"` 是释放标记，
+    /// 由 `pair_lntype2` 使用。`pair_lntype1` 内部也会过滤 `"00"`，
     /// 因此统一保留，让 LN 配对函数按模式自行处理。
     fn push_long_note_full(
         &mut self,
