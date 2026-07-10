@@ -112,6 +112,47 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
     s.get(start..).unwrap_or("")
 }
 
+/// `#WAVCMD` 的参数——音高/音量/时长覆盖（MacBeat 扩展）。
+///
+/// 格式：`commandID wavIndex value`。
+/// - `commandID`：`00` = 音高、`01` = 音量、`02` = 时长
+/// - `wavIndex`：2 字符 WAV 索引
+/// - `value`：数值参数
+#[derive(Debug, Clone, PartialEq)]
+pub struct WavCmdParams<C> {
+    /// 命令 ID（`00`、`01`、`02`）。
+    pub command_id: C,
+    /// 目标 WAV 索引。
+    pub wav_index: C,
+    /// 参数值（音高/音量/时长）。
+    pub value: f64,
+}
+
+impl<C: AsRef<str> + fmt::Display> fmt::Display for WavCmdParams<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.command_id, self.wav_index, self.value)
+    }
+}
+
+impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
+    for WavCmdParams<C>
+{
+    fn parse(s: &'a str) -> Option<Self> {
+        let mut parts = s.split_whitespace();
+        let command_id = parts.next()?;
+        let wav_index = parts.next()?;
+        let value: f64 = parts.next()?.parse().ok()?;
+        if parts.next().is_some() {
+            return None;
+        }
+        Some(Self {
+            command_id: C::from(command_id),
+            wav_index: C::from(wav_index),
+            value,
+        })
+    }
+}
+
 /// 音频资源定义头部。
 ///
 /// 这些命令定义谱面使用的音频文件。WAV 与 OGG 是
@@ -156,8 +197,14 @@ pub enum BmsHeaderResDefAudio<C> {
     /// 格式：`commandID wavIndex value`。命令：`00` = 音高、
     /// `01` = 音量、`02` = 时长。仅 `MacBeat` 处理这些；
     /// Sonorous 解析但忽略。
-    #[bms_token("#WAVCMD {}")]
-    WavCmd(C),
+    ///
+    /// 解析失败时回退到 [`BmsHeaderFallback`](crate::BmsHeaderFallback)。
+    #[bms_token("#WAVCMD {params}")]
+    #[bms_fallback]
+    WavCmd {
+        /// 解析出的 WAVCMD 参数。
+        params: WavCmdParams<C>,
+    },
     /// `#CDDA`——以 CD-DA 音轨作为 BGM（仅 DDR）。
     ///
     /// 指定一个 CD 音轨号作为背景音乐播放。

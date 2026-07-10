@@ -11,6 +11,29 @@
 use std::sync::OnceLock;
 use std::time::Duration;
 
+/// `TimingTrack` 构造或验证时发生的错误。
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum TimingTrackError {
+    /// 初始 BPM 无效（必须为非零有限值）。
+    InvalidBpm {
+        /// 无效的 BPM 值。
+        bpm: f64,
+    },
+}
+
+impl std::fmt::Display for TimingTrackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidBpm { bpm } => {
+                write!(f, "invalid initial BPM: {bpm} (must be non-zero finite)")
+            }
+        }
+    }
+}
+
+impl std::error::Error for TimingTrackError {}
+
 /// 用于将脉冲位置换算为实际时间的计时信息。
 ///
 /// 所有事件都在绝对脉冲位置上。处理器负责将格式特有的位置
@@ -51,6 +74,20 @@ impl TimingTrack {
     #[must_use]
     pub fn stops(&self) -> &[StopEvent] {
         &self.stops
+    }
+
+    /// 验证当前状态的不变量。
+    ///
+    /// # Errors
+    ///
+    /// 若 `init_bpm` 无效（零、NaN 或无穷大），返回
+    /// [`TimingTrackError::InvalidBpm`]。
+    pub fn validate(&self) -> Result<(), TimingTrackError> {
+        if self.init_bpm.is_finite() && self.init_bpm != 0.0 {
+            Ok(())
+        } else {
+            Err(TimingTrackError::InvalidBpm { bpm: self.init_bpm })
+        }
     }
 }
 
@@ -111,22 +148,35 @@ impl TimingTrack {
     /// 创建一个新的计时轨。
     ///
     /// 使用构造函数而非直接构造结构体以确保内部缓存正确初始化。
-    #[must_use]
-    pub const fn new(init_bpm: f64, bpm_changes: Vec<BpmChange>, stops: Vec<StopEvent>) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// 若 `init_bpm` 无效（零、NaN 或无穷大），返回
+    /// [`TimingTrackError::InvalidBpm`]。
+    pub fn new(
+        init_bpm: f64,
+        bpm_changes: Vec<BpmChange>,
+        stops: Vec<StopEvent>,
+    ) -> Result<Self, TimingTrackError> {
+        let track = Self {
             init_bpm,
             bpm_changes,
             stops,
             events_cache: OnceLock::new(),
-        }
+        };
+        track.validate()?;
+        Ok(track)
     }
 
     /// 创建仅含初始 BPM、无 BPM 变更和无停止的计时轨。
     ///
     /// 等价于 `TimingTrack::new(bpm, vec![], vec![])`，但无需手动传递
     /// 空向量，在测试和简单场景中更简洁。
-    #[must_use]
-    pub const fn simple(init_bpm: f64) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// 若 `init_bpm` 无效，返回 [`TimingTrackError::InvalidBpm`]。
+    pub fn simple(init_bpm: f64) -> Result<Self, TimingTrackError> {
         Self::new(init_bpm, Vec::new(), Vec::new())
     }
 
@@ -329,8 +379,12 @@ impl Clone for TimingTrack {
 }
 
 impl Default for TimingTrack {
+    #[expect(
+        clippy::expect_used,
+        reason = "120 BPM is a hardcoded constant that is always valid"
+    )]
     fn default() -> Self {
-        Self::new(120.0, vec![], vec![])
+        Self::new(120.0, vec![], vec![]).expect("120 BPM is always valid")
     }
 }
 
@@ -343,7 +397,7 @@ impl PartialEq for TimingTrack {
     }
 }
 
-// init_bpm 保证不含 NaN（构造时通过 debug_assert 验证），因此
+// init_bpm 保证不含 NaN（构造时通过 TimingTrack::new 验证），因此
 // PartialEq 满足 Eq 的反射性要求。
 impl Eq for TimingTrack {}
 
@@ -652,7 +706,7 @@ mod tests {
 
     #[test]
     fn constant_bpm_tick_zero_is_zero() {
-        let timing = TimingTrack::simple(120.0);
+        let timing = TimingTrack::simple(120.0).unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(0);
@@ -661,7 +715,7 @@ mod tests {
 
     #[test]
     fn constant_bpm_120_one_beat_is_half_second() {
-        let timing = TimingTrack::simple(120.0);
+        let timing = TimingTrack::simple(120.0).unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(240);
@@ -677,7 +731,8 @@ mod tests {
                 bpm: 60.0,
             }],
             vec![],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // 0-240 在 120 BPM 下 = 0.5s，240-480 在 60 BPM 下 = 1.0s。
@@ -694,7 +749,8 @@ mod tests {
                 tick: 240,
                 duration: 240,
             }],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // 240 处的停止严格在 241 之前，因此暂停被计入。
@@ -712,7 +768,8 @@ mod tests {
                 tick: 240,
                 duration: 240,
             }],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         let result = cache.tick_to_duration(240);
@@ -721,7 +778,7 @@ mod tests {
 
     #[test]
     fn matches_timing_track_constant_bpm() {
-        let timing = TimingTrack::simple(150.0);
+        let timing = TimingTrack::simple(150.0).unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         for tick in [0u64, 100, 240, 480, 960, 1920] {
@@ -749,7 +806,8 @@ mod tests {
                 tick: 960,
                 duration: 480,
             }],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         for tick in [0u64, 100, 240, 479, 480, 959, 960, 961, 1200, 2400] {
@@ -768,7 +826,8 @@ mod tests {
                 bpm: 200.0,
             }],
             vec![],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         assert!((cache.bpm_at_tick(0) - 120.0).abs() < 1e-9);
@@ -793,7 +852,8 @@ mod tests {
                 },
             ],
             vec![],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // 240 tick = 1 拍（resolution 240）。
@@ -816,7 +876,8 @@ mod tests {
                 bpm: 0.0,
             }],
             vec![],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // tick 480 at 120 BPM = 1.0s（保持初始 BPM）。
@@ -834,7 +895,8 @@ mod tests {
                 bpm: f64::NAN,
             }],
             vec![],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // NaN BPM 被跳过，保持 120 BPM。
@@ -850,7 +912,8 @@ mod tests {
                 bpm: f64::INFINITY,
             }],
             vec![],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // Inf BPM 被跳过，保持 120 BPM。
@@ -873,7 +936,8 @@ mod tests {
                 },
             ],
             vec![],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // tick 0-480 at 120 BPM = 1.0s，tick 480-720 at 60 BPM = 1.0s。
@@ -894,7 +958,8 @@ mod tests {
                 tick: 0,
                 duration: u64::MAX,
             }],
-        );
+        )
+        .unwrap();
         let cache = TimingCache::new(&timing, RES);
 
         // 应返回 Duration::MAX 而非 panic。
@@ -903,5 +968,63 @@ mod tests {
 
         let result_track = timing.tick_to_duration(1, RES);
         assert_eq!(result_track, Duration::MAX);
+    }
+
+    #[test]
+    fn new_rejects_zero_init_bpm() {
+        let result = TimingTrack::new(0.0, vec![], vec![]);
+        assert_eq!(result, Err(TimingTrackError::InvalidBpm { bpm: 0.0 }));
+    }
+
+    #[test]
+    fn new_accepts_negative_init_bpm() {
+        // 负 BPM 用于逆向滚动（逆走），时序计算使用 |bpm|。
+        let timing = TimingTrack::new(-120.0, vec![], vec![]).unwrap();
+        assert!((timing.init_bpm() - (-120.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn new_rejects_nan_init_bpm() {
+        let result = TimingTrack::new(f64::NAN, vec![], vec![]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn new_rejects_infinite_init_bpm() {
+        let result = TimingTrack::new(f64::INFINITY, vec![], vec![]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn simple_rejects_invalid_bpm() {
+        let result = TimingTrack::simple(0.0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_returns_ok_for_valid_track() {
+        let timing = TimingTrack::simple(120.0).unwrap();
+        assert!(timing.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_accepts_negative_bpm() {
+        let timing = TimingTrack::simple(-120.0).unwrap();
+        assert!(timing.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_returns_err_for_invalid_track() {
+        // 通过直接构造绕过 new() 的验证来测试 validate()。
+        let timing = TimingTrack {
+            init_bpm: 0.0,
+            bpm_changes: vec![],
+            stops: vec![],
+            events_cache: std::sync::OnceLock::new(),
+        };
+        assert_eq!(
+            timing.validate(),
+            Err(TimingTrackError::InvalidBpm { bpm: 0.0 })
+        );
     }
 }

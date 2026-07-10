@@ -226,6 +226,20 @@ pub struct StpEvent {
     pub duration_ms: f64,
 }
 
+/// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
+///
+/// 由最终化阶段在匹配到非事件通道时填充，处理器（`bms-processor`）
+/// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NonEventData {
+    /// 小节号。
+    pub measure: u16,
+    /// 通道类型。
+    pub channel: BmsChannel,
+    /// 合并后的通道值字符串。
+    pub data: String,
+}
+
 // 消息容器
 
 /// 原始与已解析通道消息数据的容器。
@@ -265,10 +279,10 @@ pub struct Messages {
 
     /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
     ///
-    /// 每个条目为 `(measure, channel, merged_string)`，由 `finalize_merged`
-    /// 在匹配到非事件通道时填充。处理器（`bms-processor`）读取此数据转换
-    /// 为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
-    pub non_event_data: Vec<(u16, BmsChannel, String)>,
+    /// 每个条目包含小节号、通道类型与合并后的通道值字符串，由
+    /// `finalize_merged` 在匹配到非事件通道时填充。处理器（`bms-processor`）
+    /// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+    pub non_event_data: Vec<NonEventData>,
 }
 
 /// 将枚举索引 `i` 转换为 [`Position`]，集中处理 `usize → u32` 截断期望。
@@ -443,7 +457,11 @@ impl Messages {
             | BmsChannel::Option
             | BmsChannel::Unknown(_) => {
                 // 保留合并后的字符串以供处理器延迟解析。
-                self.non_event_data.push((measure, channel, merged));
+                self.non_event_data.push(NonEventData {
+                    measure,
+                    channel,
+                    data: merged,
+                });
             }
             // BGM 与 MeasureLength 在此不可达（已在 finalize_channel
             // 的早期分支中处理），保留分支以满足 exhaustiveness。
@@ -559,11 +577,14 @@ pub fn split_2char_values_lenient(values: &str) -> Vec<&str> {
 /// 将 BMS 双字符地雷索引解码为伤害值。
 ///
 /// 该索引被解释为 Base36 值（除非进制覆盖）：
-/// - `"00"` → `0.0`（无地雷，调用方应在调用前预过滤）
-/// - `"01"` → `0.5`
-/// - `"ZZ"` → [`f64::INFINITY`]（BMS 规格定义的即死）
-/// - 所有其他值 → `base36_value / 2.0`
-fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
+/// - `"00"` → [`None`]（该位置无地雷）
+/// - `"01"` → `Some(0.5)`
+/// - `"ZZ"` → `Some(f64::INFINITY)`（BMS 规格定义的即死）
+/// - 所有其他值 → `Some(base36_value / 2.0)`
+fn decode_mine_damage(val: &str, base: BmsBase) -> Option<f64> {
+    if val == "00" {
+        return None;
+    }
     let parsed = if base == BmsBase::Base62 {
         val.parse::<u16>()
             .ok()
@@ -573,9 +594,9 @@ fn decode_mine_damage(val: &str, base: BmsBase) -> f64 {
         BmsBase::Base36.decode(&upper)
     };
     match parsed {
-        Some(1295) => f64::INFINITY,
-        Some(n) => f64::from(n) / 2.0,
-        None => 1.0,
+        Some(1295) => Some(f64::INFINITY),
+        Some(n) => Some(f64::from(n) / 2.0),
+        None => Some(1.0),
     }
 }
 
@@ -656,6 +677,9 @@ impl Messages {
     /// 从完整拼接的值中解析停止事件（ch 09）。
     fn push_stop_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            if val == "00" {
+                continue;
+            }
             let Ok(stop_id) = val.parse::<StopIndex>() else {
                 continue;
             };
@@ -669,6 +693,9 @@ impl Messages {
     /// 从完整拼接的值中解析滚动事件（ch SC）。
     fn push_scroll_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            if val == "00" {
+                continue;
+            }
             let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
                 continue;
             };
@@ -682,6 +709,9 @@ impl Messages {
     /// 从完整拼接的值中解析速度关键帧事件（ch SP）。
     fn push_speed_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+            if val == "00" {
+                continue;
+            }
             let Ok(speed_id) = val.parse::<SpeedIndex>() else {
                 continue;
             };
@@ -752,6 +782,10 @@ impl Messages {
     }
 
     /// 从完整拼接的值中解析长音事件（ch 51–69）。
+    ///
+    /// 保留 `"00"` 条目——LNTYPE 2 (MGQ) 中 "00" 是释放标记，
+    /// 由 `pair_lntype2` 使用。`pair_lntype1` 内部也会过滤 "00"，
+    /// 因此统一保留，让 LN 配对函数按模式自行处理。
     fn push_long_note_full(
         &mut self,
         values: &str,
@@ -789,11 +823,13 @@ impl Messages {
         base: BmsBase,
     ) {
         for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // "00" = 无地雷 —— 完全跳过。
+            // "00" = 无地雷 —— 完全跳过（也作为 decode_mine_damage 的快速路径）。
             if val == "00" {
                 continue;
             }
-            let damage = decode_mine_damage(val, base);
+            let Some(damage) = decode_mine_damage(val, base) else {
+                continue;
+            };
             self.mine_events.push(MineEvent {
                 position: event_pos(i, measure, total_objects),
                 player,

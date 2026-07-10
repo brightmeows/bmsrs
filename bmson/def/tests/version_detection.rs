@@ -212,3 +212,53 @@ fn detect_version_not_first_key() {
         DetectedVersion::V2
     );
 }
+
+#[test]
+fn detect_nested_version_before_top_level() {
+    // 嵌套 version 不会干扰顶层 version 检测。
+    let json = r#"{"chart_name": {"version": "1.0.0"}, "version": "2.0.0"}"#;
+    assert_eq!(
+        bmson_def::DetectedVersion::detect(json).unwrap(),
+        DetectedVersion::V2
+    );
+}
+
+#[test]
+fn detect_nested_version_after_top_level() {
+    // 顶层的 version 在嵌套 version 之前时，仍应正确检测。
+    let json = r#"{"version": "2.0.0", "chart_name": {"version": "1.0.0"}}"#;
+    assert_eq!(
+        bmson_def::DetectedVersion::detect(json).unwrap(),
+        DetectedVersion::V2
+    );
+}
+
+#[test]
+fn detect_version_string_in_value() {
+    // "version" 作为值（不是键）出现时不应影响检测。
+    let json = r#"{"title": "version 2.0.0", "chart_info": {"chart_name": "version1"}}"#;
+    assert_eq!(
+        bmson_def::DetectedVersion::detect(json).unwrap(),
+        DetectedVersion::V0
+    );
+}
+
+#[test]
+fn detect_version_with_trailing_whitespace() {
+    // version 字符串值尾部有空白。
+    let json = r#"{"version": "2.0.0 ", "song_info": {}}"#;
+    assert_eq!(
+        bmson_def::DetectedVersion::detect(json).unwrap(),
+        DetectedVersion::V2
+    );
+}
+
+#[test]
+fn detect_version_with_trailing_content() {
+    // version 字符串值后有额外的非 SemVer 内容。
+    let json = r#"{"version": "2.0.0+20250101", "song_info": {}}"#;
+    assert_eq!(
+        bmson_def::DetectedVersion::detect(json).unwrap(),
+        DetectedVersion::V2
+    );
+}

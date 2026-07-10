@@ -377,6 +377,37 @@ fn bmspec_1_06_basic_stop() {
     );
 }
 
+/// bmspec-1-06-STOP: STOP 与 BPM 同 tick 时序——BPM（优先级 2）应在 STOP（优先级 3）之前
+/// 生效。覆盖 A11 场景。
+#[test]
+fn bmspec_1_06_stop_on_same_beat_as_bpm() {
+    let chart = process(
+        "#BPM 60\n\
+         #BPM01 120\n\
+         #STOP01 96\n\
+         #00108:0100\n\
+         #00109:0100\n\
+         #00211:01\n",
+    );
+
+    let notes = all_notes(&chart);
+    assert_eq!(notes.len(), 1, "should have 1 note");
+    let resolution = chart.data.resolution;
+
+    // BPM 变更为 120 与 STOP 同在 tick 960（measure 1, pos 0/2）。
+    // 事件排序：BPM(2) 先于 STOP(3)。
+    //   tick 0-960 at 60 BPM = 4.0s
+    //   STOP 480 ticks at 120 BPM（BPM 已变更）= 1.0s
+    //   tick 960-1920 at 120 BPM = 2.0s
+    //   合计 = 7.0s
+    // 若 BPM 在 STOP 之后变更：STOP 480 ticks at 60 BPM = 2.0s → 合计 8.0s
+    let dur = chart.data.timing.tick_to_duration(notes[0].0, resolution);
+    assert!(
+        (dur.as_secs_f64() - 7.0).abs() < 1e-6,
+        "expected note at 7.0s (BPM before STOP), got {dur:?}"
+    );
+}
+
 /// bmspec-2-LNOBJ: 长音对象配对。
 #[test]
 fn bmspec_2_lnobj() {
@@ -413,11 +444,40 @@ fn bmspec_2_lntype1() {
 
     assert_eq!(lns.len(), 4, "should have 4 long notes");
 
-    let sub = 960 / 8; // 每个 subdivision = 120 ticks
+    let sub = 960 / 8; // 每个 subdivision = 120 个脉冲
     assert_eq!(lns[0], (960, sub), "LN 01: beat 4 to 4.5");
     assert_eq!(lns[1], (1200, sub), "LN 02: beat 5 to 5.5");
     assert_eq!(lns[2], (1440, sub), "LN 03: beat 6 to 6.5");
     assert_eq!(lns[3], (1680, sub), "LN 04: beat 7 to 7.5");
+}
+
+/// bmspec-2-LNTYPE2: MGQ 长音记法。
+#[test]
+fn bmspec_2_lntype2() {
+    let chart = process(
+        "#LNTYPE 2\n\
+         #00151:00222222\n\
+         #00251:22\n\
+         #00351:2200\n",
+    );
+    let lns = long_notes(&chart);
+
+    // LNTYPE 2 (MGQ) 中，"00" 充当释放标记。
+    // #00151:00222222 → 4 个值：00 22 22 22（denom=4）
+    //   00 at pos 0/4 = tick 960 → 跳过
+    //   22 at pos 1/4 = tick 1200 → 开始长音
+    //   22 at pos 2/4 = tick 1440 → 继续
+    //   22 at pos 3/4 = tick 1680 → 继续
+    // #00251:22 → 1 个值：22（denom=1）
+    //   22 at pos 0/1 = tick 1920 → 继续
+    // #00351:2200 → 2 个值：22 00（denom=2）
+    //   22 at pos 0/2 = tick 2880 → 继续
+    //   00 at pos 1/2 = tick 3360 → 释放长音
+    //
+    // 单个长音从 tick 1200 到 tick 3360，duration = 2160
+
+    assert_eq!(lns.len(), 1, "should have 1 long note");
+    assert_eq!(lns[0], (1200, 2160), "LN from beat 5 to beat 14");
 }
 
 /// bmspec-3-SCROLL: 基础：速度与位置累积。

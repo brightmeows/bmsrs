@@ -11,9 +11,10 @@ fn detect_v2_from_full_json() {
 }
 
 #[test]
-fn detect_v2_without_patch() {
+fn detect_v2_without_patch_is_error() {
+    // 裸 "2" 不是有效 SemVer 前缀，必须为 "2.x.y" 格式。
     let json = r#"{"version":"2","song_info":{}}"#;
-    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V2);
+    assert!(DetectedVersion::detect(json).is_err());
 }
 
 #[test]
@@ -29,9 +30,10 @@ fn detect_v1_from_full_json() {
 }
 
 #[test]
-fn detect_v1_without_patch() {
+fn detect_v1_without_patch_is_error() {
+    // 裸 "1" 不是有效 SemVer 前缀，必须为 "1.x.y" 格式。
     let json = r#"{"version":"1","info":{}}"#;
-    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V1);
+    assert!(DetectedVersion::detect(json).is_err());
 }
 
 #[test]
@@ -50,6 +52,20 @@ fn detect_v0_when_version_starts_with_zero() {
 fn detect_empty_object_is_v0() {
     let json = "{}";
     assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V0);
+}
+
+#[test]
+fn version_with_invalid_prefix_returns_error() {
+    // "2invalid" 虽以 '2' 开头，但不以 "2." 开头，应被拒绝。
+    let json = r#"{"version":"2invalid","song_info":{}}"#;
+    assert!(DetectedVersion::detect(json).is_err());
+}
+
+#[test]
+fn version_with_extra_digits_is_still_valid() {
+    // "2.0.0.1" 虽非标准 SemVer 但以 "2." 开头，应识别为 V2。
+    let json = r#"{"version":"2.0.0.1","song_info":{}}"#;
+    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V2);
 }
 
 #[test]
@@ -84,9 +100,8 @@ fn detect_multiline_json() {
 }
 
 #[test]
-fn detect_first_version_wins() {
-    // 当多个 "version" 键存在时，取第一个。
-    // 当前实现使用 `find` 扫描，因此第一处匹配胜出。
+fn detect_ignores_nested_version_key() {
+    // 嵌套对象中的 "version" 键不参与顶层版本检测。
     let json = r#"{"song_info":{"version":"1.0.0"},"chart_info":{},"chart_data":{}}"#;
-    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V1);
+    assert_eq!(DetectedVersion::detect(json).unwrap(), DetectedVersion::V0);
 }

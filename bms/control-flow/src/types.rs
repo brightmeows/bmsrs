@@ -4,6 +4,8 @@ use std::num::NonZeroUsize;
 
 use bms_tokenizer::BmsToken;
 
+use crate::ControlFlowWarning;
+
 /// 控制流块的活跃值如何确定。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchValue {
@@ -28,7 +30,12 @@ pub enum BranchValue {
 /// `Vec` 的方法（`iter`、`len`、`first`、`[index]` 等）可直接在
 /// `FlowDoc` 上使用。
 #[derive(Debug, Clone, PartialEq)]
-pub struct FlowDoc<P>(pub Vec<FlowNode<P>>);
+pub struct FlowDoc<P> {
+    /// 控制流树的顶层节点。
+    pub nodes: Vec<FlowNode<P>>,
+    /// 构建期间产生的非致命警告。
+    pub(crate) warnings: Vec<ControlFlowWarning>,
+}
 
 /// [`FlowDoc`] 中的单个条目：载荷片段或控制流块。
 #[derive(Debug, Clone, PartialEq)]
@@ -156,12 +163,23 @@ impl<P> Deref for FlowDoc<P> {
     type Target = [FlowNode<P>];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.nodes
     }
 }
 
 impl<P> DerefMut for FlowDoc<P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.nodes
+    }
+}
+
+impl<P> FlowDoc<P> {
+    /// 构建期间产生的警告列表。
+    ///
+    /// 警告不阻止构建，但表示某些控制流结构可能不完整
+    /// （例如未闭合的 `#RANDOM` 块）。
+    #[must_use]
+    pub fn warnings(&self) -> &[ControlFlowWarning] {
+        &self.warnings
     }
 }

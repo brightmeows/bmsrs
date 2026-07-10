@@ -1,6 +1,7 @@
 //! `bmsrs-chart` 的集成测试。
 //!
 //! 覆盖 Chart 模型、TimingTrack、Event、NoteKind 等核心类型。
+#![expect(clippy::unwrap_used, reason = "test code")]
 
 use std::num::NonZeroU8;
 use std::time::Duration;
@@ -33,7 +34,7 @@ fn chart_construction_is_empty_by_default() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(120.0),
+            timing: TimingTrack::simple(120.0).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -60,7 +61,7 @@ fn chart_construction() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(120.0),
+            timing: TimingTrack::simple(120.0).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -110,7 +111,7 @@ fn chart_data_last_tick_empty() {
     // 空事件列表 → last_tick() 返回 0。
     let data = ChartData::<(), NoCustomEvent> {
         resolution: 240,
-        timing: TimingTrack::simple(120.0),
+        timing: TimingTrack::simple(120.0).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),
@@ -128,7 +129,7 @@ fn chart_data_last_tick_empty() {
 fn chart_data_last_tick_with_events() {
     let data: ChartData = ChartData {
         resolution: 240,
-        timing: TimingTrack::simple(120.0),
+        timing: TimingTrack::simple(120.0).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),
@@ -146,7 +147,7 @@ fn chart_data_last_tick_with_events() {
 fn chart_data_duration() {
     let data: ChartData = ChartData {
         resolution: 240,
-        timing: TimingTrack::simple(120.0),
+        timing: TimingTrack::simple(120.0).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),
@@ -414,13 +415,13 @@ fn timing_track_default() {
 
 #[test]
 fn timing_track_new() {
-    let tt = TimingTrack::simple(120.0);
+    let tt = TimingTrack::simple(120.0).unwrap();
     assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
 fn tick_to_duration_constant_bpm() {
-    let tt = TimingTrack::simple(120.0);
+    let tt = TimingTrack::simple(120.0).unwrap();
     // 240 ticks at 120 BPM with resolution 240 = 0.5s
     let dur = tt.tick_to_duration(240, 240);
     assert!((dur.as_secs_f64() - 0.5).abs() < 1e-9);
@@ -435,7 +436,8 @@ fn tick_to_duration_bpm_change() {
             bpm: 240.0,
         }],
         vec![],
-    );
+    )
+    .unwrap();
     // 0-240 ticks at 120 BPM = 0.5s, 240-480 ticks at 240 BPM = 0.25s
     let dur = tt.tick_to_duration(480, 240);
     assert!((dur.as_secs_f64() - 0.75).abs() < 1e-9);
@@ -450,7 +452,8 @@ fn tick_to_duration_with_stop() {
             tick: 240,
             duration: 240,
         }],
-    );
+    )
+    .unwrap();
     // 0-240 ticks = 0.5s. At tick 240, a stop of 240 ticks = 0.5s.
     // tick_to_duration(240) should return time BEFORE stop = 0.5s.
     let dur_at_stop = tt.tick_to_duration(240, 240);
@@ -462,7 +465,7 @@ fn tick_to_duration_with_stop() {
 
 #[test]
 fn duration_to_tick_constant_bpm() {
-    let tt = TimingTrack::simple(120.0);
+    let tt = TimingTrack::simple(120.0).unwrap();
     // 0.5s at 120 BPM with resolution 240 = 240 ticks
     let tick = tt.duration_to_tick(Duration::from_secs_f64(0.5), 240);
     assert_eq!(tick, 240);
@@ -477,7 +480,8 @@ fn duration_to_tick_with_stop() {
             tick: 240,
             duration: 240,
         }],
-    );
+    )
+    .unwrap();
     // Within stop: 0.5s (to stop) + 0.25s (into stop) → should still be at tick 240
     let tick = tt.duration_to_tick(Duration::from_secs_f64(0.75), 240);
     assert_eq!(tick, 240);
@@ -488,32 +492,70 @@ fn duration_to_tick_with_stop() {
 
 #[test]
 fn duration_to_tick_zero_duration() {
-    let tt = TimingTrack::simple(120.0);
+    let tt = TimingTrack::simple(120.0).unwrap();
     let tick = tt.duration_to_tick(Duration::ZERO, 240);
     assert_eq!(tick, 0);
 }
 
 #[test]
 fn tick_to_duration_zero_tick() {
-    let tt = TimingTrack::simple(120.0);
+    let tt = TimingTrack::simple(120.0).unwrap();
     let dur = tt.tick_to_duration(0, 240);
     assert!(dur.is_zero());
 }
 
 #[test]
 fn timing_track_clone_resets_cache() {
-    let tt = TimingTrack::simple(120.0);
+    let tt = TimingTrack::simple(120.0).unwrap();
     let _primed = tt.tick_to_duration(240, 240);
     assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
 fn timing_track_partial_eq() {
-    let a = TimingTrack::simple(120.0);
-    let b = TimingTrack::simple(120.0);
-    let c = TimingTrack::simple(140.0);
+    let a = TimingTrack::simple(120.0).unwrap();
+    let b = TimingTrack::simple(120.0).unwrap();
+    let c = TimingTrack::simple(140.0).unwrap();
     assert_eq!(a, b);
     assert_ne!(a, c);
+}
+
+/// 负 BPM roundtrip——`tick_to_duration` 与 `duration_to_tick` 互为反函数。
+/// 覆盖 A12 场景。
+#[test]
+fn timing_track_negative_bpm_roundtrip() {
+    let tt = TimingTrack::new(
+        120.0,
+        vec![
+            BpmChange {
+                tick: 240,
+                bpm: -60.0,
+            },
+            BpmChange {
+                tick: 720,
+                bpm: -180.0,
+            },
+            BpmChange {
+                tick: 1200,
+                bpm: 120.0,
+            },
+        ],
+        vec![StopEvent {
+            tick: 480,
+            duration: 120,
+        }],
+    )
+    .unwrap();
+    let resolution = 240;
+
+    for tick in [0, 120, 240, 360, 480, 600, 720, 960, 1200, 1440] {
+        let dur = tt.tick_to_duration(tick, resolution);
+        let tick_back = tt.duration_to_tick(dur, resolution);
+        assert_eq!(
+            tick_back, tick,
+            "roundtrip failed at tick {tick}: {dur:?} → {tick_back}"
+        );
+    }
 }
 
 #[test]
@@ -591,7 +633,7 @@ fn map_ext_applies_fn_to_note_variant() {
 fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
     ChartData {
         resolution: 240,
-        timing: TimingTrack::simple(120.0),
+        timing: TimingTrack::simple(120.0).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),
@@ -631,7 +673,7 @@ fn filter_map_events_preserves_all_when_none_filtered() {
 fn filter_map_events_drops_custom_events() {
     let data = ChartData {
         resolution: 240,
-        timing: TimingTrack::simple(120.0),
+        timing: TimingTrack::simple(120.0).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
         ln_type_hint: LnTypeHint::default(),

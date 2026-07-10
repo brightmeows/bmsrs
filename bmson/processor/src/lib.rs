@@ -147,15 +147,13 @@ impl BmsonProcessor {
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let data = &bmson.chart_data;
 
-        if data.init_bpm.is_nan() || data.init_bpm == 0.0 {
+        if !data.init_bpm.is_finite() || data.init_bpm <= 0.0 {
             return Err(ProcessError::InvalidBpm(data.init_bpm));
         }
 
         let timing = build_timing(data);
         let resolution = data.resolution;
         let timing_cache = TimingCache::new(&timing, resolution);
-        let playable_pulses = collect_playable_pulses(&data.sound_channels);
-
         let mut conv = BmsonConverter {
             bmson,
             decode,
@@ -165,7 +163,7 @@ impl BmsonProcessor {
             events: Vec::new(),
         };
 
-        conv.process_sound_channels(&playable_pulses);
+        conv.process_sound_channels();
         conv.process_mine_channels();
         conv.process_key_channels();
         conv.collect_bpm_events();
@@ -316,9 +314,15 @@ impl BmsonConverter<'_> {
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
     )]
-    fn process_sound_channels(&mut self, playable_pulses: &BTreeSet<u64>) {
+    fn process_sound_channels(&mut self) {
         for channel in &self.bmson.chart_data.sound_channels {
             let sliced = slice_channel(channel, &self.timing);
+
+            let channel_playable: BTreeSet<u64> = channel
+                .note_events
+                .iter()
+                .filter_map(|ne| if ne.is_bgm() { None } else { Some(ne.y) })
+                .collect();
 
             for ne in &channel.note_events {
                 let audio_idx = sliced
@@ -328,7 +332,7 @@ impl BmsonConverter<'_> {
                     .map(|idx| (idx + self.audio_assets.len()) as u32);
 
                 if ne.is_bgm() {
-                    if playable_pulses.contains(&ne.y) {
+                    if channel_playable.contains(&ne.y) {
                         continue;
                     }
                     if let Some(idx) = audio_idx {
@@ -427,23 +431,19 @@ impl BmsonConverter<'_> {
     }
 }
 
-/// 收集所有至少包含一个可演奏音符的脉冲位置。
-fn collect_playable_pulses(channels: &[bmson_def::SoundChannel<'_>]) -> BTreeSet<u64> {
-    channels
-        .iter()
-        .flat_map(|ch| ch.note_events.iter())
-        .filter(|n| n.x > 0)
-        .map(|n| n.y)
-        .collect()
-}
-
 /// 从 BMSON 谱面数据构建 [`TimingTrack`]。
+///
+/// # Panics
+///
+/// 若 `data.init_bpm` 无效（应在调用前通过验证），则 panic。
+#[expect(clippy::expect_used, reason = "init_bpm was validated before call")]
 fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
     TimingTrack::new(
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
         data.stop_events.iter().map(build_stop_event).collect(),
     )
+    .expect("init_bpm was already validated above")
 }
 
 /// 从 BMSON [`NoteEvent`](bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。

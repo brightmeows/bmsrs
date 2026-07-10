@@ -77,15 +77,25 @@ impl BmsProcessor {
     /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
     /// 位置。可用族见 `layout` 模块。
     ///
+    /// # Panics
+    ///
+    /// 若 `init_bpm` 为无效有限值（不应发生，因上方已通过验证），
+    /// `TimingTrack::new` 会 panic。
+    ///
     /// # Errors
     ///
     /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        reason = "init_bpm was already validated above"
+    )]
     pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
     where
         L: BmsLayout,
     {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
-        if init_bpm.is_nan() || init_bpm == 0.0 {
+        if !init_bpm.is_finite() || init_bpm == 0.0 {
             return Err(ProcessError::InvalidBpm(init_bpm));
         }
 
@@ -104,7 +114,8 @@ impl BmsProcessor {
         stops.extend(conv.build_stops_from_stp(&bpm_changes, init_bpm));
         stops.sort_by_key(|s| s.tick);
 
-        let timing = TimingTrack::new(init_bpm, bpm_changes, stops);
+        let timing = TimingTrack::new(init_bpm, bpm_changes, stops)
+            .expect("init_bpm was already validated above");
 
         let bmp_map = build_bmp_map(&bms.visual.bmp_files);
 
@@ -421,8 +432,8 @@ impl BmsConverter<'_> {
             }
         };
 
-        for &(measure, ref channel, ref merged) in non_event {
-            let objects = split_2char_values_lenient(merged);
+        for item in non_event {
+            let objects = split_2char_values_lenient(&item.data);
             let total = objects.len() as u32;
             if total == 0 {
                 continue;
@@ -434,16 +445,18 @@ impl BmsConverter<'_> {
                 }
                 // 值通道（0B-0E, 97, 98）使用十六进制（01-FF）；
                 // 索引通道（99, A0, A1-A5, A6, 05）使用 Base36 索引。
-                let tick = self
-                    .table
-                    .position_to_tick(bms_parser::Position::new(measure, i as u32, total));
+                let tick = self.table.position_to_tick(bms_parser::Position::new(
+                    item.measure,
+                    i as u32,
+                    total,
+                ));
 
-                let payload = match channel {
+                let payload = match item.channel {
                     RawChannel::BgaBaseOpacity
                     | RawChannel::BgaLayerOpacity
                     | RawChannel::BgaLayer2Opacity
                     | RawChannel::BgaPoorOpacity => {
-                        let Some(layer) = layer_of(*channel) else {
+                        let Some(layer) = layer_of(item.channel) else {
                             continue;
                         };
                         let Ok(opacity) = u8::from_str_radix(obj, 16) else {
@@ -455,7 +468,7 @@ impl BmsConverter<'_> {
                     | RawChannel::BgaArgbLayer
                     | RawChannel::BgaArgbLayer2
                     | RawChannel::BgaArgbPoor => {
-                        let Some(layer) = layer_of(*channel) else {
+                        let Some(layer) = layer_of(item.channel) else {
                             continue;
                         };
                         let Some((a, r, g, b)) = bms_tokenizer::BmpIndex::try_from(*obj)
@@ -682,9 +695,9 @@ fn find_max_measure(bms: &Bms) -> u16 {
         &bms.messages.stp_events,
     );
 
-    // non_event_data 存储 (measure, channel, merged_string)，遍历 measure。
-    for (measure, _, _) in &bms.messages.non_event_data {
-        max_m = max_m.max(*measure);
+    // non_event_data 存储 NonEventData，遍历 measure。
+    for item in &bms.messages.non_event_data {
+        max_m = max_m.max(item.measure);
     }
 
     max_m.max(1) + 1

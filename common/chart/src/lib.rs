@@ -49,7 +49,7 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         resolution: 240,
-//!         timing: TimingTrack::simple(120.0),
+//!         timing: TimingTrack::simple(120.0).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
 //!         ln_type_hint: LnTypeHint::default(),
@@ -74,6 +74,8 @@
 //! assert_eq!(chart.data.events.len(), 1);
 //! ```
 
+use std::fmt;
+
 pub mod audio;
 pub mod event;
 pub mod mode;
@@ -85,7 +87,7 @@ pub use audio::AudioAsset;
 pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
-pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack};
+pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack, TimingTrackError};
 pub use visual::{BgaLayer, BgaResource};
 
 /// 乐曲级元数据 —— 对应 BMSON v2 的 `SongInfo`。
@@ -160,6 +162,30 @@ pub struct LifeDeltas {
 // LifeDeltas 保证不含 NaN，故可安全实现 Eq。
 impl Eq for LifeDeltas {}
 
+/// `ChartData` 验证错误类型。
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum ChartDataError {
+    /// `resolution` 为 0（必须为正）。
+    ZeroResolution,
+    /// 初始 BPM 无效（0、负数、NaN 或无穷大）。
+    InvalidBpm {
+        /// 无效的 BPM 值。
+        bpm: f64,
+    },
+}
+
+impl fmt::Display for ChartDataError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroResolution => write!(f, "resolution must be positive, got 0"),
+            Self::InvalidBpm { bpm } => write!(f, "invalid initial BPM: {bpm}"),
+        }
+    }
+}
+
+impl std::error::Error for ChartDataError {}
+
 /// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
 ///
 /// 不实现 [`Default`]：合法状态要求 `resolution > 0` 且
@@ -167,7 +193,6 @@ impl Eq for LifeDeltas {}
 /// 调用方必须显式提供这些值（各处理器均以字面量构造）。
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    // 手动实现 Eq：judge_multiplier、life_multiplier 与 LifeDeltas 保证不含 NaN。
     /// 每个四分音符的脉冲数（节拍分辨率）。
     pub resolution: u64,
     /// 用于脉冲 ↔ 秒换算的计时轨。
@@ -208,6 +233,27 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     pub fn duration(&self) -> std::time::Duration {
         self.timing
             .tick_to_duration(self.last_tick(), self.resolution)
+    }
+
+    /// 验证谱面数据的关键不变量。
+    ///
+    /// 检查项：
+    /// - `resolution > 0`
+    /// - `timing` 的初始 BPM 为正有限值
+    ///
+    /// # Errors
+    ///
+    /// 若任何检查失败，返回 [`ChartDataError`]。
+    pub fn validate(&self) -> Result<(), ChartDataError> {
+        if self.resolution == 0 {
+            return Err(ChartDataError::ZeroResolution);
+        }
+        if !self.timing.init_bpm().is_finite() || self.timing.init_bpm() <= 0.0 {
+            return Err(ChartDataError::InvalidBpm {
+                bpm: self.timing.init_bpm(),
+            });
+        }
+        Ok(())
     }
 
     /// 确保事件按脉冲升序排列。

@@ -49,3 +49,24 @@ pub enum ControlFlowError {
         line: NonZeroUsize,
     },
 }
+
+/// 从扁平 token 流构建 [`FlowDoc`](crate::FlowDoc) 时发现的非致命问题。
+///
+/// 警告不阻止构建，但可能丢失控制流结构信息（例如未闭合的块
+/// 其内容被提升到父作用域）。
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ControlFlowWarning {
+    /// `#RANDOM` 或 `#SWITCH` 块在流结束前未用 `#ENDRANDOM` / `#ENDSW` 闭合。
+    ///
+    /// 块内容（包括所有分支 / case）被提升到父作用域，控制流结构信息丢失。
+    #[error(
+        "unclosed #{block_kind} block (started at line {line}) — content promoted to parent scope"
+    )]
+    UnclosedBlock {
+        /// 块类型（`"RANDOM"` 或 `"SWITCH"`）。
+        block_kind: &'static str,
+        /// 块起始命令的行号。
+        line: NonZeroUsize,
+    },
+}

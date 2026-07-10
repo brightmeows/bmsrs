@@ -12,7 +12,7 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(120.0),
+            timing: TimingTrack::simple(120.0).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),

@@ -262,14 +262,84 @@ fn endrandom_present_sets_has_end_random_true() -> TestResult {
 }
 
 #[test]
-fn no_endrandom_leaves_block_unpopped() -> TestResult {
+fn unclosed_random_promotes_content() -> TestResult {
     let tree = build_doc(
         "#RANDOM 2\n\
          #IF 1\n\
+         #00101:11\n\
          #ENDIF",
     )?;
 
-    assert!(tree.is_empty());
+    // 内容不应被丢弃——提升为顶层 payload
+    assert!(!tree.is_empty());
+    Ok(())
+}
+
+#[test]
+fn unclosed_random_emits_warning() -> TestResult {
+    let tree = build_doc(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ENDIF",
+    )?;
+
+    assert_eq!(tree.warnings().len(), 1);
+    Ok(())
+}
+
+#[test]
+fn unclosed_switch_promotes_content() -> TestResult {
+    let tree = build_doc(
+        "#SWITCH 2\n\
+         #CASE 1\n\
+         #00101:11",
+    )?;
+
+    assert!(!tree.is_empty());
+    Ok(())
+}
+
+#[test]
+fn unclosed_switch_emits_warning() -> TestResult {
+    let tree = build_doc(
+        "#SWITCH 2\n\
+         #CASE 1\n\
+         #00101:11",
+    )?;
+
+    assert_eq!(tree.warnings().len(), 1);
+    Ok(())
+}
+
+#[test]
+fn unclosed_nested_blocks_emits_two_warnings() -> TestResult {
+    let tree = build_doc(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ENDIF\n\
+         #SWITCH 3\n\
+         #CASE 1\n\
+         #00201:22",
+    )?;
+
+    // 两层未闭合块——两个警告
+    assert_eq!(tree.warnings().len(), 2);
+    Ok(())
+}
+
+#[test]
+fn properly_closed_random_has_no_warnings() -> TestResult {
+    let tree = build_doc(
+        "#RANDOM 2\n\
+         #IF 1\n\
+         #00101:11\n\
+         #ENDIF\n\
+         #ENDRANDOM",
+    )?;
+
+    assert!(tree.warnings().is_empty());
     Ok(())
 }
 
@@ -371,5 +441,12 @@ fn switch_case_bodies_pack_consecutive_tokens() -> TestResult {
     // Case 2 有单个 token 被打包为一个载荷节点。
     let case2 = block.cases.get(1).expect("case 2");
     assert_eq!(case2.body.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn empty_switch_block_creates_non_empty_doc() -> TestResult {
+    let tree = build_doc("#SWITCH 2\n#ENDSW")?;
+    assert!(!tree.is_empty());
     Ok(())
 }

@@ -24,6 +24,7 @@ use std::fmt;
 use std::num::NonZeroUsize;
 
 mod channel;
+pub mod encoding;
 mod error;
 mod header;
 mod index;
@@ -36,7 +37,7 @@ pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValu
 pub use header::parse_header_line;
 pub use header::{
     ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
-    ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams,
+    ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams, WavCmdParams,
 };
 pub use header::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay,
@@ -50,6 +51,8 @@ pub use index::{
 pub use message::BmsMessage;
 pub use message::parse_message_line;
 pub use preprocess::preprocess;
+
+pub use encoding::{BmsEncoding, detect_encoding};
 
 /// BMS 头部值的统一 trait。
 ///
@@ -157,14 +160,43 @@ type TokenizeOwnedResult = Vec<(
     Result<BmsToken<String>, BmsTokenizeError<String>>,
 )>;
 
+/// 在 `s` 中查找第一个不在 `"..."` 字符串字面量内的 `//`。
+///
+/// 返回 `//` 的起始位置；若不存在行内注释则返回 `None`。
+#[expect(
+    clippy::indexing_slicing,
+    reason = "i < bytes.len() 由 while 循环边界保证"
+)]
+fn find_inline_comment(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut in_string = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => {
+                in_string = !in_string;
+                i += 1;
+            }
+            b'/' if !in_string && i + 1 < bytes.len() && bytes[i + 1] == b'/' => {
+                return Some(i);
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
+    None
+}
+
 /// 采用 builder 风格配置的 BMS 分词器。
 ///
 /// # 示例
 ///
 /// ```
-/// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy};
+/// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy, BmsEncoding};
 /// let tokens: Vec<_> = BmsTokenizer::new()
 ///     .error_strategy(ErrorStrategy::CollectAll)
+///     .encoding(BmsEncoding::ShiftJis)
 ///     .tokenize::<_, &str>("#TITLE My Song\n#00101:11");
 /// ```
 #[derive(Debug, Clone)]
@@ -173,6 +205,8 @@ pub struct BmsTokenizer {
     error_strategy: ErrorStrategy,
     /// 允许的头部命令前缀字符。
     header_prefixes: Vec<char>,
+    /// 预设的编码（可选）。设置后 `tokenize_bytes` 跳过检测直接使用此编码。
+    encoding: Option<BmsEncoding>,
 }
 
 impl Default for BmsTokenizer {
@@ -180,6 +214,7 @@ impl Default for BmsTokenizer {
         Self {
             error_strategy: ErrorStrategy::default(),
             header_prefixes: vec!['#', '%'],
+            encoding: None,
         }
     }
 }
@@ -206,6 +241,16 @@ impl BmsTokenizer {
     #[must_use]
     pub fn header_prefixes(mut self, prefixes: &[char]) -> Self {
         self.header_prefixes = prefixes.to_vec();
+        self
+    }
+
+    /// 预设文件编码。设置后在调用 [`tokenize_bytes`](Self::tokenize_bytes) 时
+    /// 跳过自动检测，直接使用此编码解码。
+    ///
+    /// 不影响 [`tokenize`](Self::tokenize)（后者始终接受 UTF-8 `&str`）。
+    #[must_use]
+    pub const fn encoding(mut self, encoding: BmsEncoding) -> Self {
+        self.encoding = Some(encoding);
         self
     }
 
@@ -250,6 +295,22 @@ impl BmsTokenizer {
                     continue;
                 }
 
+                // 处理行内 // 注释（跳过 "..." 字符串内的）
+                let line = match find_inline_comment(trimmed) {
+                    Some(pos) => {
+                        // 安全：pos 位于 ASCII `//` 处，保证为字符边界
+                        let Some(head) = trimmed.get(..pos) else {
+                            continue;
+                        };
+                        let trimmed_head = head.trim_end();
+                        if trimmed_head.is_empty() {
+                            continue;
+                        }
+                        trimmed_head
+                    }
+                    None => trimmed,
+                };
+
                 // `line_number` 首次使用前从 0 自增，此处永远 >= 1。
                 #[expect(
                     clippy::expect_used,
@@ -259,9 +320,9 @@ impl BmsTokenizer {
                     .expect("line_number always >= 1, guaranteed by increment-before-use");
 
                 let result: Result<BmsToken<C>, BmsTokenizeError<C>> =
-                    match parse_message_line::<C>(trimmed) {
+                    match parse_message_line::<C>(line) {
                         Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
-                        Ok(None) => match parse_header_line::<C>(trimmed, &self.header_prefixes) {
+                        Ok(None) => match parse_header_line::<C>(line, &self.header_prefixes) {
                             Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
                             Ok(None) => continue,
                             Err(e) => Err(e),
@@ -292,5 +353,22 @@ impl BmsTokenizer {
     #[must_use]
     pub fn tokenize_owned(&self, input: &str) -> TokenizeOwnedResult {
         self.tokenize(input)
+    }
+
+    /// 将 BMS 字节数据分词为 owned token。
+    ///
+    /// 内部自动检测编码（除非通过 [`encoding`](Self::encoding) 预设），
+    /// 解码为 UTF-8 后调用 [`tokenize`](Self::tokenize)。
+    ///
+    /// 始终产生 `C = String` 的 owned token。
+    ///
+    /// # Panics
+    ///
+    /// 参见 [`tokenize`](Self::tokenize) 的 Panics 说明——条件相同。
+    #[must_use]
+    pub fn tokenize_bytes(&self, input: &[u8]) -> TokenizeOwnedResult {
+        let encoding = self.encoding.unwrap_or_else(|| detect_encoding(input));
+        let decoded = encoding.decode(input);
+        self.tokenize(&decoded)
     }
 }

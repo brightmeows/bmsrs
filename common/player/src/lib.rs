@@ -19,7 +19,7 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         resolution: 240,
-//!         timing: TimingTrack::simple(120.0),
+//!         timing: TimingTrack::simple(120.0).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
 //!         ln_type_hint: LnTypeHint::default(),
@@ -84,20 +84,26 @@ pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
 
 impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 由谱面创建一个新播放器，从脉冲 0 开始。
+    ///
+    /// # Panics
+    ///
+    /// 若谱面数据不合法（`resolution == 0` 或初始 BPM 非正有限值），
+    /// 触发 panic。
     #[must_use]
-    pub fn new(chart: Chart<T, C>) -> Self {
+    #[expect(
+        clippy::expect_used,
+        reason = "编程错误（非法谱面数据）应 panic，不返回 Result"
+    )]
+    pub fn new(mut chart: Chart<T, C>) -> Self {
+        chart
+            .data
+            .validate()
+            .expect("ChartData validation failed in Player::new");
+        chart.data.sort_events();
         let resolution = chart.data.resolution;
         let cache = TimingCache::new(&chart.data.timing, resolution);
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
         let speed_cache = SpeedCache::build(&chart.data.events);
-        // 调试模式：验证事件已按 sort_key 排序（EventsInRange 等查询依赖此不变量）。
-        debug_assert!(
-            chart.data.events.windows(2).all(|w| match w {
-                [a, b] => a.sort_key() <= b.sort_key(),
-                _ => true,
-            }),
-            "ChartData.events must be sorted by Event::sort_key"
-        );
         Self {
             chart,
             cache,

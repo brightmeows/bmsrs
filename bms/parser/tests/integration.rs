@@ -139,7 +139,7 @@ fn full_header_parse() {
 #MAKER creator
 #COMMENT hello
 #CHARSET UTF-8
-%URL https://example.com
+%URL example.com
 %EMAIL user@example.com
 #PLAYER 1
 #RANK 2
@@ -171,7 +171,7 @@ fn full_header_parse() {
     assert_eq!(bms.metadata.maker.as_deref(), Some("creator"));
     assert_eq!(bms.metadata.comment.as_deref(), Some("hello"));
     assert_eq!(bms.metadata.charset.as_deref(), Some("UTF-8"));
-    assert_eq!(bms.metadata.url.as_deref(), Some("https://example.com"));
+    assert_eq!(bms.metadata.url.as_deref(), Some("example.com"));
     assert_eq!(bms.metadata.email.as_deref(), Some("user@example.com"));
 
     // 游玩
@@ -207,8 +207,15 @@ fn full_header_parse() {
 
 #[test]
 fn dropped_audio_headers_stored() {
-    let bms = parse("#WAVCMD some-cmd\n#CDDA track.bin\n#MIDIFILE song.mid\n#PATH_WAV ./sounds/");
-    assert_eq!(bms.audio.wav_cmd.as_deref(), Some("some-cmd"));
+    let bms = parse("#WAVCMD 01 05 100\n#CDDA track.bin\n#MIDIFILE song.mid\n#PATH_WAV ./sounds/");
+    assert_eq!(
+        bms.audio.wav_cmd,
+        Some(bms_parser::WavCmdParams {
+            command_id: "01".into(),
+            wav_index: "05".into(),
+            value: 100.0,
+        })
+    );
     assert_eq!(bms.audio.cdda.as_deref(), Some("track.bin"));
     assert_eq!(bms.audio.midifile.as_deref(), Some("song.mid"));
     assert_eq!(bms.audio.path_wav.as_deref(), Some("./sounds/"));
@@ -613,6 +620,85 @@ fn default_bms_is_empty() {
     assert!(bms.fallback_headers.is_empty());
 }
 
+// F4: non_event_data merge behavior tests
+
+/// 多通道的 `non_event_data` 合并（同一小节内不同非事件通道）。
+#[test]
+fn non_event_data_multi_channel() {
+    // BgaBaseOpacity (ch 0B) 与 BgmVolume (ch 97) 在同一小节
+    let bms = parse("#0010B:11223344\n#00197:AABB");
+    assert_eq!(bms.messages.non_event_data.len(), 2);
+    // BgaBaseOpacity 条目
+    let opacity = bms
+        .messages
+        .non_event_data
+        .iter()
+        .find(|d| d.data == "11223344");
+    assert!(opacity.is_some());
+    assert_eq!(opacity.unwrap().measure, 1);
+    // BgmVolume 条目
+    let volume = bms
+        .messages
+        .non_event_data
+        .iter()
+        .find(|d| d.data == "AABB");
+    assert!(volume.is_some());
+    assert_eq!(volume.unwrap().measure, 1);
+}
+
+/// `non_event_data` 跨小节合并。
+#[test]
+fn non_event_data_cross_measure() {
+    let bms = parse("#0010B:1122\n#0020B:3344");
+    assert_eq!(bms.messages.non_event_data.len(), 2);
+    let m1 = bms.messages.non_event_data.iter().find(|d| d.measure == 1);
+    assert!(m1.is_some());
+    assert_eq!(m1.unwrap().data, "1122");
+    let m2 = bms.messages.non_event_data.iter().find(|d| d.measure == 2);
+    assert!(m2.is_some());
+    assert_eq!(m2.unwrap().data, "3344");
+}
+
+/// `non_event_data` 在 `Bms::from_flat_tokens` 后正确填充。
+#[test]
+fn non_event_data_populated_after_parse() {
+    let bms = parse("#WAV01 kick.wav\n#0010B:0102\n#TITLE test\n");
+    // non_event_data 不应为空
+    assert!(!bms.messages.non_event_data.is_empty());
+    // 验证 BgaBaseOpacity (ch 0B) 的数据
+    let entry = &bms.messages.non_event_data[0];
+    assert_eq!(entry.measure, 1);
+    assert_eq!(entry.data, "0102");
+}
+
+// F5: merge_channel 不同分辨率集成测试
+
+/// `merge_channel` 在不同分辨率行合并时产生正确事件位置。
+#[test]
+fn merge_channel_different_resolution() {
+    // 第 1 行：4 个值（11223344）
+    // 第 2 行：6 个值（00 00 00 00 55 66）
+    // max 分辨率 = 6
+    // 第 1 行映射到 6：0→11, 1→22, 3→33, 4→44
+    // 第 2 行映射到 6：4→55(覆盖44), 5→66
+    // 合并结果："112200335566"
+    // 过滤 00 后的事件：11(pos0), 22(pos1), 33(pos3), 55(pos4), 66(pos5) → 5 个事件
+    let bms = parse("#00111:11223344\n#00111:000000005566");
+    assert_eq!(bms.messages.note_events.len(), 5);
+    assert_eq!(bms.messages.note_events[0].wav_id, "11".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[1].wav_id, "22".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[2].wav_id, "33".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[3].wav_id, "55".try_into().unwrap());
+    assert_eq!(bms.messages.note_events[4].wav_id, "66".try_into().unwrap());
+    // 验证位置基于 max 分辨率（6）
+    assert_eq!(bms.messages.note_events[0].position.denom, 6);
+    assert_eq!(bms.messages.note_events[0].position.numer, 0);
+    assert_eq!(bms.messages.note_events[1].position.numer, 1);
+    assert_eq!(bms.messages.note_events[2].position.numer, 3);
+    assert_eq!(bms.messages.note_events[3].position.numer, 4);
+    assert_eq!(bms.messages.note_events[4].position.numer, 5);
+}
+
 /// 验证解析器在 `C = String` 时正确收敛。
 #[test]
 fn parse_with_string_container() {
@@ -726,8 +812,9 @@ fn bmspec_speed_without_channel() {
 #[test]
 fn bmspec_speed_with_channel() {
     // 等价于 bmspec-6：#SPEED01 0.5, #001SP:0001 → 速度事件。
+    // "00" 被过滤（无操作位置），仅保留 "01"。
     let bms = parse("#SPEED01 0.5\n#001SP:0001");
-    assert_eq!(bms.messages.speed_events.len(), 2);
+    assert_eq!(bms.messages.speed_events.len(), 1);
     let idx: SpeedIndex = "01".parse().unwrap();
     assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
 }
@@ -862,8 +949,22 @@ fn option_stored() {
 
 #[test]
 fn wavcmd_stored() {
+    let bms = parse("#WAVCMD 01 05 100");
+    assert_eq!(
+        bms.audio.wav_cmd,
+        Some(bms_parser::WavCmdParams {
+            command_id: "01".into(),
+            wav_index: "05".into(),
+            value: 100.0,
+        })
+    );
+}
+
+#[test]
+fn wavcmd_invalid_format_fallback() {
     let bms = parse("#WAVCMD some-command");
-    assert_eq!(bms.audio.wav_cmd.as_deref(), Some("some-command"));
+    assert!(bms.audio.wav_cmd.is_none());
+    assert!(!bms.fallback_headers.is_empty());
 }
 
 #[test]
@@ -957,4 +1058,136 @@ fn video_colors_stored() {
 fn video_dly_stored() {
     let bms = parse("#VIDEODLY 1.5");
     assert_eq!(bms.visual.video_dly, Some(1.5));
+}
+
+// 隐式副标题
+
+#[test]
+fn implicit_subtitle_hyphen_splits() {
+    let mut meta = Metadata {
+        title: Some("main-sub-".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_tilde_splits() {
+    let mut meta = Metadata {
+        title: Some("main～sub～".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_parens_splits() {
+    let mut meta = Metadata {
+        title: Some("main(sub)".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_brackets_splits() {
+    let mut meta = Metadata {
+        title: Some("main[sub]".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_angles_splits() {
+    let mut meta = Metadata {
+        title: Some("main<sub>".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_explicit_takes_precedence() {
+    let mut meta = Metadata {
+        title: Some("main-sub-".into()),
+        subtitle: Some("explicit".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main-sub-"));
+    assert_eq!(meta.subtitle.as_deref(), Some("explicit"));
+}
+
+#[test]
+fn implicit_subtitle_none_title_noop() {
+    let mut meta = Metadata::default();
+    meta.parse_implicit_subtitle();
+    assert!(meta.title.is_none());
+    assert!(meta.subtitle.is_none());
+}
+
+#[test]
+fn implicit_subtitle_no_separator_noop() {
+    let mut meta = Metadata {
+        title: Some("plain title".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("plain title"));
+    assert!(meta.subtitle.is_none());
+}
+
+#[test]
+fn implicit_subtitle_priority_hyphen_first() {
+    // `-` 优先级最高，应优先于 `()` 匹配
+    let mut meta = Metadata {
+        title: Some("a(b)-c-".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("a(b)"));
+    assert_eq!(meta.subtitle.as_deref(), Some("c"));
+}
+
+#[test]
+fn implicit_subtitle_empty_subject_noop() {
+    let mut meta = Metadata {
+        title: Some(String::new()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some(""));
+    assert!(meta.subtitle.is_none());
+}
+
+#[test]
+fn implicit_subtitle_whitespace_handling() {
+    let mut meta = Metadata {
+        title: Some("main  - sub -  ".into()),
+        ..Default::default()
+    };
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("main"));
+    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
+}
+
+#[test]
+fn implicit_subtitle_from_parse_then_call() {
+    // 解析后手动调用
+    let bms = parse("#TITLE song<ver2>\n");
+    let mut meta = bms.metadata;
+    meta.parse_implicit_subtitle();
+    assert_eq!(meta.title.as_deref(), Some("song"));
+    assert_eq!(meta.subtitle.as_deref(), Some("ver2"));
 }

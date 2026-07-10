@@ -5,7 +5,7 @@ use bms_tokenizer::{
     BmsHeaderGameplay, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
     BmsHeaderTiming, BpmIndex, ChangeOptionIndex, DifficultyLevel, ExRankIndex, LnMode, LnObjIndex,
     LnType, PlayerMode, PoorBgaMode, Rank, ScrollIndex, SeekIndex, SpeedIndex, StopIndex,
-    StpParams, TextIndex, WavIndex,
+    StpParams, TextIndex, WavCmdParams, WavIndex,
 };
 
 #[test]
@@ -407,12 +407,18 @@ fn parse_basebpm() {
 
 #[test]
 fn parse_wavcmd() {
-    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD some-command", &['#', '%'])
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 01 05 100", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
         result,
-        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd("some-command"))
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command_id: "01",
+                wav_index: "05",
+                value: 100.0,
+            }
+        })
     );
 }
 
@@ -753,6 +759,66 @@ fn parse_exbmp_indexed() {
 }
 
 #[test]
+fn parse_bga_single_digit_coordinates() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#BGA01 1 0 0 9 8 1 2", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
+        assert_eq!(params.bmp_index, 1);
+        assert_eq!(params.x2, 9);
+        assert_eq!(params.y2, 8);
+    } else {
+        panic!("expected Bga variant");
+    }
+}
+
+#[test]
+fn parse_bga_negative_coordinates() {
+    let result =
+        bms_tokenizer::parse_header_line::<&str>("#BGA01 02 -10 -20 100 200 5 15", &['#', '%'])
+            .unwrap()
+            .unwrap();
+    if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
+        assert_eq!(params.x1, -10);
+        assert_eq!(params.y1, -20);
+    } else {
+        panic!("expected Bga variant");
+    }
+}
+
+#[test]
+fn parse_bga_zero_width() {
+    let result =
+        bms_tokenizer::parse_header_line::<&str>("#BGA01 02 50 50 50 100 0 0", &['#', '%'])
+            .unwrap()
+            .unwrap();
+    if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
+        assert_eq!(params.x1, 50);
+        assert_eq!(params.x2, 50);
+        assert_eq!(params.dx, 0);
+        assert_eq!(params.dy, 0);
+    } else {
+        panic!("expected Bga variant");
+    }
+}
+
+#[test]
+fn parse_bga_large_coordinates() {
+    let result =
+        bms_tokenizer::parse_header_line::<&str>("#BGA01 02 0 0 4095 8191 999 -999", &['#', '%'])
+            .unwrap()
+            .unwrap();
+    if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
+        assert_eq!(params.x2, 4095);
+        assert_eq!(params.y2, 8191);
+        assert_eq!(params.dx, 999);
+        assert_eq!(params.dy, -999);
+    } else {
+        panic!("expected Bga variant");
+    }
+}
+
+#[test]
 fn parse_bga_indexed() {
     let result =
         bms_tokenizer::parse_header_line::<&str>("#BGA01 02 0 0 100 100 10 20", &['#', '%'])
@@ -769,6 +835,51 @@ fn parse_bga_indexed() {
         assert_eq!(params.dy, 20);
     } else {
         panic!("expected Bga variant");
+    }
+}
+
+#[test]
+fn parse_at_bga_zero_width_height() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#@BGA01 03 5 10 0 0 0 0", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { params, .. }) = result {
+        assert_eq!(params.sx, 5);
+        assert_eq!(params.sy, 10);
+        assert_eq!(params.w, 0);
+        assert_eq!(params.h, 0);
+    } else {
+        panic!("expected AtBga variant");
+    }
+}
+
+#[test]
+fn parse_at_bga_negative_dx_dy() {
+    let result =
+        bms_tokenizer::parse_header_line::<&str>("#@BGA01 03 5 10 200 150 -5 -10", &['#', '%'])
+            .unwrap()
+            .unwrap();
+    if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { params, .. }) = result {
+        assert_eq!(params.dx, -5);
+        assert_eq!(params.dy, -10);
+    } else {
+        panic!("expected AtBga variant");
+    }
+}
+
+#[test]
+fn parse_at_bga_large_dimensions() {
+    let result =
+        bms_tokenizer::parse_header_line::<&str>("#@BGA01 03 5 10 4095 8191 0 0", &['#', '%'])
+            .unwrap()
+            .unwrap();
+    if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { params, .. }) = result {
+        assert_eq!(params.sx, 5);
+        assert_eq!(params.sy, 10);
+        assert_eq!(params.w, 4095);
+        assert_eq!(params.h, 8191);
+    } else {
+        panic!("expected AtBga variant");
     }
 }
 
@@ -932,12 +1043,18 @@ fn parse_exrank_indexed() {
 
 #[test]
 fn wavcmd_not_confused_as_wav_indexed() {
-    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD test", &['#', '%'])
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 100", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
         result,
-        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd("test"))
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command_id: "00",
+                wav_index: "01",
+                value: 100.0,
+            }
+        })
     );
 }
 
