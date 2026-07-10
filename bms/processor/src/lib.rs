@@ -54,8 +54,8 @@ use crate::position::MeasureTable;
 /// BMS 处理期间可能发生的错误。
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// 初始 BPM 缺失或无效。
-    #[error("init_bpm must be positive, got {0}")]
+    /// 初始 BPM 无效（零、NaN 或无穷大；允许负值用于逆走谱面）。
+    #[error("init_bpm must be non-zero finite, got {0}")]
     InvalidBpm(f64),
 }
 
@@ -84,7 +84,7 @@ impl BmsProcessor {
     ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
+    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
     #[expect(
         clippy::expect_used,
         clippy::unwrap_in_result,
@@ -187,7 +187,7 @@ impl BmsProcessor {
     ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
+    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_default(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
         Self::process::<Bme>(bms)
     }

@@ -87,7 +87,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     ///
     /// # Panics
     ///
-    /// 若谱面数据不合法（`resolution == 0` 或初始 BPM 非正有限值），
+    /// 若谱面数据不合法（`resolution == 0` 或初始 BPM 非零非有限值），
     /// 触发 panic。
     #[must_use]
     #[expect(

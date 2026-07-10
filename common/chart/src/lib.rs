@@ -168,7 +168,7 @@ impl Eq for LifeDeltas {}
 pub enum ChartDataError {
     /// `resolution` 为 0（必须为正）。
     ZeroResolution,
-    /// 初始 BPM 无效（0、负数、NaN 或无穷大）。
+    /// 初始 BPM 无效（0、NaN 或无穷大；允许负值用于逆走谱面）。
     InvalidBpm {
         /// 无效的 BPM 值。
         bpm: f64,
@@ -179,7 +179,9 @@ impl fmt::Display for ChartDataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroResolution => write!(f, "resolution must be positive, got 0"),
-            Self::InvalidBpm { bpm } => write!(f, "invalid initial BPM: {bpm}"),
+            Self::InvalidBpm { bpm } => {
+                write!(f, "invalid initial BPM: {bpm} (must be non-zero finite)")
+            }
         }
     }
 }
@@ -239,7 +241,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// 检查项：
     /// - `resolution > 0`
-    /// - `timing` 的初始 BPM 为正有限值
+    /// - `timing` 的初始 BPM 为非零有限值（允许负 BPM，用于逆走谱面）
     ///
     /// # Errors
     ///
@@ -248,7 +250,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         if self.resolution == 0 {
             return Err(ChartDataError::ZeroResolution);
         }
-        if !self.timing.init_bpm().is_finite() || self.timing.init_bpm() <= 0.0 {
+        if !self.timing.init_bpm().is_finite() || self.timing.init_bpm() == 0.0 {
             return Err(ChartDataError::InvalidBpm {
                 bpm: self.timing.init_bpm(),
             });

@@ -475,6 +475,31 @@ fn player_new_panics_on_zero_resolution() {
 }
 
 #[test]
+fn player_new_accepts_negative_bpm() {
+    // 负 BPM（逆走谱面）应在全链路通过：TimingTrack → ChartData::validate → Player::new。
+    // 若任何校验点仍用 <=0.0，此处 panic。
+    let chart: Chart = Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: ChartData {
+            resolution: 240,
+            timing: TimingTrack::simple(-120.0).unwrap(),
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events: vec![Event::bar(0)],
+            audio_assets: vec![],
+        },
+    };
+    // 不 panic 即通过——验证全链路接受负 BPM
+    drop(Player::new(chart));
+}
+
+#[test]
 fn player_new_sorts_unsorted_events() {
     let chart: Chart = Chart {
         song: SongInfo::default(),

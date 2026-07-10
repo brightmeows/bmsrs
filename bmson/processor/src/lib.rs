@@ -84,7 +84,7 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<BmsonNoteExt>, ProcessError>
     where
         L: BmsonLayout,
@@ -99,7 +99,7 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
         keys: u16,
@@ -116,7 +116,7 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// - 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// - 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
     /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 `u16` 范围，
     ///   返回 [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
     ///   被静默丢弃）。
@@ -147,7 +147,7 @@ impl BmsonProcessor {
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let data = &bmson.chart_data;
 
-        if !data.init_bpm.is_finite() || data.init_bpm <= 0.0 {
+        if !data.init_bpm.is_finite() || data.init_bpm == 0.0 {
             return Err(ProcessError::InvalidBpm(data.init_bpm));
         }
 
