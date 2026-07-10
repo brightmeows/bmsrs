@@ -52,7 +52,7 @@ pub use message::BmsMessage;
 pub use message::parse_message_line;
 pub use preprocess::preprocess;
 
-pub use encoding::{BmsEncoding, detect_encoding};
+pub use encoding::BmsEncoding;
 
 /// BMS 头部值的统一 trait。
 ///
@@ -374,7 +374,7 @@ impl BmsTokenizer {
     /// 参见 [`tokenize`](Self::tokenize) 的 Panics 说明——条件相同。
     #[must_use]
     pub fn tokenize_bytes(&self, input: &[u8]) -> TokenizeOwnedResult {
-        let encoding = self.encoding.unwrap_or_else(|| detect_encoding(input));
+        let encoding = self.encoding.unwrap_or_else(|| BmsEncoding::detect(input));
         let decoded = encoding.decode(input);
         self.tokenize(&decoded)
     }

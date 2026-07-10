@@ -1,58 +1,58 @@
 //! `bms-tokenizer` 编码检测/转换的集成测试。
 
-use bms_tokenizer::detect_encoding;
-use bms_tokenizer::{BmsEncoding, BmsHeader, BmsHeaderMetadata, BmsToken, BmsTokenizer};
+use bms_tokenizer::BmsEncoding;
+use bms_tokenizer::{BmsHeader, BmsHeaderMetadata, BmsToken, BmsTokenizer};
 
-// detect_encoding 集成
+// BmsEncoding::detect 集成
 
 #[test]
 fn detect_utf8_bom() {
     let bytes = &[0xEF, 0xBB, 0xBF, b'#', b'T', b'I', b'T', b'L', b'E'];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf8);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf8);
 }
 
 #[test]
 fn detect_utf16le_bom() {
     let bytes = &[0xFF, 0xFE, 0x23, 0x00, 0x54, 0x00];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf16Le);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf16Le);
 }
 
 #[test]
 fn detect_utf16be_bom() {
     let bytes = &[0xFE, 0xFF, 0x00, 0x23, 0x00, 0x54];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf16Be);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf16Be);
 }
 
 #[test]
 fn detect_charset_shift_jis() {
     let bytes = b"#CHARSET Shift_JIS\n#TITLE test";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::ShiftJis);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::ShiftJis);
 }
 
 #[test]
 fn detect_charset_euc_kr() {
     let bytes = b"#CHARSET EUC-KR\n#TITLE test";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::EucKr);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::EucKr);
 }
 
 #[test]
 fn detect_valid_utf8_without_bom() {
     let bytes = b"#TITLE Hello\n#BPM 180";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf8);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf8);
 }
 
 #[test]
 fn detect_shift_jis_bytes() {
     // "あ" (U+3042) in Shift_JIS = 0x82 0xA0
     let bytes = &[0x82, 0xA0];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::ShiftJis);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::ShiftJis);
 }
 
 #[test]
 fn detect_euc_kr_bytes() {
     // 使用 #CHARSET 确保可靠检测（纯 EUC-KR 字节可能同时也是有效 Shift_JIS）
     let bytes = b"#CHARSET EUC-KR\n\xb0\xa1";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::EucKr);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::EucKr);
 }
 
 // BmsEncoding::decode 集成

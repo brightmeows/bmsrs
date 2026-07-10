@@ -1,6 +1,6 @@
 //! BMS 文件编码检测与转换。
 //!
-//! 提供 [`BmsEncoding`] 枚举和 [`detect_encoding`] 函数，
+//! 提供 [`BmsEncoding`] 枚举（含 [`BmsEncoding::detect`] 方法），
 //! 用于在分词前识别及转换 BMS 文件的字符编码。
 
 use encoding_rs::Encoding;
@@ -21,6 +21,50 @@ pub enum BmsEncoding {
 }
 
 impl BmsEncoding {
+    /// 检测 BMS 文件编码，通过扫描 BOM 和 `#CHARSET` 头。
+    ///
+    /// 检测顺序：
+    /// 1. BOM 检测（UTF-8、UTF-16LE、UTF-16BE）
+    /// 2. 无 BOM 时扫描 `#CHARSET` 头（字节级匹配，不依赖 UTF-8 解码）
+    /// 3. 试探 UTF-8 / `Shift_JIS` / `EUC-KR`
+    /// 4. 回落至 UTF-8
+    #[must_use]
+    pub fn detect(input: &[u8]) -> Self {
+        if input.starts_with(&[0xEF, 0xBB, 0xBF]) {
+            return Self::Utf8;
+        }
+        if input.starts_with(&[0xFF, 0xFE]) {
+            return Self::Utf16Le;
+        }
+        if input.starts_with(&[0xFE, 0xFF]) {
+            return Self::Utf16Be;
+        }
+
+        if let Some(charset) = scan_charset_header(input) {
+            return encoding_from_charset_value(&charset);
+        }
+
+        if std::str::from_utf8(input).is_ok() {
+            return Self::Utf8;
+        }
+
+        {
+            let (_, _, had_errors) = encoding_rs::SHIFT_JIS.decode(input);
+            if !had_errors {
+                return Self::ShiftJis;
+            }
+        }
+
+        {
+            let (_, _, had_errors) = encoding_rs::EUC_KR.decode(input);
+            if !had_errors {
+                return Self::EucKr;
+            }
+        }
+
+        Self::Utf8
+    }
+
     /// 使用 `encoding_rs` 将字节解码为 UTF-8 `String`。
     ///
     /// 如果输入包含对应编码的 BOM，则自动去除。
@@ -29,7 +73,12 @@ impl BmsEncoding {
         match self {
             Self::Utf8 => {
                 let data = input.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(input);
-                encoding_rs::UTF_8.decode(data).0.into_owned()
+                // 对有效 UTF-8 避免 encoding_rs 的 Cow::into_owned 分配：
+                // from_utf8 在成功时零拷贝，失败时 fallback 到 encoding_rs
+                std::str::from_utf8(data).map_or_else(
+                    |_| encoding_rs::UTF_8.decode(data).0.into_owned(),
+                    str::to_owned,
+                )
             }
             Self::Utf16Le => {
                 let data = input.strip_prefix(&[0xFF, 0xFE]).unwrap_or(input);
@@ -43,50 +92,6 @@ impl BmsEncoding {
             Self::EucKr => encoding_rs::EUC_KR.decode(input).0.into_owned(),
         }
     }
-}
-
-/// 检测 BMS 文件编码，通过扫描 BOM 和 `#CHARSET` 头。
-///
-/// 检测顺序：
-/// 1. BOM 检测（UTF-8、UTF-16LE、UTF-16BE）
-/// 2. 无 BOM 时扫描 `#CHARSET` 头（字节级匹配，不依赖 UTF-8 解码）
-/// 3. 试探 UTF-8 / `Shift_JIS` / `EUC-KR`
-/// 4. 回落至 UTF-8
-#[must_use]
-pub fn detect_encoding(input: &[u8]) -> BmsEncoding {
-    if input.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        return BmsEncoding::Utf8;
-    }
-    if input.starts_with(&[0xFF, 0xFE]) {
-        return BmsEncoding::Utf16Le;
-    }
-    if input.starts_with(&[0xFE, 0xFF]) {
-        return BmsEncoding::Utf16Be;
-    }
-
-    if let Some(charset) = scan_charset_header(input) {
-        return encoding_from_charset_value(&charset);
-    }
-
-    if std::str::from_utf8(input).is_ok() {
-        return BmsEncoding::Utf8;
-    }
-
-    {
-        let (_, _, had_errors) = encoding_rs::SHIFT_JIS.decode(input);
-        if !had_errors {
-            return BmsEncoding::ShiftJis;
-        }
-    }
-
-    {
-        let (_, _, had_errors) = encoding_rs::EUC_KR.decode(input);
-        if !had_errors {
-            return BmsEncoding::EucKr;
-        }
-    }
-
-    BmsEncoding::Utf8
 }
 
 /// 字节级扫描 `#CHARSET` 或 `%CHARSET` 行首指令。
@@ -103,13 +108,17 @@ fn scan_charset_header(input: &[u8]) -> Option<String> {
             continue;
         }
 
-        let prefix_byte = input.get(i).copied()?;
+        let Some(&prefix_byte) = input.get(i) else {
+            break;
+        };
         if prefix_byte != b'#' && prefix_byte != b'%' {
             i += 1;
             continue;
         }
 
-        let after_prefix = input.get(i + 1..)?;
+        let Some(after_prefix) = input.get(i + 1..) else {
+            break;
+        };
         if after_prefix.len() < 7
             || !after_prefix
                 .get(..7)
@@ -119,21 +128,38 @@ fn scan_charset_header(input: &[u8]) -> Option<String> {
             continue;
         }
 
-        let after_keyword = after_prefix.get(7..)?;
-        let value_start = after_keyword
+        let Some(after_keyword) = after_prefix.get(7..) else {
+            i += 1;
+            continue;
+        };
+        // 值为空行或全空白时跳过此行，继续扫描后续 #CHARSET 行
+        let Some(value_start) = after_keyword
             .iter()
-            .position(|&byte| !byte.is_ascii_whitespace())?;
-        let remaining = after_keyword.get(value_start..)?;
+            .position(|&byte| !byte.is_ascii_whitespace())
+        else {
+            i += 1;
+            continue;
+        };
+        let Some(remaining) = after_keyword.get(value_start..) else {
+            i += 1;
+            continue;
+        };
         let value_end = remaining
             .iter()
             .position(|&byte| byte == b'\n' || byte == b'\r')
             .unwrap_or(remaining.len());
         if value_end == 0 {
-            return None;
+            i += 1;
+            continue;
         }
-        let value_bytes = remaining.get(..value_end)?;
-        let value = std::str::from_utf8(value_bytes).ok()?;
-        if !value.is_empty() {
+        let Some(value_bytes) = remaining.get(..value_end) else {
+            i += 1;
+            continue;
+        };
+        // 值非 UTF-8 时跳过，不中断扫描
+        if let Ok(value) = std::str::from_utf8(value_bytes)
+            && !value.is_empty()
+        {
             return Some(value.to_owned());
         }
 
@@ -173,72 +199,72 @@ mod tests {
     #[test]
     fn bom_utf8_detected() {
         let input = &[0xEF, 0xBB, 0xBF, b'T', b'e', b's', b't'];
-        assert_eq!(detect_encoding(input), BmsEncoding::Utf8);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::Utf8);
     }
 
     #[test]
     fn bom_utf16le_detected() {
         let input = &[0xFF, 0xFE, 0x54, 0x00, 0x65, 0x00];
-        assert_eq!(detect_encoding(input), BmsEncoding::Utf16Le);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::Utf16Le);
     }
 
     #[test]
     fn bom_utf16be_detected() {
         let input = &[0xFE, 0xFF, 0x00, 0x54, 0x00, 0x65];
-        assert_eq!(detect_encoding(input), BmsEncoding::Utf16Be);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::Utf16Be);
     }
 
     #[test]
     fn charset_shift_jis_detected() {
         let input = b"#TITLE\r\n#CHARSET Shift_JIS\r\n#BPM 180";
-        assert_eq!(detect_encoding(input), BmsEncoding::ShiftJis);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::ShiftJis);
     }
 
     #[test]
     fn charset_euc_kr_detected() {
         let input = b"#CHARSET EUC-KR";
-        assert_eq!(detect_encoding(input), BmsEncoding::EucKr);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::EucKr);
     }
 
     #[test]
     fn charset_utf8_detected() {
         let input = b"#CHARSET UTF-8\n#TITLE test";
-        assert_eq!(detect_encoding(input), BmsEncoding::Utf8);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::Utf8);
     }
 
     #[test]
     fn charset_percent_prefix_detected() {
         let input = b"%CHARSET Shift-JIS\n#TITLE test";
-        assert_eq!(detect_encoding(input), BmsEncoding::ShiftJis);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::ShiftJis);
     }
 
     #[test]
     fn charset_sjis_alias_detected() {
         let input = b"#CHARSET SJIS\n";
-        assert_eq!(detect_encoding(input), BmsEncoding::ShiftJis);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::ShiftJis);
     }
 
     #[test]
     fn charset_utf8_alias_detected() {
         let input = b"#CHARSET UTF8";
-        assert_eq!(detect_encoding(input), BmsEncoding::Utf8);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::Utf8);
     }
 
     #[test]
     fn charset_euckr_alias_detected() {
         let input = b"#CHARSET EUCKR";
-        assert_eq!(detect_encoding(input), BmsEncoding::EucKr);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::EucKr);
     }
 
     #[test]
     fn plain_ascii_detected_as_utf8() {
         let input = b"#TITLE Hello\n#BPM 180";
-        assert_eq!(detect_encoding(input), BmsEncoding::Utf8);
+        assert_eq!(BmsEncoding::detect(input), BmsEncoding::Utf8);
     }
 
     #[test]
     fn empty_input_detected_as_utf8() {
-        assert_eq!(detect_encoding(b""), BmsEncoding::Utf8);
+        assert_eq!(BmsEncoding::detect(b""), BmsEncoding::Utf8);
     }
 
     #[test]
