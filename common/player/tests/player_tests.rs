@@ -653,7 +653,7 @@ fn player_bgm_in_range_returns_events() {
 
 /// `bgm_in_range` 在指定范围内返回正确的事件。
 #[test]
-fn player_bgm_in_range_subrange() {
+fn player_bgm_in_range_subrange_returns_subset() {
     let chart = make_chart_with_bgm();
     let player = Player::new(chart);
 
@@ -672,7 +672,7 @@ fn player_bgm_in_range_subrange() {
 
 /// `bga_events_in_range` 返回所有图层的 BGA 事件。
 #[test]
-fn player_bga_events_base() {
+fn player_bga_events_base_returns_all_events() {
     let chart = make_chart_with_bga();
     let player = Player::new(chart);
 
@@ -762,7 +762,7 @@ fn player_bga_events_filter_by_layer() {
 
 /// 多 BGM 通道（不同 `audio_index`）。
 #[test]
-fn player_bgm_multiple_channels() {
+fn player_bgm_multiple_channels_returns_all() {
     let chart = make_chart_with_bgm();
     let player = Player::new(chart);
 

@@ -759,7 +759,7 @@ fn parse_exbmp_indexed() {
 }
 
 #[test]
-fn parse_bga_single_digit_coordinates() {
+fn parse_bga_single_digit_coordinates_succeeds() {
     let result = bms_tokenizer::parse_header_line::<&str>("#BGA01 1 0 0 9 8 1 2", &['#', '%'])
         .unwrap()
         .unwrap();
@@ -773,7 +773,7 @@ fn parse_bga_single_digit_coordinates() {
 }
 
 #[test]
-fn parse_bga_negative_coordinates() {
+fn parse_bga_negative_coordinates_succeeds() {
     let result =
         bms_tokenizer::parse_header_line::<&str>("#BGA01 02 -10 -20 100 200 5 15", &['#', '%'])
             .unwrap()
@@ -787,7 +787,7 @@ fn parse_bga_negative_coordinates() {
 }
 
 #[test]
-fn parse_bga_zero_width() {
+fn parse_bga_zero_width_succeeds() {
     let result =
         bms_tokenizer::parse_header_line::<&str>("#BGA01 02 50 50 50 100 0 0", &['#', '%'])
             .unwrap()
@@ -803,7 +803,7 @@ fn parse_bga_zero_width() {
 }
 
 #[test]
-fn parse_bga_large_coordinates() {
+fn parse_bga_large_coordinates_succeeds() {
     let result =
         bms_tokenizer::parse_header_line::<&str>("#BGA01 02 0 0 4095 8191 999 -999", &['#', '%'])
             .unwrap()
@@ -839,7 +839,7 @@ fn parse_bga_indexed() {
 }
 
 #[test]
-fn parse_at_bga_zero_width_height() {
+fn parse_at_bga_zero_width_height_succeeds() {
     let result = bms_tokenizer::parse_header_line::<&str>("#@BGA01 03 5 10 0 0 0 0", &['#', '%'])
         .unwrap()
         .unwrap();
@@ -854,7 +854,7 @@ fn parse_at_bga_zero_width_height() {
 }
 
 #[test]
-fn parse_at_bga_negative_dx_dy() {
+fn parse_at_bga_negative_dx_dy_succeeds() {
     let result =
         bms_tokenizer::parse_header_line::<&str>("#@BGA01 03 5 10 200 150 -5 -10", &['#', '%'])
             .unwrap()

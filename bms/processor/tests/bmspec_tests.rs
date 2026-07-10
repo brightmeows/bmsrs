@@ -380,7 +380,7 @@ fn bmspec_1_06_basic_stop() {
 /// bmspec-1-06-STOP: STOP 与 BPM 同 tick 时序——BPM（优先级 2）应在 STOP（优先级 3）之前
 /// 生效。覆盖 A11 场景。
 #[test]
-fn bmspec_1_06_stop_on_same_beat_as_bpm() {
+fn bmspec_1_06_stop_on_same_beat_as_bpm_matches_expected_timing() {
     let chart = process(
         "#BPM 60\n\
          #BPM01 120\n\
@@ -453,7 +453,7 @@ fn bmspec_2_lntype1() {
 
 /// bmspec-2-LNTYPE2: MGQ 长音记法。
 #[test]
-fn bmspec_2_lntype2() {
+fn bmspec_2_lntype2_pairs_long_notes_correctly() {
     let chart = process(
         "#LNTYPE 2\n\
          #00151:00222222\n\
