@@ -147,7 +147,7 @@ impl BmsonProcessor {
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let data = &bmson.chart_data;
 
-        if data.init_bpm.is_nan() || data.init_bpm == 0.0 {
+        if !data.init_bpm.is_finite() || data.init_bpm <= 0.0 {
             return Err(ProcessError::InvalidBpm(data.init_bpm));
         }
 
@@ -432,12 +432,18 @@ impl BmsonConverter<'_> {
 }
 
 /// 从 BMSON 谱面数据构建 [`TimingTrack`]。
+///
+/// # Panics
+///
+/// 若 `data.init_bpm` 无效（应在调用前通过验证），则 panic。
+#[expect(clippy::expect_used, reason = "init_bpm was validated before call")]
 fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
     TimingTrack::new(
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
         data.stop_events.iter().map(build_stop_event).collect(),
     )
+    .expect("init_bpm was already validated above")
 }
 
 /// 从 BMSON [`NoteEvent`](bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。

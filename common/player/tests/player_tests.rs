@@ -1,11 +1,12 @@
 //! `bmsrs-player` 的集成测试。
+#![expect(clippy::unwrap_used, reason = "test code")]
 
 use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
     BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
+    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 use bmsrs_player::Player;
 
@@ -39,7 +40,8 @@ fn make_test_chart() -> Chart {
                     bpm: 180.0,
                 }],
                 vec![],
-            ),
+            )
+            .unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -377,7 +379,8 @@ fn player_advance_with_bpm_change() {
             bpm: 240.0,
         }],
         vec![],
-    );
+    )
+    .unwrap();
     let mut player = Player::new(chart);
 
     // 0-240 ticks at 120 BPM = 0.5s
@@ -401,7 +404,8 @@ fn player_advance_with_stop() {
             tick: 240,
             duration: 240,
         }],
-    );
+    )
+    .unwrap();
     let mut player = Player::new(chart);
 
     // 0 to 0.5s (240 ticks at 120 BPM): should be at tick 240
@@ -454,7 +458,7 @@ fn player_new_panics_on_zero_resolution() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 0,
-            timing: TimingTrack::simple(120.0),
+            timing: TimingTrack::simple(120.0).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -476,7 +480,7 @@ fn player_new_sorts_unsorted_events() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(120.0),
+            timing: TimingTrack::simple(120.0).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -497,24 +501,8 @@ fn player_new_sorts_unsorted_events() {
 }
 
 #[test]
-#[should_panic(expected = "InvalidBpm")]
-fn player_new_panics_on_invalid_bpm() {
-    let chart: Chart = Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: ChartData {
-            resolution: 240,
-            timing: TimingTrack::simple(0.0),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: vec![],
-            audio_assets: vec![],
-        },
-    };
-    drop(Player::new(chart));
+fn timing_track_rejects_invalid_bpm() {
+    let result = TimingTrack::simple(0.0);
+    assert!(result.is_err());
+    assert_eq!(result, Err(TimingTrackError::InvalidBpm { bpm: 0.0 }));
 }

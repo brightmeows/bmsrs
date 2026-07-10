@@ -49,7 +49,7 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         resolution: 240,
-//!         timing: TimingTrack::simple(120.0),
+//!         timing: TimingTrack::simple(120.0).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
 //!         ln_type_hint: LnTypeHint::default(),
@@ -87,7 +87,7 @@ pub use audio::AudioAsset;
 pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
-pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack};
+pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack, TimingTrackError};
 pub use visual::{BgaLayer, BgaResource};
 
 /// 乐曲级元数据 —— 对应 BMSON v2 的 `SongInfo`。

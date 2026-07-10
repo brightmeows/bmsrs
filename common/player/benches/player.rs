@@ -8,6 +8,7 @@
 //! - `Player::advance` —— 播放循环每帧调用
 //!
 //! 运行：`cargo bench -p bmsrs-player`
+#![expect(clippy::unwrap_used, reason = "bench code")]
 
 use std::num::NonZeroU8;
 use std::time::Duration;
@@ -79,7 +80,7 @@ fn build_chart(n: usize) -> Chart {
 
     events.sort_by_key(Event::sort_key);
 
-    let timing = TimingTrack::new(120.0, bpm_changes, stops);
+    let timing = TimingTrack::new(120.0, bpm_changes, stops).unwrap();
 
     Chart {
         song: SongInfo::default(),
@@ -210,7 +211,7 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: RESOLUTION,
-            timing: TimingTrack::simple(120.0),
+            timing: TimingTrack::simple(120.0).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),

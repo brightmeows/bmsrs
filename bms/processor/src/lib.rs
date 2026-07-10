@@ -77,15 +77,25 @@ impl BmsProcessor {
     /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
     /// 位置。可用族见 `layout` 模块。
     ///
+    /// # Panics
+    ///
+    /// 若 `init_bpm` 为无效有限值（不应发生，因上方已通过验证），
+    /// `TimingTrack::new` 会 panic。
+    ///
     /// # Errors
     ///
     /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        reason = "init_bpm was already validated above"
+    )]
     pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
     where
         L: BmsLayout,
     {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
-        if init_bpm.is_nan() || init_bpm == 0.0 {
+        if !init_bpm.is_finite() || init_bpm == 0.0 {
             return Err(ProcessError::InvalidBpm(init_bpm));
         }
 
@@ -104,7 +114,8 @@ impl BmsProcessor {
         stops.extend(conv.build_stops_from_stp(&bpm_changes, init_bpm));
         stops.sort_by_key(|s| s.tick);
 
-        let timing = TimingTrack::new(init_bpm, bpm_changes, stops);
+        let timing = TimingTrack::new(init_bpm, bpm_changes, stops)
+            .expect("init_bpm was already validated above");
 
         let bmp_map = build_bmp_map(&bms.visual.bmp_files);
 
