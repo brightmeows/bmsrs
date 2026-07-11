@@ -3,7 +3,8 @@
 //! 本模块提供一个词法级 pass，在分词前移除 BMS 注释语法。
 //! 它处理 BMS 控制流文档中规定的三种注释形式：
 //!
-//! - `//` —— 单行注释（从标记处剥离到行尾）。
+//! - `//` —— 单行注释（从标记处剥离到行尾），仅当前一字符为
+//!   ASCII 空白或位于行首时触发，避免 URL 中的 `//` 被误判。
 //! - `;` —— 单行注释，**仅限行首**（在可选空白之后）。
 //! - `/* ... */` —— 块注释（不可嵌套，可跨多行）。
 //!
@@ -30,7 +31,7 @@ enum State {
 ///
 /// | 语法 | 范围 | 示例 |
 /// |--------|-------|---------|
-/// | `//` 到行尾 | 行中任意位置 | `#TITLE foo // comment` => `#TITLE foo ` |
+/// | `//` 到行尾 | 行中任意位置，但前一字符须为空白或行首 | `#TITLE foo // comment` => `#TITLE foo ` |
 /// | `;` 到行尾 | 仅限行首（trim 后）| `; debug` => _（整行移除）_ |
 /// | `/* ... */` | 多行，不可嵌套 | `/* block */#TITLE x` => `#TITLE x` |
 ///
@@ -73,19 +74,21 @@ pub fn preprocess(input: &str) -> String {
                     state = State::LineComment;
                     i += 1;
                 }
-                b'/' if i + 1 < bytes.len() => match bytes[i + 1] {
-                    b'/' => {
-                        state = State::LineComment;
-                        i += 2;
+                b'/' if i + 1 < bytes.len() && (i == 0 || bytes[i - 1].is_ascii_whitespace()) => {
+                    match bytes[i + 1] {
+                        b'/' => {
+                            state = State::LineComment;
+                            i += 2;
+                        }
+                        b'*' => {
+                            state = State::BlockComment;
+                            i += 2;
+                        }
+                        _ => {
+                            i += push_raw(input, &mut out, i);
+                        }
                     }
-                    b'*' => {
-                        state = State::BlockComment;
-                        i += 2;
-                    }
-                    _ => {
-                        i += push_raw(input, &mut out, i);
-                    }
-                },
+                }
                 _ => {
                     i += push_raw(input, &mut out, i);
                 }

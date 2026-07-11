@@ -450,7 +450,7 @@ impl DetectedVersion {
     )]
     pub fn detect(json: &str) -> Result<Self, BmsonError> {
         // 逐字节扫描 JSON，跟踪花括号深度，仅匹配顶层 `"version"` 键。
-        let mut depth: u8 = 0;
+        let mut depth: u32 = 0;
         let mut in_string = false;
         let mut string_start: usize = 0;
         let mut key_pos: Option<usize> = None;

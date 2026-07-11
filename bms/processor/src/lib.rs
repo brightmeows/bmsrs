@@ -54,8 +54,8 @@ use crate::position::MeasureTable;
 /// BMS 处理期间可能发生的错误。
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// 初始 BPM 缺失或无效。
-    #[error("init_bpm must be positive, got {0}")]
+    /// 初始 BPM 无效（零、NaN 或无穷大；允许负值用于逆走谱面）。
+    #[error("init_bpm must be non-zero finite, got {0}")]
     InvalidBpm(f64),
 }
 
@@ -77,27 +77,14 @@ impl BmsProcessor {
     /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
     /// 位置。可用族见 `layout` 模块。
     ///
-    /// # Panics
-    ///
-    /// 若 `init_bpm` 为无效有限值（不应发生，因上方已通过验证），
-    /// `TimingTrack::new` 会 panic。
-    ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
-    #[expect(
-        clippy::expect_used,
-        clippy::unwrap_in_result,
-        reason = "init_bpm was already validated above"
-    )]
+    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
     where
         L: BmsLayout,
     {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
-        if !init_bpm.is_finite() || init_bpm == 0.0 {
-            return Err(ProcessError::InvalidBpm(init_bpm));
-        }
 
         let max_measure = find_max_measure(bms);
         let table = MeasureTable::new(max_measure, &bms.messages.measure_lengths, RESOLUTION);
@@ -115,7 +102,7 @@ impl BmsProcessor {
         stops.sort_by_key(|s| s.tick);
 
         let timing = TimingTrack::new(init_bpm, bpm_changes, stops)
-            .expect("init_bpm was already validated above");
+            .map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
 
         let bmp_map = build_bmp_map(&bms.visual.bmp_files);
 
@@ -187,7 +174,7 @@ impl BmsProcessor {
     ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或非正数，返回 [`ProcessError::InvalidBpm`]。
+    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_default(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
         Self::process::<Bme>(bms)
     }

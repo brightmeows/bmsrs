@@ -31,7 +31,7 @@ use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event,
     EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteExt, NoteKind, NoteSide, SongInfo,
-    StopEvent, TimingCache, TimingTrack,
+    StopEvent, TimingCache, TimingTrack, TimingTrackError,
 };
 use thiserror::Error;
 
@@ -84,7 +84,7 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<BmsonNoteExt>, ProcessError>
     where
         L: BmsonLayout,
@@ -99,7 +99,7 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
         keys: u16,
@@ -116,7 +116,7 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// - 若 `init_bpm` 不为正，返回 [`ProcessError::InvalidBpm`]。
+    /// - 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
     /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 `u16` 范围，
     ///   返回 [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
     ///   被静默丢弃）。
@@ -147,11 +147,7 @@ impl BmsonProcessor {
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let data = &bmson.chart_data;
 
-        if !data.init_bpm.is_finite() || data.init_bpm <= 0.0 {
-            return Err(ProcessError::InvalidBpm(data.init_bpm));
-        }
-
-        let timing = build_timing(data);
+        let timing = build_timing(data).map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
         let resolution = data.resolution;
         let timing_cache = TimingCache::new(&timing, resolution);
         let mut conv = BmsonConverter {
@@ -433,17 +429,16 @@ impl BmsonConverter<'_> {
 
 /// 从 BMSON 谱面数据构建 [`TimingTrack`]。
 ///
-/// # Panics
+/// # Errors
 ///
-/// 若 `data.init_bpm` 无效（应在调用前通过验证），则 panic。
-#[expect(clippy::expect_used, reason = "init_bpm was validated before call")]
-fn build_timing(data: &bmson_def::ChartData<'_>) -> TimingTrack {
+/// 若 `data.init_bpm` 无效（零或非有限值），返回
+/// [`TimingTrackError::InvalidBpm`]。
+fn build_timing(data: &bmson_def::ChartData<'_>) -> Result<TimingTrack, TimingTrackError> {
     TimingTrack::new(
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
         data.stop_events.iter().map(build_stop_event).collect(),
     )
-    .expect("init_bpm was already validated above")
 }
 
 /// 从 BMSON [`NoteEvent`](bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。

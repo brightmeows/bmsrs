@@ -41,8 +41,12 @@ fn semicolon_in_mid_line_is_not_stripped() {
 }
 
 #[test]
-fn url_without_quotes_gets_stripped_at_double_slash() {
-    assert_eq!(preprocess("#URL http://example.com"), "#URL http:");
+fn url_without_quotes_preserved() {
+    // `//` 前无空白（`p` 在前），不视为注释——URL 完整保留
+    assert_eq!(
+        preprocess("#URL http://example.com"),
+        "#URL http://example.com"
+    );
 }
 
 #[test]

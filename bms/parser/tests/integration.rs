@@ -139,7 +139,7 @@ fn full_header_parse() {
 #MAKER creator
 #COMMENT hello
 #CHARSET UTF-8
-%URL example.com
+%URL https://example.com
 %EMAIL user@example.com
 #PLAYER 1
 #RANK 2
@@ -171,7 +171,7 @@ fn full_header_parse() {
     assert_eq!(bms.metadata.maker.as_deref(), Some("creator"));
     assert_eq!(bms.metadata.comment.as_deref(), Some("hello"));
     assert_eq!(bms.metadata.charset.as_deref(), Some("UTF-8"));
-    assert_eq!(bms.metadata.url.as_deref(), Some("example.com"));
+    assert_eq!(bms.metadata.url.as_deref(), Some("https://example.com"));
     assert_eq!(bms.metadata.email.as_deref(), Some("user@example.com"));
 
     // 游玩
@@ -213,7 +213,7 @@ fn dropped_audio_headers_stored() {
         Some(bms_parser::WavCmdParams {
             command_id: "01".into(),
             wav_index: "05".into(),
-            value: 100.0,
+            value: 100,
         })
     );
     assert_eq!(bms.audio.cdda.as_deref(), Some("track.bin"));
@@ -624,7 +624,7 @@ fn default_bms_is_empty() {
 
 /// 多通道的 `non_event_data` 合并（同一小节内不同非事件通道）。
 #[test]
-fn non_event_data_multi_channel() {
+fn non_event_data_multi_channel_preserves_all() {
     // BgaBaseOpacity (ch 0B) 与 BgmVolume (ch 97) 在同一小节
     let bms = parse("#0010B:11223344\n#00197:AABB");
     assert_eq!(bms.messages.non_event_data.len(), 2);
@@ -648,7 +648,7 @@ fn non_event_data_multi_channel() {
 
 /// `non_event_data` 跨小节合并。
 #[test]
-fn non_event_data_cross_measure() {
+fn non_event_data_cross_measure_preserves_all() {
     let bms = parse("#0010B:1122\n#0020B:3344");
     assert_eq!(bms.messages.non_event_data.len(), 2);
     let m1 = bms.messages.non_event_data.iter().find(|d| d.measure == 1);
@@ -675,7 +675,7 @@ fn non_event_data_populated_after_parse() {
 
 /// `merge_channel` 在不同分辨率行合并时产生正确事件位置。
 #[test]
-fn merge_channel_different_resolution() {
+fn merge_channel_different_resolution_merges_correctly() {
     // 第 1 行：4 个值（11223344）
     // 第 2 行：6 个值（00 00 00 00 55 66）
     // max 分辨率 = 6
@@ -955,7 +955,7 @@ fn wavcmd_stored() {
         Some(bms_parser::WavCmdParams {
             command_id: "01".into(),
             wav_index: "05".into(),
-            value: 100.0,
+            value: 100,
         })
     );
 }
@@ -1149,7 +1149,7 @@ fn implicit_subtitle_no_separator_noop() {
 }
 
 #[test]
-fn implicit_subtitle_priority_hyphen_first() {
+fn implicit_subtitle_priority_hyphen_wins() {
     // `-` 优先级最高，应优先于 `()` 匹配
     let mut meta = Metadata {
         title: Some("a(b)-c-".into()),
@@ -1172,7 +1172,7 @@ fn implicit_subtitle_empty_subject_noop() {
 }
 
 #[test]
-fn implicit_subtitle_whitespace_handling() {
+fn implicit_subtitle_whitespace_trimmed() {
     let mut meta = Metadata {
         title: Some("main  - sub -  ".into()),
         ..Default::default()
@@ -1183,7 +1183,7 @@ fn implicit_subtitle_whitespace_handling() {
 }
 
 #[test]
-fn implicit_subtitle_from_parse_then_call() {
+fn implicit_subtitle_from_parse_then_call_splits_title() {
     // 解析后手动调用
     let bms = parse("#TITLE song<ver2>\n");
     let mut meta = bms.metadata;

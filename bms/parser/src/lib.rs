@@ -83,7 +83,7 @@ impl Bms {
     }
 
     /// 从原始 BMS 文本经过完整管道（分词 → 控制流展开 → 解析）构建
-    /// [`Bms`]。
+    /// [`Bms`]，同时返回控制流阶段产生的警告。
     ///
     /// 等价于以下步骤的组合调用：
     /// 1. 使用 [`BmsTokenizer`] 分词
@@ -94,6 +94,9 @@ impl Bms {
     ///
     /// 分词阶段的逐行解析错误会被静默跳过；仅控制流结构错误
     ///（如不匹配的 `#IF` / `#ENDRANDOM`）会作为错误返回。
+    ///
+    /// 返回 `(Bms, Vec<ControlFlowWarning>)`，warnings 携带控制流
+    /// 构建期间的非致命问题（如未闭合的 `#RANDOM` 块）。
     ///
     /// # Errors
     ///
@@ -106,7 +109,7 @@ impl Bms {
         text: &str,
         rng: &mut R,
         error_strategy: bms_tokenizer::ErrorStrategy,
-    ) -> Result<Self, bms_control_flow::ControlFlowError>
+    ) -> Result<(Self, Vec<bms_control_flow::ControlFlowWarning>), bms_control_flow::ControlFlowError>
     where
         R: bms_control_flow::BranchRng,
     {
@@ -120,8 +123,9 @@ impl Bms {
             .filter_map(|(line, res)| res.ok().map(|token| (line, token)));
 
         let doc = FlowDoc::from_tokens(token_pairs)?;
+        let warnings = doc.warnings().to_vec();
         let (flat, _) = doc.select_branches(rng);
-        Ok(Self::from_flat_tokens(flat))
+        Ok((Self::from_flat_tokens(flat), warnings))
     }
 
     // 头部分发 —— 纯路由到子模块的 apply() 方法

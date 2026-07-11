@@ -69,7 +69,7 @@ let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 | `parse_message_line` / `parse_header_line` 对集成测试可见 | 已 re-export，测试可直接调用 |
 | `#` + `%` 是默认 header 前缀 | 可通过 `BmsTokenizer::header_prefixes()` 自定义 |
 | 三行结尾格式均支持 | LF / CRLF / standalone CR |
-| `//` 和 `;` 行首注释 | tokenizer 主循环跳过；inline `//`（含 `"..."` 字符串保护）也由主循环处理；`/* */` 和 `;` 行中注释仍由 `preprocess()` 处理 |
+| `//` 和 `;` 行首注释 | tokenizer 主循环跳过；inline `//`（前一字符须为空白或行首，含 `"..."` 字符串保护）也由主循环处理；`/* */` 和 `;` 行中注释仍由 `preprocess()` 处理。空白前置规则避免 URL 中的 `//`（如 `https://`）被误判 |
 
 ## Always / Ask / Never
 

@@ -20,9 +20,11 @@ flowchart LR
 
 | 不做什么 | 理由 |
 |----------|------|
-| 隐式副标题解析 | `#TITLE` 分隔符推断属于播放器层，parser 保留原始 `#TITLE` 和 `#SUBTITLE` |
 | 值解释（路径、URL、邮箱） | 字符串原样保留 |
 | 控制流展开 | 由 `bms-control-flow` 处理 |
+
+> `Metadata::parse_implicit_subtitle` 是例外：作为 opt-in 工具方法提供，
+> 不在 `from_flat_tokens` 中自动调用，调用方显式选择是否执行副标题推断。
 
 ## 生命周期
 
@@ -76,7 +78,7 @@ flowchart LR
 
 ### Never
 
-- 在 parser 层实现引擎特定的推断（如隐式副标题）
+- 在 parser 层自动执行引擎特定的推断（`parse_implicit_subtitle` 等需调用方显式触发）
 - 假设 `"00"` 在所有通道都表示"无操作"
 
 ## 测试

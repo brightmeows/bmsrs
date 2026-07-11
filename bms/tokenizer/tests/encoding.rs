@@ -1,58 +1,58 @@
 //! `bms-tokenizer` 编码检测/转换的集成测试。
 
-use bms_tokenizer::detect_encoding;
-use bms_tokenizer::{BmsEncoding, BmsHeader, BmsHeaderMetadata, BmsToken, BmsTokenizer};
+use bms_tokenizer::BmsEncoding;
+use bms_tokenizer::{BmsHeader, BmsHeaderMetadata, BmsToken, BmsTokenizer};
 
-// detect_encoding 集成
+// BmsEncoding::detect 集成
 
 #[test]
-fn detect_utf8_bom() {
+fn utf8_bom_detected_as_utf8() {
     let bytes = &[0xEF, 0xBB, 0xBF, b'#', b'T', b'I', b'T', b'L', b'E'];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf8);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf8);
 }
 
 #[test]
-fn detect_utf16le_bom() {
+fn utf16le_bom_detected_as_utf16le() {
     let bytes = &[0xFF, 0xFE, 0x23, 0x00, 0x54, 0x00];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf16Le);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf16Le);
 }
 
 #[test]
-fn detect_utf16be_bom() {
+fn utf16be_bom_detected_as_utf16be() {
     let bytes = &[0xFE, 0xFF, 0x00, 0x23, 0x00, 0x54];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf16Be);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf16Be);
 }
 
 #[test]
-fn detect_charset_shift_jis() {
+fn charset_shift_jis_detected_as_shift_jis() {
     let bytes = b"#CHARSET Shift_JIS\n#TITLE test";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::ShiftJis);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::ShiftJis);
 }
 
 #[test]
-fn detect_charset_euc_kr() {
+fn charset_euc_kr_detected_as_euc_kr() {
     let bytes = b"#CHARSET EUC-KR\n#TITLE test";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::EucKr);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::EucKr);
 }
 
 #[test]
-fn detect_valid_utf8_without_bom() {
+fn valid_utf8_without_bom_detected_as_utf8() {
     let bytes = b"#TITLE Hello\n#BPM 180";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::Utf8);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::Utf8);
 }
 
 #[test]
-fn detect_shift_jis_bytes() {
+fn shift_jis_bytes_detected_as_shift_jis() {
     // "あ" (U+3042) in Shift_JIS = 0x82 0xA0
     let bytes = &[0x82, 0xA0];
-    assert_eq!(detect_encoding(bytes), BmsEncoding::ShiftJis);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::ShiftJis);
 }
 
 #[test]
-fn detect_euc_kr_bytes() {
+fn euc_kr_bytes_detected_as_euc_kr() {
     // 使用 #CHARSET 确保可靠检测（纯 EUC-KR 字节可能同时也是有效 Shift_JIS）
     let bytes = b"#CHARSET EUC-KR\n\xb0\xa1";
-    assert_eq!(detect_encoding(bytes), BmsEncoding::EucKr);
+    assert_eq!(BmsEncoding::detect(bytes), BmsEncoding::EucKr);
 }
 
 // BmsEncoding::decode 集成
@@ -91,7 +91,7 @@ fn tokenize_bytes_utf8_works() {
 }
 
 #[test]
-fn tokenize_bytes_with_charset_header() {
+fn tokenize_bytes_with_charset_header_succeeds() {
     let bytes = b"#CHARSET Shift_JIS\n#TITLE Hello";
     let tokens = BmsTokenizer::new().tokenize_bytes(bytes);
     assert_eq!(tokens.len(), 2);
@@ -104,7 +104,7 @@ fn tokenize_bytes_with_charset_header() {
 }
 
 #[test]
-fn tokenize_bytes_with_explicit_encoding() {
+fn tokenize_bytes_with_explicit_encoding_succeeds() {
     let bytes = b"#TITLE Hello";
     let tokens = BmsTokenizer::new()
         .encoding(BmsEncoding::Utf8)
@@ -120,7 +120,7 @@ fn tokenize_bytes_with_explicit_encoding() {
 }
 
 #[test]
-fn tokenize_bytes_shift_jis_content() {
+fn tokenize_bytes_shift_jis_content_decodes_correctly() {
     // "#TITLE " followed by "テスト" in Shift_JIS
     // テ = 0x83 0x65, ス = 0x83 0x58, ト = 0x83 0x67
     let bytes = b"#TITLE \x83\x65\x83\x58\x83\x67";
@@ -135,7 +135,7 @@ fn tokenize_bytes_shift_jis_content() {
 }
 
 #[test]
-fn tokenize_bytes_utf8_with_bom() {
+fn tokenize_bytes_utf8_with_bom_strips_bom() {
     let mut bytes = vec![0xEF, 0xBB, 0xBF];
     bytes.extend_from_slice(b"#TITLE Hello");
     let tokens = BmsTokenizer::new().tokenize_bytes(&bytes);
@@ -150,7 +150,7 @@ fn tokenize_bytes_utf8_with_bom() {
 }
 
 #[test]
-fn tokenize_bytes_owned_via_encoding_roundtrip() {
+fn tokenize_bytes_owned_via_encoding_roundtrip_succeeds() {
     let tokenizer = BmsTokenizer::new().encoding(BmsEncoding::Utf8);
     let bytes = b"#TITLE Test\n#BPM 120";
     let tokens = tokenizer.tokenize_bytes(bytes);

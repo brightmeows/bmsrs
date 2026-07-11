@@ -34,6 +34,16 @@ impl std::fmt::Display for TimingTrackError {
 
 impl std::error::Error for TimingTrackError {}
 
+impl TimingTrackError {
+    /// 返回导致错误的 BPM 值。
+    #[must_use]
+    pub const fn bpm(&self) -> f64 {
+        match self {
+            Self::InvalidBpm { bpm } => *bpm,
+        }
+    }
+}
+
 /// 用于将脉冲位置换算为实际时间的计时信息。
 ///
 /// 所有事件都在绝对脉冲位置上。处理器负责将格式特有的位置

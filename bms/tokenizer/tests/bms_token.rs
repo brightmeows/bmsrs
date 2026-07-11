@@ -368,7 +368,7 @@ fn audio_wavcmd_roundtrip() {
             params: WavCmdParams {
                 command_id: "00",
                 wav_index: "01",
-                value: 100.0,
+                value: 100,
             }
         }
     );

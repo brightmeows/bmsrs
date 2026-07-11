@@ -242,7 +242,7 @@ fn extreme_large_tick_no_panic() {
 
 /// 极小 BPM（0.001）。
 #[test]
-fn extreme_small_bpm() {
+fn extreme_small_bpm_stays_valid() {
     let timing = TimingTrack::simple(0.001).unwrap();
     // 0.001 BPM：1 tick（240 res）≈ 60/0.001 * 1/240 = 250s
     let dur = timing.tick_to_duration(1, RES);
@@ -251,7 +251,7 @@ fn extreme_small_bpm() {
 
 /// 极大 BPM（1e6）。
 #[test]
-fn extreme_large_bpm() {
+fn extreme_large_bpm_stays_valid() {
     let timing = TimingTrack::simple(1_000_000.0).unwrap();
     // 1e6 BPM：240 ticks = 1 beat = 60/1e6 s = 0.00006s
     let dur = timing.tick_to_duration(RES, RES);
@@ -260,7 +260,7 @@ fn extreme_large_bpm() {
 
 /// 极长曲目（>1 小时）的时间换算。
 #[test]
-fn very_long_song() {
+fn very_long_song_computes_duration() {
     let timing = TimingTrack::simple(60.0).unwrap();
     // 60 BPM、分辨率 240：1 小时 = 60 分 = 3600 拍 = 864000 ticks
     let one_hour_ticks = 240 * 60 * 60; // 864000
@@ -273,7 +273,7 @@ fn very_long_song() {
 
 /// BPM 极端值交替。
 #[test]
-fn alternating_bpm_extremes() {
+fn alternating_bpm_extremes_no_panic() {
     let timing = TimingTrack::new(
         0.001,
         vec![

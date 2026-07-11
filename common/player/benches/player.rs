@@ -9,6 +9,7 @@
 //!
 //! 运行：`cargo bench -p bmsrs-player`
 #![expect(clippy::unwrap_used, reason = "bench code")]
+#![expect(clippy::expect_used, reason = "bench code")]
 
 use std::num::NonZeroU8;
 use std::time::Duration;
@@ -163,7 +164,7 @@ fn bench_player_advance(c: &mut Criterion) {
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
         let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
-        let mut player = Player::new(chart);
+        let mut player = Player::new(chart).expect("valid chart for benchmark");
         let last_tick = player.chart().data.last_tick();
         player.seek(cache.tick_to_duration(last_tick * 9 / 10));
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
@@ -235,7 +236,7 @@ fn bench_player_events_in_range(c: &mut Criterion) {
         // 标准谱面（无 BGM）。
         let chart = build_chart(n);
         let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
-        let mut player = Player::new(chart);
+        let mut player = Player::new(chart).expect("valid chart for benchmark");
         let last_tick = player.chart().data.last_tick();
         let mid_tick = last_tick / 2;
         player.seek(cache.tick_to_duration(mid_tick));
@@ -257,7 +258,7 @@ fn bench_player_events_in_range(c: &mut Criterion) {
     // 固定 2000 个 Note，窗口内含约 20 Note + 200 BGM。
     let chart = build_dense_chart(2000, 10);
     let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).expect("valid chart for benchmark");
     let mid_tick = player.chart().data.last_tick() / 2;
     player.seek(cache.tick_to_duration(mid_tick));
     let start = mid_tick;

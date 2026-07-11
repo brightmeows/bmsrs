@@ -41,7 +41,7 @@
 //!     },
 //! };
 //!
-//! let mut player = Player::new(chart);
+//! let mut player = Player::new(chart).unwrap();
 //! assert_eq!(player.current_tick(), 0);
 //! player.advance(Duration::from_secs(1));
 //! assert_eq!(player.current_time(), Duration::from_secs(1));
@@ -55,8 +55,8 @@ use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaResource, Chart, CustomEvent, Event, EventKind, Lane, NoCustomEvent, NoteExt,
-    NoteKind, NoteSide, TimingCache,
+    AudioAsset, BgaResource, Chart, ChartDataError, CustomEvent, Event, EventKind, Lane,
+    NoCustomEvent, NoteExt, NoteKind, NoteSide, TimingCache,
 };
 
 use crate::scroll_cache::ScrollCache;
@@ -85,32 +85,26 @@ pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
 impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 由谱面创建一个新播放器，从脉冲 0 开始。
     ///
-    /// # Panics
+    /// 内部自动校验谱面数据并排序事件——调用方无需预处理。
     ///
-    /// 若谱面数据不合法（`resolution == 0` 或初始 BPM 非正有限值），
-    /// 触发 panic。
-    #[must_use]
-    #[expect(
-        clippy::expect_used,
-        reason = "编程错误（非法谱面数据）应 panic，不返回 Result"
-    )]
-    pub fn new(mut chart: Chart<T, C>) -> Self {
-        chart
-            .data
-            .validate()
-            .expect("ChartData validation failed in Player::new");
+    /// # Errors
+    ///
+    /// 若谱面数据不合法（`resolution == 0` 或初始 BPM 零/非有限值），
+    /// 返回 [`ChartDataError`]。
+    pub fn new(mut chart: Chart<T, C>) -> Result<Self, ChartDataError> {
+        chart.data.validate()?;
         chart.data.sort_events();
         let resolution = chart.data.resolution;
         let cache = TimingCache::new(&chart.data.timing, resolution);
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
         let speed_cache = SpeedCache::build(&chart.data.events);
-        Self {
+        Ok(Self {
             chart,
             cache,
             scroll_cache,
             speed_cache,
             current_tick: 0,
-        }
+        })
     }
 
     // 时间控制

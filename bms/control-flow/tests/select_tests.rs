@@ -806,7 +806,7 @@ fn switch_zero_yields_empty_branch_without_panicking() -> TestResult {
 }
 
 #[test]
-fn deep_nested_random_10_levels() -> TestResult {
+fn deep_nested_random_10_levels_succeeds() -> TestResult {
     let mut bms = String::new();
     for _ in 0..10 {
         writeln!(bms, "#RANDOM 2")?;
@@ -822,7 +822,7 @@ fn deep_nested_random_10_levels() -> TestResult {
 }
 
 #[test]
-fn deep_nested_random_20_levels() -> TestResult {
+fn deep_nested_random_20_levels_succeeds() -> TestResult {
     let mut bms = String::new();
     for _ in 0..20 {
         writeln!(bms, "#RANDOM 2")?;
@@ -838,7 +838,7 @@ fn deep_nested_random_20_levels() -> TestResult {
 }
 
 #[test]
-fn deep_nested_random_50_levels() -> TestResult {
+fn deep_nested_random_50_levels_succeeds() -> TestResult {
     let mut bms = String::new();
     for _ in 0..50 {
         writeln!(bms, "#RANDOM 2")?;
@@ -854,7 +854,7 @@ fn deep_nested_random_50_levels() -> TestResult {
 }
 
 #[test]
-fn deep_nested_switch_10_levels() -> TestResult {
+fn deep_nested_switch_10_levels_succeeds() -> TestResult {
     let mut bms = String::new();
     for _ in 0..10 {
         writeln!(bms, "#SWITCH 2")?;

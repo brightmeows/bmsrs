@@ -114,18 +114,39 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
 
 /// `#WAVCMD` 的参数——音高/音量/时长覆盖（MacBeat 扩展）。
 ///
-/// 格式：`commandID wavIndex value`。
-/// - `commandID`：`00` = 音高、`01` = 音量、`02` = 时长
-/// - `wavIndex`：2 字符 WAV 索引
-/// - `value`：数值参数
-#[derive(Debug, Clone, PartialEq)]
+/// `MacBeat` 独占的伪 MOD 音效命令。使用此命令的 BMS 文件须将扩展名
+/// 改为 `.mbm`（`MacBeat` MOD），其他播放器通常不支持。
+///
+/// # 格式
+///
+/// `#WAVCMD <commandID> <wavIndex> <value>`
+///
+/// - `commandID`：2 字符命令标识（见下表）
+/// - `wavIndex`：16 进制，对应 `#WAVxx` 定义的索引
+/// - `value`：**十进制**非负整数，语义取决于 `commandID`
+///
+/// # 命令表
+///
+/// | `commandID` | 功能 | `value` 语义 | 范围/单位 |
+/// |-------------|------|-------------|----------|
+/// | `00` | 音高 | MIDI 风格音符号，基准 `60` = 中央 C | `0`–`127` |
+/// | `01` | 音量 | 百分比 | `100` = 原始音量；可超 `100` 但可能爆音 |
+/// | `02` | 再生时长 | 半毫秒单位（秒 × 2000） | `50`ms 以下截断为 `0` |
+///
+/// 未使用 `#WAVCMD` 时的默认值：音高 `60`、音量 `100`、时长 `0`（播放到结束）。
+///
+/// `#WAVCMD` 允许同命令多次出现，每行独立应用到一个 `wavIndex`。
+///
+/// 来源：[MacBeat mbm.txt](http://harinezumi.s14.xrea.com/download/mbm.txt)、
+/// [BMS command memo](https://hitkey.nekokan.dyndns.info/cmds.htm)
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WavCmdParams<C> {
     /// 命令 ID（`00`、`01`、`02`）。
     pub command_id: C,
     /// 目标 WAV 索引。
     pub wav_index: C,
-    /// 参数值（音高/音量/时长）。
-    pub value: f64,
+    /// 参数值（非负整数，语义由 `command_id` 决定）。
+    pub value: u32,
 }
 
 impl<C: AsRef<str> + fmt::Display> fmt::Display for WavCmdParams<C> {
@@ -141,7 +162,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
         let mut parts = s.split_whitespace();
         let command_id = parts.next()?;
         let wav_index = parts.next()?;
-        let value: f64 = parts.next()?.parse().ok()?;
+        let value: u32 = parts.next()?.parse().ok()?;
         if parts.next().is_some() {
             return None;
         }

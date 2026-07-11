@@ -52,7 +52,7 @@ pub use message::BmsMessage;
 pub use message::parse_message_line;
 pub use preprocess::preprocess;
 
-pub use encoding::{BmsEncoding, detect_encoding};
+pub use encoding::BmsEncoding;
 
 /// BMS 头部值的统一 trait。
 ///
@@ -163,6 +163,9 @@ type TokenizeOwnedResult = Vec<(
 /// 在 `s` 中查找第一个不在 `"..."` 字符串字面量内的 `//`。
 ///
 /// 返回 `//` 的起始位置；若不存在行内注释则返回 `None`。
+///
+/// `//` 仅当前一字符为 ASCII 空白（或位于行首）时才视为注释起始，
+/// 避免 URL 中的 `//`（如 `https://`）被误判为注释。
 #[expect(
     clippy::indexing_slicing,
     reason = "i < bytes.len() 由 while 循环边界保证"
@@ -177,7 +180,11 @@ fn find_inline_comment(s: &str) -> Option<usize> {
                 in_string = !in_string;
                 i += 1;
             }
-            b'/' if !in_string && i + 1 < bytes.len() && bytes[i + 1] == b'/' => {
+            b'/' if !in_string
+                && i + 1 < bytes.len()
+                && bytes[i + 1] == b'/'
+                && (i == 0 || bytes[i - 1].is_ascii_whitespace()) =>
+            {
                 return Some(i);
             }
             _ => {
@@ -367,7 +374,7 @@ impl BmsTokenizer {
     /// 参见 [`tokenize`](Self::tokenize) 的 Panics 说明——条件相同。
     #[must_use]
     pub fn tokenize_bytes(&self, input: &[u8]) -> TokenizeOwnedResult {
-        let encoding = self.encoding.unwrap_or_else(|| detect_encoding(input));
+        let encoding = self.encoding.unwrap_or_else(|| BmsEncoding::detect(input));
         let decoded = encoding.decode(input);
         self.tokenize(&decoded)
     }

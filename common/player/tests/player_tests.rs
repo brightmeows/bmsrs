@@ -76,7 +76,7 @@ fn make_test_chart() -> Chart {
 #[test]
 fn player_new_starts_at_zero() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
     assert_eq!(player.current_tick(), 0);
     assert!(player.current_time().is_zero());
 }
@@ -84,7 +84,7 @@ fn player_new_starts_at_zero() {
 #[test]
 fn player_advance_moves_time_and_tick() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
     player.advance(Duration::from_secs(1));
     // 120 BPM, resolution 240: 1 second = 480 ticks
     assert_eq!(player.current_tick(), 480);
@@ -93,7 +93,7 @@ fn player_advance_moves_time_and_tick() {
 #[test]
 fn player_current_time() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
     player.advance(Duration::from_secs_f64(2.0));
     assert!((player.current_time().as_secs_f64() - 2.0).abs() < 1e-9);
 }
@@ -101,7 +101,7 @@ fn player_current_time() {
 #[test]
 fn player_seek() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
 
     player.seek(Duration::from_secs_f64(1.0));
     assert_eq!(player.current_tick(), 480);
@@ -111,7 +111,7 @@ fn player_seek() {
 #[test]
 fn player_reset() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
     player.advance(Duration::from_secs(2));
     assert!(player.current_tick() > 0);
 
@@ -123,7 +123,7 @@ fn player_reset() {
 #[test]
 fn player_duration() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
     // With events up to tick 960 at 120 BPM, duration = 2 seconds
     assert!((player.duration().as_secs_f64() - 2.0).abs() < f64::EPSILON);
 }
@@ -131,14 +131,14 @@ fn player_duration() {
 #[test]
 fn player_current_bpm_initial() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
     assert!((player.current_bpm() - 120.0).abs() < 1e-9);
 }
 
 #[test]
 fn player_current_bpm_before_change() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
     // Seek to a known tick before the BPM change at 960
     player.seek(Duration::from_secs_f64(1.5));
     assert!(
@@ -151,7 +151,7 @@ fn player_current_bpm_before_change() {
 #[test]
 fn player_current_bpm_at_change_tick() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
     // Seek to exactly the BPM change tick. At tick 960, BPM should be 180.
     player.seek(Duration::from_secs_f64(2.0));
     let tick = player.current_tick();
@@ -169,7 +169,7 @@ fn player_current_bpm_at_change_tick() {
 #[test]
 fn player_events_in_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let events = player.events_in_range(0..=480);
     // Should contain: Bar(0), Bgm(240), Note(480), Bar(960 is outside range)
@@ -181,7 +181,7 @@ fn player_events_in_range() {
 #[test]
 fn player_events_unbounded_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let all_events = player.events_in_range(..);
     assert_eq!(all_events.len(), 5);
@@ -190,7 +190,7 @@ fn player_events_unbounded_range() {
 #[test]
 fn player_notes_in_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let notes: Vec<_> = player
         .notes_in_range(..)
@@ -208,7 +208,7 @@ fn player_notes_in_range() {
 #[test]
 fn player_notes_in_lane() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let notes_p1k1: Vec<_> = player
         .notes_in_lane(NoteSide::P1, key(1), ..)
@@ -226,7 +226,7 @@ fn player_notes_in_lane() {
 #[test]
 fn player_notes_in_lane_wrong_side() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     assert!(
         player
@@ -239,7 +239,7 @@ fn player_notes_in_lane_wrong_side() {
 #[test]
 fn player_notes_for_judgement() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     // The note in the test chart is Normal → should be counted
     assert_eq!(player.notes_for_judgement(..).count(), 1);
@@ -248,7 +248,7 @@ fn player_notes_for_judgement() {
 #[test]
 fn player_bgm_in_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let bgm: Vec<_> = player
         .bgm_in_range(..)
@@ -266,7 +266,7 @@ fn player_bgm_in_range() {
 #[test]
 fn player_bar_lines_in_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let bars: Vec<_> = player
         .bar_lines_in_range(..)
@@ -279,7 +279,7 @@ fn player_bar_lines_in_range() {
 #[test]
 fn player_bga_events_empty() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     assert!(player.bga_events_in_range(..).next().is_none());
 }
@@ -289,7 +289,7 @@ fn player_bga_events_empty() {
 #[test]
 fn player_scroll_rate_default() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let rate = player.scroll_rate_at(0);
     assert!((rate - 1.0).abs() < f64::EPSILON);
@@ -300,7 +300,7 @@ fn player_scroll_rate_with_events() {
     let mut chart = make_test_chart();
     chart.data.events.push(Event::scroll(480, 2.0));
     chart.data.sort_events();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     // Before scroll event
     assert!((player.scroll_rate_at(0) - 1.0).abs() < f64::EPSILON);
@@ -315,7 +315,7 @@ fn player_scroll_rate_with_events() {
 #[test]
 fn player_tick_to_duration() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let dur = player.tick_to_duration(240);
     assert!((dur.as_secs_f64() - 0.5).abs() < 1e-9);
@@ -324,7 +324,7 @@ fn player_tick_to_duration() {
 #[test]
 fn player_duration_to_tick() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let tick = player.duration_to_tick(Duration::from_secs_f64(0.5));
     assert_eq!(tick, 240);
@@ -335,7 +335,7 @@ fn player_duration_to_tick() {
 #[test]
 fn player_chart_ref() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let chart_ref = player.chart();
     assert_eq!(chart_ref.song.title, "Test");
@@ -344,7 +344,7 @@ fn player_chart_ref() {
 #[test]
 fn player_into_chart() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let chart_back = player.into_chart();
     assert_eq!(chart_back.song.title, "Test");
@@ -353,7 +353,7 @@ fn player_into_chart() {
 #[test]
 fn player_audio_assets() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let assets = player.audio_assets();
     assert!(assets.is_empty());
@@ -362,7 +362,7 @@ fn player_audio_assets() {
 #[test]
 fn player_bga_resources() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let resources = player.bga_resources();
     assert!(resources.is_empty());
@@ -382,7 +382,7 @@ fn player_advance_with_bpm_change() {
         vec![],
     )
     .unwrap();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
 
     // 0-240 ticks at 120 BPM = 0.5s
     player.advance(Duration::from_secs_f64(0.5));
@@ -407,7 +407,7 @@ fn player_advance_with_stop() {
         }],
     )
     .unwrap();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
 
     // 0 to 0.5s (240 ticks at 120 BPM): should be at tick 240
     player.advance(Duration::from_secs_f64(0.5));
@@ -426,7 +426,7 @@ fn player_advance_with_stop() {
 #[test]
 fn visible_tick_range_at_start_covers_negative_reaction() {
     let chart = make_test_chart();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     // 当前在 tick 0，reaction 1s 向前被钳位为 0。
     let (start, end) = player.visible_tick_range(Duration::from_secs(1), Duration::from_secs(2));
@@ -438,7 +438,7 @@ fn visible_tick_range_at_start_covers_negative_reaction() {
 #[test]
 fn visible_tick_range_at_midpoint_returns_symmetric_window() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).unwrap();
 
     // 前进到 1s（在 120 BPM 段：1s = 2 beats = 480 ticks）。
     player.advance(Duration::from_secs_f64(1.0));
@@ -452,8 +452,7 @@ fn visible_tick_range_at_midpoint_returns_symmetric_window() {
 }
 
 #[test]
-#[should_panic(expected = "ZeroResolution")]
-fn player_new_panics_on_zero_resolution() {
+fn player_new_rejects_zero_resolution() {
     let chart: Chart = Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
@@ -471,17 +470,20 @@ fn player_new_panics_on_zero_resolution() {
             audio_assets: vec![],
         },
     };
-    drop(Player::new(chart));
+    let result = Player::new(chart);
+    assert!(result.is_err());
 }
 
 #[test]
-fn player_new_sorts_unsorted_events() {
+fn player_new_accepts_negative_bpm() {
+    // 负 BPM（逆走谱面）应在全链路通过：TimingTrack → ChartData::validate → Player::new。
+    // 若任何校验点仍用 <=0.0，此处 panic。
     let chart: Chart = Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(120.0).unwrap(),
+            timing: TimingTrack::simple(-120.0).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -489,16 +491,12 @@ fn player_new_sorts_unsorted_events() {
             ln_life_hint: LnLifeHint::default(),
             judge_deltas: None,
             life_deltas: None,
-            events: vec![
-                Event::new(480, EventKind::Bar),
-                Event::new(0, EventKind::Bar),
-            ],
+            events: vec![Event::bar(0)],
             audio_assets: vec![],
         },
     };
-    let player = Player::new(chart);
-    let events = &player.chart().data.events;
-    assert!(events[0].tick() < events[1].tick());
+    // 不 panic 即通过——验证全链路接受负 BPM
+    assert!(Player::new(chart).is_ok());
 }
 
 // F7: BGM 与 BGA 事件查询
@@ -612,7 +610,7 @@ fn make_chart_with_bga() -> Chart {
 #[test]
 fn player_bgm_in_range_returns_events() {
     let chart = make_chart_with_bgm();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let bgm: Vec<_> = player
         .bgm_in_range(..)
@@ -629,9 +627,9 @@ fn player_bgm_in_range_returns_events() {
 
 /// `bgm_in_range` 在指定范围内返回正确的事件。
 #[test]
-fn player_bgm_in_range_subrange() {
+fn player_bgm_in_range_subrange_returns_subset() {
     let chart = make_chart_with_bgm();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let bgm: Vec<_> = player
         .bgm_in_range(120..=360)
@@ -648,9 +646,9 @@ fn player_bgm_in_range_subrange() {
 
 /// `bga_events_in_range` 返回所有图层的 BGA 事件。
 #[test]
-fn player_bga_events_base() {
+fn player_bga_events_base_returns_all_events() {
     let chart = make_chart_with_bga();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let bga: Vec<_> = player
         .bga_events_in_range(..)
@@ -673,7 +671,7 @@ fn player_bga_events_base() {
 #[test]
 fn player_bga_events_filter_by_layer() {
     let chart = make_chart_with_bga();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let base: Vec<_> = player
         .bga_events_in_range(..)
@@ -738,9 +736,9 @@ fn player_bga_events_filter_by_layer() {
 
 /// 多 BGM 通道（不同 `audio_index`）。
 #[test]
-fn player_bgm_multiple_channels() {
+fn player_bgm_multiple_channels_returns_all() {
     let chart = make_chart_with_bgm();
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     let mut bgm_pairs: Vec<_> = player
         .bgm_in_range(..)
