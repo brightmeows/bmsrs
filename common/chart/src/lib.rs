@@ -241,7 +241,8 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// 检查项：
     /// - `resolution > 0`
-    /// - `timing` 的初始 BPM 为非零有限值（允许负 BPM，用于逆走谱面）
+    /// - `timing` 的初始 BPM 有效（委托 [`TimingTrack::validate`]，
+    ///   允许负 BPM 用于逆走谱面）
     ///
     /// # Errors
     ///
@@ -250,12 +251,9 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         if self.resolution == 0 {
             return Err(ChartDataError::ZeroResolution);
         }
-        if !self.timing.init_bpm().is_finite() || self.timing.init_bpm() == 0.0 {
-            return Err(ChartDataError::InvalidBpm {
-                bpm: self.timing.init_bpm(),
-            });
-        }
-        Ok(())
+        self.timing.validate().map_err(|e| match e {
+            TimingTrackError::InvalidBpm { bpm } => ChartDataError::InvalidBpm { bpm },
+        })
     }
 
     /// 确保事件按脉冲升序排列。
