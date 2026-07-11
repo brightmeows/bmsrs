@@ -497,7 +497,7 @@ fn bmspec_3_scroll_basic() {
     );
 
     // Verify scroll position via Player
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
     // Before scroll: rate 1.0, position = ticks / resolution
     assert!((player.scroll_rate_at(0) - 1.0).abs() < 1e-9);
     assert!((player.scroll_position_at(0) - 0.0).abs() < 1e-9);
@@ -524,7 +524,7 @@ fn bmspec_3_scroll_initial_speed() {
     );
 
     // Verify position: scroll at tick 0 with rate 0.5
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
     assert!((player.scroll_rate_at(0) - 0.5).abs() < 1e-9);
     // At tick 0: position = 0, but rate = 0.5 from start
     // At beat -1 (negative beat, tick -240): position = 0.5 * (-1) = -0.5
@@ -769,7 +769,7 @@ fn bmspec_6_speed_interpolation() {
          #001SP:0102\n\
          #002SP:03\n",
     );
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
 
     // 首个关键帧之前 → 1.0（默认）
     assert!((player.spacing_at(0) - 1.0).abs() < 1e-9, "before first kf");
@@ -978,7 +978,7 @@ fn video_seek_custom_event() {
 fn custom_events_dont_affect_note_queries() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00111:0100000000000000\n#0010B:FF00000000000000\n");
-    let player = Player::new(chart);
+    let player = Player::new(chart).unwrap();
     let note_count = player
         .events_in_range(0..2000)
         .iter()

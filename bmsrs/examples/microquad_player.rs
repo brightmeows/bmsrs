@@ -36,6 +36,7 @@
     clippy::missing_docs_in_private_items,
     reason = "macroquad::main strips doc comments; other items are documented"
 )]
+#![expect(clippy::expect_used, reason = "example panics on invalid chart")]
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -620,7 +621,7 @@ async fn main() {
     };
     println!("谱面已加载: {} — {}", chart.song.title, chart.song.artist);
 
-    let mut player = Player::new(chart);
+    let mut player = Player::new(chart).expect("valid chart");
 
     // 预加载音频。
     let audio_assets = player.audio_assets().to_vec();
