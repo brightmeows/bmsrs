@@ -5,18 +5,6 @@
 `bmson_def::Bmson` (v2 root schema) → `Chart` 的转换处理器。
 通过 `BmsonLayout` 模式族解耦键位映射。
 
-## 管道位置
-
-```mermaid
-flowchart LR
-    Bmson["bmson_def::Bmson (v2)"] --> Proc[bmson-processor]
-    BmsonV01["bmson v0/v1"] --> Conv["From/Bmson::from"]
-    Conv --> Bmson
-    Proc --> Chart["bmsrs_chart::Chart"]
-```
-
-v0/v1 文件先通过 `Bmson::from` 升版到 v2 schema。
-
 ## 模式族
 
 | 类型 | 实现 | 用途 |
@@ -45,10 +33,3 @@ v0/v1 文件先通过 `Bmson::from` 升版到 v2 schema。
 |------|------|
 | BGM 音符丢弃 | 同脉冲有可演奏音符时，BGM 音符 (`x: 0`) 被丢弃 |
 | 事件排序 | Note/BGA → BPM → Stop |
-| v0/v1 必须先升版 | 不支持直接处理 |
-
-## 测试
-
-```bash
-cargo test -p bmson-processor
-```

@@ -3,16 +3,6 @@
 ## 定位
 
 BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模型。
-属于 `tokenizer → control-flow → parser` 管道的第三阶段。
-
-## 管道位置
-
-```mermaid
-flowchart LR
-    Tok["BmsToken[] (flat)"] --> Par[bms-parser]
-    Par --> Bms["Bms (owned)"]
-    Bms --> Proc[bms-processor]
-```
 
 ## 设计哲学
 
@@ -79,12 +69,8 @@ flowchart LR
 ### Never
 
 - 在 parser 层自动执行引擎特定的推断（`parse_implicit_subtitle` 等需调用方显式触发）
-- 假设 `"00"` 在所有通道都表示"无操作"
+- 假设 `"00"` 在所有通道都表示“无操作”
 
 ## 测试
-
-```bash
-cargo test -p bms-parser
-```
 
 公开 API 测试在 `tests/` 目录中；`merge_channel` 算法测试保留 inline。

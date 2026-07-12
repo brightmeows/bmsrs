@@ -3,17 +3,6 @@
 ## 定位
 
 BMS 语法分析第一关：原始文本 → 结构化 token 流。
-属于 `tokenizer → control-flow → parser` 管道的第一阶段。
-
-## 管道位置
-
-```mermaid
-flowchart LR
-    Raw["&str (raw BMS text)"] --> Tok[bms-tokenizer]
-    Tok --> BmsToken["BmsToken&lt;C&gt;"]
-    BmsToken --> CF[bms-control-flow]
-    BmsToken --> Par[bms-parser]
-```
 
 ## 关键设计决策
 
@@ -75,7 +64,6 @@ let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 
 ### Always
 
-- `#[expect(...)]` 替代 `#[allow(...)]`
 - 新增 header 时在对应 domain enum 加 `#[bms_token("...")]` 变体
 - 每新增一个 se 变体，检查是否需要 `From<T>` / `TryFrom<T>` 到 parent
 
@@ -87,5 +75,4 @@ let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 ### Never
 
 - 在 tokenizer 层解析 WAV/BMP 引用语义（属于 parser 层）
-- 引入 `serde` / 序列化依赖
 - 修改 `BmsIndex` 的比较语义

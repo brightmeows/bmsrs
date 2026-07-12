@@ -3,17 +3,6 @@
 ## 定位
 
 `#RANDOM`/`#SWITCH` 分支选择与 roundtrip。
-属于 `tokenizer → control-flow → parser` 管道的第二阶段。
-
-## 管道位置
-
-```mermaid
-flowchart LR
-    Tok["BmsToken[]"] --> CF[bms-control-flow]
-    CF --> FlowDoc["FlowDoc&lt;TokenPayload&gt;"]
-    FlowDoc --> Flat["BmsToken[] (selected)"]
-    Flat --> Par[bms-parser]
-```
 
 ## 核心模型
 
@@ -65,10 +54,6 @@ let flat2 = tree.to_tokens();
 | `StdRng` 或 `ThreadRng` | 自动满足 `BranchRng`（blanket impl）|
 
 ## 测试
-
-```bash
-cargo test -p bms-control-flow
-```
 
 `SequenceRng`、`find_seed`、`build_doc` 定义在测试文件中。
 `map_payload_tests` 覆盖 payload 转换和骨架保留。

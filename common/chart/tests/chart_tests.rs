@@ -357,9 +357,9 @@ fn bga_layer_default() {
 
 #[test]
 fn bga_layer_order() {
-    assert!(BgaLayer::Base != BgaLayer::Layer);
-    assert!(BgaLayer::Layer != BgaLayer::Layer2);
-    assert!(BgaLayer::Poor != BgaLayer::Base);
+    assert_ne!(BgaLayer::Base, BgaLayer::Layer);
+    assert_ne!(BgaLayer::Layer, BgaLayer::Layer2);
+    assert_ne!(BgaLayer::Poor, BgaLayer::Base);
 }
 
 // AudioAsset

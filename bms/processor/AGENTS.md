@@ -5,15 +5,6 @@
 `Bms` → 格式无关 `Chart` 的转换处理器。
 通过 `BmsLayout` 模式族解耦 BMS 的玩家/键位映射。
 
-## 管道位置
-
-```mermaid
-flowchart LR
-    Bms["bms_parser::Bms"] --> Proc["bms-processor"]
-    Proc --> Chart["bmsrs_chart::Chart"]
-    Chart --> Player[bmsrs-player]
-```
-
 ## 关键转换
 
 | 转换 | 输入 | 输出 | 说明 |
@@ -85,10 +76,3 @@ tick = measure_starts[measure] + numer * measure_len / denom
 
 - 在处理器中引入 I/O、渲染、判定逻辑
 - 修改 `Chart` 的数据模型（属于 `bmsrs-chart` crate）
-- 引入 `serde` / 序列化依赖
-
-## 测试
-
-```bash
-cargo test -p bms-processor
-```
