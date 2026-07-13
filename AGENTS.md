@@ -113,6 +113,17 @@ Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下
 仅当 API 有可配置参数时使用 `*Builder`；无状态时直接用结构体方法。
 私有操作**建议**同样按上述模式设计（挂在类型上而非自由函数），尤其当多个函数共享同一组参数或逻辑上属于同一转换过程时；但不强制——纯函数式辅助、无共享状态的简单工具函数保留为自由函数即可。
 
+### 开发用 skill
+
+本项目开发时参考以下 skill（个人级配置，不在仓库内）：
+
+| Skill | 来源仓库 | 用途 |
+|-------|----------|------|
+| `bms` / `bmson` | <https://codeberg.org/brightmeows/bms-skills> | BMS/bmson 格式规范、领域术语译法 |
+| `rust-meta-cognition` | <https://codeberg.org/brightmeows/rust-meta-skills> | Rust 设计/编译问题路由 |
+
+引用其内容时，引向 skill 指向的原始来源，而非 skill 文档本身。
+
 ### 注释风格
 
 - 公开项用 `///`，模块用 `//!`（clippy 强制）

@@ -3,14 +3,15 @@
 ## 定位
 
 `bmson_def::Bmson` (v2 root schema) → `Chart` 的转换处理器。
+入口为 `BmsonProcessor`（零大小类型），通过 `BmsonProcessor::process_default` / `process_nkeys` 暴露全部功能。
 通过 `BmsonLayout` 模式族解耦键位映射。
 
 ## 模式族
 
 | 类型 | 实现 | 用途 |
 |------|------|------|
-| 无状态 ZST | `impl BmsonLayout` | 简单模式，`process::<T>(bmson)` |
-| 有状态 decoder | 不实现 `BmsonLayout` | 运行时配置（键数），`process_nkeys(bmson, keys)` |
+| 无状态 ZST | `impl BmsonLayout` | 简单模式，`BmsonProcessor::process::<L>(bmson)` |
+| 有状态 decoder | 不实现 `BmsonLayout` | 运行时配置（键数），`BmsonProcessor::process_nkeys(bmson, keys)` |
 
 `process_default` 根据 `mode_hint` 分发：
 
