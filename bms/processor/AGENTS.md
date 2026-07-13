@@ -46,7 +46,14 @@ tick = measure_starts[measure] + numer * measure_len / denom
 
 模式族是零大小类型，实现 `BmsLayout` trait。每个族是一个 `(player, lane) → Option<NoteData>` 的映射表。
 
-标准族见 `layout` 模块。`Bme` 族覆盖 5K/7K/10K/14K——`#PLAYER` 不影响映射（与主流引擎一致）。
+标准族见公开 `layout` 模块。`Bme` 族覆盖 5K/7K/10K/14K——`#PLAYER` 不影响映射（与主流引擎一致）。
+
+## 公开模块
+
+| 模块 | 内容 |
+|------|------|
+| `layout` | `BmsLayout` trait + 标准模式族（`Bme` 等） |
+| `custom_event` | `BmsCustomEvent` 枚举——BMS 特有事件（BGA opacity / 文本 / 选项等）作为 `Chart` 的 `CustomEvent` 类型参数 |
 
 ## 非显而易见的规则
 
@@ -58,13 +65,13 @@ tick = measure_starts[measure] + numer * measure_len / denom
 | LNOBJ 下 ch51-69 | 与 LNOBJ 互斥（memo/10 未定义）；不丢弃，作为普通可见音符保留 |
 | 地雷 `damage: 1.0` | 已修复为实际伤害值（见 `MineEvent.damage`）|
 | `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
-| 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是 `BmsConverter` 方法，非自由函数 |
+| 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是内部 `BmsConverter`（私有）的方法，非自由函数 |
 
 ## Always / Ask / Never
 
 ### Always
 
-- 新事件类型在 `BmsConverter` 的 `collect_*` 方法中注册 + 在 `process` 中调用
+- 新事件类型在 `BmsConverter` 的 `collect_*` 方法中注册 + 在 `BmsProcessor::process` 中调用
 - 更新 `Event::tick()` match 表达式以包含新变体
 
 ### Ask

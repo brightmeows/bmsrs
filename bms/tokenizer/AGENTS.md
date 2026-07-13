@@ -65,7 +65,7 @@ let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 ### Always
 
 - 新增 header 时在对应 domain enum 加 `#[bms_token("...")]` 变体
-- 每新增一个 se 变体，检查是否需要 `From<T>` / `TryFrom<T>` 到 parent
+- 每新增一个子 enum 变体，检查是否需要 `From<T>` / `TryFrom<T>` 到 parent
 
 ### Ask
 

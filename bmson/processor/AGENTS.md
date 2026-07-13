@@ -3,6 +3,7 @@
 ## 定位
 
 `bmson_def::Bmson` (v2 root schema) → `Chart` 的转换处理器。
+入口为 `BmsonProcessor`（零大小类型），通过 `BmsonProcessor::process_default` / `process_nkeys` 暴露全部功能。
 通过 `BmsonLayout` 模式族解耦键位映射。
 
 ## 模式族

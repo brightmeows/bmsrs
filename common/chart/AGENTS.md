@@ -37,7 +37,7 @@ Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 ## 数据所有者
 
 模式族（mode families）**不在此定义**。每个格式处理器拥有自己的 `layout` 模块。
-`Chart` 不存储模式信息——音符已携带 `(PlayerSide, Lane)`。
+`Chart` 不存储模式信息——音符已携带 `(NoteSide, Lane)`。
 
 ## 非显而易见的规则
 
