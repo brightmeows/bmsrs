@@ -12,6 +12,7 @@
 
 | 方法 | 作用 |
 |------|------|
+| `Player::new(chart)` | 构造播放器，返回 `Result`（校验 `ChartData` 合法性）|
 | `advance(Duration)` | 前进播放游标 |
 | `seek(Duration)` | 跳到指定位置 |
 | `current_time() -> Duration` | 当前播放位置 |

@@ -17,7 +17,7 @@ bmson JSON 格式类型定义（v0/v1/v2）。
 
 ## 版本检测
 
-`detect_version()` → `DetectedVersion`（V0/V1/V2）——扫描 JSON `"version"` 字段。
+`DetectedVersion::detect(json)` → `DetectedVersion`（V0/V1/V2）——扫描 JSON `"version"` 字段。
 轻量实现，无需 `serde_json`。
 
 ## 依赖
