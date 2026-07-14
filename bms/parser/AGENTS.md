@@ -52,12 +52,16 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 | `finalize(base)` 参数 | 控制索引归一化：Base36 → 大写，Base62 → 保留原大小写 |
 | 事件索引均通过 `normalize(base)` | 确保与定义表的 key 大小写匹配 |
 | `"00"` 在不同通道语义不同 | note 通道 = 无音符（skip），BPM ch03 = 休止（skip），LN/ext 通道 = 有效值 |
+| 归一化契约（全 def 键统一） | `Timing`/`Visual`/`Gameplay` 的所有 `apply` 均接收 `base` 并对索引键 `normalize`（含 `ex_rank_defs`/`change_option_defs`）。`Gameplay::apply` 也已纳入此契约 |
+| `detected_base` 字段 | `Bms.detected_base` 由 `from_flat_tokens` 写入 `detect_base()` 结果（**首个** `#BASE` 胜出）。processor 查表归一化读此字段，与 `finalize` 同源。注意 `Gameplay.base` 是**最后胜出**，多 `#BASE` 文件二者分歧——以 `detected_base` 为准 |
+| `non_event_data` 不预归一化 | 非事件通道（opacity/ARGB/text/option/seek 等）的合并串原样存入 `NonEventData.data`，**不在 parser 归一化**——因值的进制语义与通道相关（hex vs base36 索引），归一化在 processor 解释时按通道进行（见 bms-processor AGENTS.md）。代价：processor 对这些串二次 `split_2char_values_lenient`（层边界所致，可接受）|
 
 ## Always / Ask / Never
 
 ### Always
 
-- 所有索引值（Wav/Bmp/Bpm/Stop/Scroll/Speed）通过 `normalize(base)` 创建
+- 所有索引值（Wav/Bmp/Bpm/Stop/Scroll/Speed/ExRank/ChangeOption）通过 `normalize(base)` 创建
+- `Timing`/`Visual`/`Gameplay` 的 `apply` 均接收 `base` 参数并对索引键归一化
 - 添加新事件类型时在 `Messages` 和 `lib.rs` re-export 中注册
 - 在 AGENTS.md 中记录新事件类型的通道/语义
 

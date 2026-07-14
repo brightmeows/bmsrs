@@ -517,6 +517,8 @@ fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> ChartInfo {
             BgaResource {
                 id: h.id as u32,
                 path: h.name.to_path_buf(),
+                // BMSON 无裁剪/放置概念（图片/视频统一为路径）。
+                crop: None,
             }
         })
         .collect();
@@ -542,6 +544,8 @@ fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> ChartInfo {
             .preview_music
             .map(|p| p.to_string_lossy().into_owned()),
         bga_resources,
+        // BMSON 无 #VIDEOFILE/#MOVIE 概念。
+        video: None,
     }
 }
 

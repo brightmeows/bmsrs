@@ -24,8 +24,10 @@ fn bga_resource_fields() {
     let r = BgaResource {
         id: 5,
         path: PathBuf::from("bg.png"),
+        crop: None,
     };
     assert_eq!(r.id, 5);
+    assert!(r.crop.is_none());
 }
 
 #[test]
