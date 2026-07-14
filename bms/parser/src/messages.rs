@@ -412,10 +412,10 @@ impl Messages {
         measure: u16,
         base: BmsBase,
     ) {
-        let merged = if lines.len() <= 1 {
-            lines.first().cloned().unwrap_or_default()
-        } else {
-            merge_channel(lines)
+        let merged = match lines {
+            [] => String::new(),
+            [line] => line.clone(),
+            _ => merge_channel(lines),
         };
         let objects = split_2char_values_lenient(&merged);
         let total_objects = objects.len() as u32;

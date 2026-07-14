@@ -198,19 +198,8 @@ impl TimingTrack {
     /// [`Event::priority`](crate::Event::priority) 中 `Bpm(2) < Stop(3)`
     /// 的子序约定一致。
     fn cached_events(&self) -> &[(u64, TimingEvent)] {
-        self.events_cache.get_or_init(|| {
-            let mut events: Vec<(u64, TimingEvent)> =
-                Vec::with_capacity(self.bpm_changes.len() + self.stops.len());
-            for bc in &self.bpm_changes {
-                events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
-            }
-            for st in &self.stops {
-                events.push((st.tick, TimingEvent::Stop(st.duration)));
-            }
-            // 按脉冲排序，再按 BPM（false）排在 Stop（true）之前。
-            events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
-            events
-        })
+        self.events_cache
+            .get_or_init(|| build_sorted_events(&self.bpm_changes, &self.stops))
     }
 
     /// 将脉冲位置换算为实际时间 [`Duration`]。
@@ -676,6 +665,23 @@ fn segment_bpm_at_tick(bpm_segments: &[BpmSegment], tick: u64) -> f64 {
     bpm_segments[idx].bpm
 }
 
+/// 合并 BPM 变更与停止事件，按 `(tick, is_stop)` 升序排序。
+///
+/// 同一脉冲上 BPM 排在 Stop 之前（"speed will first change, then the music pauses"）。
+fn build_sorted_events(bpm_changes: &[BpmChange], stops: &[StopEvent]) -> Vec<(u64, TimingEvent)> {
+    let mut events: Vec<_> = bpm_changes
+        .iter()
+        .map(|bc| (bc.tick, TimingEvent::Bpm(bc.bpm)))
+        .chain(
+            stops
+                .iter()
+                .map(|st| (st.tick, TimingEvent::Stop(st.duration))),
+        )
+        .collect();
+    events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
+    events
+}
+
 /// 构建 `duration_to_tick` 的逆查找段列表。
 ///
 /// 合并 BPM 变更与停止事件，按 `(tick, is_stop)` 升序遍历（与
@@ -691,15 +697,7 @@ fn build_inv(
 ) -> Vec<InvSeg> {
     let res_f = resolution as f64;
 
-    let mut events: Vec<(u64, TimingEvent)> = Vec::with_capacity(bpm_changes.len() + stops.len());
-    for bc in bpm_changes {
-        events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
-    }
-    for st in stops {
-        events.push((st.tick, TimingEvent::Stop(st.duration)));
-    }
-    events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
-
+    let events = build_sorted_events(bpm_changes, stops);
     let mut inv = Vec::with_capacity(events.len() * 2 + 1);
     let mut cur_tick = 0u64;
     let mut cur_sec = 0.0f64;

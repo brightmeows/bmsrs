@@ -10,7 +10,7 @@
 //! - **LNOBJ**：指定的 WAV 索引标记长音终点。长音起点为常规音符事件；
 //!   匹配的终点为同一 `(player, lane)` 上后续带有 `#LNOBJ` WAV 的音符。
 
-use std::collections::BTreeMap;
+use std::collections::{HashMap, HashSet};
 
 use bms_parser::{LongNoteEvent, NoteEvent};
 use bms_tokenizer::{LnObjIndex, WavIndex};
@@ -45,7 +45,7 @@ fn is_empty_index(idx: WavIndex) -> bool {
 /// 为下一个起点，依此类推。
 pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
     // 按 (player, lane) 分组，过滤掉 "00" 条目。
-    let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
+    let mut groups: HashMap<(u8, u8), Vec<&LongNoteEvent>> = HashMap::new();
     for ev in events {
         if is_empty_index(ev.wav_id) {
             continue;
@@ -57,7 +57,7 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
 
     for (&(player, lane), group) in &groups {
         let mut sorted = group.clone();
-        sorted.sort_by_key(|ev| (u32::from(ev.position.measure) * 1_000_000) + ev.position.numer);
+        sorted.sort_by_key(|ev| (ev.position.measure, ev.position.numer));
 
         // 以连续对消费事件：第一个 = 起点，第二个 = 终点。
         let mut iter = sorted.into_iter();
@@ -90,7 +90,7 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
 /// 4. 若分组结束时仍有活跃长音，将其丢弃（无配对终点 → 无长音）。
 pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
     // 按 (player, lane) 分组 —— 保留包括 "00" 在内的全部条目。
-    let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
+    let mut groups: HashMap<(u8, u8), Vec<&LongNoteEvent>> = HashMap::new();
     for ev in events {
         groups.entry((ev.player, ev.lane)).or_default().push(ev);
     }
@@ -99,7 +99,7 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
 
     for (&(player, lane), group) in &groups {
         let mut sorted = group.clone();
-        sorted.sort_by_key(|ev| (u32::from(ev.position.measure) * 1_000_000) + ev.position.numer);
+        sorted.sort_by_key(|ev| (ev.position.measure, ev.position.numer));
 
         let mut in_ln = false;
         let mut start_ev: Option<&LongNoteEvent> = None;
@@ -147,11 +147,11 @@ pub fn pair_lnobj(
     note_events: &[NoteEvent],
     ln_obj: LnObjIndex,
     table: &MeasureTable,
-) -> (Vec<PairedLn>, std::collections::BTreeSet<usize>) {
+) -> (Vec<PairedLn>, HashSet<usize>) {
     // 按 (player, lane) 索引音符以查找前导音符。
-    let mut last_by_lane: BTreeMap<(u8, u8), (usize, &NoteEvent)> = BTreeMap::new();
+    let mut last_by_lane: HashMap<(u8, u8), (usize, &NoteEvent)> = HashMap::new();
     let mut paired = Vec::new();
-    let mut consumed = std::collections::BTreeSet::new();
+    let mut consumed = HashSet::new();
 
     for (i, ev) in note_events.iter().enumerate() {
         // 比较底层 BmsIndex 值（标准 BMS 中不区分大小写）。

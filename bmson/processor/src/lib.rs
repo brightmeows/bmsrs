@@ -23,7 +23,7 @@ mod slice;
 
 pub mod layout;
 
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -128,9 +128,7 @@ impl BmsonProcessor {
                 Self::process::<Pms>(bmson)
             }
             bmson_def::ModeHint::Generic(n) => {
-                let keys = u16::try_from(n)
-                    .ok()
-                    .ok_or(ProcessError::InvalidKeyCount(n))?;
+                let keys = u16::try_from(n).map_err(|_e| ProcessError::InvalidKeyCount(n))?;
                 if keys == 0 {
                     return Err(ProcessError::InvalidKeyCount(n));
                 }
@@ -318,7 +316,7 @@ impl BmsonConverter<'_> {
         for channel in &self.bmson.chart_data.sound_channels {
             let sliced = slice_channel(channel, &self.timing);
 
-            let channel_playable: BTreeSet<u64> = channel
+            let channel_playable: HashSet<u64> = channel
                 .note_events
                 .iter()
                 .filter_map(|ne| if ne.is_bgm() { None } else { Some(ne.y) })

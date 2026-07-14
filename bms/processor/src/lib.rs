@@ -32,7 +32,7 @@ mod position;
 
 pub mod layout;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -203,19 +203,19 @@ struct BmsConverter<'a> {
 
 impl BmsConverter<'_> {
     /// 判定 LN 模式并配对长音。返回配对后的长音与已消耗的音符索引。
-    fn pair_long_notes(&self) -> (Vec<PairedLn>, BTreeSet<usize>) {
+    fn pair_long_notes(&self) -> (Vec<PairedLn>, HashSet<usize>) {
         if let Some(ln_obj) = self.bms.gameplay.ln_obj {
             return pair_lnobj(&self.bms.messages.note_events, ln_obj, self.table);
         }
         if self.bms.gameplay.ln_type == Some(bms_tokenizer::LnType::Type2) {
             return (
                 pair_lntype2(&self.bms.messages.long_note_events, self.table),
-                BTreeSet::new(),
+                HashSet::new(),
             );
         }
         (
             pair_lntype1(&self.bms.messages.long_note_events, self.table),
-            BTreeSet::new(),
+            HashSet::new(),
         )
     }
 
@@ -236,7 +236,7 @@ impl BmsConverter<'_> {
         &mut self,
         wav_map: &BTreeMap<WavIndex, u32>,
         paired_lns: &[PairedLn],
-        consumed: &BTreeSet<usize>,
+        consumed: &HashSet<usize>,
     ) {
         let push_note =
             |tick: u64, side, lane, kind: NoteKind, audio: Option<u32>, ev: &mut Vec<BmsEvent>| {
@@ -350,7 +350,7 @@ impl BmsConverter<'_> {
     /// 终点标记经过判定线时，其 WAV 文件作为 BGM 播放。此函数遍历
     /// [`pair_lnobj`] 返回的 `consumed` 音符索引，为每个终点标记生成一个
     /// BGM 事件。
-    fn collect_lnobj_bgm(&mut self, wav_map: &BTreeMap<WavIndex, u32>, consumed: &BTreeSet<usize>) {
+    fn collect_lnobj_bgm(&mut self, wav_map: &BTreeMap<WavIndex, u32>, consumed: &HashSet<usize>) {
         let Some(ln_obj) = self.bms.gameplay.ln_obj else {
             return;
         };
@@ -642,14 +642,13 @@ impl BmsConverter<'_> {
                 });
 
             // 路径：有裁剪定义时取源 BMP（#BGA 优先），否则取 #BMP 自身。
-            let resolved = match crop_def {
+            let (crop, path_opt) = match crop_def {
                 Some((crop, source_index)) => (
                     Some(crop),
                     resolve_bmp_path(&visual.bmp_files, source_index).cloned(),
                 ),
                 None => (None, visual.bmp_files.get(&id).cloned()),
             };
-            let (crop, path_opt) = resolved;
 
             let Some(path) = path_opt else {
                 continue;

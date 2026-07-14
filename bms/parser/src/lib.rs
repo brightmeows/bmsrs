@@ -181,12 +181,16 @@ impl Bms {
 ///
 /// 当未找到 `#BASE` 头部命令时，默认为 [`BmsBase::Base36`]。
 fn detect_base<C: AsRef<str>>(tokens: &[BmsToken<C>]) -> BmsBase {
-    for token in tokens {
-        if let BmsToken::Header(BmsHeader::Gameplay(BmsHeaderGameplay::Base(b))) = token {
-            return *b;
-        }
-    }
-    BmsBase::Base36
+    tokens
+        .iter()
+        .find_map(|token| {
+            if let BmsToken::Header(BmsHeader::Gameplay(BmsHeaderGameplay::Base(b))) = token {
+                Some(*b)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(BmsBase::Base36)
 }
 
 // 测试 —— 仅保留内部（非公开 API）测试在此。
