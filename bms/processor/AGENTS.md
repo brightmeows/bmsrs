@@ -16,6 +16,11 @@
 | 显示元数据 | `BmsHeaderDisplay` | `ChartInfo` | `#BANNER`/`#BACKBMP`/`#STAGEFILE`/`#PREVIEW` ∊ `build_metadata` |
 | SCROLL | `ScrollEvent` | `Event::Scroll` | 卷轴速度倍率 |
 | SPEED | `SpeedEvent` | `Event::Speed` | 视觉间距关键帧，线性插值 |
+| 长音模式提示 | `#LNMODE` | `LnTypeHint` | 1:1 映射 Ln/Cn/Hcn（`ln_type_hint` 方法）|
+| BGA 裁剪 | `#BGA`/`#@BGA` | `BgaResource.crop` | `build_bmp_map` 合并三命名空间；`#@BGA`(w/h) 归一为右下角 |
+| 视频资源 | `#VIDEOFILE`/`#MOVIE` | `ChartInfo.video` | `#VIDEOFILE` 循环优先于 `#MOVIE` 单次；附 `#VIDEOf/s`/`#VIDEOCOLORS`/`#VIDEODLY` |
+| 视频 SEEK | `#SEEK` 定义 + ch 05 | `BmsCustomEvent::VideoSeek` | 查 `seek_defs` 取毫秒（非 base36 原值）；未定义 id 跳过 |
+| `non_event_data` 查表归一化 | `NonEventData.data` | `BmsCustomEvent` | ARGB/KeyBound/Option 查表前对 key `normalize(base)`，与 def 键归一化对齐 |
 
 ## 长音模式（自动检测）
 
@@ -60,12 +65,28 @@ tick = measure_starts[measure] + numer * measure_len / denom
 | 规则 | 说明 |
 |------|------|
 | 默认 BPM 130 | 符合 BMS 规范，非 `0.0` |
-| 事件排序 | Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) |
+| 事件排序 | Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) → Custom(6) |
 | LNOBJ 终点 BGM | 终点标记过判定线时播放定义的 WAV |
 | LNOBJ 下 ch51-69 | 与 LNOBJ 互斥（memo/10 未定义）；不丢弃，作为普通可见音符保留 |
-| 地雷 `damage: 1.0` | 已修复为实际伤害值（见 `MineEvent.damage`）|
+| 地雷 `damage` | 取实际伤害值（见 `MineEvent.damage`）|
 | `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
 | 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是内部 `BmsConverter`（私有）的方法，非自由函数 |
+| `BmsConverter.base` | 读 `bms.detected_base`（与 parser `finalize` 同源），用于 `non_event_data` 查表键归一化。勿用 `gameplay.base`（最后胜出，多 `#BASE` 分歧）|
+| `bpm_at_tick` 重复 | processor 自带二分（用于 STP→tick），与 chart `TimingCache` 同构。STP 换算需先于 `TimingTrack` 构造（先有鸡先有蛋），可接受 |
+| BGA 裁剪源路径 | `#BGA`/`#@BGA` 的 `bmp_index` 为十进制源编号，经 base36 数值匹配 `bmp_files` 键（如 `"01"`→1）。源路径不可解析的裁剪 id 被跳过 |
+
+## Deliberate 延迟（解析了但不在此转换）
+
+下列字段由 parser 解析存入 `Bms`，但 processor **有意不**转换到 `Chart`——
+其语义属引擎特定判定/血量逻辑，归 player 层。`Chart` 对应槽位保留默认值。
+
+| 字段 | 来源 | 延迟原因 |
+|------|------|----------|
+| `gameplay.rank` | `#RANK` | RANK→判定窗口倍率的换算引擎特定（beatoraja≠LR2），不属 processor |
+| `gameplay.def_ex_rank` | `#DEFEXRANK` | 同上，精细判定难度 |
+| `gameplay.total` | `#TOTAL` | 血槽最大增量，血量逻辑归 player |
+| `gameplay.vol_wav` | `#VOLWAV` | 主音量，播放/混音归 player |
+| `gameplay.ex_rank_defs` | `#EXRANKxx` | 已解析但 A0 通道当前直传 base36 值（`JudgeOverride.rank`），未查此表——逐位置判定覆盖需配合上述判定系统整体设计，**已知未闭合** |
 
 ## Always / Ask / Never
 
