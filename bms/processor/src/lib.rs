@@ -42,9 +42,9 @@ use bms_tokenizer::{
     BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, LnMode, SeekIndex, WavIndex,
 };
 use bmsrs_chart::{
-    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, CropRect, Damage, Event,
-    EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent, TimingTrack,
-    VideoAsset,
+    AudioAsset, BgaResource, BpmChange, BpmLookup, Chart, ChartData, ChartInfo, CropRect, Damage,
+    Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent,
+    TimingTrack, VideoAsset,
 };
 use thiserror::Error;
 
@@ -99,9 +99,10 @@ impl BmsProcessor {
 
         let (wav_map, audio_assets) = build_audio_assets(&bms.audio.wav_files);
         let bpm_changes = conv.build_bpm_changes();
+        let bpm_lookup = BpmLookup::new(init_bpm, &bpm_changes);
 
         let mut stops = conv.build_stops_from_defs();
-        stops.extend(conv.build_stops_from_stp(&bpm_changes, init_bpm));
+        stops.extend(conv.build_stops_from_stp(&bpm_lookup));
         stops.sort_by_key(|s| s.tick);
 
         let timing = TimingTrack::new(init_bpm, bpm_changes, stops)
@@ -703,14 +704,14 @@ impl BmsConverter<'_> {
     #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    fn build_stops_from_stp(&self, bpm_changes: &[BpmChange], init_bpm: f64) -> Vec<StopEvent> {
+    fn build_stops_from_stp(&self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
         self.bms
             .messages
             .stp_events
             .iter()
             .map(|stp| {
                 let tick = self.table.position_to_tick(stp.position);
-                let bpm = bpm_at_tick(bpm_changes, init_bpm, tick);
+                let bpm = bpm_lookup.bpm_at_tick(tick);
                 let tick_duration = stp.duration_ms / 1000.0 * bpm / 60.0 * RESOLUTION as f64;
                 StopEvent {
                     tick,
@@ -875,22 +876,6 @@ fn resolve_bmp_path(bmp_files: &BTreeMap<BmpIndex, String>, bmp_index: u16) -> O
     bmp_files
         .iter()
         .find_map(|(k, v)| (k.to_index() == Some(bmp_index)).then_some(v))
-}
-
-/// 查找给定脉冲处生效的 BPM（不晚于 `tick` 的最后一次 BPM 变更）。
-///
-/// `bpm_changes` 必须按 `tick` 升序排列（由
-/// [`BmsConverter::build_bpm_changes`] 保证）。与 `bmsrs_player::TimingCache`
-/// 的二分查找采用同一前提。
-#[expect(
-    clippy::indexing_slicing,
-    reason = "idx ≥ 1 由 match 分支保证，idx-1 必在界内"
-)]
-fn bpm_at_tick(bpm_changes: &[BpmChange], init_bpm: f64, tick: u64) -> f64 {
-    match bpm_changes.partition_point(|bc| bc.tick <= tick) {
-        0 => init_bpm,
-        idx => bpm_changes[idx - 1].bpm,
-    }
 }
 
 /// 从预计算的小节脉冲表构建对齐的小节事件。

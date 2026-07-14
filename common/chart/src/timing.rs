@@ -621,6 +621,49 @@ impl TimingCache {
     }
 }
 
+/// 在给定脉冲处快速查询生效 BPM 的轻量查找器。
+///
+/// 适用于需在构造 [`TimingTrack`] 之前查询 BPM 的场景（例如将 STP 毫秒
+/// 换算为脉冲），以及任何无须完整计时轨的一次性/低频查询。
+///
+/// 与 [`TimingCache::bpm_at_tick`] 语义一致，但无需预建 `TimingCache`。
+#[derive(Clone, Debug)]
+pub struct BpmLookup<'a> {
+    /// 脉冲 0 处的初始 BPM。
+    init_bpm: f64,
+    /// BPM 变更事件，按 `tick` 升序排列。
+    bpm_changes: &'a [BpmChange],
+}
+
+impl BpmLookup<'_> {
+    /// 构造 `BpmLookup`。
+    ///
+    /// `bpm_changes` 必须按 `tick` 升序排列（由调用方保证；
+    /// [`BpmChange`] 本身无排序不变量）。
+    #[must_use]
+    pub const fn new(init_bpm: f64, bpm_changes: &[BpmChange]) -> BpmLookup<'_> {
+        BpmLookup {
+            init_bpm,
+            bpm_changes,
+        }
+    }
+
+    /// 返回 `tick` 处生效的 BPM（不晚于 `tick` 的最后一次 BPM 变更）。
+    ///
+    /// 当 `tick` 早于所有 BPM 变更时返回构造时传入的 `init_bpm`。
+    #[must_use]
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "idx ≥ 1 由 match 分支保证，idx-1 必在界内"
+    )]
+    pub fn bpm_at_tick(&self, tick: u64) -> f64 {
+        match self.bpm_changes.partition_point(|bc| bc.tick <= tick) {
+            0 => self.init_bpm,
+            idx => self.bpm_changes[idx - 1].bpm,
+        }
+    }
+}
+
 /// 二分查找 BPM 段，返回 `tick` 处生效的 BPM。
 #[expect(
     clippy::indexing_slicing,

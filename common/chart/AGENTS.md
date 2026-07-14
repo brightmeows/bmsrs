@@ -39,6 +39,16 @@ Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 模式族（mode families）**不在此定义**。每个格式处理器拥有自己的 `layout` 模块。
 `Chart` 不存储模式信息——音符已携带 `(NoteSide, Lane)`。
 
+## BPM 查询
+
+| 类型 | 方法 | 用途 |
+|------|------|------|
+| [`BpmLookup`] | `new(init_bpm, &[BpmChange])` | 在构造 [`TimingTrack`] 前查询 BPM（例如 STP 毫秒→脉冲换算），无须完整计时轨 |
+| [`BpmLookup`] | `bpm_at_tick(tick) → f64` | 给定脉冲处生效的 BPM（二分查找） |
+| [`TimingCache`] | `bpm_at_tick(tick) → f64` | 语义等价，但需预建 `TimingCache` |
+
+`BpmLookup::bpm_at_tick` 与 `TimingCache::bpm_at_tick` 语义一致，前者无须预建 `TimingCache`。
+
 ## 非显而易见的规则
 
 | 规则 | 说明 |
