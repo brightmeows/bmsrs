@@ -37,9 +37,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bms_parser::{Bms, BpmValue, KeyType, split_2char_values_lenient};
+use bms_parser::{Bms, BpmValue, KeyType};
 use bms_tokenizer::{
-    BmpIndex, BmsBase, BmsChannel as RawChannel, ChangeOptionIndex, LnMode, SeekIndex, WavIndex,
+    BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, LnMode, SeekIndex, WavIndex,
 };
 use bmsrs_chart::{
     AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, CropRect, Damage, Event,
@@ -95,7 +95,6 @@ impl BmsProcessor {
             bms,
             table: &table,
             events: Vec::with_capacity(1024),
-            base: bms.detected_base,
         };
 
         let (wav_map, audio_assets) = build_audio_assets(&bms.audio.wav_files);
@@ -197,11 +196,6 @@ struct BmsConverter<'a> {
     table: &'a MeasureTable,
     /// 正在构建的事件向量，最终由 [`BmsProcessor::process`] 提取。
     events: Vec<BmsEvent>,
-    /// `#BASE` 检测到的进制基数（与 parser `finalize` 同源）。
-    ///
-    /// 用于 `non_event_data` 查表键的归一化——这些通道的值在 parser 层
-    /// 不预归一化（值语义与通道相关），故在 processor 解释时归一化。
-    base: BmsBase,
 }
 
 impl BmsConverter<'_> {
@@ -409,8 +403,11 @@ impl BmsConverter<'_> {
 
     /// 收集 BMS 引擎特定自定义事件。
     ///
-    /// 从 [`Messages::non_event_data`] 读取由 parser 合并但未转换的通道数据，
+    /// 从 [`Messages::non_event_data`] 读取由 parser 合并且已归一化的通道数据，
     /// 转换为 [`EventKind::Custom`] 变体。每个非 `"00"` 值产生一个事件。
+    ///
+    /// **归一化保证**：parser 层已按 `detected_base` 完成所有索引归一化，
+    /// 此处查表无需再次归一化（消除了此前 F1/F2 标记的重复归一化）。
     #[expect(
         clippy::cast_possible_truncation,
         reason = "channel values are single-byte bounded (0-255) or u32 resource indices"
@@ -442,18 +439,18 @@ impl BmsConverter<'_> {
         };
 
         for item in non_event {
-            let objects = split_2char_values_lenient(&item.data);
-            let total = objects.len() as u32;
+            let total = item.values.len() as u32;
             if total == 0 {
                 continue;
             }
 
-            for (i, obj) in objects.iter().enumerate() {
-                if *obj == "00" {
+            for (i, obj) in item.values.iter().enumerate() {
+                if obj == "00" {
                     continue;
                 }
                 // 值通道（0B-0E, 97, 98）使用十六进制（01-FF）；
                 // 索引通道（99, A0, A1-A5, A6, 05）使用 Base36 索引。
+                // 所有值已在 parser 层按 base 归一化，查表无需再次归一化。
                 let tick = self.table.position_to_tick(bms_parser::Position::new(
                     item.measure,
                     i as u32,
@@ -480,11 +477,9 @@ impl BmsConverter<'_> {
                         let Some(layer) = layer_of(item.channel) else {
                             continue;
                         };
-                        let Some((a, r, g, b)) = bms_tokenizer::BmpIndex::try_from(*obj)
+                        // 值已归一化，直接查表。
+                        let Some((a, r, g, b)) = BmpIndex::try_from(obj.as_str())
                             .ok()
-                            // 归一化查表键：parser 对 def 键已归一化（visual.rs），
-                            // 但 non_event_data 保留原始值，须在此补齐（F1）。
-                            .map(|idx| BmpIndex::from(idx.normalize(self.base)))
                             .and_then(|idx| self.bms.visual.argb_defs.get(&idx).cloned())
                             .map(|p| (p.a, p.r, p.g, p.b))
                         else {
@@ -493,12 +488,9 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::BgaArgb { layer, a, r, g, b }
                     }
                     RawChannel::BgaKeyBound => {
-                        // 与 collect_bga 一致：经 bmp_map 查表得到 0 基枚举 id，
-                        // 而非直接使用 base36 原值，使 resource_id 可在 bga_resources 中查到。
-                        // 查表键须归一化（bmp_files 键已归一化，F1）。
-                        let Some(resource_id) = bms_tokenizer::BmpIndex::try_from(*obj)
+                        // 值已归一化，直接查 bmp_map。
+                        let Some(resource_id) = BmpIndex::try_from(obj.as_str())
                             .ok()
-                            .map(|idx| BmpIndex::from(idx.normalize(self.base)))
                             .and_then(|idx| bmp_map.get(&idx).map(|e| e.resource_id))
                         else {
                             continue;
@@ -517,11 +509,10 @@ impl BmsConverter<'_> {
                     }
                     RawChannel::Option => {
                         let option_id = u64::from_str_radix(obj, 36).unwrap_or(0);
-                        // 查表键须归一化（change_option_defs 键已归一化，F1+F2）。
-                        let value = bms_tokenizer::ChangeOptionIndex::try_from(*obj)
-                            .ok()
-                            .map(|idx| ChangeOptionIndex::from(idx.normalize(self.base)))
-                            .and_then(|idx| self.bms.gameplay.change_option_defs.get(&idx).cloned())
+                        // 值已归一化，直接查 change_option_defs（F1+F2 已在 parser 解决）。
+                        let opt_idx = ChangeOptionIndex::try_from(obj.as_str()).ok();
+                        let value = opt_idx
+                            .and_then(|id| self.bms.gameplay.change_option_defs.get(&id).cloned())
                             .unwrap_or_default();
                         BmsCustomEvent::OptionChange { option_id, value }
                     }
@@ -538,11 +529,9 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::KeyVolume { volume }
                     }
                     RawChannel::Seek => {
-                        // 查 seek_defs 取毫秒值（f64）；查不到则跳过（C4）。
-                        // seek_defs: BTreeMap<SeekIndex, f64>。
-                        let Some(ms) = bms_tokenizer::SeekIndex::try_from(*obj)
+                        // 值已归一化，直接查 seek_defs。
+                        let Some(ms) = SeekIndex::try_from(obj.as_str())
                             .ok()
-                            .map(|idx| SeekIndex::from(idx.normalize(self.base)))
                             .and_then(|idx| self.bms.visual.seek_defs.get(&idx).copied())
                         else {
                             continue;

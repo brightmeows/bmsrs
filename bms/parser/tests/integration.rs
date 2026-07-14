@@ -633,7 +633,7 @@ fn non_event_data_multi_channel_preserves_all() {
         .messages
         .non_event_data
         .iter()
-        .find(|d| d.data == "11223344");
+        .find(|d| d.values.join("") == "11223344");
     assert!(opacity.is_some());
     assert_eq!(opacity.unwrap().measure, 1);
     // BgmVolume 条目
@@ -641,7 +641,7 @@ fn non_event_data_multi_channel_preserves_all() {
         .messages
         .non_event_data
         .iter()
-        .find(|d| d.data == "AABB");
+        .find(|d| d.values.join("") == "AABB");
     assert!(volume.is_some());
     assert_eq!(volume.unwrap().measure, 1);
 }
@@ -653,10 +653,10 @@ fn non_event_data_cross_measure_preserves_all() {
     assert_eq!(bms.messages.non_event_data.len(), 2);
     let m1 = bms.messages.non_event_data.iter().find(|d| d.measure == 1);
     assert!(m1.is_some());
-    assert_eq!(m1.unwrap().data, "1122");
+    assert_eq!(m1.unwrap().values.join(""), "1122");
     let m2 = bms.messages.non_event_data.iter().find(|d| d.measure == 2);
     assert!(m2.is_some());
-    assert_eq!(m2.unwrap().data, "3344");
+    assert_eq!(m2.unwrap().values.join(""), "3344");
 }
 
 /// `non_event_data` 在 `Bms::from_flat_tokens` 后正确填充。
@@ -668,7 +668,7 @@ fn non_event_data_populated_after_parse() {
     // 验证 BgaBaseOpacity (ch 0B) 的数据
     let entry = &bms.messages.non_event_data[0];
     assert_eq!(entry.measure, 1);
-    assert_eq!(entry.data, "0102");
+    assert_eq!(entry.values.join(""), "0102");
 }
 
 // F5: merge_channel 不同分辨率集成测试

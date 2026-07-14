@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    BmpIndex, BmsBase, BmsChannel, BpmIndex, ScrollIndex, SpeedIndex, StopIndex, WavIndex,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ScrollIndex, SpeedIndex, StopIndex, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -230,14 +230,18 @@ pub struct StpEvent {
 ///
 /// 由最终化阶段在匹配到非事件通道时填充，处理器（`bms-processor`）
 /// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+///
+/// **归一化保证**：`values` 中的每个 2-char 索引已按 `base` 归一化
+/// （Base36 模式下大写，Base62 模式下保留原始大小写）。
+/// 处理器查表时无需再次归一化。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NonEventData {
     /// 小节号。
     pub measure: u16,
     /// 通道类型。
     pub channel: BmsChannel,
-    /// 合并后的通道值字符串。
-    pub data: String,
+    /// 已按 `base` 归一化的 2-char 值列表（`"00"` 保留以供位置计算）。
+    pub values: Vec<String>,
 }
 
 // 消息容器
@@ -279,9 +283,11 @@ pub struct Messages {
 
     /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
     ///
-    /// 每个条目包含小节号、通道类型与合并后的通道值字符串，由
+    /// 每个条目包含小节号、通道类型与已归一化的单值列表，由
     /// `finalize_merged` 在匹配到非事件通道时填充。处理器（`bms-processor`）
     /// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+    /// 所有 2-char 索引值已按 `base` 归一化。
+    ///
     pub non_event_data: Vec<NonEventData>,
 }
 
@@ -439,7 +445,8 @@ impl Messages {
                     self.dispatch_note_channel(&merged, measure, ch, total_objects, base);
                 }
             }
-            // 非事件通道 —— 保留合并数据供处理器转换为 BmsCustomEvent。
+            // 非事件通道 —— 保留已归一化的数据供处理器转换为 BmsCustomEvent。
+            // 所有 2-char 值在此按 base 归一化，消除 processor 的重复归一化（F1）。
             BmsChannel::BgaBaseOpacity
             | BmsChannel::BgaLayerOpacity
             | BmsChannel::BgaLayer2Opacity
@@ -456,11 +463,11 @@ impl Messages {
             | BmsChannel::Seek
             | BmsChannel::Option
             | BmsChannel::Unknown(_) => {
-                // 保留合并后的字符串以供处理器延迟解析。
+                let values = normalize_merged_values(&merged, base);
                 self.non_event_data.push(NonEventData {
                     measure,
                     channel,
-                    data: merged,
+                    values,
                 });
             }
             // BGM 与 MeasureLength 在此不可达（已在 finalize_channel
@@ -530,6 +537,23 @@ pub fn merge_channel(lines: &[String]) -> String {
     }
 
     result.concat()
+}
+
+/// 将合并后的通道值字符串按 `base` 归一化为 2-char 值列表。
+///
+/// 每个通过 [`split_2char_values_lenient`] 解析出的 2-char 块
+/// 都经 [`BmsIndex::normalize`] 按指定进制归一化。
+/// 结果向量中的每个字符串长度恰好为 2（`"00"` 也会归一化，结果不变）。
+fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<String> {
+    split_2char_values_lenient(merged)
+        .iter()
+        .map(|chunk| {
+            BmsIndex::try_from(*chunk).map_or_else(
+                |_| (*chunk).to_owned(),
+                |idx| idx.normalize(base).to_string(),
+            )
+        })
+        .collect()
 }
 
 // 内部解析辅助函数
