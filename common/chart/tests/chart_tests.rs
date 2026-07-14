@@ -390,9 +390,11 @@ fn bga_resource_construction() {
     let res = BgaResource {
         id: 1,
         path: "bg.png".into(),
+        crop: None,
     };
     assert_eq!(res.id, 1);
     assert_eq!(res.path.to_string_lossy(), "bg.png");
+    assert!(res.crop.is_none());
 }
 
 // NoteExt

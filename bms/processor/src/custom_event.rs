@@ -84,7 +84,7 @@ pub enum BmsCustomEvent {
     },
     /// 视频定位（通道 `05` / `#SEEK`）。
     VideoSeek {
-        /// 视频目标位置。
+        /// 视频目标位置（毫秒，源自 `#SEEK` 定义表；未定义的 id 被跳过）。
         position: u64,
     },
 }

@@ -38,10 +38,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bms_parser::{Bms, BpmValue, KeyType, split_2char_values_lenient};
-use bms_tokenizer::{BmpIndex, BmsChannel as RawChannel, WavIndex};
+use bms_tokenizer::{
+    BmpIndex, BmsBase, BmsChannel as RawChannel, ChangeOptionIndex, LnMode, SeekIndex, WavIndex,
+};
 use bmsrs_chart::{
-    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event, EventKind,
-    LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent, TimingTrack,
+    AudioAsset, BgaResource, BpmChange, Chart, ChartData, ChartInfo, CropRect, Damage, Event,
+    EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent, TimingTrack,
+    VideoAsset,
 };
 use thiserror::Error;
 
@@ -92,6 +95,7 @@ impl BmsProcessor {
             bms,
             table: &table,
             events: Vec::with_capacity(1024),
+            base: bms.detected_base,
         };
 
         let (wav_map, audio_assets) = build_audio_assets(&bms.audio.wav_files);
@@ -104,7 +108,7 @@ impl BmsProcessor {
         let timing = TimingTrack::new(init_bpm, bpm_changes, stops)
             .map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
 
-        let bmp_map = build_bmp_map(&bms.visual.bmp_files);
+        let bmp_map = conv.build_bmp_map();
 
         let (paired_lns, consumed) = conv.pair_long_notes();
 
@@ -142,6 +146,7 @@ impl BmsProcessor {
         conv.events.sort_by_key(BmsEvent::sort_key);
 
         let (song, chart_info) = conv.build_metadata(&bmp_map);
+        let ln_type_hint = conv.ln_type_hint();
         let events = conv.events;
 
         Ok(Chart {
@@ -152,7 +157,7 @@ impl BmsProcessor {
                 timing,
                 judge_multiplier: 1.0,
                 life_multiplier: 1.0,
-                ln_type_hint: LnTypeHint::default(),
+                ln_type_hint,
                 ln_judge_hint: LnJudgeHint::default(),
                 ln_life_hint: LnLifeHint::default(),
                 judge_deltas: None,
@@ -192,6 +197,11 @@ struct BmsConverter<'a> {
     table: &'a MeasureTable,
     /// 正在构建的事件向量，最终由 [`BmsProcessor::process`] 提取。
     events: Vec<BmsEvent>,
+    /// `#BASE` 检测到的进制基数（与 parser `finalize` 同源）。
+    ///
+    /// 用于 `non_event_data` 查表键的归一化——这些通道的值在 parser 层
+    /// 不预归一化（值语义与通道相关），故在 processor 解释时归一化。
+    base: BmsBase,
 }
 
 impl BmsConverter<'_> {
@@ -212,6 +222,18 @@ impl BmsConverter<'_> {
         )
     }
 
+    /// 由 `#LNMODE` 头部推导谱面级长音类型提示。
+    ///
+    /// `LnMode{Ln,Cn,Hcn}` 与 `LnTypeHint{Ln,Cn,Hcn}` 是 1:1 同构枚举。
+    /// `None`（未声明 `#LNMODE`）映射为 [`LnTypeHint::Ln`]，与原
+    /// `LnTypeHint::default()` 一致但语义显式。
+    const fn ln_type_hint(&self) -> LnTypeHint {
+        match self.bms.gameplay.ln_mode {
+            Some(LnMode::Ln) | None => LnTypeHint::Ln,
+            Some(LnMode::Cn) => LnTypeHint::Cn,
+            Some(LnMode::Hcn) => LnTypeHint::Hcn,
+        }
+    }
     /// 收集全部可玩音符到事件向量中。
     fn collect_notes<L: BmsLayout>(
         &mut self,
@@ -397,7 +419,7 @@ impl BmsConverter<'_> {
         clippy::too_many_lines,
         reason = "single structured match on channel variant with short branches; extraction would lose clarity"
     )]
-    fn collect_custom_events(&mut self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>) {
+    fn collect_custom_events(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
         let non_event = &self.bms.messages.non_event_data;
 
         // BGA 图层映射（通道 → 图层）。
@@ -460,6 +482,9 @@ impl BmsConverter<'_> {
                         };
                         let Some((a, r, g, b)) = bms_tokenizer::BmpIndex::try_from(*obj)
                             .ok()
+                            // 归一化查表键：parser 对 def 键已归一化（visual.rs），
+                            // 但 non_event_data 保留原始值，须在此补齐（F1）。
+                            .map(|idx| BmpIndex::from(idx.normalize(self.base)))
                             .and_then(|idx| self.bms.visual.argb_defs.get(&idx).cloned())
                             .map(|p| (p.a, p.r, p.g, p.b))
                         else {
@@ -470,9 +495,11 @@ impl BmsConverter<'_> {
                     RawChannel::BgaKeyBound => {
                         // 与 collect_bga 一致：经 bmp_map 查表得到 0 基枚举 id，
                         // 而非直接使用 base36 原值，使 resource_id 可在 bga_resources 中查到。
-                        let Some(&(resource_id, _)) = bms_tokenizer::BmpIndex::try_from(*obj)
+                        // 查表键须归一化（bmp_files 键已归一化，F1）。
+                        let Some(resource_id) = bms_tokenizer::BmpIndex::try_from(*obj)
                             .ok()
-                            .and_then(|idx| bmp_map.get(&idx))
+                            .map(|idx| BmpIndex::from(idx.normalize(self.base)))
+                            .and_then(|idx| bmp_map.get(&idx).map(|e| e.resource_id))
                         else {
                             continue;
                         };
@@ -490,8 +517,10 @@ impl BmsConverter<'_> {
                     }
                     RawChannel::Option => {
                         let option_id = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        // 查表键须归一化（change_option_defs 键已归一化，F1+F2）。
                         let value = bms_tokenizer::ChangeOptionIndex::try_from(*obj)
                             .ok()
+                            .map(|idx| ChangeOptionIndex::from(idx.normalize(self.base)))
                             .and_then(|idx| self.bms.gameplay.change_option_defs.get(&idx).cloned())
                             .unwrap_or_default();
                         BmsCustomEvent::OptionChange { option_id, value }
@@ -509,8 +538,24 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::KeyVolume { volume }
                     }
                     RawChannel::Seek => {
-                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
-                        BmsCustomEvent::VideoSeek { position: index }
+                        // 查 seek_defs 取毫秒值（f64）；查不到则跳过（C4）。
+                        // seek_defs: BTreeMap<SeekIndex, f64>。
+                        let Some(ms) = bms_tokenizer::SeekIndex::try_from(*obj)
+                            .ok()
+                            .map(|idx| SeekIndex::from(idx.normalize(self.base)))
+                            .and_then(|idx| self.bms.visual.seek_defs.get(&idx).copied())
+                        else {
+                            continue;
+                        };
+                        // VideoSeek.position 为 u64（BmsCustomEvent 派生 Eq）；
+                        // 毫秒语义非负，钳位后转换。
+                        #[expect(
+                            clippy::cast_sign_loss,
+                            reason = "clamped to non-negative before cast"
+                        )]
+                        #[expect(clippy::cast_possible_truncation, reason = "seek ms fits in u64")]
+                        let position = ms.max(0.0).round() as u64;
+                        BmsCustomEvent::VideoSeek { position }
                     }
                     _ => continue,
                 };
@@ -521,14 +566,14 @@ impl BmsConverter<'_> {
     }
 
     /// 从 BGA 事件与 BMP 文件定义构建 BGA 事件。
-    fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>) {
+    fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
         for be in &self.bms.messages.bga_events {
-            if let Some(&(resource_id, _)) = bmp_map.get(&be.bmp_id) {
+            if let Some(entry) = bmp_map.get(&be.bmp_id) {
                 self.events.push(Event::new(
                     self.table.position_to_tick(be.position),
                     EventKind::Bga {
                         layer: be.layer,
-                        resource_id,
+                        resource_id: entry.resource_id,
                     },
                 ));
             }
@@ -546,6 +591,89 @@ impl BmsConverter<'_> {
                 bpm: self.resolve_bpm(bc.value),
             })
             .collect()
+    }
+
+    /// 构建 BMP 索引到 [`BmpEntry`]（稠密 id + 路径 + 可选裁剪）的映射。
+    ///
+    /// 合并 `#BMP`、`#BGA`、`#@BGA` 三个命名空间的键：
+    ///
+    /// - 若某 id 在 `#BGA` / `#@BGA` 中有定义，则按 BMS 规范“`#BGA` 优先”，
+    ///   路径取裁剪定义的源 BMP（经十进制 `bmp_index` 解析），并附加 [`CropRect`]。
+    /// - 否则路径取 `#BMP` 自身，裁剪为 `None`。
+    /// - 源路径无法解析的裁剪 id 被跳过（不进入资源表，也不产生事件）。
+    ///
+    /// `#@BGA`（宽/高形式）归一为 `#BGA`（右下角形式）：
+    /// `x2 = sx + w`、`y2 = sy + h`。
+    #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
+    fn build_bmp_map(&self) -> BTreeMap<BmpIndex, BmpEntry> {
+        let visual = &self.bms.visual;
+        let mut map: BTreeMap<BmpIndex, BmpEntry> = BTreeMap::new();
+
+        // 收集所有涉及的 id（bmp_files ∪ crop_defs ∪ alt_crop_defs）。
+        let mut ids: BTreeSet<BmpIndex> = visual.bmp_files.keys().copied().collect();
+        ids.extend(visual.crop_defs.keys().copied());
+        ids.extend(visual.alt_crop_defs.keys().copied());
+
+        for (i, id) in ids.into_iter().enumerate() {
+            // 裁剪定义：#BGA 优先于 #@BGA（同一 id 不太可能同时出现）。
+            // 两者的 (CropRect, 源 bmp_index)；#@BGA 的 w/h 归一为右下角。
+            let crop_def = visual
+                .crop_defs
+                .get(&id)
+                .map(|p| {
+                    (
+                        CropRect {
+                            x1: p.x1,
+                            y1: p.y1,
+                            x2: p.x2,
+                            y2: p.y2,
+                            dx: p.dx,
+                            dy: p.dy,
+                        },
+                        p.bmp_index,
+                    )
+                })
+                .or_else(|| {
+                    visual.alt_crop_defs.get(&id).map(|p| {
+                        (
+                            CropRect {
+                                x1: p.sx,
+                                y1: p.sy,
+                                x2: p.sx + p.w,
+                                y2: p.sy + p.h,
+                                dx: p.dx,
+                                dy: p.dy,
+                            },
+                            p.bmp_index,
+                        )
+                    })
+                });
+
+            // 路径：有裁剪定义时取源 BMP（#BGA 优先），否则取 #BMP 自身。
+            let resolved = match crop_def {
+                Some((crop, source_index)) => (
+                    Some(crop),
+                    resolve_bmp_path(&visual.bmp_files, source_index).cloned(),
+                ),
+                None => (None, visual.bmp_files.get(&id).cloned()),
+            };
+            let (crop, path_opt) = resolved;
+
+            let Some(path) = path_opt else {
+                continue;
+            };
+
+            map.insert(
+                id,
+                BmpEntry {
+                    resource_id: i as u32,
+                    path,
+                    crop,
+                },
+            );
+        }
+
+        map
     }
 
     /// 将 [`BpmValue`] 解析为具体 BPM 值，对引用值使用 BPM 定义表。
@@ -606,14 +734,16 @@ impl BmsConverter<'_> {
     /// 从 BMS 元数据与 BMP 映射构建 [`SongInfo`] 与 [`ChartInfo`]。
     #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "play level is non-negative")]
-    fn build_metadata(&self, bmp_map: &BTreeMap<BmpIndex, (u32, String)>) -> (SongInfo, ChartInfo) {
+    fn build_metadata(&self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) -> (SongInfo, ChartInfo) {
         let bga_resources: Vec<BgaResource> = bmp_map
             .values()
-            .map(|(resource_id, path)| BgaResource {
-                id: *resource_id,
-                path: path.clone().into(),
+            .map(|e| BgaResource {
+                id: e.resource_id,
+                path: e.path.clone().into(),
+                crop: e.crop,
             })
             .collect();
+        let video = self.build_video_asset();
         (
             SongInfo {
                 title: self.bms.metadata.title.clone().unwrap_or_default(),
@@ -641,8 +771,36 @@ impl BmsConverter<'_> {
                 banner_image: self.bms.display.banner.clone(),
                 preview_music: self.bms.display.preview.clone(),
                 bga_resources,
+                video,
             },
         )
+    }
+
+    /// 从 `#VIDEOFILE` / `#MOVIE` 及视频参数构建 [`VideoAsset`]。
+    ///
+    /// `#VIDEOFILE`（循环）优先于 `#MOVIE`（单次）。两者均无则返回 `None`。
+    /// `#VIDEOf/s` / `#VIDEOCOLORS` / `#VIDEODLY` 作为可选参数附加；
+    /// 其中 `#VIDEOCOLORS` / `#VIDEODLY` 语义为整数，由 `f64` 转为 `u32`。
+    #[expect(clippy::cast_possible_truncation, reason = "video params fit in u32")]
+    #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
+    fn build_video_asset(&self) -> Option<VideoAsset> {
+        let visual = &self.bms.visual;
+        let (path, loop_playback) = if let Some(p) = &visual.video_file {
+            (p.clone(), true)
+        } else {
+            (visual.movie.clone()?, false)
+        };
+        let mut asset = VideoAsset::new(PathBuf::from(path), loop_playback);
+        if let Some(fps) = visual.video_fps {
+            asset = asset.with_fps(fps);
+        }
+        if let Some(colors) = visual.video_colors {
+            asset = asset.with_colors(colors.max(0.0).round() as u32);
+        }
+        if let Some(delay) = visual.video_dly {
+            asset = asset.with_delay_frames(delay.max(0.0).round() as u32);
+        }
+        Some(asset)
     }
 }
 
@@ -709,14 +867,25 @@ fn build_audio_assets(
     (wav_map, audio_assets)
 }
 
-/// 构建 BMP 索引到（`resource_id`、文件路径）的映射。
-fn build_bmp_map(bmp_files: &BTreeMap<BmpIndex, String>) -> BTreeMap<BmpIndex, (u32, String)> {
-    let mut map = BTreeMap::new();
-    #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
-    for (i, (id, path)) in bmp_files.iter().enumerate() {
-        map.insert(*id, (i as u32, path.clone()));
-    }
-    map
+/// [`build_bmp_map`](BmsConverter::build_bmp_map) 产出的条目：稠密资源 id、
+/// 源文件路径与可选裁剪定义。
+struct BmpEntry {
+    /// 0 基资源 id（对应 [`BgaResource::id`]）。
+    resource_id: u32,
+    /// 源图片文件路径（裁剪定义指向的底层 `#BMP`）。
+    path: String,
+    /// 裁剪与放置定义（`#BGA` / `#@BGA`）；无则为 `None`。
+    crop: Option<CropRect>,
+}
+
+/// 将十进制 BMP 编号解析为 `#BMP` 表中的文件路径。
+///
+/// `#BGA` / `#@BGA` 的 `bmp_index` 字段是源 `#BMP` 的**十进制**编号；
+/// 此处在 `bmp_files` 中查找 base36 数值与之相等的键（如 `"01"` → 1）。
+fn resolve_bmp_path(bmp_files: &BTreeMap<BmpIndex, String>, bmp_index: u16) -> Option<&String> {
+    bmp_files
+        .iter()
+        .find_map(|(k, v)| (k.to_index() == Some(bmp_index)).then_some(v))
 }
 
 /// 查找给定脉冲处生效的 BPM（不晚于 `tick` 的最后一次 BPM 变更）。

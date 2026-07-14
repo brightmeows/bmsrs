@@ -543,18 +543,22 @@ fn make_chart_with_bga() -> Chart {
                 BgaResource {
                     id: 0,
                     path: "base.png".into(),
+                    crop: None,
                 },
                 BgaResource {
                     id: 1,
                     path: "layer.png".into(),
+                    crop: None,
                 },
                 BgaResource {
                     id: 2,
                     path: "poor.png".into(),
+                    crop: None,
                 },
                 BgaResource {
                     id: 3,
                     path: "layer2.png".into(),
+                    crop: None,
                 },
             ],
             ..Default::default()

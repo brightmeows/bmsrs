@@ -88,7 +88,7 @@ pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
 pub use timing::{BpmChange, StopEvent, TimingCache, TimingTrack, TimingTrackError};
-pub use visual::{BgaLayer, BgaResource};
+pub use visual::{BgaLayer, BgaResource, CropRect, VideoAsset};
 
 /// 乐曲级元数据 —— 对应 BMSON v2 的 `SongInfo`。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -122,6 +122,8 @@ pub struct ChartInfo {
     pub preview_music: Option<String>,
     /// BGA 资源声明（图片 / 视频文件）。
     pub bga_resources: Vec<BgaResource>,
+    /// 背景视频（BMS `#VIDEOFILE` / `#MOVIE`）。BMSON 无此概念，为 `None`。
+    pub video: Option<VideoAsset>,
 }
 
 /// 自定义判定窗口偏移（DJ.NEXT 扩展）。

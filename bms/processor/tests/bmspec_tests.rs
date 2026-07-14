@@ -955,11 +955,13 @@ fn key_volume_custom_event() {
     assert_eq!(vols[0], 0x40, "hex '40' should decode to 64");
 }
 
-/// Video Seek 通道（05）产生 `BmsCustomEvent::VideoSeek`。
+/// Video Seek 通道（05）查 `#SEEK` 定义表产生 `BmsCustomEvent::VideoSeek`，
+/// position 为定义表中的毫秒值（C4：不再使用 base36 原值）。
 #[test]
 fn video_seek_custom_event() {
-    let chart =
-        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00105:0300000000000000\n");
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#SEEK03 500\n#00101:1100000000000000\n#00105:0300000000000000\n",
+    );
     let seeks: Vec<_> = chart
         .data
         .events
@@ -970,7 +972,21 @@ fn video_seek_custom_event() {
         })
         .collect();
     assert_eq!(seeks.len(), 1);
-    assert_eq!(seeks[0], 3, "base36 '03' should decode to 3");
+    assert_eq!(seeks[0], 500, "#SEEK03 500 应映射为 500 毫秒");
+}
+
+/// Video Seek 通道引用未定义的 `#SEEK` id 时，事件被跳过（C4）。
+#[test]
+fn video_seek_undefined_skipped() {
+    let chart =
+        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00105:0300000000000000\n");
+    let seek_count = chart
+        .data
+        .events
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::Custom(BmsCustomEvent::VideoSeek { .. })))
+        .count();
+    assert_eq!(seek_count, 0, "未定义 #SEEK 的 id 应被跳过");
 }
 
 /// 自定义事件插入后不影响原生事件的排序与查询。
@@ -985,4 +1001,156 @@ fn custom_events_dont_affect_note_queries() {
         .filter(|e| matches!(&e.kind, EventKind::Note { .. }))
         .count();
     assert_eq!(note_count, 1, "note should still be present");
+}
+
+// F1：non_event_data 查表归一化（Base36 小写索引）
+
+/// ARGB 通道（A1）使用小写索引引用小写定义的 `#ARGB`，归一化后应命中（F1）。
+#[test]
+fn argb_lowercase_index_resolves_after_normalize() {
+    // #ARGBaa 定义小写 id；通道 A1 用小写 "aa" 引用。
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#ARGBaa 10,20,30,40\n#00101:0100000000000000\n#001A1:aa00000000000000\n",
+    );
+    let argbs: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::BgaArgb { a, r, g, b, .. }) => Some((*a, *r, *g, *b)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(argbs.len(), 1, "小写 ARGB 索引经归一化应命中定义表");
+    assert_eq!(argbs[0], (10, 20, 30, 40));
+}
+
+/// BGA `KeyBound` 通道（A5）使用小写索引引用小写定义的 `#BMP`（F1）。
+#[test]
+fn keybound_lowercase_index_resolves_after_normalize() {
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#BMPaa bg.png\n#00101:0100000000000000\n#001A5:aa00000000000000\n",
+    );
+    let keybound_count = chart
+        .data
+        .events
+        .iter()
+        .filter(|e| {
+            matches!(
+                &e.kind,
+                EventKind::Custom(BmsCustomEvent::BgaKeyBound { .. })
+            )
+        })
+        .count();
+    assert_eq!(
+        keybound_count, 1,
+        "小写 KeyBound 索引经归一化应命中 bmp_map"
+    );
+}
+
+/// Option 通道（A6）+ `#CHANGEOPTION` 定义均用小写，归一化后双向自洽（F1+F2）。
+#[test]
+fn option_lowercase_def_and_ref_resolve() {
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#CHANGEOPTIONaa opt_value\n#00101:0100000000000000\n#001A6:aa00000000000000\n",
+    );
+    let opts: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::OptionChange { value, .. }) => Some(value.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(opts.len(), 1, "小写 Option 定义 + 引用经归一化应匹配");
+    assert_eq!(opts[0], "opt_value");
+}
+
+// F3a：#LNMODE → ln_type_hint
+
+/// `#LNMODE` 各值映射到 `LnTypeHint`（F3a）。
+#[test]
+fn ln_mode_maps_to_ln_type_hint() {
+    let base = "#BPM 120\n#WAV01 kick.wav\n#00101:0100000000000000\n";
+    assert_eq!(
+        process(&format!("#LNMODE 1\n{base}")).data.ln_type_hint,
+        bmsrs_chart::LnTypeHint::Ln,
+    );
+    assert_eq!(
+        process(&format!("#LNMODE 2\n{base}")).data.ln_type_hint,
+        bmsrs_chart::LnTypeHint::Cn,
+    );
+    assert_eq!(
+        process(&format!("#LNMODE 3\n{base}")).data.ln_type_hint,
+        bmsrs_chart::LnTypeHint::Hcn,
+    );
+    // 未声明 #LNMODE 时默认为 Ln。
+    assert_eq!(process(base).data.ln_type_hint, bmsrs_chart::LnTypeHint::Ln,);
+}
+
+// C1：#BGA / #@BGA → BgaResource.crop
+
+/// `#BGA` 定义产生带裁剪的 BGA 资源（C1）。
+#[test]
+fn bga_crop_def_attaches_crop_rect() {
+    // #BMP01 为源；#BGA01 裁剪自 BMP 1（十进制），矩形 (0,0)-(100,100)，偏移 (10,20)。
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#BMP01 src.png\n#BGA01 1 0 0 100 100 10 20\n#00104:0100000000000000\n",
+    );
+    let cropped: Vec<_> = chart
+        .chart
+        .bga_resources
+        .iter()
+        .filter_map(|r| r.crop.map(|c| (r.path.to_string_lossy().into_owned(), c)))
+        .collect();
+    assert_eq!(cropped.len(), 1, "应有一个带裁剪的 BGA 资源");
+    let (path, crop) = &cropped[0];
+    assert_eq!(path, "src.png", "路径取自源 BMP");
+    assert_eq!((crop.x1, crop.y1, crop.x2, crop.y2), (0, 0, 100, 100));
+    assert_eq!((crop.dx, crop.dy), (10, 20));
+}
+
+/// `#@BGA`（宽/高形式）归一为右下角形式（C1）。
+#[test]
+fn at_bga_wh_form_normalizes_to_xy2() {
+    // #@BGA：sx=0 sy=0 w=50 h=40 → x2=50 y2=40。
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#BMP01 src.png\n#@BGA01 1 0 0 50 40 0 0\n#00104:0100000000000000\n",
+    );
+    let cropped: Vec<_> = chart
+        .chart
+        .bga_resources
+        .iter()
+        .filter_map(|r| r.crop)
+        .collect();
+    assert_eq!(cropped.len(), 1);
+    let c = cropped[0];
+    assert_eq!((c.x1, c.y1, c.x2, c.y2), (0, 0, 50, 40), "w/h 应转为 x2/y2");
+}
+
+// C2：#VIDEOFILE / #MOVIE → VideoAsset
+
+/// `#VIDEOFILE` 产生循环视频资源（C2）。
+#[test]
+fn videofile_produces_looping_video_asset() {
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#VIDEOFILE bg.mp4\n#VIDEOf/s 30\n#VIDEOCOLORS 16\n#VIDEODLY 5\n#00101:0100000000000000\n",
+    );
+    let video = chart.chart.video.as_ref().expect("应有视频资源");
+    assert_eq!(video.path.to_string_lossy(), "bg.mp4");
+    assert!(video.loop_playback, "#VIDEOFILE 应循环");
+    assert_eq!(video.fps, Some(30.0));
+    assert_eq!(video.colors, Some(16));
+    assert_eq!(video.delay_frames, Some(5));
+}
+
+/// `#MOVIE` 产生单次播放视频资源（C2）。
+#[test]
+fn movie_produces_non_looping_video_asset() {
+    let chart = process("#BPM 120\n#WAV01 kick.wav\n#MOVIE intro.mp4\n#00101:0100000000000000\n");
+    let video = chart.chart.video.as_ref().expect("应有视频资源");
+    assert_eq!(video.path.to_string_lossy(), "intro.mp4");
+    assert!(!video.loop_playback, "#MOVIE 应单次播放");
+    assert!(video.fps.is_none(), "未声明 #VIDEOf/s 时 fps 为 None");
 }

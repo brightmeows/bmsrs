@@ -45,13 +45,19 @@ pub struct Gameplay {
 
 impl Gameplay {
     /// 将一个游玩头部命令应用到此结构体。
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderGameplay<C>) {
+    ///
+    /// 索引键（[`ExRankIndex`]、[`ChangeOptionIndex`]）使用 `base` 归一化，
+    /// 以便在标准 BMS 中进行不区分大小写的比较——与
+    /// [`Timing`](crate::timing::Timing) / [`Visual`](crate::visual::Visual)
+    /// 的归一化契约保持一致。
+    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderGameplay<C>, base: BmsBase) {
         match header {
             BmsHeaderGameplay::Player(m) => self.player = Some(*m),
             BmsHeaderGameplay::Rank(r) => self.rank = Some(*r),
             BmsHeaderGameplay::DefExRank(v) => self.def_ex_rank = Some(*v),
             BmsHeaderGameplay::ExRank { id, value } => {
-                self.ex_rank_defs.insert(*id, *value);
+                self.ex_rank_defs
+                    .insert(ExRankIndex::from(id.normalize(base)), *value);
             }
             BmsHeaderGameplay::Total(v) => self.total = Some(*v),
             BmsHeaderGameplay::VolWav(v) => self.vol_wav = Some(*v),
@@ -62,8 +68,10 @@ impl Gameplay {
             BmsHeaderGameplay::OctFp => self.oct_fp = Some(true),
             BmsHeaderGameplay::Option(s) => self.option = Some(s.as_ref().to_owned()),
             BmsHeaderGameplay::ChangeOption { id, value } => {
-                self.change_option_defs
-                    .insert(*id, value.as_ref().to_owned());
+                self.change_option_defs.insert(
+                    ChangeOptionIndex::from(id.normalize(base)),
+                    value.as_ref().to_owned(),
+                );
             }
         }
     }

@@ -51,13 +51,18 @@ pub(crate) const fn is_base62(b: u8) -> bool {
 ///
 /// 它取代了此前编译期的 `BmsCharset` 类型参数。
 /// 运行时校验请使用 [`BmsIndex::is_valid_for`]。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
+///
+/// [`Default`] 为 [`Base36`](Self::Base36)——标准 BMS 文件的默认字符集。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr, Default)]
 #[non_exhaustive]
 pub enum BmsBase {
     /// 十六进制（`0`–`9`、`A`–`F`、`a`–`f`；每位置 16 个值）。
     #[bms_token("16")]
     Base16,
     /// Base-36 大写（`0`–`9`、`A`–`Z`；每位置 36 个值）。
+    ///
+    /// 标准与最常见 BMS 文件的默认字符集，故为 [`Default`]。
+    #[default]
     #[bms_token("36")]
     Base36,
     /// Base-62（`0`–`9`、`A`–`Z`、`a`–`z`；每位置 62 个值）。

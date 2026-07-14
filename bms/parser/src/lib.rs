@@ -53,6 +53,12 @@ pub struct Bms {
     pub messages: messages::Messages,
     /// 未识别 / 引擎特有的头部命令。
     pub fallback_headers: Vec<(String, String)>,
+    /// `from_flat_tokens` 通过预扫描 `#BASE` 检测到的进制基数（首个胜出）。
+    ///
+    /// 这是 `finalize` 归一化所有索引时实际使用的基数。processor 查表
+    /// 归一化应读取此字段，而非 [`Gameplay::base`](gameplay::Gameplay::base)
+    ///（后者为最后胜出语义，多 `#BASE` 文件会分歧）。
+    pub detected_base: BmsBase,
 }
 
 impl Bms {
@@ -70,6 +76,7 @@ impl Bms {
         //（一次用于 BASE，一次用于处理）。
         let all_tokens: Vec<_> = tokens.into_iter().collect();
         let bms_base = detect_base(&all_tokens);
+        bms.detected_base = bms_base;
 
         for token in &all_tokens {
             match token {
@@ -136,7 +143,7 @@ impl Bms {
     fn process_header<C: AsRef<str>>(&mut self, header: &BmsHeader<C>, base: BmsBase) {
         match header {
             BmsHeader::Metadata(m) => self.metadata.apply(m),
-            BmsHeader::Gameplay(g) => self.gameplay.apply(g),
+            BmsHeader::Gameplay(g) => self.gameplay.apply(g, base),
             BmsHeader::Timing(t) => {
                 self.timing.apply(t, base);
                 // #STP 跨越子结构体边界
