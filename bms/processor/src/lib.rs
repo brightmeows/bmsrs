@@ -147,24 +147,26 @@ impl BmsProcessor {
 
         let (song, chart_info) = conv.build_metadata(&bmp_map);
         let ln_type_hint = conv.ln_type_hint();
-        let events = conv.events;
+
+        let mut data = ChartData {
+            resolution: RESOLUTION,
+            timing,
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            ln_type_hint,
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events: conv.events,
+            audio_assets,
+        };
+        data.sort_events();
 
         Ok(Chart {
             song,
             chart: chart_info,
-            data: ChartData {
-                resolution: RESOLUTION,
-                timing,
-                judge_multiplier: 1.0,
-                life_multiplier: 1.0,
-                ln_type_hint,
-                ln_judge_hint: LnJudgeHint::default(),
-                ln_life_hint: LnLifeHint::default(),
-                judge_deltas: None,
-                life_deltas: None,
-                events,
-                audio_assets,
-            },
+            data,
         })
     }
 

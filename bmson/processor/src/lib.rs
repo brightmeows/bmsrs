@@ -145,10 +145,10 @@ impl BmsonProcessor {
         bmson: &bmson_def::Bmson<'_>,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
-        let data = &bmson.chart_data;
+        let bmson_data = &bmson.chart_data;
 
-        let timing = build_timing(data).map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
-        let resolution = data.resolution;
+        let timing = build_timing(bmson_data).map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
+        let resolution = bmson_data.resolution;
         let timing_cache = TimingCache::new(&timing, resolution);
         let mut conv = BmsonConverter {
             bmson,
@@ -168,40 +168,44 @@ impl BmsonProcessor {
         conv.collect_bga_events();
         conv.build_bar_lines();
 
-        conv.events.sort_by_key(Event::sort_key);
-
         let song_info = build_song_info(bmson);
         let chart_info = build_chart_info(bmson);
 
-        Ok(Chart {
-            song: song_info,
-            chart: chart_info,
-            data: ChartData {
-                resolution,
-                timing,
-                judge_multiplier: data.judge_multiplier,
-                life_multiplier: data.life_multiplier,
-                ln_type_hint: ln_type_to_hint(data.ln_type_hint),
-                ln_judge_hint: ln_judge_to_hint(data.ln_judge_hint),
-                ln_life_hint: ln_life_to_hint(data.ln_life_hint),
-                judge_deltas: data
-                    .judge_deltas
-                    .as_ref()
-                    .map(|d| bmsrs_chart::JudgementDeltas {
-                        perfect: d.perfect,
-                        great: d.great,
-                        good: d.good,
-                        miss: d.miss,
-                    }),
-                life_deltas: data.life_deltas.as_ref().map(|d| bmsrs_chart::LifeDeltas {
+        let mut data = ChartData {
+            resolution,
+            timing,
+            judge_multiplier: bmson_data.judge_multiplier,
+            life_multiplier: bmson_data.life_multiplier,
+            ln_type_hint: ln_type_to_hint(bmson_data.ln_type_hint),
+            ln_judge_hint: ln_judge_to_hint(bmson_data.ln_judge_hint),
+            ln_life_hint: ln_life_to_hint(bmson_data.ln_life_hint),
+            judge_deltas: bmson_data
+                .judge_deltas
+                .as_ref()
+                .map(|d| bmsrs_chart::JudgementDeltas {
                     perfect: d.perfect,
                     great: d.great,
                     good: d.good,
                     miss: d.miss,
                 }),
-                events: conv.events,
-                audio_assets: conv.audio_assets,
-            },
+            life_deltas: bmson_data
+                .life_deltas
+                .as_ref()
+                .map(|d| bmsrs_chart::LifeDeltas {
+                    perfect: d.perfect,
+                    great: d.great,
+                    good: d.good,
+                    miss: d.miss,
+                }),
+            events: conv.events,
+            audio_assets: conv.audio_assets,
+        };
+        data.sort_events();
+
+        Ok(Chart {
+            song: song_info,
+            chart: chart_info,
+            data,
         })
     }
 }
