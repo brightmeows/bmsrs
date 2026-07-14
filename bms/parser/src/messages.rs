@@ -598,6 +598,17 @@ pub fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     result
 }
 
+/// 遍历非 `"00"` 的 2-char BMS 通道值，产生 `(索引, 值)` 对。
+///
+/// 提取 `parse_indexed_channel` 类方法的通用前件：
+/// 拆分 → 按位置枚举 → 跳过 `"00"`。
+fn iter_nonzero_chunks(values: &str) -> impl Iterator<Item = (usize, &str)> {
+    split_2char_values_lenient(values)
+        .into_iter()
+        .enumerate()
+        .filter(|(_, val)| *val != "00")
+}
+
 /// 将 BMS 双字符地雷索引解码为伤害值。
 ///
 /// 该索引被解释为 Base36 值（除非进制覆盖）：
@@ -659,11 +670,7 @@ impl Messages {
     /// `"00"` 值表示休止（无 BPM 变更），按 BMS 规格被**跳过** —— 将
     /// `BpmValue::Absolute(0.0)` 传递到下游会导致计时轨除以零。
     fn push_bpm_absolute_full(&mut self, values: &str, measure: u16, total_objects: u32) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // "00" = 休止 / 无 BPM 变更 —— 完全跳过。
-            if val == "00" {
-                continue;
-            }
+        for (i, val) in iter_nonzero_chunks(values) {
             // 通道 03 的值为十六进制整数（01-FF）
             let Ok(bpm_val) = u8::from_str_radix(val, 16) else {
                 continue;
@@ -683,11 +690,7 @@ impl Messages {
         total_objects: u32,
         base: BmsBase,
     ) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // "00" = 休止 / 无 BPM 变更，与通道 03 的 absolute BPM 行为一致。
-            if val == "00" {
-                continue;
-            }
+        for (i, val) in iter_nonzero_chunks(values) {
             let Ok(bpm_id) = val.parse::<BpmIndex>() else {
                 continue;
             };
@@ -700,10 +703,7 @@ impl Messages {
 
     /// 从完整拼接的值中解析停止事件（ch 09）。
     fn push_stop_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            if val == "00" {
-                continue;
-            }
+        for (i, val) in iter_nonzero_chunks(values) {
             let Ok(stop_id) = val.parse::<StopIndex>() else {
                 continue;
             };
@@ -716,10 +716,7 @@ impl Messages {
 
     /// 从完整拼接的值中解析滚动事件（ch SC）。
     fn push_scroll_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            if val == "00" {
-                continue;
-            }
+        for (i, val) in iter_nonzero_chunks(values) {
             let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
                 continue;
             };
@@ -732,10 +729,7 @@ impl Messages {
 
     /// 从完整拼接的值中解析速度关键帧事件（ch SP）。
     fn push_speed_full(&mut self, values: &str, measure: u16, total_objects: u32, base: BmsBase) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            if val == "00" {
-                continue;
-            }
+        for (i, val) in iter_nonzero_chunks(values) {
             let Ok(speed_id) = val.parse::<SpeedIndex>() else {
                 continue;
             };
@@ -785,13 +779,8 @@ impl Messages {
         total_objects: u32,
         base: BmsBase,
     ) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // "00" = 无音符 —— 完全跳过。这必须在解析之前发生，
-            // 因为 "00" 是一个有效索引，但在所有 BMS 通道中其语义
-            // 都是"该位置无对象"。
-            if val == "00" {
-                continue;
-            }
+        for (i, val) in iter_nonzero_chunks(values) {
+            // "00" 已由 iter_nonzero_chunks 跳过（语义：该位置无音符）。
             let Ok(wav_id) = val.parse::<WavIndex>() else {
                 continue;
             };
@@ -846,11 +835,8 @@ impl Messages {
         total_objects: u32,
         base: BmsBase,
     ) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
-            // "00" = 无地雷 —— 完全跳过（也作为 decode_mine_damage 的快速路径）。
-            if val == "00" {
-                continue;
-            }
+        for (i, val) in iter_nonzero_chunks(values) {
+            // "00" 已由 iter_nonzero_chunks 跳过。
             let Some(damage) = decode_mine_damage(val, base) else {
                 continue;
             };
