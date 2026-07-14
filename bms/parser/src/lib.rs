@@ -55,9 +55,10 @@ pub struct Bms {
     pub fallback_headers: Vec<(String, String)>,
     /// `from_flat_tokens` 通过预扫描 `#BASE` 检测到的进制基数（首个胜出）。
     ///
-    /// 这是 `finalize` 归一化所有索引时实际使用的基数。processor 查表
-    /// 归一化应读取此字段，而非 [`Gameplay::base`](gameplay::Gameplay::base)
-    ///（后者为最后胜出语义，多 `#BASE` 文件会分歧）。
+    /// 这是 `finalize` 归一化所有索引时实际使用的基数（包括 `non_event_data`
+    /// 的 2-char 值），processor 直接消费已归一化的数据，无需再读取此字段。
+    /// 注意 [`Gameplay::base`](gameplay::Gameplay::base) 是**最后胜出**语义，
+    /// 多 `#BASE` 文件二者分歧——以本字段为准。
     pub detected_base: BmsBase,
 }
 

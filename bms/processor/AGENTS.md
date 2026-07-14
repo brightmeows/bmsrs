@@ -20,7 +20,7 @@
 | BGA 裁剪 | `#BGA`/`#@BGA` | `BgaResource.crop` | `build_bmp_map` 合并三命名空间；`#@BGA`(w/h) 归一为右下角 |
 | 视频资源 | `#VIDEOFILE`/`#MOVIE` | `ChartInfo.video` | `#VIDEOFILE` 循环优先于 `#MOVIE` 单次；附 `#VIDEOf/s`/`#VIDEOCOLORS`/`#VIDEODLY` |
 | 视频 SEEK | `#SEEK` 定义 + ch 05 | `BmsCustomEvent::VideoSeek` | 查 `seek_defs` 取毫秒（非 base36 原值）；未定义 id 跳过 |
-| `non_event_data` 查表归一化 | `NonEventData.data` | `BmsCustomEvent` | ARGB/KeyBound/Option 查表前对 key `normalize(base)`，与 def 键归一化对齐 |
+| `non_event_data` 自定义事件 | `NonEventData.values` | `BmsCustomEvent` | 所有 2-char 索引已在 parser 层归一化，查表直接命中，无需再次 `normalize(base)` |
 
 ## 长音模式（自动检测）
 
@@ -71,7 +71,7 @@ tick = measure_starts[measure] + numer * measure_len / denom
 | 地雷 `damage` | 取实际伤害值（见 `MineEvent.damage`）|
 | `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
 | 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是内部 `BmsConverter`（私有）的方法，非自由函数 |
-| `BmsConverter.base` | 读 `bms.detected_base`（与 parser `finalize` 同源），用于 `non_event_data` 查表键归一化。勿用 `gameplay.base`（最后胜出，多 `#BASE` 分歧）|
+| `non_event_data` 索引归一化 | parser 层完成 | processor 消费 | `non_event_data` 的每个 2-char 值已在 parser 的 `finalize_merged` 中按 `detected_base` 归一化，processor 查表直接命中。`BmsConverter.base` 字段已因不复需要而移除 |
 | `bpm_at_tick` 重复 | processor 自带二分（用于 STP→tick），与 chart `TimingCache` 同构。STP 换算需先于 `TimingTrack` 构造（先有鸡先有蛋），可接受 |
 | BGA 裁剪源路径 | `#BGA`/`#@BGA` 的 `bmp_index` 为十进制源编号，经 base36 数值匹配 `bmp_files` 键（如 `"01"`→1）。源路径不可解析的裁剪 id 被跳过 |
 
