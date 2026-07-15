@@ -25,7 +25,7 @@ pub struct LnPairingResult {
     pub unpaired_starts: Vec<(u8, u8, u64)>,
 }
 
-/// 已配对的长音：起始脉冲、脉冲时长与 WAV 索引。
+/// 已配对的长音：起始脉冲、终点脉冲、脉冲时长与 WAV 索引。
 pub struct PairedLn {
     /// 长音起点的绝对脉冲。
     pub tick: u64,
@@ -460,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn lntype2_unterminated_run_dropped() {
+    fn lntype2_unterminated_run_returns_unpaired_start() {
         // AA BB（无尾部 00）→ 无配对长音，但 unpaired_starts 含 start。
         let events = vec![ln_event(1, 1, 0, 0, "AA"), ln_event(1, 1, 0, 1, "BB")];
         let table = make_table();
