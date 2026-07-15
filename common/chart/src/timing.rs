@@ -408,23 +408,19 @@ struct InvSeg {
     bpm: f64,
 }
 
-/// 预计算的计时索引，用于快速进行脉冲到 [`Duration`] 的换算。
+/// [`TimingTrack`] 的委托包装（已弃用）。
+///
+/// 保留此类型仅为兼容旧调用方。所有方法直接委托给内部的
+/// [`TimingTrack`] 实例。
 ///
 /// # 弃用
 ///
-/// [`TimingTrack`] 现已在内部预计算相同分段且提供相同 O(log n) 查询。
 /// 直接使用 [`TimingTrack::tick_to_duration`] / [`TimingTrack::bpm_at_tick`] 代替。
 #[derive(Debug)]
 #[deprecated(note = "直接使用 TimingTrack 的 tick_to_duration / bpm_at_tick 代替")]
 pub struct TimingCache {
-    /// 按 `start_tick` 排序的 BPM 段。
-    bpm_segments: Vec<BpmSegment>,
-    /// 已排序的 `(stop_tick, cumulative_pause_seconds)` 配对。
-    stop_cumsum: Vec<(u64, f64)>,
-    /// `duration_to_tick` 的逆查找段（按 `sec_lo` 升序）。
-    inv: Vec<InvSeg>,
-    /// 每个四分音符的脉冲数（节拍分辨率）。
-    resolution: u64,
+    /// 内部的 [`TimingTrack`] 实例，所有方法委托至此。
+    timing: TimingTrack,
 }
 
 #[expect(deprecated, reason = "仍保留 TimingCache 供旧调用方使用")]
@@ -436,86 +432,28 @@ impl TimingCache {
     /// 直接使用 [`TimingTrack`] 的方法代替。
     #[must_use]
     #[deprecated(note = "直接使用 TimingTrack 的 tick_to_duration / bpm_at_tick 代替")]
-    pub fn new(timing: &TimingTrack, resolution: u64) -> Self {
+    pub fn new(timing: &TimingTrack, _resolution: u64) -> Self {
         Self {
-            bpm_segments: timing.bpm_segments.clone(),
-            stop_cumsum: timing.stop_cumsum.clone(),
-            inv: timing.inv.clone(),
-            resolution,
+            timing: timing.clone(),
         }
     }
 
     /// 将脉冲位置换算为实际时间 [`Duration`]。
-    ///
-    /// 不计入目标脉冲处的停止（与
-    /// [`TimingTrack::tick_to_duration`] 语义一致）。
-    #[expect(clippy::cast_precision_loss, reason = "tick fits in f64")]
-    #[expect(
-        clippy::indexing_slicing,
-        reason = "idx from saturating_sub on partition_point, always valid"
-    )]
     #[must_use]
     pub fn tick_to_duration(&self, tick: u64) -> Duration {
-        let res = self.resolution as f64;
-
-        let idx = self
-            .bpm_segments
-            .partition_point(|s| s.start_tick <= tick)
-            .saturating_sub(1);
-        let seg = &self.bpm_segments[idx];
-        let base = seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm.abs();
-
-        let stop_idx = self.stop_cumsum.partition_point(|(t, _)| *t < tick);
-        let stop_pause = if stop_idx > 0 {
-            self.stop_cumsum[stop_idx - 1].1
-        } else {
-            0.0
-        };
-
-        safe_from_secs_f64(base + stop_pause)
+        self.timing.tick_to_duration(tick)
     }
 
     /// 返回 `tick` 处生效的 BPM。
     #[must_use]
     pub fn bpm_at_tick(&self, tick: u64) -> f64 {
-        segment_bpm_at_tick(&self.bpm_segments, tick)
+        self.timing.bpm_at_tick(tick)
     }
 
     /// 将实际时间 [`Duration`] 换算为最接近的脉冲位置。
-    ///
-    /// 这是 [`tick_to_duration`](Self::tick_to_duration) 的逆运算。
-    /// 停止期间的时间不会推进脉冲。
-    ///
-    /// 在预计算的逆查找段上执行二分查找，复杂度为 O(log n)。
-    #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "rounded result within u64 range"
-    )]
-    #[expect(clippy::cast_sign_loss, reason = "remaining time is non-negative")]
-    #[expect(
-        clippy::indexing_slicing,
-        reason = "inv non-empty (always has initial seg); idx from saturating_sub on partition_point"
-    )]
     #[must_use]
     pub fn duration_to_tick(&self, duration: Duration) -> u64 {
-        let target = duration.as_secs_f64();
-        if target <= 0.0 {
-            return 0;
-        }
-
-        let idx = self
-            .inv
-            .partition_point(|s| s.sec_lo <= target)
-            .saturating_sub(1);
-        let seg = &self.inv[idx];
-
-        if seg.bpm == 0.0 {
-            return seg.tick;
-        }
-
-        let dt = target - seg.sec_lo;
-        seg.tick + (dt * self.resolution as f64 * seg.bpm.abs() / 60.0).round() as u64
+        self.timing.duration_to_tick(duration)
     }
 }
 

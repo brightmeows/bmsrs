@@ -256,6 +256,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         }
         self.timing.validate().map_err(|e| match e {
             TimingTrackError::InvalidBpm { bpm } => ChartDataError::InvalidBpm { bpm },
+            // unreachable in practice (TimingTrack::validate only returns InvalidBpm)
             TimingTrackError::ZeroResolution => ChartDataError::ZeroResolution,
         })
     }
