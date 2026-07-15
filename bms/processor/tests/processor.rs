@@ -521,3 +521,27 @@ fn lnobj_bgm_no_event_for_unmatched_lno() {
         .count();
     assert_eq!(bgm_count, 0, "orphan LNOBJ marker should not emit BGM");
 }
+
+#[test]
+fn dedup_adjacent_same_bpm() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(0, 0, 1),
+        value: BpmValue::Absolute(120.0),
+    });
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(0, 1, 2),
+        value: BpmValue::Absolute(120.0),
+    });
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(1, 0, 1),
+        value: BpmValue::Absolute(140.0),
+    });
+
+    let chart = BmsProcessor::process_default(&bms).unwrap();
+    let bpm_events: Vec<_> = chart.data.timing.bpm_changes().to_vec();
+    assert_eq!(bpm_events.len(), 2);
+    assert!((bpm_events[0].bpm - 120.0).abs() < f64::EPSILON);
+    assert!((bpm_events[1].bpm - 140.0).abs() < f64::EPSILON);
+}

@@ -598,15 +598,61 @@ pub fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     result
 }
 
+/// 非 `"00"` 的 2-char BMS 通道值的零分配流式迭代器。
+///
+/// 在字节切片上直接扫描，跳过 `"00"`，产生 `(索引, 值)` 对。
+///
+/// 等效于 `split_2char_values_lenient` + `enumerate` + `filter`，
+/// 但不分配中间 `Vec`。
+pub struct NonZeroChunks<'a> {
+    /// 值字符串的原始字节。
+    bytes: &'a [u8],
+    /// 当前字节位置。
+    pos: usize,
+    /// 当前 2-char 块索引。
+    index: usize,
+}
+
+#[expect(
+    clippy::indexing_slicing,
+    reason = "while-loop guard ensures pos + 1 < len before indexing"
+)]
+#[expect(
+    clippy::expect_used,
+    reason = "two ASCII chars are valid UTF-8 by construction from tokenizer"
+)]
+impl<'a> Iterator for NonZeroChunks<'a> {
+    type Item = (usize, &'a str);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let bytes = self.bytes;
+        while self.pos + 1 < bytes.len() {
+            let start = self.pos;
+            self.pos += 2;
+            let idx = self.index;
+            self.index += 1;
+            // 跳过 "00"
+            if bytes[start] == b'0' && bytes[start + 1] == b'0' {
+                continue;
+            }
+            let chunk = std::str::from_utf8(&bytes[start..start + 2])
+                .expect("two ASCII chars are valid UTF-8");
+            return Some((idx, chunk));
+        }
+        None
+    }
+}
+
 /// 遍历非 `"00"` 的 2-char BMS 通道值，产生 `(索引, 值)` 对。
 ///
 /// 提取 `parse_indexed_channel` 类方法的通用前件：
 /// 拆分 → 按位置枚举 → 跳过 `"00"`。
 fn iter_nonzero_chunks(values: &str) -> impl Iterator<Item = (usize, &str)> {
-    split_2char_values_lenient(values)
-        .into_iter()
-        .enumerate()
-        .filter(|(_, val)| *val != "00")
+    NonZeroChunks {
+        bytes: values.as_bytes(),
+        pos: 0,
+        index: 0,
+    }
 }
 
 /// 将 BMS 双字符地雷索引解码为伤害值。
@@ -920,5 +966,35 @@ impl Messages {
             }
             _ => { /* Note 变体中的非音符十六进制 —— 仅保留在 raw 中 */ }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nonzero_chunks_matches_old_impl() {
+        let values = "010203000A0B00FF";
+        let old: Vec<_> = split_2char_values_lenient(values)
+            .into_iter()
+            .enumerate()
+            .filter(|(_, v)| *v != "00")
+            .collect();
+        let new: Vec<_> = iter_nonzero_chunks(values).collect();
+        assert_eq!(old, new);
+    }
+
+    #[test]
+    fn nonzero_chunks_skips_zeros() {
+        let result: Vec<_> = iter_nonzero_chunks("00010000FF00").collect();
+        assert_eq!(result, vec![(1, "01"), (4, "FF")]);
+    }
+
+    #[test]
+    fn nonzero_chunks_empty_input() {
+        assert!(iter_nonzero_chunks("").next().is_none());
+        assert!(iter_nonzero_chunks("00").next().is_none());
+        assert!(iter_nonzero_chunks("0000").next().is_none());
     }
 }

@@ -652,8 +652,11 @@ impl BmsConverter<'_> {
     }
 
     /// 为计时轨构建 BPM 变更事件。
+    ///
+    /// 相邻同值 BPM 变更会被去重（首个保留）。
     fn build_bpm_changes(&mut self) -> Vec<BpmChange> {
-        self.bms
+        let mut changes: Vec<BpmChange> = self
+            .bms
             .messages
             .bpm_changes
             .iter()
@@ -666,7 +669,9 @@ impl BmsConverter<'_> {
                     Some(BpmChange { tick, bpm })
                 }
             })
-            .collect()
+            .collect();
+        changes.dedup_by(|a, b| (a.bpm - b.bpm).abs() < f64::EPSILON);
+        changes
     }
 
     /// 构建 BMP 索引到 [`BmpEntry`]（稠密 id + 路径 + 可选裁剪）的映射。
