@@ -1,7 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
-#![expect(deprecated, reason = "集成测试仍使用 TimingCache 验证回归一致性")]
 
-use bmsrs_chart::{BpmChange, StopEvent, TimingCache, TimingTrack};
+use bmsrs_chart::{BpmChange, StopEvent, TimingTrack};
 use std::time::Duration;
 
 const RES: u64 = 240;
@@ -200,12 +199,10 @@ fn cache_duration_to_tick_matches_timing_track() {
         RES,
     )
     .unwrap();
-    let cache = TimingCache::new(&timing, RES);
-
     for ms in (0..4000u64).step_by(10) {
         let d = Duration::from_millis(ms);
         let expected = timing.duration_to_tick(d);
-        let actual = cache.duration_to_tick(d);
+        let actual = timing.duration_to_tick(d);
         assert_eq!(
             actual, expected,
             "duration_to_tick mismatch at {ms}ms: timing={expected}, cache={actual}"

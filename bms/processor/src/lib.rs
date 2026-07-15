@@ -105,7 +105,7 @@ impl BmsProcessor {
         stops.extend(conv.build_stops_from_stp(&bpm_lookup));
         stops.sort_by_key(|s| s.tick);
 
-        let timing = TimingTrack::new(init_bpm, bpm_changes, stops)
+        let timing = TimingTrack::new(init_bpm, bpm_changes, stops, RESOLUTION)
             .map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
 
         let bmp_map = conv.build_bmp_map();

@@ -158,7 +158,7 @@ fn process_negative_bpm_is_accepted() {
     let chart = result.unwrap();
     // BPM 绝对值 = 120，因此 240 ticks = 0.5s。
     assert_eq!(
-        chart.data.timing.tick_to_duration(240, 240),
+        chart.data.timing.tick_to_duration(240),
         std::time::Duration::from_millis(500)
     );
 }

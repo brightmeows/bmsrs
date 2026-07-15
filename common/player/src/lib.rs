@@ -19,7 +19,7 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         resolution: 240,
-//!         timing: TimingTrack::simple(120.0).unwrap(),
+//!         timing: TimingTrack::simple(120.0, 240).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
 //!         ln_type_hint: LnTypeHint::default(),
@@ -56,7 +56,7 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, BgaResource, Chart, ChartDataError, CustomEvent, Event, EventKind, Lane,
-    NoCustomEvent, NoteExt, NoteKind, NoteSide, TimingCache,
+    NoCustomEvent, NoteExt, NoteKind, NoteSide, TimingTrack,
 };
 
 use crate::scroll_cache::ScrollCache;
@@ -72,8 +72,8 @@ use crate::speed_cache::SpeedCache;
 pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// 正在播放的谱面。
     chart: Chart<T, C>,
-    /// 预计算的计时缓存，用于 O(log n) 查询。
-    cache: TimingCache,
+    /// 预计算的计时轨，用于 O(log n) 查询。
+    timing: TimingTrack,
     /// 预计算的滚动速度缓存，用于 O(log n) 查询。
     scroll_cache: ScrollCache,
     /// 预计算的 SPEED 间距插值缓存。
@@ -95,12 +95,12 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         chart.data.validate()?;
         chart.data.sort_events();
         let resolution = chart.data.resolution;
-        let cache = TimingCache::new(&chart.data.timing, resolution);
+        let timing = chart.data.timing.clone();
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
         let speed_cache = SpeedCache::build(&chart.data.events);
         Ok(Self {
             chart,
-            cache,
+            timing,
             scroll_cache,
             speed_cache,
             current_tick: 0,
@@ -115,16 +115,14 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 停止（STOP）期间的时间不会推进脉冲。
     pub fn advance(&mut self, delta: Duration) {
         let new_time = self.current_time() + delta;
-        // PERF: 走预计算的 TimingCache（O(log n) 二分）而非 TimingTrack 的
-        // O(n) 线性扫描——advance 在播放循环中每帧调用，是真正的热路径。
-        // 两者语义已由 chart crate 的等价性测试保证一致。
-        self.current_tick = self.cache.duration_to_tick(new_time);
+        // PERF: TimingTrack 内部使用 O(log n) 二分——advance 在播放循环中每帧调用。
+        self.current_tick = self.timing.duration_to_tick(new_time);
     }
 
     /// 跳转到指定的绝对实际时间。
     pub fn seek(&mut self, target: Duration) {
-        // PERF: 同 advance，使用 TimingCache 的 O(log n) 快路径。
-        self.current_tick = self.cache.duration_to_tick(target);
+        // PERF: 同 advance，使用 TimingTrack 的 O(log n) 快路径。
+        self.current_tick = self.timing.duration_to_tick(target);
     }
 
     /// 将播放重置到脉冲 0。
@@ -143,25 +141,27 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 以实际时间 [`Duration`] 表示的当前播放位置。
     #[must_use]
     pub fn current_time(&self) -> Duration {
-        self.cache.tick_to_duration(self.current_tick)
+        self.timing.tick_to_duration(self.current_tick)
     }
 
-    /// 使用缓存的计时数据将脉冲位置换算为实际时间 [`Duration`]。
+    /// 将脉冲位置换算为实际时间 [`Duration`]。
     ///
-    /// 比直接调用
-    /// [`TimingTrack::tick_to_duration`](bmsrs_chart::TimingTrack::tick_to_duration)
-    /// 更快：使用 O(log n) 二分查找而非 O(n) 遍历。
+    /// 委托给
+    /// [`TimingTrack::tick_to_duration`](bmsrs_chart::TimingTrack::tick_to_duration)。
+    /// 内部使用 O(log n) 二分查找。
     #[must_use]
     pub fn tick_to_duration(&self, tick: u64) -> Duration {
-        self.cache.tick_to_duration(tick)
+        self.timing.tick_to_duration(tick)
     }
 
     /// 将实际时间 [`Duration`] 换算为最接近的脉冲位置。
     ///
-    /// 使用预计算的计时缓存，性能为 O(log n)。
+    /// 委托给
+    /// [`TimingTrack::duration_to_tick`](bmsrs_chart::TimingTrack::duration_to_tick)。
+    /// 内部使用 O(log n) 二分查找。
     #[must_use]
     pub fn duration_to_tick(&self, duration: Duration) -> u64 {
-        self.cache.duration_to_tick(duration)
+        self.timing.duration_to_tick(duration)
     }
 
     /// 谱面总时长。
@@ -173,7 +173,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 播放位置处的当前 BPM。
     #[must_use]
     pub fn current_bpm(&self) -> f64 {
-        self.cache.bpm_at_tick(self.current_tick)
+        self.timing.bpm_at_tick(self.current_tick)
     }
 
     // 事件查询
@@ -184,7 +184,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 预见未来时长。返回 `(start_tick, end_tick)`，可直接传给
     /// [`events_in_range`](Self::events_in_range)。
     ///
-    /// 内部执行两次 [`TimingCache::duration_to_tick`]（O(log n)），
+    /// 内部执行两次 [`TimingTrack::duration_to_tick`]（O(log n)），
     /// 封装了 `current_time ± duration → tick` 的换算逻辑。
     #[must_use]
     pub fn visible_tick_range(&self, reaction: Duration, lookahead: Duration) -> (u64, u64) {
@@ -192,8 +192,8 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         let start = current.checked_sub(reaction).unwrap_or(Duration::ZERO);
         let end = current.checked_add(lookahead).unwrap_or(Duration::MAX);
         (
-            self.cache.duration_to_tick(start),
-            self.cache.duration_to_tick(end),
+            self.timing.duration_to_tick(start),
+            self.timing.duration_to_tick(end),
         )
     }
 

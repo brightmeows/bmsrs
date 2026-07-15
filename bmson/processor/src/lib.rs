@@ -31,7 +31,7 @@ use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event,
     EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteExt, NoteKind, NoteSide, SongInfo,
-    StopEvent, TimingCache, TimingTrack, TimingTrackError,
+    StopEvent, TimingTrack, TimingTrackError,
 };
 use thiserror::Error;
 
@@ -147,11 +147,10 @@ impl BmsonProcessor {
 
         let timing = build_timing(bmson_data).map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
         let resolution = bmson_data.resolution;
-        let timing_cache = TimingCache::new(&timing, resolution);
         let mut conv = BmsonConverter {
             bmson,
             decode,
-            timing: timing_cache,
+            timing: timing.clone(),
             resolution,
             audio_assets: Vec::new(),
             events: Vec::new(),
@@ -220,7 +219,7 @@ struct BmsonConverter<'a> {
     /// 通道解码函数（`x` → `(side, lane)`）。
     decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
     /// 预计算的计时缓存。
-    timing: TimingCache,
+    timing: TimingTrack,
     /// 节拍分辨率。
     resolution: u64,
     /// 正在构建的音频素材向量。
@@ -440,6 +439,7 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> Result<TimingTrack, TimingTr
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
         data.stop_events.iter().map(build_stop_event).collect(),
+        data.resolution,
     )
 }
 
