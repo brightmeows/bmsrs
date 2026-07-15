@@ -143,6 +143,7 @@ enum TimingEvent {
 
 impl TimingEvent {
     /// 当此事件为 [`TimingEvent::Stop`] 时返回 `true`。
+    #[expect(dead_code, reason = "保留用于基于排序的备用 merge 逻辑")]
     const fn is_stop(self) -> bool {
         matches!(self, Self::Stop(_))
     }
@@ -177,8 +178,8 @@ impl TimingTrack {
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     pub fn new(
         init_bpm: f64,
-        bpm_changes: Vec<BpmChange>,
-        stops: Vec<StopEvent>,
+        mut bpm_changes: Vec<BpmChange>,
+        mut stops: Vec<StopEvent>,
         resolution: u64,
     ) -> Result<Self, TimingTrackError> {
         if resolution == 0 {
@@ -190,10 +191,11 @@ impl TimingTrack {
 
         let res = resolution as f64;
 
-        // Build BPM segments
-        let mut sorted_bpm_changes = bpm_changes.clone();
-        sorted_bpm_changes.sort_by_key(|bc| bc.tick);
+        // 在构造时一次性排序，避免下游 clone+sort。
+        bpm_changes.sort_by_key(|bc| bc.tick);
+        stops.sort_by_key(|s| s.tick);
 
+        // Build BPM segments
         let mut bpm_segments = vec![BpmSegment {
             start_tick: 0,
             start_seconds: 0.0,
@@ -204,7 +206,7 @@ impl TimingTrack {
         let mut current_seconds = 0.0f64;
         let mut current_bpm = init_bpm;
 
-        for bc in &sorted_bpm_changes {
+        for bc in &bpm_changes {
             if !is_valid_bpm(bc.bpm) {
                 continue;
             }
@@ -221,19 +223,16 @@ impl TimingTrack {
         }
 
         // Build stop cumulative sum
-        let mut sorted_stops = stops.clone();
-        sorted_stops.sort_by_key(|s| s.tick);
-
-        let mut stop_cumsum = Vec::with_capacity(sorted_stops.len());
+        let mut stop_cumsum = Vec::with_capacity(stops.len());
         let mut total_pause = 0.0f64;
-        for stop in &sorted_stops {
+        for stop in &stops {
             let bpm = segment_bpm_at_tick(&bpm_segments, stop.tick);
             total_pause += stop.duration as f64 / res * 60.0 / bpm.abs();
             stop_cumsum.push((stop.tick, total_pause));
         }
 
-        // Build inv segments
-        let inv = build_inv(init_bpm, &bpm_changes, &stops, resolution);
+        // Build inv segments（bpm_changes 与 stops 已排序）
+        let inv = merge_inv(init_bpm, &bpm_changes, &stops, resolution);
 
         Ok(Self {
             init_bpm,
@@ -512,31 +511,41 @@ fn segment_bpm_at_tick(bpm_segments: &[BpmSegment], tick: u64) -> f64 {
     bpm_segments[idx].bpm
 }
 
-/// 合并 BPM 变更与停止事件，按 `(tick, is_stop)` 升序排序。
+/// 合并已排序的 BPM 变更与停止事件。
 ///
-/// 同一脉冲上 BPM 排在 Stop 之前（"speed will first change, then the music pauses"）。
-fn build_sorted_events(bpm_changes: &[BpmChange], stops: &[StopEvent]) -> Vec<(u64, TimingEvent)> {
-    let mut events: Vec<_> = bpm_changes
-        .iter()
-        .map(|bc| (bc.tick, TimingEvent::Bpm(bc.bpm)))
-        .chain(
-            stops
-                .iter()
-                .map(|st| (st.tick, TimingEvent::Stop(st.duration))),
-        )
-        .collect();
-    events.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.is_stop().cmp(&b.1.is_stop())));
+/// 两输入均假设已按 `tick` 升序排序；同一脉冲上 BPM 排在 Stop 之前
+/// （"speed will first change, then the music pauses"）。
+fn merge_sorted_events(bpm_changes: &[BpmChange], stops: &[StopEvent]) -> Vec<(u64, TimingEvent)> {
+    let mut events = Vec::with_capacity(bpm_changes.len() + stops.len());
+    let mut bpm_iter = bpm_changes.iter().peekable();
+    let mut stop_iter = stops.iter().peekable();
+    loop {
+        match (bpm_iter.peek(), stop_iter.peek()) {
+            (Some(bc), Some(st)) if bc.tick <= st.tick => {
+                events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
+                bpm_iter.next();
+            }
+            (Some(bc), None) => {
+                events.push((bc.tick, TimingEvent::Bpm(bc.bpm)));
+                bpm_iter.next();
+            }
+            (_, Some(st)) => {
+                events.push((st.tick, TimingEvent::Stop(st.duration)));
+                stop_iter.next();
+            }
+            (None, None) => break,
+        }
+    }
     events
 }
 
 /// 构建 `duration_to_tick` 的逆查找段列表。
 ///
-/// 合并 BPM 变更与停止事件，按 `(tick, is_stop)` 升序遍历（与
-/// [`TimingTrack::cached_events`] 同序，保证同一脉冲上 BPM 先于 Stop），
-/// 累计实际时间秒数，在每个断点记录 `(sec_lo, tick, bpm)`。停止产生一个
-/// `bpm = 0.0` 的冻结段，其后的线性段在同一脉冲以同 BPM 继续。
+/// 合并 BPM 变更与停止事件，按 `(tick, is_stop)` 升序遍历，累计实际时间
+/// 秒数，在每个断点记录 `(sec_lo, tick, bpm)`。停止产生一个 `bpm = 0.0` 的
+/// 冻结段，其后的线性段在同一脉冲以同 BPM 继续。
 #[expect(clippy::cast_precision_loss, reason = "tick/duration fit in f64")]
-fn build_inv(
+fn merge_inv(
     init_bpm: f64,
     bpm_changes: &[BpmChange],
     stops: &[StopEvent],
@@ -544,7 +553,7 @@ fn build_inv(
 ) -> Vec<InvSeg> {
     let res_f = resolution as f64;
 
-    let events = build_sorted_events(bpm_changes, stops);
+    let events = merge_sorted_events(bpm_changes, stops);
     let mut inv = Vec::with_capacity(events.len() * 2 + 1);
     let mut cur_tick = 0u64;
     let mut cur_sec = 0.0f64;

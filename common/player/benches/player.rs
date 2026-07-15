@@ -101,26 +101,11 @@ fn build_chart(n: usize) -> Chart {
     }
 }
 
-/// 基准：`TimingTrack::duration_to_tick`（`O(n)` 旧路径，P1 前用于 advance）。
+/// 基准：`TimingTrack::duration_to_tick`（`O(log n)` 二分）。
 ///
-/// 目标取谱面 90% 处的时刻，使 `O(n)` 扫描处理绝大多数事件
+/// 目标取谱面 90% 处的时刻，使逆查找扫描处理绝大多数事件
 /// （反映后期游玩中每帧的最坏情况）。
 fn bench_timing_track_duration_to_tick(c: &mut Criterion) {
-    let mut group = c.benchmark_group("duration_to_tick / timing_track [O(log n)]");
-    for &n in &[500usize, 2000, 8000] {
-        let chart = build_chart(n);
-        let timing = &chart.data.timing;
-        let last_tick = chart.data.last_tick();
-        let target = timing.tick_to_duration(last_tick * 9 / 10);
-        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| black_box(timing.duration_to_tick(target)));
-        });
-    }
-    group.finish();
-}
-
-/// 基准：`TimingTrack::duration_to_tick`（`O(log n)` 二分）。
-fn bench_timing_cache_duration_to_tick(c: &mut Criterion) {
     let mut group = c.benchmark_group("duration_to_tick / timing_track [O(log n)]");
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
@@ -264,7 +249,6 @@ fn bench_player_events_in_range(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_timing_track_duration_to_tick,
-    bench_timing_cache_duration_to_tick,
     bench_timing_cache_tick_to_duration,
     bench_player_advance,
     bench_player_events_in_range,

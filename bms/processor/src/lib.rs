@@ -210,7 +210,7 @@ impl BmsProcessor {
     ///
     /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
     pub fn process_pms(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
-        match crate::layout::detect_pms_variant(bms) {
+        match PmsLayout::detect(bms) {
             PmsLayout::Standard => Self::process::<Pms>(bms),
             PmsLayout::BmeType => Self::process::<PmsBme>(bms),
         }
@@ -314,6 +314,9 @@ impl BmsConverter<'_> {
 
         let mut check_wav = |wav_id: &WavIndex| -> Option<u32> {
             let audio = wav_map.get(wav_id).copied();
+            // `to_index()` 返回 `None` 时静默跳过警告：非可分解的 WAV 键
+            // （如 "ZZ" LNOBJ 标记）不属于 WAV 表定义的范围，不产生
+            // 缺失定义警告。
             if audio.is_none()
                 && let Some(key) = wav_id.0.to_index()
             {
@@ -792,7 +795,7 @@ impl BmsConverter<'_> {
                     if duration < 0.0 {
                         self.warnings.push(ProcessWarning::StopDurationClipped {
                             tick,
-                            original: duration,
+                            computed_duration: duration,
                         });
                     }
                     Some(StopEvent {

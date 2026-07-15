@@ -29,8 +29,8 @@ pub enum ProcessWarning {
     StopDurationClipped {
         /// 事件所在脉冲。
         tick: u64,
-        /// 原始的负值时长。
-        original: f64,
+        /// 计算出的负值时长（被钳位前）。
+        computed_duration: f64,
     },
 
     /// BPM 变更引用 `#BPMxx` 中未定义的键。

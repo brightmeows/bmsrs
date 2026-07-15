@@ -183,34 +183,36 @@ pub enum PmsLayout {
     BmeType,
 }
 
-/// 从已解析的 BMS 数据自动检测 PMS 变体。
-///
-/// 扫描 note、long note 与 mine 事件中的 `(player, lane)` 对：
-/// - `player == 2 && lane in 2..=5` 指示 Standard（原生 PMS）。
-/// - `player == 1 && lane in 6..=9` 指示 BME-type。
-/// - 若同时出现两种指示，Standard 优先（safe default）。
-/// - 若无可指示的事件，返回 Standard。
-#[must_use]
-pub fn detect_pms_variant(bms: &bms_parser::Bms) -> PmsLayout {
-    let mut has_standard = false;
-    let mut has_bme = false;
+impl PmsLayout {
+    /// 从已解析的 BMS 数据自动检测 PMS 变体。
+    ///
+    /// 扫描 note、long note 与 mine 事件中的 `(player, lane)` 对：
+    /// - `player == 2 && lane in 2..=5` 指示 Standard（原生 PMS）。
+    /// - `player == 1 && lane in 6..=9` 指示 BME-type。
+    /// - 若同时出现两种指示，Standard 优先（safe default）。
+    /// - 若无可指示的事件，返回 Standard。
+    #[must_use]
+    pub fn detect(bms: &bms_parser::Bms) -> Self {
+        let mut has_standard = false;
+        let mut has_bme = false;
 
-    for ev in &bms.messages.note_events {
-        check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
-    }
-    for ev in &bms.messages.long_note_events {
-        check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
-    }
-    for ev in &bms.messages.mine_events {
-        check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
-    }
+        for ev in &bms.messages.note_events {
+            check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
+        }
+        for ev in &bms.messages.long_note_events {
+            check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
+        }
+        for ev in &bms.messages.mine_events {
+            check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
+        }
 
-    if has_standard {
-        PmsLayout::Standard
-    } else if has_bme {
-        PmsLayout::BmeType
-    } else {
-        PmsLayout::Standard
+        if has_standard {
+            Self::Standard
+        } else if has_bme {
+            Self::BmeType
+        } else {
+            Self::Standard
+        }
     }
 }
 
