@@ -49,7 +49,7 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         resolution: 240,
-//!         timing: TimingTrack::simple(120.0).unwrap(),
+//!         timing: TimingTrack::simple(120.0, 240).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
 //!         ln_type_hint: LnTypeHint::default(),
@@ -87,7 +87,9 @@ pub use audio::AudioAsset;
 pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
-pub use timing::{BpmChange, BpmLookup, StopEvent, TimingCache, TimingTrack, TimingTrackError};
+#[expect(deprecated, reason = "TimingCache 仍保留供旧调用方使用")]
+pub use timing::TimingCache;
+pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
 pub use visual::{BgaLayer, BgaResource, CropRect, VideoAsset};
 
 /// 乐曲级元数据 —— 对应 BMSON v2 的 `SongInfo`。
@@ -235,8 +237,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     #[must_use]
     #[inline]
     pub fn duration(&self) -> std::time::Duration {
-        self.timing
-            .tick_to_duration(self.last_tick(), self.resolution)
+        self.timing.tick_to_duration(self.last_tick())
     }
 
     /// 验证谱面数据的关键不变量。
@@ -255,6 +256,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         }
         self.timing.validate().map_err(|e| match e {
             TimingTrackError::InvalidBpm { bpm } => ChartDataError::InvalidBpm { bpm },
+            TimingTrackError::ZeroResolution => ChartDataError::ZeroResolution,
         })
     }
 
