@@ -32,7 +32,7 @@ mod position;
 
 pub mod layout;
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -51,7 +51,7 @@ use thiserror::Error;
 use crate::custom_event::BmsCustomEvent;
 use crate::layout::{Bme, BmsChannel, BmsLayout};
 
-use crate::long_note::{PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
+use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
 
 /// BMS 处理期间可能发生的错误。
@@ -110,13 +110,15 @@ impl BmsProcessor {
 
         let bmp_map = conv.build_bmp_map();
 
-        let (paired_lns, consumed) = conv.pair_long_notes();
+        let (ln_result, consumed) = conv.pair_long_notes();
+        let paired_lns = ln_result.paired;
+        let unpaired_starts = ln_result.unpaired_starts;
 
         // 小节线优先（优先级 0）。
         conv.events.extend(build_bar_events(&table));
 
         // 音符（优先级 1）。
-        conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed);
+        conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed, &unpaired_starts);
 
         // BGM（优先级 1）。
         conv.collect_bgm(&wav_map);
@@ -202,10 +204,17 @@ struct BmsConverter<'a> {
 }
 
 impl BmsConverter<'_> {
-    /// 判定 LN 模式并配对长音。返回配对后的长音与已消耗的音符索引。
-    fn pair_long_notes(&self) -> (Vec<PairedLn>, HashSet<usize>) {
+    /// 判定 LN 模式并配对长音。返回配对结果与已消耗的音符索引。
+    fn pair_long_notes(&self) -> (LnPairingResult, HashSet<usize>) {
         if let Some(ln_obj) = self.bms.gameplay.ln_obj {
-            return pair_lnobj(&self.bms.messages.note_events, ln_obj, self.table);
+            let (paired, consumed) = pair_lnobj(&self.bms.messages.note_events, ln_obj, self.table);
+            return (
+                LnPairingResult {
+                    paired,
+                    unpaired_starts: Vec::new(),
+                },
+                consumed,
+            );
         }
         if self.bms.gameplay.ln_type == Some(bms_tokenizer::LnType::Type2) {
             return (
@@ -237,6 +246,7 @@ impl BmsConverter<'_> {
         wav_map: &BTreeMap<WavIndex, u32>,
         paired_lns: &[PairedLn],
         consumed: &HashSet<usize>,
+        unpaired_starts: &[(u8, u8, u64)],
     ) {
         let push_note =
             |tick: u64, side, lane, kind: NoteKind, audio: Option<u32>, ev: &mut Vec<BmsEvent>| {
@@ -256,14 +266,21 @@ impl BmsConverter<'_> {
                 }
             };
 
-        // 可见音符（跳过已消耗的 LNOBJ 配对）。
+        // 构建 LN 区间表：(player, lane) → Vec<(start_tick, end_tick)>。
+        let ln_ranges = build_ln_ranges(paired_lns);
+
+        // 可见音符（跳过已消耗的 LNOBJ 配对与 LN 区间内的音符）。
         for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
             if consumed.contains(&i) {
                 continue;
             }
             if ne.key_type == KeyType::Visible {
+                let tick = self.table.position_to_tick(ne.position);
+                if is_note_suppressed(ne.player, ne.lane, tick, &ln_ranges, unpaired_starts) {
+                    continue;
+                }
                 push_note(
-                    self.table.position_to_tick(ne.position),
+                    tick,
                     ne.player,
                     ne.lane,
                     NoteKind::Normal,
@@ -877,6 +894,36 @@ fn resolve_bmp_path(bmp_files: &BTreeMap<BmpIndex, String>, bmp_index: u16) -> O
     bmp_files
         .iter()
         .find_map(|(k, v)| (k.to_index() == Some(bmp_index)).then_some(v))
+}
+
+/// 构建 LN 区间查找表。
+fn build_ln_ranges(paired_lns: &[PairedLn]) -> HashMap<(u8, u8), Vec<(u64, u64)>> {
+    let mut ln_ranges: HashMap<(u8, u8), Vec<(u64, u64)>> = HashMap::new();
+    for ln in paired_lns {
+        ln_ranges
+            .entry((ln.player, ln.lane))
+            .or_default()
+            .push((ln.tick, ln.end_tick));
+    }
+    ln_ranges
+}
+
+/// 判断 visible note 是否应被 LN 区间抑制。
+fn is_note_suppressed(
+    player: u8,
+    lane: u8,
+    tick: u64,
+    ln_ranges: &HashMap<(u8, u8), Vec<(u64, u64)>>,
+    unpaired_starts: &[(u8, u8, u64)],
+) -> bool {
+    if let Some(ranges) = ln_ranges.get(&(player, lane)) {
+        for &(start, end) in ranges {
+            if tick >= start && tick <= end {
+                return true;
+            }
+        }
+    }
+    unpaired_starts.contains(&(player, lane, tick))
 }
 
 /// 从预计算的小节脉冲表构建对齐的小节事件。
