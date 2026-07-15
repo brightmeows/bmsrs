@@ -10,7 +10,7 @@
 //! - **LNOBJ**：指定的 WAV 索引标记长音终点。长音起点为常规音符事件；
 //!   匹配的终点为同一 `(player, lane)` 上后续带有 `#LNOBJ` WAV 的音符。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bms_parser::{LongNoteEvent, NoteEvent};
 use bms_tokenizer::{LnObjIndex, WavIndex};
@@ -45,7 +45,8 @@ fn is_empty_index(idx: WavIndex) -> bool {
 /// 为下一个起点，依此类推。
 pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
     // 按 (player, lane) 分组，过滤掉 "00" 条目。
-    let mut groups: HashMap<(u8, u8), Vec<&LongNoteEvent>> = HashMap::new();
+    // 使用 BTreeMap：配对结果需按 (player, lane) 有序输出，依赖方假定其顺序确定。
+    let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
     for ev in events {
         if is_empty_index(ev.wav_id) {
             continue;
@@ -90,7 +91,8 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
 /// 4. 若分组结束时仍有活跃长音，将其丢弃（无配对终点 → 无长音）。
 pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
     // 按 (player, lane) 分组 —— 保留包括 "00" 在内的全部条目。
-    let mut groups: HashMap<(u8, u8), Vec<&LongNoteEvent>> = HashMap::new();
+    // 使用 BTreeMap：配对结果需按 (player, lane) 有序输出，依赖方假定其顺序确定。
+    let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
     for ev in events {
         groups.entry((ev.player, ev.lane)).or_default().push(ev);
     }
