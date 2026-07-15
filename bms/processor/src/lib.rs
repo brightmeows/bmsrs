@@ -52,7 +52,7 @@ use thiserror::Error;
 pub use crate::error::ProcessWarning;
 
 use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsChannel, BmsLayout};
+use crate::layout::{Bme, BmsChannel, BmsLayout, Pms, PmsBme, PmsLayout};
 
 use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
@@ -200,6 +200,20 @@ impl BmsProcessor {
         L: BmsLayout,
     {
         Self::process_with_warnings::<L>(bms).map(|(chart, _)| chart)
+    }
+
+    /// 使用自动检测的 PMS 变体布局处理 BMS 谱面。
+    ///
+    /// 根据谱面中使用的通道自动选择 [`Pms`]（Standard）或 [`PmsBme`]（BME-type）。
+    ///
+    /// # Errors
+    ///
+    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
+    pub fn process_pms(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
+        match crate::layout::detect_pms_variant(bms) {
+            PmsLayout::Standard => Self::process::<Pms>(bms),
+            PmsLayout::BmeType => Self::process::<PmsBme>(bms),
+        }
     }
 
     /// 使用默认的 [`Bme`] 布局处理 BMS 谱面。
