@@ -6,12 +6,14 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 
 ## 设计哲学
 
-**信息保留优先。** 原始元数据值原样存储，不做推断或转换。
+**`Bms` 保真映射。** `Bms` 字段是 BMS 文件内容的直接结构化表示，不存需要计算或语义解释才能得到的派生值。域级判据见 `bms/AGENTS.md` 职责判据。
 
 | 不做什么 | 理由 |
 |----------|------|
 | 值解释（路径、URL、邮箱） | 字符串原样保留 |
 | 控制流展开 | 由 `bms-control-flow` 处理 |
+| 派生值计算 | 归 processor（如伤害 = base36/2、引用→绝对值） |
+| 引用-定义配对解析 | `Bms` 保真存引用形态（如 `BpmValue::Reference`）；查表归 processor |
 
 > `Metadata::parse_implicit_subtitle` 是例外：作为 opt-in 工具方法提供，
 > 不在 `from_flat_tokens` 中自动调用，调用方显式选择是否执行副标题推断。
@@ -74,6 +76,7 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 
 - 在 parser 层自动执行引擎特定的推断（`parse_implicit_subtitle` 等需调用方显式触发）
 - 假设 `"00"` 在所有通道都表示“无操作”
+- 存储 processor 才需要的派生值（见“设计哲学”派生值禁止）
 
 ## 测试
 
