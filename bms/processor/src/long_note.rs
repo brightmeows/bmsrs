@@ -10,17 +10,27 @@
 //! - **LNOBJ**：指定的 WAV 索引标记长音终点。长音起点为常规音符事件；
 //!   匹配的终点为同一 `(player, lane)` 上后续带有 `#LNOBJ` WAV 的音符。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bms_parser::{LongNoteEvent, NoteEvent};
 use bms_tokenizer::{LnObjIndex, WavIndex};
 
 use crate::position::MeasureTable;
 
-/// 已配对的长音：起始脉冲、脉冲时长与 WAV 索引。
+/// LN 配对结果，含已配对 LN 与未配对的 start tick。
+pub struct LnPairingResult {
+    /// 已配对的长音。
+    pub paired: Vec<PairedLn>,
+    /// `(player, lane, start_tick)` —— 奇数 long channel 事件的残余。
+    pub unpaired_starts: Vec<(u8, u8, u64)>,
+}
+
+/// 已配对的长音：起始脉冲、终点脉冲、脉冲时长与 WAV 索引。
 pub struct PairedLn {
     /// 长音起点的绝对脉冲。
     pub tick: u64,
+    /// 长音终点的绝对脉冲。
+    pub end_tick: u64,
     /// 脉冲时长（终点脉冲 - 起点脉冲）。
     pub duration: u64,
     /// 长音起点事件的 WAV 索引。
@@ -43,9 +53,10 @@ fn is_empty_index(idx: WavIndex) -> bool {
 /// 索引为 `"00"` 的条目被**过滤掉**（它们表示间隔）。剩余的非 `"00"`
 /// 事件构成连续的起止对：第一个事件为长音起点，第二个为终点，第三个
 /// 为下一个起点，依此类推。
-pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
+pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairingResult {
     // 按 (player, lane) 分组，过滤掉 "00" 条目。
-    let mut groups: HashMap<(u8, u8), Vec<&LongNoteEvent>> = HashMap::new();
+    // 使用 BTreeMap：配对结果需按 (player, lane) 有序输出，依赖方假定其顺序确定。
+    let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
     for ev in events {
         if is_empty_index(ev.wav_id) {
             continue;
@@ -53,7 +64,8 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
         groups.entry((ev.player, ev.lane)).or_default().push(ev);
     }
 
-    let mut result = Vec::new();
+    let mut paired = Vec::new();
+    let mut unpaired_starts = Vec::new();
 
     for (&(player, lane), group) in &groups {
         let mut sorted = group.clone();
@@ -61,12 +73,19 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
 
         // 以连续对消费事件：第一个 = 起点，第二个 = 终点。
         let mut iter = sorted.into_iter();
-        while let (Some(start), Some(end)) = (iter.next(), iter.next()) {
+        while let Some(start) = iter.next() {
+            let Some(end) = iter.next() else {
+                // 未配对的单个事件。
+                let start_tick = table.position_to_tick(start.position);
+                unpaired_starts.push((player, lane, start_tick));
+                break;
+            };
             let start_tick = table.position_to_tick(start.position);
             let end_tick = table.position_to_tick(end.position);
 
-            result.push(PairedLn {
+            paired.push(PairedLn {
                 tick: start_tick,
+                end_tick,
                 duration: end_tick.saturating_sub(start_tick),
                 wav_id: start.wav_id,
                 player,
@@ -75,7 +94,10 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
         }
     }
 
-    result
+    LnPairingResult {
+        paired,
+        unpaired_starts,
+    }
 }
 
 /// 从通道 51-69 配对 LNTYPE 2 (MGQ) 长音事件。
@@ -88,14 +110,16 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
 /// 2. 长音外：跳过 `"00"` 条目；第一个非 `"00"` = 长音起点。
 /// 3. 长音内：第一个 `"00"` 条目 = 长音终点 → 生成配对。
 /// 4. 若分组结束时仍有活跃长音，将其丢弃（无配对终点 → 无长音）。
-pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<PairedLn> {
+pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairingResult {
     // 按 (player, lane) 分组 —— 保留包括 "00" 在内的全部条目。
-    let mut groups: HashMap<(u8, u8), Vec<&LongNoteEvent>> = HashMap::new();
+    // 使用 BTreeMap：配对结果需按 (player, lane) 有序输出，依赖方假定其顺序确定。
+    let mut groups: BTreeMap<(u8, u8), Vec<&LongNoteEvent>> = BTreeMap::new();
     for ev in events {
         groups.entry((ev.player, ev.lane)).or_default().push(ev);
     }
 
-    let mut result = Vec::new();
+    let mut paired = Vec::new();
+    let mut unpaired_starts = Vec::new();
 
     for (&(player, lane), group) in &groups {
         let mut sorted = group.clone();
@@ -111,8 +135,9 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
                     if let Some(start) = start_ev.take() {
                         let start_tick = table.position_to_tick(start.position);
                         let end_tick = table.position_to_tick(ev.position);
-                        result.push(PairedLn {
+                        paired.push(PairedLn {
                             tick: start_tick,
+                            end_tick,
                             duration: end_tick.saturating_sub(start_tick),
                             wav_id: start.wav_id,
                             player,
@@ -128,11 +153,17 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> Vec<Paire
                 start_ev = Some(ev);
             }
         }
-        // 若分组结束时仍有活跃长音，静默丢弃
-        // （未终止 —— 无可用配对终点）。
+        // 若分组结束时仍有活跃长音，记录为 unpaired start。
+        if let Some(start) = start_ev {
+            let start_tick = table.position_to_tick(start.position);
+            unpaired_starts.push((player, lane, start_tick));
+        }
     }
 
-    result
+    LnPairingResult {
+        paired,
+        unpaired_starts,
+    }
 }
 
 /// 从常规音符事件配对 LNOBJ 长音。
@@ -163,6 +194,7 @@ pub fn pair_lnobj(
 
                 paired.push(PairedLn {
                     tick: start_tick,
+                    end_tick,
                     duration: end_tick.saturating_sub(start_tick),
                     wav_id: start_ev.wav_id,
                     player: ev.player,
@@ -215,10 +247,12 @@ mod tests {
         let table = make_table();
         let result = pair_lntype1(&events, &table);
 
-        assert_eq!(result.len(), 1);
-        let ln = &result[0];
+        assert_eq!(result.paired.len(), 1);
+        let ln = &result.paired[0];
         assert_eq!(ln.tick, 0);
+        assert_eq!(ln.end_tick, 960);
         assert_eq!(ln.duration, 960); // 分辨率 240 下的 1 小节
+        assert!(result.unpaired_starts.is_empty());
     }
 
     #[test]
@@ -232,9 +266,10 @@ mod tests {
         let table = make_table();
         let result = pair_lntype1(&events, &table);
 
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].tick, 0);
-        assert_eq!(result[1].tick, 960);
+        assert_eq!(result.paired.len(), 2);
+        assert_eq!(result.paired[0].tick, 0);
+        assert_eq!(result.paired[1].tick, 960);
+        assert!(result.unpaired_starts.is_empty());
     }
 
     #[test]
@@ -247,7 +282,9 @@ mod tests {
         let table = make_table();
         let result = pair_lntype1(&events, &table);
 
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.paired.len(), 1);
+        assert_eq!(result.unpaired_starts.len(), 1);
+        assert_eq!(result.unpaired_starts[0], (1, 1, 1920)); // CC at numer 0 of measure 2
     }
 
     #[test]
@@ -261,9 +298,10 @@ mod tests {
         let table = make_table();
         let result = pair_lntype1(&events, &table);
 
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].lane, 1);
-        assert_eq!(result[1].lane, 2);
+        assert_eq!(result.paired.len(), 2);
+        assert_eq!(result.paired[0].lane, 1);
+        assert_eq!(result.paired[1].lane, 2);
+        assert!(result.unpaired_starts.is_empty());
     }
 
     #[test]
@@ -326,8 +364,9 @@ mod tests {
         let table = make_table();
         let result = pair_lntype1(&events, &table);
 
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].wav_id, "AA".parse().unwrap());
+        assert_eq!(result.paired.len(), 1);
+        assert_eq!(result.paired[0].wav_id, "AA".parse().unwrap());
+        assert!(result.unpaired_starts.is_empty());
     }
 
     #[test]
@@ -345,9 +384,10 @@ mod tests {
         let table = make_table();
         let result = pair_lntype1(&events, &table);
 
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].wav_id, "AA".parse().unwrap());
-        assert_eq!(result[1].wav_id, "CC".parse().unwrap());
+        assert_eq!(result.paired.len(), 2);
+        assert_eq!(result.paired[0].wav_id, "AA".parse().unwrap());
+        assert_eq!(result.paired[1].wav_id, "CC".parse().unwrap());
+        assert!(result.unpaired_starts.is_empty());
     }
 
     #[test]
@@ -356,7 +396,8 @@ mod tests {
         let table = make_table();
         let result = pair_lntype1(&events, &table);
 
-        assert!(result.is_empty());
+        assert!(result.paired.is_empty());
+        assert!(result.unpaired_starts.is_empty());
     }
 
     // LNTYPE 2 (MGQ)
@@ -374,11 +415,13 @@ mod tests {
         let table = make_table();
         let result = pair_lntype2(&events, &table);
 
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].tick, 0);
-        assert_eq!(result[0].wav_id, "AA".parse().unwrap());
+        assert_eq!(result.paired.len(), 1);
+        assert_eq!(result.paired[0].tick, 0);
+        assert_eq!(result.paired[0].end_tick, 360);
+        assert_eq!(result.paired[0].wav_id, "AA".parse().unwrap());
         // 00 在 numer=3（共 8）→ 位置 = 3/8 小节 → 脉冲 = 960 * 3/8 = 360
-        assert_eq!(result[0].duration, 360);
+        assert_eq!(result.paired[0].duration, 360);
+        assert!(result.unpaired_starts.is_empty());
     }
 
     #[test]
@@ -397,29 +440,35 @@ mod tests {
         let table = make_table();
         let result = pair_lntype2(&events, &table);
 
-        assert_eq!(result.len(), 3);
+        assert_eq!(result.paired.len(), 3);
         // LN1：AA(0) → 00(120)
-        assert_eq!(result[0].wav_id, "AA".parse().unwrap());
-        assert_eq!(result[0].tick, 0);
-        assert_eq!(result[0].duration, 120);
+        assert_eq!(result.paired[0].wav_id, "AA".parse().unwrap());
+        assert_eq!(result.paired[0].tick, 0);
+        assert_eq!(result.paired[0].end_tick, 120);
+        assert_eq!(result.paired[0].duration, 120);
         // LN2：BB(240) → 00(960) —— CC(360) 继续该长音
-        assert_eq!(result[1].wav_id, "BB".parse().unwrap());
-        assert_eq!(result[1].tick, 240);
-        assert_eq!(result[1].duration, 720);
+        assert_eq!(result.paired[1].wav_id, "BB".parse().unwrap());
+        assert_eq!(result.paired[1].tick, 240);
+        assert_eq!(result.paired[1].end_tick, 960);
+        assert_eq!(result.paired[1].duration, 720);
         // LN3：DD(1080) → 00(1200)
-        assert_eq!(result[2].wav_id, "DD".parse().unwrap());
-        assert_eq!(result[2].tick, 1080);
-        assert_eq!(result[2].duration, 120);
+        assert_eq!(result.paired[2].wav_id, "DD".parse().unwrap());
+        assert_eq!(result.paired[2].tick, 1080);
+        assert_eq!(result.paired[2].end_tick, 1200);
+        assert_eq!(result.paired[2].duration, 120);
+        assert!(result.unpaired_starts.is_empty());
     }
 
     #[test]
-    fn lntype2_unterminated_run_dropped() {
-        // AA BB（无尾部 00）→ 无配对长音。
+    fn lntype2_unterminated_run_returns_unpaired_start() {
+        // AA BB（无尾部 00）→ 无配对长音，但 unpaired_starts 含 start。
         let events = vec![ln_event(1, 1, 0, 0, "AA"), ln_event(1, 1, 0, 1, "BB")];
         let table = make_table();
         let result = pair_lntype2(&events, &table);
 
-        assert!(result.is_empty());
+        assert!(result.paired.is_empty());
+        assert_eq!(result.unpaired_starts.len(), 1);
+        assert_eq!(result.unpaired_starts[0], (1, 1, 0));
     }
 
     #[test]
@@ -435,6 +484,7 @@ mod tests {
         let table = make_table();
         let result = pair_lntype2(&events, &table);
 
-        assert_eq!(result.len(), 2);
+        assert_eq!(result.paired.len(), 2);
+        assert!(result.unpaired_starts.is_empty());
     }
 }

@@ -19,6 +19,7 @@
 //! 每个 `bmson_def::SoundChannel` 会在每个唯一的音符脉冲处切片为预计算的
 //! `AudioAsset`（详见内部 `slice` 模块）。
 
+mod error;
 mod slice;
 
 pub mod layout;
@@ -31,9 +32,11 @@ use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event,
     EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteExt, NoteKind, NoteSide, SongInfo,
-    StopEvent, TimingCache, TimingTrack, TimingTrackError,
+    StopEvent, TimingTrack, TimingTrackError,
 };
 use thiserror::Error;
+
+pub use crate::error::BmsonProcessWarning;
 
 use crate::layout::{Beat, BmsonLayout, GenericLayout, Pms};
 
@@ -92,6 +95,20 @@ impl BmsonProcessor {
         Self::process_body(bmson, &|x| L::map_x(x))
     }
 
+    /// 使用无状态模式族布局处理 BMSON 谱面，并收集处理警告。
+    ///
+    /// # Errors
+    ///
+    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
+    pub fn process_with_warnings<L>(
+        bmson: &bmson_def::Bmson<'_>,
+    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError>
+    where
+        L: BmsonLayout,
+    {
+        Self::process_body_with_warnings(bmson, &|x| L::map_x(x))
+    }
+
     /// 使用 generic-nkeys 布局处理 BMSON 谱面。
     ///
     /// 这是唯一有状态的布局族——当模式提示为 `generic-nkeys` 时，请直接调用
@@ -106,6 +123,19 @@ impl BmsonProcessor {
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
+    }
+
+    /// 使用 generic-nkeys 布局处理 BMSON 谱面，并收集处理警告。
+    ///
+    /// # Errors
+    ///
+    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
+    pub fn process_nkeys_with_warnings(
+        bmson: &bmson_def::Bmson<'_>,
+        keys: u16,
+    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
+        let layout = GenericLayout { keys };
+        Self::process_body_with_warnings(bmson, &|x| layout.map_x(x))
     }
 
     /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族。
@@ -143,18 +173,26 @@ impl BmsonProcessor {
         bmson: &bmson_def::Bmson<'_>,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
+        Self::process_body_with_warnings(bmson, decode).map(|(chart, _)| chart)
+    }
+
+    /// 与 [`process_body`] 相同，但返回处理过程中收集的警告。
+    fn process_body_with_warnings(
+        bmson: &bmson_def::Bmson<'_>,
+        decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
+    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
         let bmson_data = &bmson.chart_data;
 
         let timing = build_timing(bmson_data).map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
         let resolution = bmson_data.resolution;
-        let timing_cache = TimingCache::new(&timing, resolution);
         let mut conv = BmsonConverter {
             bmson,
             decode,
-            timing: timing_cache,
+            timing: timing.clone(),
             resolution,
             audio_assets: Vec::new(),
             events: Vec::new(),
+            warnings: Vec::new(),
         };
 
         conv.process_sound_channels();
@@ -200,11 +238,14 @@ impl BmsonProcessor {
         };
         data.sort_events();
 
-        Ok(Chart {
-            song: song_info,
-            chart: chart_info,
-            data,
-        })
+        Ok((
+            Chart {
+                song: song_info,
+                chart: chart_info,
+                data,
+            },
+            conv.warnings,
+        ))
     }
 }
 
@@ -220,25 +261,29 @@ struct BmsonConverter<'a> {
     /// 通道解码函数（`x` → `(side, lane)`）。
     decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
     /// 预计算的计时缓存。
-    timing: TimingCache,
+    timing: TimingTrack,
     /// 节拍分辨率。
     resolution: u64,
     /// 正在构建的音频素材向量。
     audio_assets: Vec<AudioAsset>,
     /// 正在构建的事件向量。
     events: Vec<Event<BmsonNoteExt>>,
+    /// 处理过程中收集的可恢复警告。
+    warnings: Vec<BmsonProcessWarning>,
 }
 
 impl BmsonConverter<'_> {
     /// 收集 BPM 变更事件。
+    /// 值为 0 的 BPM 变更被跳过并生成警告。
     fn collect_bpm_events(&mut self) {
-        self.events.extend(
-            self.bmson
-                .chart_data
-                .bpm_events
-                .iter()
-                .map(|e| Event::bpm(e.y, e.bpm)),
-        );
+        for e in &self.bmson.chart_data.bpm_events {
+            if e.bpm == 0.0 {
+                self.warnings
+                    .push(BmsonProcessWarning::ZeroBpmChangeIgnored { tick: e.y });
+            } else {
+                self.events.push(Event::bpm(e.y, e.bpm));
+            }
+        }
     }
 
     /// 收集停止事件。
@@ -440,6 +485,7 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> Result<TimingTrack, TimingTr
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
         data.stop_events.iter().map(build_stop_event).collect(),
+        data.resolution,
     )
 }
 

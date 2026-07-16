@@ -41,6 +41,7 @@ fn make_test_chart() -> Chart {
                     bpm: 180.0,
                 }],
                 vec![],
+                240,
             )
             .unwrap(),
             judge_multiplier: 1.0,
@@ -380,6 +381,7 @@ fn player_advance_with_bpm_change() {
             bpm: 240.0,
         }],
         vec![],
+        240,
     )
     .unwrap();
     let mut player = Player::new(chart).unwrap();
@@ -405,6 +407,7 @@ fn player_advance_with_stop() {
             tick: 240,
             duration: 240,
         }],
+        240,
     )
     .unwrap();
     let mut player = Player::new(chart).unwrap();
@@ -458,7 +461,7 @@ fn player_new_rejects_zero_resolution() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 0,
-            timing: TimingTrack::simple(120.0).unwrap(),
+            timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -483,7 +486,7 @@ fn player_new_accepts_negative_bpm() {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(-120.0).unwrap(),
+            timing: TimingTrack::simple(-120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -511,7 +514,7 @@ fn make_chart_with_bgm() -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(120.0).unwrap(),
+            timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -565,7 +568,7 @@ fn make_chart_with_bga() -> Chart {
         },
         data: ChartData {
             resolution: 240,
-            timing: TimingTrack::simple(120.0).unwrap(),
+            timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -760,7 +763,7 @@ fn player_bgm_multiple_channels_returns_all() {
 
 #[test]
 fn timing_track_rejects_invalid_bpm() {
-    let result = TimingTrack::simple(0.0);
+    let result = TimingTrack::simple(0.0, 240);
     assert!(result.is_err());
     assert_eq!(result, Err(TimingTrackError::InvalidBpm { bpm: 0.0 }));
 }

@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bmson_def::SoundChannel;
-use bmsrs_chart::{AudioAsset, TimingCache};
+use bmsrs_chart::{AudioAsset, TimingTrack};
 
 /// 对单条音频通道切片的输出。
 ///
@@ -41,13 +41,13 @@ pub struct SlicedChannel {
 /// 将一条音频通道切片为预计算的 [`AudioAsset`]。
 ///
 /// 算法详见[模块文档](self)。`timing` 为由 [`TimingTrack`] 预计算的
-/// [`TimingCache`]，提供 O(log n) 的脉冲→时间换算（相比直接调用
+/// [`TimingTrack`]，提供 O(log n) 的脉冲→时间换算（相比直接调用
 /// [`TimingTrack::tick_to_duration`] 的 O(n) 扫描，在脉冲密集的通道上
 /// 将整体复杂度从 O(N·M) 降为 O(M·log N)）。
 ///
 /// [`TimingTrack`]: bmsrs_chart::TimingTrack
 /// [`TimingTrack::tick_to_duration`]: bmsrs_chart::TimingTrack::tick_to_duration
-pub fn slice_channel(channel: &SoundChannel<'_>, timing: &TimingCache) -> SlicedChannel {
+pub fn slice_channel(channel: &SoundChannel<'_>, timing: &TimingTrack) -> SlicedChannel {
     // 1. 收集唯一的脉冲位置。BTreeSet 迭代本就升序，无需再次排序。
     let pulses: Vec<u64> = channel
         .note_events
@@ -122,8 +122,8 @@ mod tests {
 
     const RES: u64 = 240;
 
-    fn timing_120() -> TimingCache {
-        TimingCache::new(&TimingTrack::simple(120.0).unwrap(), RES)
+    fn timing_120() -> TimingTrack {
+        TimingTrack::simple(120.0, RES).unwrap()
     }
 
     #[test]

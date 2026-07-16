@@ -2,9 +2,8 @@
 //!
 //! 量化以下操作的耗时，为优化决策提供数据（而非猜测）：
 //!
-//! - `TimingTrack::duration_to_tick` —— `O(n)` 线性扫描（P1 前的旧路径）
-//! - `TimingCache::duration_to_tick` —— `O(log n)` 二分（P1 + O(log n) 重写后的路径）
-//! - `TimingCache::tick_to_duration` —— `O(log n)` 二分
+//! - `TimingTrack::duration_to_tick` —— `O(log n)` 二分
+//! - `TimingTrack::tick_to_duration` —— `O(log n)` 二分
 //! - `Player::advance` —— 播放循环每帧调用
 //!
 //! 运行：`cargo bench -p bmsrs-player`
@@ -16,7 +15,7 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingCache, TimingTrack,
+    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 use bmsrs_player::Player;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
@@ -81,7 +80,7 @@ fn build_chart(n: usize) -> Chart {
 
     events.sort_by_key(Event::sort_key);
 
-    let timing = TimingTrack::new(120.0, bpm_changes, stops).unwrap();
+    let timing = TimingTrack::new(120.0, bpm_changes, stops, RESOLUTION).unwrap();
 
     Chart {
         song: SongInfo::default(),
@@ -102,71 +101,49 @@ fn build_chart(n: usize) -> Chart {
     }
 }
 
-/// 基准：`TimingTrack::duration_to_tick`（`O(n)` 旧路径，P1 前用于 advance）。
+/// 基准：`TimingTrack::duration_to_tick`（`O(log n)` 二分）。
 ///
-/// 目标取谱面 90% 处的时刻，使 `O(n)` 扫描处理绝大多数事件
+/// 目标取谱面 90% 处的时刻，使逆查找扫描处理绝大多数事件
 /// （反映后期游玩中每帧的最坏情况）。
 fn bench_timing_track_duration_to_tick(c: &mut Criterion) {
-    let mut group = c.benchmark_group("duration_to_tick / timing_track [O(n)]");
+    let mut group = c.benchmark_group("duration_to_tick / timing_track [O(log n)]");
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
-        let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
+        let timing = &chart.data.timing;
         let last_tick = chart.data.last_tick();
-        let target = cache.tick_to_duration(last_tick * 9 / 10);
+        let target = timing.tick_to_duration(last_tick * 9 / 10);
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| {
-                black_box(
-                    chart
-                        .data
-                        .timing
-                        .duration_to_tick(target, chart.data.resolution),
-                )
-            });
+            b.iter(|| black_box(timing.duration_to_tick(target)));
         });
     }
     group.finish();
 }
 
-/// 基准：`TimingCache::duration_to_tick`（`O(log n)` 新路径，P1 后用于 advance）。
-fn bench_timing_cache_duration_to_tick(c: &mut Criterion) {
-    let mut group = c.benchmark_group("duration_to_tick / timing_cache [O(log n)]");
-    for &n in &[500usize, 2000, 8000] {
-        let chart = build_chart(n);
-        let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
-        let last_tick = chart.data.last_tick();
-        let target = cache.tick_to_duration(last_tick * 9 / 10);
-        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| black_box(cache.duration_to_tick(target)));
-        });
-    }
-    group.finish();
-}
-
-/// 基准：`TimingCache::tick_to_duration`（`O(log n)`）。
+/// 基准：`TimingTrack::tick_to_duration`（`O(log n)` 二分）。
 fn bench_timing_cache_tick_to_duration(c: &mut Criterion) {
-    let mut group = c.benchmark_group("tick_to_duration / timing_cache [O(log n)]");
+    let mut group = c.benchmark_group("tick_to_duration / timing_track [O(log n)]");
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
-        let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
+        let timing = &chart.data.timing;
         let tick = chart.data.last_tick() * 9 / 10;
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
-            b.iter(|| black_box(cache.tick_to_duration(tick)));
+            b.iter(|| black_box(timing.tick_to_duration(tick)));
         });
     }
     group.finish();
 }
 
-/// 基准：`Player::advance`（播放循环每帧调用，P1 修复的热路径）。
+/// 基准：`Player::advance`（播放循环每帧调用）。
 ///
 /// 预先将 player seek 到谱面 90% 处，测量后期游玩中每帧的最坏情况。
 fn bench_player_advance(c: &mut Criterion) {
     let mut group = c.benchmark_group("player::advance (per-frame)");
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
-        let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
+        let last_tick = chart.data.last_tick();
+        let seek_target = chart.data.timing.tick_to_duration(last_tick * 9 / 10);
         let mut player = Player::new(chart).expect("valid chart for benchmark");
-        let last_tick = player.chart().data.last_tick();
-        player.seek(cache.tick_to_duration(last_tick * 9 / 10));
+        player.seek(seek_target);
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| player.advance(FRAME));
         });
@@ -212,7 +189,7 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             resolution: RESOLUTION,
-            timing: TimingTrack::simple(120.0).unwrap(),
+            timing: TimingTrack::simple(120.0, RESOLUTION).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
             ln_type_hint: LnTypeHint::default(),
@@ -235,11 +212,10 @@ fn bench_player_events_in_range(c: &mut Criterion) {
     for &n in &[2000usize, 8000] {
         // 标准谱面（无 BGM）。
         let chart = build_chart(n);
-        let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
+        let mid_tick = chart.data.last_tick() / 2;
+        let seek_target = chart.data.timing.tick_to_duration(mid_tick);
         let mut player = Player::new(chart).expect("valid chart for benchmark");
-        let last_tick = player.chart().data.last_tick();
-        let mid_tick = last_tick / 2;
-        player.seek(cache.tick_to_duration(mid_tick));
+        player.seek(seek_target);
         let start = mid_tick;
         let end = mid_tick + 480;
         group.bench_with_input(BenchmarkId::new("all_events", n), &n, |b, _| {
@@ -257,10 +233,10 @@ fn bench_player_events_in_range(c: &mut Criterion) {
     // BGM 密集场景：每拍 10 个 BGM（Note:BGM = 1:10），模拟真实 BMS。
     // 固定 2000 个 Note，窗口内含约 20 Note + 200 BGM。
     let chart = build_dense_chart(2000, 10);
-    let cache = TimingCache::new(&chart.data.timing, chart.data.resolution);
+    let mid_tick = chart.data.last_tick() / 2;
+    let seek_target = chart.data.timing.tick_to_duration(mid_tick);
     let mut player = Player::new(chart).expect("valid chart for benchmark");
-    let mid_tick = player.chart().data.last_tick() / 2;
-    player.seek(cache.tick_to_duration(mid_tick));
+    player.seek(seek_target);
     let start = mid_tick;
     let end = mid_tick + 480;
     group.bench_function("notes_filter (1:10 BGM)", |b| {
@@ -273,7 +249,6 @@ fn bench_player_events_in_range(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_timing_track_duration_to_tick,
-    bench_timing_cache_duration_to_tick,
     bench_timing_cache_tick_to_duration,
     bench_player_advance,
     bench_player_events_in_range,

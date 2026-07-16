@@ -27,12 +27,13 @@
 //! - **LNTYPE 1 (RDM)**：通道 51–69 上的事件按 `(player, lane)` 连续配对。
 
 pub mod custom_event;
+mod error;
 mod long_note;
 mod position;
 
 pub mod layout;
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -48,10 +49,12 @@ use bmsrs_chart::{
 };
 use thiserror::Error;
 
-use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsChannel, BmsLayout};
+pub use crate::error::ProcessWarning;
 
-use crate::long_note::{PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
+use crate::custom_event::BmsCustomEvent;
+use crate::layout::{Bme, BmsChannel, BmsLayout, Pms, PmsBme, PmsLayout};
+
+use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
 
 /// BMS 处理期间可能发生的错误。
@@ -75,7 +78,7 @@ pub struct BmsProcessor;
 const RESOLUTION: u64 = 240;
 
 impl BmsProcessor {
-    /// 使用显式模式族布局处理 BMS 谱面。
+    /// 使用显式模式族布局处理 BMS 谱面，并收集处理警告。
     ///
     /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
     /// 位置。可用族见 `layout` 模块。
@@ -83,7 +86,9 @@ impl BmsProcessor {
     /// # Errors
     ///
     /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
-    pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
+    pub fn process_with_warnings<L>(
+        bms: &Bms,
+    ) -> Result<(Chart<(), BmsCustomEvent>, Vec<ProcessWarning>), ProcessError>
     where
         L: BmsLayout,
     {
@@ -95,6 +100,7 @@ impl BmsProcessor {
             bms,
             table: &table,
             events: Vec::with_capacity(1024),
+            warnings: Vec::new(),
         };
 
         let (wav_map, audio_assets) = build_audio_assets(&bms.audio.wav_files);
@@ -105,18 +111,26 @@ impl BmsProcessor {
         stops.extend(conv.build_stops_from_stp(&bpm_lookup));
         stops.sort_by_key(|s| s.tick);
 
-        let timing = TimingTrack::new(init_bpm, bpm_changes, stops)
+        let timing = TimingTrack::new(init_bpm, bpm_changes, stops, RESOLUTION)
             .map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
 
         let bmp_map = conv.build_bmp_map();
 
-        let (paired_lns, consumed) = conv.pair_long_notes();
+        let (ln_result, consumed) = conv.pair_long_notes();
+        let paired_lns = ln_result.paired;
+        let unpaired_starts = ln_result.unpaired_starts;
+
+        // 收集未配对长音警告。
+        for &(player, lane, _) in &unpaired_starts {
+            conv.warnings
+                .push(ProcessWarning::UnterminatedLongNote { player, lane });
+        }
 
         // 小节线优先（优先级 0）。
         conv.events.extend(build_bar_events(&table));
 
         // 音符（优先级 1）。
-        conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed);
+        conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed, &unpaired_starts);
 
         // BGM（优先级 1）。
         conv.collect_bgm(&wav_map);
@@ -163,11 +177,43 @@ impl BmsProcessor {
         };
         data.sort_events();
 
-        Ok(Chart {
-            song,
-            chart: chart_info,
-            data,
-        })
+        Ok((
+            Chart {
+                song,
+                chart: chart_info,
+                data,
+            },
+            conv.warnings,
+        ))
+    }
+
+    /// 使用显式模式族布局处理 BMS 谱面。
+    ///
+    /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
+    /// 位置。可用族见 `layout` 模块。
+    ///
+    /// # Errors
+    ///
+    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
+    pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
+    where
+        L: BmsLayout,
+    {
+        Self::process_with_warnings::<L>(bms).map(|(chart, _)| chart)
+    }
+
+    /// 使用自动检测的 PMS 变体布局处理 BMS 谱面。
+    ///
+    /// 根据谱面中使用的通道自动选择 [`Pms`]（Standard）或 [`PmsBme`]（BME-type）。
+    ///
+    /// # Errors
+    ///
+    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
+    pub fn process_pms(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
+        match PmsLayout::detect(bms) {
+            PmsLayout::Standard => Self::process::<Pms>(bms),
+            PmsLayout::BmeType => Self::process::<PmsBme>(bms),
+        }
     }
 
     /// 使用默认的 [`Bme`] 布局处理 BMS 谱面。
@@ -199,13 +245,22 @@ struct BmsConverter<'a> {
     table: &'a MeasureTable,
     /// 正在构建的事件向量，最终由 [`BmsProcessor::process`] 提取。
     events: Vec<BmsEvent>,
+    /// 处理过程中收集的可恢复警告。
+    warnings: Vec<ProcessWarning>,
 }
 
 impl BmsConverter<'_> {
-    /// 判定 LN 模式并配对长音。返回配对后的长音与已消耗的音符索引。
-    fn pair_long_notes(&self) -> (Vec<PairedLn>, HashSet<usize>) {
+    /// 判定 LN 模式并配对长音。返回配对结果与已消耗的音符索引。
+    fn pair_long_notes(&self) -> (LnPairingResult, HashSet<usize>) {
         if let Some(ln_obj) = self.bms.gameplay.ln_obj {
-            return pair_lnobj(&self.bms.messages.note_events, ln_obj, self.table);
+            let (paired, consumed) = pair_lnobj(&self.bms.messages.note_events, ln_obj, self.table);
+            return (
+                LnPairingResult {
+                    paired,
+                    unpaired_starts: Vec::new(),
+                },
+                consumed,
+            );
         }
         if self.bms.gameplay.ln_type == Some(bms_tokenizer::LnType::Type2) {
             return (
@@ -237,6 +292,7 @@ impl BmsConverter<'_> {
         wav_map: &BTreeMap<WavIndex, u32>,
         paired_lns: &[PairedLn],
         consumed: &HashSet<usize>,
+        unpaired_starts: &[(u8, u8, u64)],
     ) {
         let push_note =
             |tick: u64, side, lane, kind: NoteKind, audio: Option<u32>, ev: &mut Vec<BmsEvent>| {
@@ -256,18 +312,39 @@ impl BmsConverter<'_> {
                 }
             };
 
-        // 可见音符（跳过已消耗的 LNOBJ 配对）。
+        let mut check_wav = |wav_id: &WavIndex| -> Option<u32> {
+            let audio = wav_map.get(wav_id).copied();
+            // `to_index()` 返回 `None` 时静默跳过警告：非可分解的 WAV 键
+            // （如 "ZZ" LNOBJ 标记）不属于 WAV 表定义的范围，不产生
+            // 缺失定义警告。
+            if audio.is_none()
+                && let Some(key) = wav_id.0.to_index()
+            {
+                self.warnings
+                    .push(ProcessWarning::MissingWavDefinition { key });
+            }
+            audio
+        };
+
+        // 构建 LN 区间表：(player, lane) → Vec<(start_tick, end_tick)>。
+        let ln_ranges = build_ln_ranges(paired_lns);
+
+        // 可见音符（跳过已消耗的 LNOBJ 配对与 LN 区间内的音符）。
         for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
             if consumed.contains(&i) {
                 continue;
             }
             if ne.key_type == KeyType::Visible {
+                let tick = self.table.position_to_tick(ne.position);
+                if is_note_suppressed(ne.player, ne.lane, tick, &ln_ranges, unpaired_starts) {
+                    continue;
+                }
                 push_note(
-                    self.table.position_to_tick(ne.position),
+                    tick,
                     ne.player,
                     ne.lane,
                     NoteKind::Normal,
-                    wav_map.get(&ne.wav_id).copied(),
+                    check_wav(&ne.wav_id),
                     &mut self.events,
                 );
             }
@@ -284,7 +361,7 @@ impl BmsConverter<'_> {
                     ne.player,
                     ne.lane,
                     NoteKind::Invisible,
-                    wav_map.get(&ne.wav_id).copied(),
+                    check_wav(&ne.wav_id),
                     &mut self.events,
                 );
             }
@@ -299,7 +376,7 @@ impl BmsConverter<'_> {
                     lne.player,
                     lne.lane,
                     NoteKind::Normal,
-                    wav_map.get(&lne.wav_id).copied(),
+                    check_wav(&lne.wav_id),
                     &mut self.events,
                 );
             }
@@ -314,7 +391,7 @@ impl BmsConverter<'_> {
                 NoteKind::Long {
                     duration: ln.duration,
                 },
-                wav_map.get(&ln.wav_id).copied(),
+                check_wav(&ln.wav_id),
                 &mut self.events,
             );
         }
@@ -366,12 +443,17 @@ impl BmsConverter<'_> {
     }
 
     /// 构建 BPM 事件（用于统一时间线）。
+    /// 值为 0 的 BPM 变更被跳过并生成警告。
     fn collect_bpm_events(&mut self) {
         for bc in &self.bms.messages.bpm_changes {
-            self.events.push(Event::bpm(
-                self.table.position_to_tick(bc.position),
-                self.resolve_bpm(bc.value),
-            ));
+            let tick = self.table.position_to_tick(bc.position);
+            let bpm = self.resolve_bpm(bc.value);
+            if bpm == 0.0 {
+                self.warnings
+                    .push(ProcessWarning::ZeroBpmChangeIgnored { tick });
+            } else {
+                self.events.push(Event::bpm(tick, bpm));
+            }
         }
     }
 
@@ -573,16 +655,26 @@ impl BmsConverter<'_> {
     }
 
     /// 为计时轨构建 BPM 变更事件。
-    fn build_bpm_changes(&self) -> Vec<BpmChange> {
-        self.bms
+    ///
+    /// 相邻同值 BPM 变更会被去重（首个保留）。
+    fn build_bpm_changes(&mut self) -> Vec<BpmChange> {
+        let mut changes: Vec<BpmChange> = self
+            .bms
             .messages
             .bpm_changes
             .iter()
-            .map(|bc| BpmChange {
-                tick: self.table.position_to_tick(bc.position),
-                bpm: self.resolve_bpm(bc.value),
+            .filter_map(|bc| {
+                let tick = self.table.position_to_tick(bc.position);
+                let bpm = self.resolve_bpm(bc.value);
+                if bpm == 0.0 {
+                    None
+                } else {
+                    Some(BpmChange { tick, bpm })
+                }
             })
-            .collect()
+            .collect();
+        changes.dedup_by(|a, b| (a.bpm - b.bpm).abs() < f64::EPSILON);
+        changes
     }
 
     /// 构建 BMP 索引到 [`BmpEntry`]（稠密 id + 路径 + 可选裁剪）的映射。
@@ -668,10 +760,20 @@ impl BmsConverter<'_> {
     }
 
     /// 将 [`BpmValue`] 解析为具体 BPM 值，对引用值使用 BPM 定义表。
-    fn resolve_bpm(&self, value: BpmValue) -> f64 {
+    fn resolve_bpm(&mut self, value: BpmValue) -> f64 {
         match value {
             BpmValue::Absolute(bpm) => bpm,
-            BpmValue::Reference(id) => self.bms.timing.bpm_defs.get(&id).copied().unwrap_or(120.0),
+            BpmValue::Reference(id) => {
+                if let Some(bpm) = self.bms.timing.bpm_defs.get(&id).copied() {
+                    bpm
+                } else {
+                    if let Some(key) = id.to_index() {
+                        self.warnings
+                            .push(ProcessWarning::MissingBpmDefinition { key });
+                    }
+                    120.0
+                }
+            }
         }
     }
 
@@ -681,20 +783,32 @@ impl BmsConverter<'_> {
     #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    fn build_stops_from_defs(&self) -> Vec<StopEvent> {
+    fn build_stops_from_defs(&mut self) -> Vec<StopEvent> {
         self.bms
             .messages
             .stop_events
             .iter()
             .filter_map(|se| {
-                self.bms
-                    .timing
-                    .stop_defs
-                    .get(&se.stop_id)
-                    .map(|&raw| StopEvent {
-                        tick: self.table.position_to_tick(se.position),
-                        duration: (raw / 192.0 * RESOLUTION as f64 * 4.0).round().max(0.0) as u64,
+                let tick = self.table.position_to_tick(se.position);
+                if let Some(&raw) = self.bms.timing.stop_defs.get(&se.stop_id) {
+                    let duration = (raw / 192.0 * RESOLUTION as f64 * 4.0).round();
+                    if duration < 0.0 {
+                        self.warnings.push(ProcessWarning::StopDurationClipped {
+                            tick,
+                            computed_duration: duration,
+                        });
+                    }
+                    Some(StopEvent {
+                        tick,
+                        duration: duration.max(0.0) as u64,
                     })
+                } else {
+                    if let Some(key) = se.stop_id.to_index() {
+                        self.warnings
+                            .push(ProcessWarning::MissingStopDefinition { key });
+                    }
+                    None
+                }
             })
             .collect()
     }
@@ -877,6 +991,36 @@ fn resolve_bmp_path(bmp_files: &BTreeMap<BmpIndex, String>, bmp_index: u16) -> O
     bmp_files
         .iter()
         .find_map(|(k, v)| (k.to_index() == Some(bmp_index)).then_some(v))
+}
+
+/// 构建 LN 区间查找表。
+fn build_ln_ranges(paired_lns: &[PairedLn]) -> HashMap<(u8, u8), Vec<(u64, u64)>> {
+    let mut ln_ranges: HashMap<(u8, u8), Vec<(u64, u64)>> = HashMap::new();
+    for ln in paired_lns {
+        ln_ranges
+            .entry((ln.player, ln.lane))
+            .or_default()
+            .push((ln.tick, ln.end_tick));
+    }
+    ln_ranges
+}
+
+/// 判断 visible note 是否应被 LN 区间抑制。
+fn is_note_suppressed(
+    player: u8,
+    lane: u8,
+    tick: u64,
+    ln_ranges: &HashMap<(u8, u8), Vec<(u64, u64)>>,
+    unpaired_starts: &[(u8, u8, u64)],
+) -> bool {
+    if let Some(ranges) = ln_ranges.get(&(player, lane)) {
+        for &(start, end) in ranges {
+            if tick >= start && tick <= end {
+                return true;
+            }
+        }
+    }
+    unpaired_starts.contains(&(player, lane, tick))
 }
 
 /// 从预计算的小节脉冲表构建对齐的小节事件。

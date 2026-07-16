@@ -249,8 +249,7 @@ fn bmspec_1_05_bpm_change() {
     let note_tick = notes.first().map_or(0, |(t, _)| *t);
     assert_eq!(note_tick, 960, "note at tick 960");
 
-    let resolution = chart.data.resolution;
-    let dur = chart.data.timing.tick_to_duration(note_tick, resolution);
+    let dur = chart.data.timing.tick_to_duration(note_tick);
     // 0-480 ticks at 60 BPM: 480/240 * 60/60 = 2.0s
     // 480-960 ticks at 120 BPM: 480/240 * 60/120 = 1.0s
     // Total: 3.0s
@@ -273,8 +272,6 @@ fn bmspec_1_05_multiple_bpm_changes() {
     let notes = all_notes(&chart);
     assert_eq!(notes.len(), 4, "should have 4 notes");
     let ticks: Vec<u64> = notes.iter().map(|(t, _)| *t).collect();
-    let resolution = chart.data.resolution;
-
     // #00003:0060C0 → Position(0, 0, 2)=BPM 96 (60h=96), (0,1,2)=BPM 192 (C0h=192)
     // #00011:00010203 → 4 notes at measure 0: positions 0/4, 1/4, 2/4, 3/4
 
@@ -294,7 +291,7 @@ fn bmspec_1_05_multiple_bpm_changes() {
 
     // Times:
     // 0-240 ticks at 100 BPM: 240/240 * 60/100 = 0.6s → note 01 at 0.6s ✓
-    let dur0 = chart.data.timing.tick_to_duration(240, resolution);
+    let dur0 = chart.data.timing.tick_to_duration(240);
     assert!(
         (dur0.as_secs_f64() - 0.6).abs() < 1e-4,
         "note 01 should be at 0.6s, got {dur0:?}"
@@ -324,10 +321,7 @@ fn bmspec_1_05_extended_bpm() {
 
     let notes = all_notes(&chart);
     assert_eq!(notes[0].0, 960, "note at tick 960");
-    let dur = chart
-        .data
-        .timing
-        .tick_to_duration(notes[0].0, chart.data.resolution);
+    let dur = chart.data.timing.tick_to_duration(notes[0].0);
     assert!(
         (dur.as_secs_f64() - 3.0).abs() < 1e-6,
         "expected 3.0s, got {dur:?}"
@@ -346,8 +340,6 @@ fn bmspec_1_06_basic_stop() {
 
     let notes = all_notes(&chart);
     assert_eq!(notes.len(), 2, "should have 2 notes");
-    let resolution = chart.data.resolution;
-
     // Note 01 at measure 1, pos 0/4 = tick 960
     // Note 02 at measure 1, pos 3/4 = tick 1680
     // Stop at position 0/4 of measure 1, duration = 96/192 * 960 = 480 ticks
@@ -368,7 +360,7 @@ fn bmspec_1_06_basic_stop() {
     //   1440-1680 = 240 ticks at 60 BPM = 1.0s
     //   合计 = 4.0 + 4.0 + 1.0 = 9.0s
 
-    let dur1 = chart.data.timing.tick_to_duration(notes[0].0, resolution);
+    let dur1 = chart.data.timing.tick_to_duration(notes[0].0);
 
     // bmspec: obj 01 at 4s
     assert!(
@@ -392,8 +384,6 @@ fn bmspec_1_06_stop_on_same_beat_as_bpm_matches_expected_timing() {
 
     let notes = all_notes(&chart);
     assert_eq!(notes.len(), 1, "should have 1 note");
-    let resolution = chart.data.resolution;
-
     // BPM 变更为 120 与 STOP 同在 tick 960（measure 1, pos 0/2）。
     // 事件排序：BPM(2) 先于 STOP(3)。
     //   tick 0-960 at 60 BPM = 4.0s
@@ -401,7 +391,7 @@ fn bmspec_1_06_stop_on_same_beat_as_bpm_matches_expected_timing() {
     //   tick 960-1920 at 120 BPM = 2.0s
     //   合计 = 7.0s
     // 若 BPM 在 STOP 之后变更：STOP 480 ticks at 60 BPM = 2.0s → 合计 8.0s
-    let dur = chart.data.timing.tick_to_duration(notes[0].0, resolution);
+    let dur = chart.data.timing.tick_to_duration(notes[0].0);
     assert!(
         (dur.as_secs_f64() - 7.0).abs() < 1e-6,
         "expected note at 7.0s (BPM before STOP), got {dur:?}"

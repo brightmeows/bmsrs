@@ -174,6 +174,58 @@ impl BmsLayout for PmsBme {
     }
 }
 
+/// PMS 布局变体：Standard（原生 PMS）或 BME-type（PMS BME 型）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PmsLayout {
+    /// 原生 PMS 布局：2P 通道 `22-25` 上的 KEY6-9。
+    Standard,
+    /// PMS BME 型布局：使用 BME 通道形状（`KEY6=18 KEY7=19 KEY8=16 KEY9=17`）。
+    BmeType,
+}
+
+impl PmsLayout {
+    /// 从已解析的 BMS 数据自动检测 PMS 变体。
+    ///
+    /// 扫描 note、long note 与 mine 事件中的 `(player, lane)` 对：
+    /// - `player == 2 && lane in 2..=5` 指示 Standard（原生 PMS）。
+    /// - `player == 1 && lane in 6..=9` 指示 BME-type。
+    /// - 若同时出现两种指示，Standard 优先（safe default）。
+    /// - 若无可指示的事件，返回 Standard。
+    #[must_use]
+    pub fn detect(bms: &bms_parser::Bms) -> Self {
+        let mut has_standard = false;
+        let mut has_bme = false;
+
+        for ev in &bms.messages.note_events {
+            check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
+        }
+        for ev in &bms.messages.long_note_events {
+            check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
+        }
+        for ev in &bms.messages.mine_events {
+            check_pms_channel(ev.player, ev.lane, &mut has_standard, &mut has_bme);
+        }
+
+        if has_standard {
+            Self::Standard
+        } else if has_bme {
+            Self::BmeType
+        } else {
+            Self::Standard
+        }
+    }
+}
+
+/// 检查单个 `(player, lane)` 对是否指示 PMS Standard 或 BME-type 变体。
+fn check_pms_channel(player: u8, lane: u8, std: &mut bool, bme: &mut bool) {
+    if player == 2 && (2..=5).contains(&lane) {
+        *std = true;
+    }
+    if player == 1 && (6..=9).contains(&lane) {
+        *bme = true;
+    }
+}
+
 /// DSC/FPP + OCT/FP 族：双侧布局，最多两个 Scratch 与一个脚踏板。
 /// DSC/FPP（双 Scratch，无踏板）与 OCT/FP（13 按键 + 第二 Scratch + 踏板）
 /// 均为该族按键集的子集。
