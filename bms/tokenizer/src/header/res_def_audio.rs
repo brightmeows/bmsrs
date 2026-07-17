@@ -112,65 +112,83 @@ fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
     s.get(start..).unwrap_or("")
 }
 
-/// `#WAVCMD` 的参数——音高/音量/时长覆盖（MacBeat 扩展）。
-///
-/// `MacBeat` 独占的伪 MOD 音效命令。使用此命令的 BMS 文件须将扩展名
-/// 改为 `.mbm`（`MacBeat` MOD），其他播放器通常不支持。
-///
-/// # 格式
-///
-/// `#WAVCMD <commandID> <wavIndex> <value>`
-///
-/// - `commandID`：2 字符命令标识（见下表）
-/// - `wavIndex`：16 进制，对应 `#WAVxx` 定义的索引
-/// - `value`：**十进制**非负整数，语义取决于 `commandID`
-///
-/// # 命令表
-///
-/// | `commandID` | 功能 | `value` 语义 | 范围/单位 |
-/// |-------------|------|-------------|----------|
-/// | `00` | 音高 | MIDI 风格音符号，基准 `60` = 中央 C | `0`–`127` |
-/// | `01` | 音量 | 百分比 | `100` = 原始音量；可超 `100` 但可能爆音 |
-/// | `02` | 再生时长 | 半毫秒单位（秒 × 2000） | `50`ms 以下截断为 `0` |
-///
-/// 未使用 `#WAVCMD` 时的默认值：音高 `60`、音量 `100`、时长 `0`（播放到结束）。
-///
-/// `#WAVCMD` 允许同命令多次出现，每行独立应用到一个 `wavIndex`。
-///
-/// 来源：[MacBeat mbm.txt](http://harinezumi.s14.xrea.com/download/mbm.txt)、
-/// [BMS command memo](https://hitkey.nekokan.dyndns.info/cmds.htm)
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WavCmdParams<C> {
-    /// 命令 ID（`00`、`01`、`02`）。
-    pub command_id: C,
-    /// 目标 WAV 索引。
-    pub wav_index: C,
-    /// 参数值（非负整数，语义由 `command_id` 决定）。
-    pub value: u32,
+/// `#WAVCMD` 的命令种类。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WavCmdKind {
+    /// `00`——音高（MIDI 音符号，基准 60 = 中央 C）。
+    Pitch,
+    /// `01`——音量（百分比，100 = 原始）。
+    Volume,
+    /// `02`——再生时长（半毫秒单位）。
+    Time,
 }
 
-impl<C: AsRef<str> + fmt::Display> fmt::Display for WavCmdParams<C> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.command_id, self.wav_index, self.value)
+impl std::fmt::Display for WavCmdKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Pitch => "00",
+            Self::Volume => "01",
+            Self::Time => "02",
+        };
+        f.write_str(s)
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for WavCmdParams<C>
-{
-    fn parse(s: &'a str) -> Option<Self> {
-        let mut parts = s.split_whitespace();
-        let command_id = parts.next()?;
-        let wav_index = parts.next()?;
-        let value: u32 = parts.next()?.parse().ok()?;
-        if parts.next().is_some() {
-            return None;
+impl std::str::FromStr for WavCmdKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "00" => Ok(Self::Pitch),
+            "01" => Ok(Self::Volume),
+            "02" => Ok(Self::Time),
+            _ => Err(()),
         }
-        Some(Self {
-            command_id: C::from(command_id),
-            wav_index: C::from(wav_index),
-            value,
-        })
+    }
+}
+
+/// `#WAVCMD` 的解析参数——音高/音量/时长覆盖（MacBeat 扩展）。
+///
+/// 格式：`commandID wavIndex value`。命令：`00` = 音高、
+/// `01` = 音量、`02` = 时长。仅 `MacBeat` 处理这些；
+/// Sonorous 解析但忽略。
+///
+/// 解析失败时回退到 [`BmsHeaderFallback`](crate::BmsHeaderFallback)。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WavCmdParams {
+    /// 命令种类。
+    pub command: WavCmdKind,
+    /// 目标 WAV 索引。
+    pub wav_index: WavIndex,
+    /// 参数值（非负整数，语义由 `command` 决定）。
+    pub value: u32,
+}
+
+impl std::fmt::Display for WavCmdParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.command, self.wav_index, self.value)
+    }
+}
+
+impl std::str::FromStr for WavCmdParams {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parsed = (|| {
+            let mut parts = s.split_whitespace();
+            let command: WavCmdKind = parts.next()?.parse().ok()?;
+            let wav_index: WavIndex = parts.next()?.parse().ok()?;
+            let value: u32 = parts.next()?.parse().ok()?;
+            if parts.next().is_some() {
+                return None;
+            }
+            Some(Self {
+                command,
+                wav_index,
+                value,
+            })
+        })();
+        parsed.ok_or(())
     }
 }
 
@@ -224,7 +242,7 @@ pub enum BmsHeaderResDefAudio<C> {
     #[bms_fallback]
     WavCmd {
         /// 解析出的 WAVCMD 参数。
-        params: WavCmdParams<C>,
+        params: WavCmdParams,
     },
     /// `#CDDA`——以 CD-DA 音轨作为 BGM（仅 DDR）。
     ///

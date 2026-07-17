@@ -5,7 +5,7 @@ use bms_tokenizer::{
     BmsHeaderGameplay, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
     BmsHeaderTiming, BpmIndex, ChangeOptionIndex, DifficultyLevel, ExRankIndex, LnMode, LnObjIndex,
     LnType, PlayerMode, PoorBgaMode, Rank, ScrollIndex, SeekIndex, SpeedIndex, StopIndex,
-    StpParams, TextIndex, WavCmdParams, WavIndex,
+    StpParams, TextIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 
 #[test]
@@ -414,8 +414,8 @@ fn parse_wavcmd() {
         result,
         BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
             params: WavCmdParams {
-                command_id: "01",
-                wav_index: "05",
+                command: WavCmdKind::Volume,
+                wav_index: "05".parse().unwrap(),
                 value: 100,
             }
         })
@@ -1050,8 +1050,8 @@ fn wavcmd_not_confused_as_wav_indexed() {
         result,
         BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
             params: WavCmdParams {
-                command_id: "00",
-                wav_index: "01",
+                command: WavCmdKind::Pitch,
+                wav_index: "01".parse().unwrap(),
                 value: 100,
             }
         })

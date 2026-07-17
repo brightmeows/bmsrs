@@ -5,7 +5,7 @@
 use bms_parser::*;
 use bms_tokenizer::{
     BmpIndex, BmsBase, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
-    Rank, ScrollIndex, SpeedIndex, StopIndex, WavIndex,
+    Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -210,9 +210,9 @@ fn dropped_audio_headers_stored() {
     let bms = parse("#WAVCMD 01 05 100\n#CDDA track.bin\n#MIDIFILE song.mid\n#PATH_WAV ./sounds/");
     assert_eq!(
         bms.audio.wav_cmd,
-        Some(bms_parser::WavCmdParams {
-            command_id: "01".into(),
-            wav_index: "05".into(),
+        Some(WavCmdParams {
+            command: WavCmdKind::Volume,
+            wav_index: "05".parse().unwrap(),
             value: 100,
         })
     );
@@ -952,9 +952,9 @@ fn wavcmd_stored() {
     let bms = parse("#WAVCMD 01 05 100");
     assert_eq!(
         bms.audio.wav_cmd,
-        Some(bms_parser::WavCmdParams {
-            command_id: "01".into(),
-            wav_index: "05".into(),
+        Some(WavCmdParams {
+            command: WavCmdKind::Volume,
+            wav_index: "05".parse().unwrap(),
             value: 100,
         })
     );

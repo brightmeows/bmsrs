@@ -6,7 +6,7 @@
 use bms_tokenizer::{
     BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ChangeOptionIndex,
-    DifficultyLevel, LnMode, LnType, PlayerMode, Rank, TextIndex, WavCmdParams,
+    DifficultyLevel, LnMode, LnType, PlayerMode, Rank, TextIndex, WavCmdKind, WavCmdParams,
 };
 
 #[test]
@@ -366,8 +366,8 @@ fn audio_wavcmd_roundtrip() {
         parsed,
         BmsHeaderResDefAudio::WavCmd {
             params: WavCmdParams {
-                command_id: "00",
-                wav_index: "01",
+                command: WavCmdKind::Pitch,
+                wav_index: "01".parse().unwrap(),
                 value: 100,
             }
         }
