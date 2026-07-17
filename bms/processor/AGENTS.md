@@ -70,7 +70,7 @@ tick = measure_starts[measure] + numer * measure_len / denom
 | 事件排序 | Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) → Custom(6) |
 | LNOBJ 终点 BGM | 终点标记过判定线时播放定义的 WAV |
 | LNOBJ 下 ch51-69 | 与 LNOBJ 互斥（memo/10 未定义）；不丢弃，作为普通可见音符保留 |
-| 地雷 `damage` | 取实际伤害值（见 `MineEvent.damage`）|
+| 地雷 `damage` | `MineEvent.raw_value`（`Option<u16>`）经 `mine_damage()` 转换：`Some(1295)` → INFINITY，`Some(n)` → n/2，`None` → 1.0 |
 | `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
 | 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是内部 `BmsConverter`（私有）的方法，非自由函数 |
 | `non_event_data` 索引归一化 | parser 层完成 | processor 消费 | `non_event_data` 的每个 2-char 值已在 parser 的 `finalize_merged` 中按 `detected_base` 归一化，processor 查表直接命中。`BmsConverter.base` 字段已因不复需要而移除 |

@@ -60,7 +60,7 @@ fn event_types_accessible() {
         position: pos,
         player: 2,
         lane: 7,
-        damage: 5.0,
+        raw_value: Some(10),
     };
     let _: BpmChange = BpmChange {
         position: pos,

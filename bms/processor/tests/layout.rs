@@ -54,7 +54,7 @@ fn bme_type_from_mine_player1_channels() {
         position: Position::new(0, 0, 1),
         player: 1,
         lane: 8,
-        damage: 1.0,
+        raw_value: Some(2),
     });
     assert_eq!(PmsLayout::detect(&bms), PmsLayout::BmeType);
 }

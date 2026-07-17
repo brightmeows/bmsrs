@@ -113,9 +113,9 @@ pub struct LongNoteEvent {
 
 /// 一个地雷音符（通道 `D1`–`D9`、`E1`–`E9`）。
 ///
-/// 伤害值由 BMS 双字符索引推导而来：`damage = base36_value / 2.0`，
-/// 其中 `ZZ` = 即死。
-#[derive(Debug, Clone, PartialEq)]
+/// `raw_value` 为地雷通道 2-char 值的 base36 解码结果。
+/// 伤害计算（`base36 / 2.0`、`ZZ` = 即死）由 processor 负责。
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MineEvent {
     /// 小节内的位置。
     pub position: Position,
@@ -123,8 +123,8 @@ pub struct MineEvent {
     pub player: u8,
     /// 轨道 / 按键编号（1–9）。
     pub lane: u8,
-    /// miss 时造成的伤害（0.0 = 无伤害，`f64::INFINITY` = 即死）。
-    pub damage: f64,
+    /// base36 解码值（`Some(1295)` = `"ZZ"`，`None` = 解码失败）。
+    pub raw_value: Option<u16>,
 }
 
 // BPM 变更
@@ -655,29 +655,22 @@ fn iter_nonzero_chunks(values: &str) -> impl Iterator<Item = (usize, &str)> {
     }
 }
 
-/// 将 BMS 双字符地雷索引解码为伤害值。
+/// 将地雷通道的 2-char 值解码为 base36 数值。
 ///
-/// 该索引被解释为 Base36 值（除非进制覆盖）：
-/// - `"00"` → [`None`]（该位置无地雷）
-/// - `"01"` → `Some(0.5)`
-/// - `"ZZ"` → `Some(f64::INFINITY)`（BMS 规格定义的即死）
-/// - 所有其他值 → `Some(base36_value / 2.0)`
-fn decode_mine_damage(val: &str, base: BmsBase) -> Option<f64> {
-    if val == "00" {
-        return None;
-    }
-    let parsed = if base == BmsBase::Base62 {
+/// 解码规则：
+/// - Base62 模式：先尝试十进制解析，失败再 Base36 解码
+/// - 其他模式：大写化后 Base36 解码
+///
+/// `"00"` 已由上层 `iter_nonzero_chunks` 过滤，不会进入此函数。
+/// 返回 `None` 表示原始值无法解码——processor 以默认伤害值处理。
+fn decode_mine_raw(val: &str, base: BmsBase) -> Option<u16> {
+    if base == BmsBase::Base62 {
         val.parse::<u16>()
             .ok()
             .or_else(|| BmsBase::Base36.decode(val))
     } else {
         let upper = val.to_ascii_uppercase();
         BmsBase::Base36.decode(&upper)
-    };
-    match parsed {
-        Some(1295) => Some(f64::INFINITY),
-        Some(n) => Some(f64::from(n) / 2.0),
-        None => Some(1.0),
     }
 }
 
@@ -869,9 +862,8 @@ impl Messages {
 
     /// 从完整拼接的值中解析地雷事件（ch D1–E9）。
     ///
-    /// 双字符索引将伤害编码为 Base36 值：
-    /// `damage = value / 2.0`，其中 `ZZ`（1295）= 即死。
-    /// `"00"` 条目被过滤掉（该位置无地雷）。
+    /// 双字符索引解码为 base36 数值存入 `raw_value`；伤害计算由
+    /// processor 负责。`"00"` 条目被 `iter_nonzero_chunks` 过滤。
     fn push_mine_full(
         &mut self,
         values: &str,
@@ -883,14 +875,12 @@ impl Messages {
     ) {
         for (i, val) in iter_nonzero_chunks(values) {
             // "00" 已由 iter_nonzero_chunks 跳过。
-            let Some(damage) = decode_mine_damage(val, base) else {
-                continue;
-            };
+            let raw_value = decode_mine_raw(val, base);
             self.mine_events.push(MineEvent {
                 position: event_pos(i, measure, total_objects),
                 player,
                 lane,
-                damage,
+                raw_value,
             });
         }
     }

@@ -403,7 +403,7 @@ impl BmsConverter<'_> {
                 me.player,
                 me.lane,
                 NoteKind::Mine {
-                    damage: Damage::new(me.damage),
+                    damage: Damage::new(mine_damage(me.raw_value)),
                 },
                 None,
                 &mut self.events,
@@ -1033,4 +1033,37 @@ fn build_bar_events(table: &MeasureTable) -> Vec<BmsEvent> {
         .iter()
         .map(|&tick| Event::bar(tick))
         .collect()
+}
+
+/// 将地雷原始 base36 值转换为伤害值。
+///
+/// - `Some(1295)`（`"ZZ"`）→ 即死（`f64::INFINITY`）
+/// - `Some(n)` → `n / 2.0`
+/// - `None`（解码失败）→ 默认 `1.0`
+fn mine_damage(raw: Option<u16>) -> f64 {
+    match raw {
+        None => 1.0,
+        Some(1295) => f64::INFINITY,
+        Some(n) => f64::from(n) / 2.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn instant_kill_value_produces_infinite_damage() {
+        assert!(mine_damage(Some(1295)).is_infinite());
+    }
+
+    #[test]
+    fn normal_value_produces_half_damage() {
+        assert!((mine_damage(Some(1)) - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn undecodable_value_produces_default_damage() {
+        assert!((mine_damage(None) - 1.0).abs() < f64::EPSILON);
+    }
 }
