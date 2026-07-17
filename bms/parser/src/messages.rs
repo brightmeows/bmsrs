@@ -9,7 +9,8 @@
 use std::collections::BTreeMap;
 
 use bms_tokenizer::{
-    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ScrollIndex, SpeedIndex, StopIndex, WavIndex,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ChannelIndex, ScrollIndex, SpeedIndex,
+    StopIndex, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -75,14 +76,16 @@ pub enum KeyType {
     Invisible,
 }
 
-/// 一个可玩音符（通道 `11`–`19`、`21`–`29`、`31`–`39`、`41`–`49`）。
+/// 一个可玩音符（通道 `11`–`1Z`、`21`–`2Z`、`31`–`3Z`、`41`–`4Z`）。
+///
+/// 扩展通道（`1A`–`1Z` 等，pomu2 系）解码出 `lane` 10–35。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoteEvent {
     /// 小节内的位置。
     pub position: Position,
     /// 玩家编号（1 或 2）。
     pub player: u8,
-    /// 轨道 / 按键编号（1–9）。
+    /// 轨道 / 按键编号（1–9 标准；10–35 为扩展通道）。
     pub lane: u8,
     /// 音符是否可见或不可见。
     pub key_type: KeyType,
@@ -92,7 +95,9 @@ pub struct NoteEvent {
 
 // 长音
 
-/// 一个长音 / charge-note（通道 `51`–`59`、`61`–`69`）。
+/// 一个长音 / charge-note（通道 `51`–`5Z`、`61`–`6Z`）。
+///
+/// 扩展通道（`5A`–`5Z` 等，pomu2 系）解码出 `lane` 10–35。
 ///
 /// 长音类型（LN / CN / HCN）由谱面级的
 /// [`LnType`](bms_tokenizer::LnType) 与 [`LnMode`](bms_tokenizer::LnMode)
@@ -103,7 +108,7 @@ pub struct LongNoteEvent {
     pub position: Position,
     /// 玩家编号（1 或 2）。
     pub player: u8,
-    /// 轨道 / 按键编号（1–9）。
+    /// 轨道 / 按键编号（1–9 标准；10–35 为扩展通道）。
     pub lane: u8,
     /// 指向 `#WAV` 表的引用。
     pub wav_id: WavIndex,
@@ -259,10 +264,11 @@ pub struct Messages {
 
     /// 从通道 `01` 解析出的 BGM 事件。
     pub bgm_events: Vec<BgmEvent>,
-    /// 从通道 `11`–`19`、`21`–`29`、`31`–`39`、`41`–`49` 解析出的可玩
-    /// 音符事件。
+    /// 从通道 `11`–`1Z`、`21`–`2Z`、`31`–`3Z`、`41`–`4Z` 解析出的可玩
+    /// 音符事件（含 pomu2 系扩展通道 `1A`–`1Z` 等，lane 10–35）。
     pub note_events: Vec<NoteEvent>,
-    /// 从通道 `51`–`59`、`61`–`69` 解析出的长音事件。
+    /// 从通道 `51`–`5Z`、`61`–`6Z` 解析出的长音事件
+    ///（含扩展通道 `5A`–`5Z` 等，lane 10–35）。
     pub long_note_events: Vec<LongNoteEvent>,
     /// 从通道 `D1`–`D9`、`E1`–`E9` 解析出的地雷事件。
     pub mine_events: Vec<MineEvent>,
@@ -441,9 +447,7 @@ impl Messages {
             BmsChannel::Scroll => self.push_scroll_full(&merged, measure, total_objects, base),
             BmsChannel::Speed => self.push_speed_full(&merged, measure, total_objects, base),
             BmsChannel::Note(note_ch) => {
-                if let Some(ch) = note_ch.as_u8_hex() {
-                    self.dispatch_note_channel(&merged, measure, ch, total_objects, base);
-                }
+                self.dispatch_note_channel(&merged, measure, note_ch, total_objects, base);
             }
             // 非事件通道 —— 保留已归一化的数据供处理器转换为 BmsCustomEvent。
             // 所有 2-char 值在此按 base 归一化，消除 processor 的重复归一化（F1）。
@@ -885,77 +889,99 @@ impl Messages {
         }
     }
 
-    /// 将音符通道的原始十六进制值分发到对应的处理器。
+    /// 将音符通道分发到对应的处理器。
     ///
-    /// 当 [`BmsChannel::Note`] 变体具有可解码的十六进制通道值时，从
-    /// [`finalize`](Self::finalize) 调用。
+    /// 从 [`finalize`](Self::finalize) 调用。通道字节经 Base36 解码第二
+    /// 字符得到 `lane`（`'1'`–`'9'` → 1–9，`'A'`–`'Z'` → 10–35），
+    /// 第一字符决定玩家侧与音符种类（可见 / 不可见 / 长音 / 地雷）。
+    ///
+    /// `lane == 0`（预留通道 `"10"`/`"20"`/...）被过滤——虽然
+    /// [`classify_channel`](bms_tokenizer::classify_channel) 已将这些归为
+    /// `Unknown`，此处再次过滤作为防御。
+    ///
+    /// 地雷通道 `D1`–`D9` / `E1`–`E9` 仅 lane 1–9 有效——扩展范围
+    ///（如假设性的 `DA`）不产生 `MineEvent`。
     fn dispatch_note_channel(
         &mut self,
         values: &str,
         measure: u16,
-        ch: u8,
+        ch: ChannelIndex,
         total_objects: u32,
         base: BmsBase,
     ) {
-        match ch {
-            0x11..=0x19 => {
-                self.push_playable_full(
-                    values,
-                    measure,
-                    1,
-                    ch - 0x10,
-                    KeyType::Visible,
-                    total_objects,
-                    base,
-                );
-            }
-            0x21..=0x29 => {
-                self.push_playable_full(
-                    values,
-                    measure,
-                    2,
-                    ch - 0x20,
-                    KeyType::Visible,
-                    total_objects,
-                    base,
-                );
-            }
-            0x31..=0x39 => {
-                self.push_playable_full(
-                    values,
-                    measure,
-                    1,
-                    ch - 0x30,
-                    KeyType::Invisible,
-                    total_objects,
-                    base,
-                );
-            }
-            0x41..=0x49 => {
-                self.push_playable_full(
-                    values,
-                    measure,
-                    2,
-                    ch - 0x40,
-                    KeyType::Invisible,
-                    total_objects,
-                    base,
-                );
-            }
-            0x51..=0x59 => {
-                self.push_long_note_full(values, measure, 1, ch - 0x50, total_objects, base);
-            }
-            0x61..=0x69 => {
-                self.push_long_note_full(values, measure, 2, ch - 0x60, total_objects, base);
-            }
-            0xD1..=0xD9 => {
-                self.push_mine_full(values, measure, 1, ch - 0xD0, total_objects, base);
-            }
-            0xE1..=0xE9 => {
-                self.push_mine_full(values, measure, 2, ch - 0xE0, total_objects, base);
-            }
-            _ => { /* Note 变体中的非音符十六进制 —— 仅保留在 raw 中 */ }
+        let bytes = ch.as_bytes();
+        // classify_channel 仅对 2 字节通道返回 Note 变体；1 字节通道
+        //（如 `"1"` = Bgm）走非 Note 分支。此处要求 2 字节以安全索引。
+        let &[first, second] = bytes else {
+            return;
+        };
+
+        // 预留通道 `"10"`/`"20"`/... 的 lane 为 0，过滤。
+        let Some(lane) = base36_value(second) else {
+            return;
+        };
+        if lane == 0 {
+            return;
         }
+
+        match first {
+            b'1' => self.push_playable_full(
+                values,
+                measure,
+                1,
+                lane,
+                KeyType::Visible,
+                total_objects,
+                base,
+            ),
+            b'2' => self.push_playable_full(
+                values,
+                measure,
+                2,
+                lane,
+                KeyType::Visible,
+                total_objects,
+                base,
+            ),
+            b'3' => self.push_playable_full(
+                values,
+                measure,
+                1,
+                lane,
+                KeyType::Invisible,
+                total_objects,
+                base,
+            ),
+            b'4' => self.push_playable_full(
+                values,
+                measure,
+                2,
+                lane,
+                KeyType::Invisible,
+                total_objects,
+                base,
+            ),
+            b'5' => self.push_long_note_full(values, measure, 1, lane, total_objects, base),
+            b'6' => self.push_long_note_full(values, measure, 2, lane, total_objects, base),
+            // 地雷通道仅 lane 1–9 有效；`classify_channel` 已确保进入此
+            // 分支的 D/E 通道 second ∈ '1'..='9'，此处显式拒绝扩展 lane。
+            b'D' if lane <= 9 => self.push_mine_full(values, measure, 1, lane, total_objects, base),
+            b'E' if lane <= 9 => self.push_mine_full(values, measure, 2, lane, total_objects, base),
+            _ => { /* 非音符第一字符 —— 仅保留在 raw 中 */ }
+        }
+    }
+}
+
+/// 将 Base36 ASCII 字节解码为数值（0–35）。
+///
+/// tokenizer 的 `base36_digit_value` 是 `pub(crate)`，parser 跨 crate 不可
+/// 见，故在此定义本地等价物。
+const fn base36_value(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'A'..=b'Z' => Some(b - b'A' + 10),
+        b'a'..=b'z' => Some(b - b'a' + 10),
+        _ => None,
     }
 }
 

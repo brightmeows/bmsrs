@@ -432,11 +432,44 @@ fn pms_bme_maps_second_player_side() {
 }
 
 #[test]
+fn bme_maps_extended_channel_lane_10() {
+    // 扩展通道（pomu2 系 `1A` 等，lane 10）映射到 Key(10)。
+    assert_eq!(Bme::map_channel(ch(1, 10)), Some((NoteSide::P1, key(10))));
+    assert_eq!(Bme::map_channel(ch(2, 35)), Some((NoteSide::P2, key(35))));
+}
+
+#[test]
+fn all_layouts_map_extended_channel_lane_10() {
+    // 所有族都把扩展通道（lane 10–35）映射到对应侧的 Key(lane)。
+    assert_eq!(
+        Nanasi::map_channel(ch(1, 10)),
+        Some((NoteSide::P1, key(10)))
+    );
+    assert_eq!(Pms::map_channel(ch(1, 10)), Some((NoteSide::P1, key(10))));
+    assert_eq!(
+        PmsBme::map_channel(ch(1, 10)),
+        Some((NoteSide::P1, key(10)))
+    );
+    assert_eq!(
+        DscOctFp::map_channel(ch(1, 10)),
+        Some((NoteSide::P1, key(10)))
+    );
+    assert_eq!(
+        DscOctFp::map_channel(ch(2, 10)),
+        Some((NoteSide::P2, key(10)))
+    );
+}
+
+#[test]
 fn bms_channel_rejects_invalid_input() {
     assert_eq!(BmsChannel::new(3, 1), None);
     assert_eq!(BmsChannel::new(0, 1), None);
     assert_eq!(BmsChannel::new(1, 0), None);
-    assert_eq!(BmsChannel::new(1, 10), None);
+    // lane 10 现已支持（扩展通道 `1A`–`1Z` 等）。
+    assert!(BmsChannel::new(1, 10).is_some());
+    assert!(BmsChannel::new(1, 35).is_some());
+    // 上限：lane 36+ 仍无效。
+    assert!(BmsChannel::new(1, 36).is_none());
 }
 
 #[test]

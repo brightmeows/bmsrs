@@ -11,27 +11,27 @@ use std::num::NonZeroU8;
 use bmsrs_chart::mode::{Lane, NoteSide};
 
 /// 解码后的 BMS 通道标识符：从原始 BMS 通道字节中提取的 `(player, lane)`
-/// 对（例如 `"19"` → `{ player: 1, lane: 9 }`）。
+/// 对（例如 `"19"` → `{ player: 1, lane: 9 }`、`"1A"` → `{ player: 1, lane: 10 }`）。
 ///
-/// 构造时校验 `player ∈ {1, 2}` 与 `lane ∈ {1..=9}`，因此下游代码可以
+/// 构造时校验 `player ∈ {1, 2}` 与 `lane ∈ {1..=35}`，因此下游代码可以
 /// 安全地调用 [`note_side`](Self::note_side) 与 [`lane`](Self::lane) 而
-/// 无需额外检查。轨道值为解码后的数字（1–9），**而非**原始通道字节。
+/// 无需额外检查。轨道值为解码后的数字（1–35），**而非**原始通道字节。
 /// 已校验的 BMS `(player, lane)` 通道对。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BmsChannel {
     /// 玩家编号（1 或 2）。
     player: u8,
-    /// 轨道编号（1–9）。
+    /// 轨道编号（1–35；1–9 为标准通道，10–35 为扩展通道）。
     lane: u8,
 }
 
 impl BmsChannel {
     /// 从解码后的 `(player, lane)` 创建新的 `BmsChannel`。
     ///
-    /// 若 `player` 不为 1 或 2，或 `lane` 不在 1–9 范围内，返回 `None`。
+    /// 若 `player` 不为 1 或 2，或 `lane` 不在 1–35 范围内，返回 `None`。
     #[must_use]
     pub const fn new(player: u8, lane: u8) -> Option<Self> {
-        if (player == 1 || player == 2) && lane >= 1 && lane <= 9 {
+        if (player == 1 || player == 2) && lane >= 1 && lane <= 35 {
             Some(Self { player, lane })
         } else {
             None
@@ -44,7 +44,7 @@ impl BmsChannel {
         self.player
     }
 
-    /// 轨道编号（1–9）。
+    /// 轨道编号（1–35）。
     #[must_use]
     pub const fn lane(self) -> u8 {
         self.lane
@@ -95,6 +95,8 @@ impl BmsLayout for Bme {
             6 => Lane::Scratch(nz(1)?),
             8 => Lane::Key(nz(6)?),
             9 => Lane::Key(nz(7)?),
+            // 扩展通道（pomu2 系 `1A`–`1Z` 等，lane 10–35）。
+            n if (10..=35).contains(&n) => Lane::Key(nz(n)?),
             _ => return None,
         };
         Some((side, key))
@@ -120,6 +122,8 @@ impl BmsLayout for Nanasi {
             7 => Lane::FootPedal,
             8 => Lane::Key(nz(6)?),
             9 => Lane::Key(nz(7)?),
+            // 扩展通道（pomu2 系，lane 10–35）。
+            n if (10..=35).contains(&n) => Lane::Key(nz(n)?),
             _ => return None,
         };
         Some((side, key))
@@ -143,6 +147,8 @@ impl BmsLayout for Pms {
             (2, 3) => Lane::Key(nz(7)?),
             (2, 4) => Lane::Key(nz(8)?),
             (2, 5) => Lane::Key(nz(9)?),
+            // 扩展通道（pomu2 系，lane 10–35）。
+            (_, n) if (10..=35).contains(&n) => Lane::Key(nz(n)?),
             _ => return None,
         };
         Some((NoteSide::P1, key))
@@ -168,6 +174,8 @@ impl BmsLayout for PmsBme {
             7 => Lane::Key(nz(9)?),
             8 => Lane::Key(nz(6)?),
             9 => Lane::Key(nz(7)?),
+            // 扩展通道（pomu2 系，lane 10–35）。
+            n if (10..=35).contains(&n) => Lane::Key(nz(n)?),
             _ => return None,
         };
         Some((side, key))
@@ -251,6 +259,14 @@ impl BmsLayout for DscOctFp {
             (2, 6) => (NoteSide::P2, Lane::Scratch(nz(2)?)),
             (2, 8) => (NoteSide::P2, Lane::Key(nz(5)?)),
             (2, 9) => (NoteSide::P2, Lane::Key(nz(6)?)),
+            // 扩展通道（pomu2 系，lane 10–35）。
+            (s, n) if (10..=35).contains(&n) => {
+                let side = match s {
+                    1 => NoteSide::P1,
+                    _ => NoteSide::P2,
+                };
+                (side, Lane::Key(nz(n)?))
+            }
             _ => return None,
         })
     }
