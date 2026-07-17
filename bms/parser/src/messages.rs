@@ -246,8 +246,8 @@ pub struct NonEventData {
     pub measure: u16,
     /// 通道类型。
     pub channel: BmsChannel,
-    /// 已按 `base` 归一化的 2-char 值列表（`"00"` 保留以供位置计算）。
-    pub values: Vec<String>,
+    /// 已按 `base` 归一化的 2-char 索引列表（`"00"` 保留以供位置计算）。
+    pub values: Vec<BmsIndex>,
 }
 
 // 消息容器
@@ -544,19 +544,22 @@ pub fn merge_channel(lines: &[String]) -> String {
     result.concat()
 }
 
-/// 将合并后的通道值字符串按 `base` 归一化为 2-char 值列表。
+/// 将合并后的通道值字符串按 `base` 归一化为 2-char 索引列表。
 ///
 /// 每个通过 [`split_2char_values_lenient`] 解析出的 2-char 块
-/// 都经 [`BmsIndex::normalize`] 按指定进制归一化。
-/// 结果向量中的每个字符串长度恰好为 2（`"00"` 也会归一化，结果不变）。
-fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<String> {
+/// 都经 [`BmsIndex::try_from`] 构造后调用 [`BmsIndex::normalize`]
+/// 按指定进制归一化。
+///
+/// `split_2char_values_lenient` 保证产出的是 2-char base62 片段，
+/// [`BmsIndex::try_from`] 对它们总是成功；`filter_map` 保守处理，
+/// 理论上不会过滤任何值。
+fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<BmsIndex> {
     split_2char_values_lenient(merged)
         .iter()
-        .map(|chunk| {
-            BmsIndex::try_from(*chunk).map_or_else(
-                |_| (*chunk).to_owned(),
-                |idx| idx.normalize(base).to_string(),
-            )
+        .filter_map(|chunk| {
+            BmsIndex::try_from(*chunk)
+                .ok()
+                .map(|idx| idx.normalize(base))
         })
         .collect()
 }
