@@ -39,9 +39,9 @@ fn position_new_and_fraction() {
 }
 
 #[test]
-fn position_denom_zero_returns_zero() {
-    let pos = Position::new(0, 5, 0);
-    assert!(pos.fraction().abs() < f64::EPSILON);
+#[should_panic(expected = "Position denom must be non-zero")]
+fn position_zero_denom_panics() {
+    let _position = Position::new(0, 5, 0);
 }
 
 #[test]

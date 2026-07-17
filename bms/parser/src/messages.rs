@@ -32,9 +32,14 @@ pub struct Position {
 
 impl Position {
     /// 创建一个新位置。
+    ///
+    /// # Panics
+    ///
+    /// 若 `denom == 0` 则 panic——分母为零的位置无意义。
     #[inline]
     #[must_use]
-    pub const fn new(measure: u16, numer: u32, denom: u32) -> Self {
+    pub fn new(measure: u16, numer: u32, denom: u32) -> Self {
+        assert!(denom > 0, "Position denom must be non-zero");
         Self {
             measure,
             numer,
@@ -46,11 +51,7 @@ impl Position {
     #[inline]
     #[must_use]
     pub fn fraction(self) -> f64 {
-        if self.denom == 0 {
-            0.0
-        } else {
-            f64::from(self.numer) / f64::from(self.denom)
-        }
+        f64::from(self.numer) / f64::from(self.denom)
     }
 }
 
@@ -305,7 +306,7 @@ pub struct Messages {
     clippy::cast_possible_truncation,
     reason = "BMS per-channel per-measure value count fits in u32"
 )]
-const fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
+fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
     Position::new(measure, i as u32, denom)
 }
 
