@@ -73,7 +73,7 @@ tick = measure_starts[measure] + numer * measure_len / denom
 | 地雷 `damage` | `MineEvent.raw_value`（`Option<u16>`）经 `mine_damage()` 转换：`Some(1295)` → INFINITY，`Some(n)` → n/2，`None` → 1.0 |
 | `process_default` 使用 `Bme` | 而非基于 `#PLAYER` 推断；PMS 等模式需显式指定 |
 | 转换步骤归属 `BmsConverter` | `collect_*`/`build_*` 是内部 `BmsConverter`（私有）的方法，非自由函数 |
-| `non_event_data` 索引归一化 | parser 层完成 | processor 消费 | `non_event_data` 的每个 2-char 值已在 parser 的 `finalize_merged` 中按 `detected_base` 归一化，processor 查表直接命中。`BmsConverter.base` 字段已因不复需要而移除 |
+| `non_event_data` 索引归一化 | parser 层完成 | processor 消费 | `non_event_data` 的每个 2-char 值已在 parser 的 `finalize_merged` 中按预扫描的 `#BASE` 基数归一化，processor 查表直接命中。`BmsConverter.base` 字段已因不复需要而移除 |
 | `bpm_at_tick` 来源 | 委托 `BpmLookup::new(init_bpm, changes).bpm_at_tick(tick)`（原 local 重复已消除）。STP→tick 仍需在 `TimingTrack` 构造前完成，但算法统一 |
 | BGA 裁剪源路径 | `#BGA`/`#@BGA` 的 `bmp_index` 为十进制源编号，经 base36 数值匹配 `bmp_files` 键（如 `"01"`→1）。源路径不可解析的裁剪 id 被跳过 |
 

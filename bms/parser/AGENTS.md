@@ -54,7 +54,6 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 | 事件索引均通过 `normalize(base)` | 确保与定义表的 key 大小写匹配 |
 | `"00"` 在不同通道语义不同 | note 通道 = 无音符（skip），BPM ch03 = 休止（skip），LN/ext 通道 = 有效值 |
 | 归一化契约（全 def 键统一） | `Timing`/`Visual`/`Gameplay` 的所有 `apply` 均接收 `base` 并对索引键 `normalize`（含 `ex_rank_defs`/`change_option_defs`）。`Gameplay::apply` 也已纳入此契约 |
-| `detected_base` 字段 | `Bms.detected_base` 由 `from_flat_tokens` 写入 `detect_base()` 结果（**首个** `#BASE` 胜出）。`finalize` 用它归一化所有索引。注意 `Gameplay.base` 是**最后胜出**，多 `#BASE` 文件二者分歧——以 `detected_base` 为准 |
 | `non_event_data` 预归一化 | 非事件通道（opacity/ARGB/text/option/seek 等）的合并串在 `finalize_merged` 中拆分为 2-char 值后，逐值按 `base` 归一化，存入 `NonEventData.values`。processor 查表无需再次归一化（消除了此前 F1/F2 标记的重复归一化）|
 
 ## Always / Ask / Never

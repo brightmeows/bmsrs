@@ -491,7 +491,7 @@ impl BmsConverter<'_> {
     /// 从 [`Messages::non_event_data`] 读取由 parser 合并且已归一化的通道数据，
     /// 转换为 [`EventKind::Custom`] 变体。每个非 `"00"` 值产生一个事件。
     ///
-    /// **归一化保证**：parser 层已按 `detected_base` 完成所有索引归一化，
+    /// **归一化保证**：parser 层已按预扫描的 `#BASE` 基数完成所有索引归一化，
     /// 此处查表无需再次归一化（消除了此前 F1/F2 标记的重复归一化）。
     #[expect(
         clippy::cast_possible_truncation,

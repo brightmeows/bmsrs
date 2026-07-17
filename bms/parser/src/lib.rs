@@ -53,13 +53,6 @@ pub struct Bms {
     pub messages: messages::Messages,
     /// 未识别 / 引擎特有的头部命令。
     pub fallback_headers: Vec<(String, String)>,
-    /// `from_flat_tokens` 通过预扫描 `#BASE` 检测到的进制基数（首个胜出）。
-    ///
-    /// 这是 `finalize` 归一化所有索引时实际使用的基数（包括 `non_event_data`
-    /// 的 2-char 值），processor 直接消费已归一化的数据，无需再读取此字段。
-    /// 注意 [`Gameplay::base`](gameplay::Gameplay::base) 是**最后胜出**语义，
-    /// 多 `#BASE` 文件二者分歧——以本字段为准。
-    pub detected_base: BmsBase,
 }
 
 impl Bms {
@@ -77,7 +70,6 @@ impl Bms {
         //（一次用于 BASE，一次用于处理）。
         let all_tokens: Vec<_> = tokens.into_iter().collect();
         let bms_base = detect_base(&all_tokens);
-        bms.detected_base = bms_base;
 
         for token in &all_tokens {
             match token {
