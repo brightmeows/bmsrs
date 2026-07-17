@@ -6,47 +6,52 @@ use std::fmt;
 use crate::index::WavIndex;
 use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 
-/// `#EXWAV{id}` 的参数——带声相/音量/频率控制的扩展 WAV
-/// （nanasi 扩展）。
+/// `#EXWAV{id}` 的扩展音频效果参数（nanasi 扩展）。
 ///
-/// `flags` 是由 `{p, v, f}` 中的字符组成的字符串，指示
-/// 后续的音频参数。值的数量等于 flag 字符数。flag 顺序决定
-/// 值的顺序：
+/// 未指定的参数为 `None`——播放器应用各自默认值。
 ///
-/// ```text
-/// #EXWAV01 vfp -50 100 -10000 sound.wav
-///           │      │   │    │        └─ filename
-///           │      │   │    └─ frequency (f): 100 Hz
-///           │      │   └─ volume (v): -50 (attenuation)
-///           │      └─ pan (p): -10000 (hard left)
-///           └─ flags: volume, frequency, pan
-/// ```
-///
-/// 参数范围：
-/// - **pan**（`p`）：`-10000` 到 `10000`（左 ↔ 右；默认 `0`）。
+/// 参数范围（BMS 规范定义整数）：
+/// - **pan**（`p`）：`[-10000, 10000]`，默认 `0`。左端 -10000，右端 10000。
+/// - **volume**（`v`）：`[-10000, 0]`，默认 `0`（原始音量）。
 ///   降低一个声道的音量而非提升另一声道。
-/// - **volume**（`v`）：`-10000` 到 `0`（衰减；`0` = 原始）。
-/// - **frequency**（`f`）：`100` 到 `100000` Hz（音高控制）。
+/// - **frequency**（`f`）：`[100, 100000]` Hz（音高控制）。
 ///
 /// `#EXWAV` 索引与 `#WAV` 共享同一命名空间。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExWavParams<C> {
-    /// flag 字符（例如 `"pvf"`）。
-    pub flags: C,
-    /// 解析出的数值，每个 flag 字符一个值。
-    pub values: Vec<f64>,
+    /// 声像（`p` flag）。
+    pub pan: Option<i32>,
+    /// 音量衰减（`v` flag）。
+    pub volume: Option<i32>,
+    /// 频率（`f` flag）。
+    pub frequency: Option<u32>,
     /// 资源文件路径或名称。
     pub filename: C,
 }
 
 impl<C: AsRef<str> + fmt::Display> fmt::Display for ExWavParams<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.flags.as_ref().is_empty() {
+        // 按 pan→volume→frequency 固定顺序输出存在的 flag。
+        let mut flags = String::new();
+        let mut values: Vec<String> = Vec::new();
+        if let Some(p) = self.pan {
+            flags.push('p');
+            values.push(p.to_string());
+        }
+        if let Some(v) = self.volume {
+            flags.push('v');
+            values.push(v.to_string());
+        }
+        if let Some(fr) = self.frequency {
+            flags.push('f');
+            values.push(fr.to_string());
+        }
+        if flags.is_empty() {
             write!(f, "{}", self.filename)
         } else {
-            write!(f, "{}", self.flags)?;
-            for val in &self.values {
-                write!(f, " {val}")?;
+            write!(f, "{flags}")?;
+            for v in &values {
+                write!(f, " {v}")?;
             }
             write!(f, " {}", self.filename)
         }
@@ -60,56 +65,67 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
         let mut parts = s.split_whitespace();
         let first = parts.next()?;
 
-        let is_flags = !first.is_empty() && first.chars().all(|c| matches!(c, 'p' | 'v' | 'f'));
+        let is_flags = !first.is_empty()
+            && first.chars().all(|c| matches!(c, 'p' | 'v' | 'f'))
+            && first.len() <= 3;
 
         if is_flags {
-            let flag_count = first.len();
-            // 在 flags 之后收集恰好 `flag_count` 个数值。
-            let values: Vec<f64> = parts
-                .take(flag_count)
-                .map(|p| p.parse().ok())
-                .collect::<Option<_>>()?;
-            if values.len() != flag_count {
-                return None;
+            let mut pan = None;
+            let mut volume = None;
+            let mut frequency = None;
+            // 跟踪已消费字节，保留零拷贝路径（filename 切片借用 `s`）。
+            let mut consumed = first.len();
+            for flag in first.chars() {
+                // 跳过引导空白，定位下一个数值起点。
+                while s
+                    .as_bytes()
+                    .get(consumed)
+                    .is_some_and(u8::is_ascii_whitespace)
+                {
+                    consumed += 1;
+                }
+                let val_start = consumed;
+                while s
+                    .as_bytes()
+                    .get(consumed)
+                    .is_some_and(|b| !b.is_ascii_whitespace())
+                {
+                    consumed += 1;
+                }
+                let val_str = s.get(val_start..consumed)?;
+                let val: i64 = val_str.parse().ok()?;
+                match flag {
+                    'p' => pan = Some(val.try_into().ok()?),
+                    'v' => volume = Some(val.try_into().ok()?),
+                    'f' => frequency = Some(val.try_into().ok()?),
+                    _ => return None,
+                }
             }
-            let filename = nth_whitespace_field_rest(s, flag_count + 1);
+            // filename 是最后一个值之后的剩余部分（可能含空格）。
+            while s
+                .as_bytes()
+                .get(consumed)
+                .is_some_and(u8::is_ascii_whitespace)
+            {
+                consumed += 1;
+            }
+            let filename = s.get(consumed..).filter(|f| !f.is_empty())?;
             Some(Self {
-                flags: C::from(first),
-                values,
+                pan,
+                volume,
+                frequency,
                 filename: C::from(filename),
             })
         } else {
+            // 无 flags：整体为 filename。
             Some(Self {
-                flags: C::from(""),
-                values: Vec::new(),
+                pan: None,
+                volume: None,
+                frequency: None,
                 filename: C::from(s.trim()),
             })
         }
     }
-}
-
-/// 返回 `s` 中从第 N 个空白分隔字段（0 起索引）开始的子串，
-/// 去除引导空白。
-fn nth_whitespace_field_rest(s: &str, n: usize) -> &str {
-    let mut start = 0;
-    let mut field = 0;
-    let bytes = s.as_bytes();
-    while start < bytes.len() && field < n {
-        while start < bytes.len() && bytes.get(start).is_some_and(u8::is_ascii_whitespace) {
-            start += 1;
-        }
-        if start >= bytes.len() {
-            break;
-        }
-        while start < bytes.len() && bytes.get(start).is_some_and(|b| !b.is_ascii_whitespace()) {
-            start += 1;
-        }
-        field += 1;
-    }
-    while start < bytes.len() && bytes.get(start).is_some_and(u8::is_ascii_whitespace) {
-        start += 1;
-    }
-    s.get(start..).unwrap_or("")
 }
 
 /// `#WAVCMD` 的命令种类。
@@ -197,7 +213,7 @@ impl std::str::FromStr for WavCmdParams {
 /// 这些命令定义谱面使用的音频文件。WAV 与 OGG 是
 /// 受支持最广的格式；MP3 在大多数播放器中引入可感知的延迟，
 /// 通常避免使用。
-#[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
+#[derive(Debug, Clone, PartialEq, Eq, BmsTokenAttr)]
 pub enum BmsHeaderResDefAudio<C> {
     /// `#WAV{id}`——音效或 BGM 文件定义。
     ///

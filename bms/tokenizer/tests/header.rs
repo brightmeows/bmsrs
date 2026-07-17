@@ -704,7 +704,9 @@ fn parse_exwav_indexed() {
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
         assert_eq!(id.as_str(), "01");
         assert_eq!(params.filename, "extra.ogg");
-        assert!(params.flags.is_empty());
+        assert!(params.pan.is_none());
+        assert!(params.volume.is_none());
+        assert!(params.frequency.is_none());
     } else {
         panic!("expected ExWav variant");
     }
@@ -718,8 +720,9 @@ fn parse_exwav_with_flags() {
             .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
         assert_eq!(id.as_str(), "01");
-        assert_eq!(params.flags, "pvf");
-        assert_eq!(params.values, vec![-100.0, 50.0, 440.0]);
+        assert_eq!(params.pan, Some(-100));
+        assert_eq!(params.volume, Some(50));
+        assert_eq!(params.frequency, Some(440));
         assert_eq!(params.filename, "sound.wav");
     } else {
         panic!("expected ExWav variant");
