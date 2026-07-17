@@ -8,17 +8,26 @@ BMS 语法分析第一关：原始文本 → 结构化 token 流。
 
 | 决策 | 选择 | 原因 |
 |------|------|------|
-| 通道分类时机 | tokenizer 阶段 | cipher 下游 parser 无需重复解析通道号 |
-| 值语义保留 | 不解析，保留 raw index | 下游 parser 根据 `#BASE` 模式决定索引语义 |
+| 通道分类时机 | tokenizer 阶段 | 下游 parser 无需重复解析通道号 |
+| 跨命令引用保留 | 不解析跨命令引用，保留 raw index | 引用语义（WAV→定义、`#BGA`→`#BMP`）归 processor；`#BASE` 模式由 parser 决定 |
 | 字符集 | Base62（最宽松） | 统一入口，`#BASE` 声明在 parser 层生效 |
 | 注释预处理 | 独立 `preprocess()` 函数 | 保持 tokenizer 零拷贝路径不受影响 |
 | `C` 泛型 | `&str`（零拷贝）或 `String`（owned） | 调用侧选择，贯穿管道 |
 
 ## 目标
 
-每个 token 的存在只为两个目的：
+每个 token 的存在只为三个目的：
 1. **Roundtrip 保真** — `format_header` 还原原始行
-2. **语法校验** — 验证格式正确性
+2. **单行验证** — 语法 + 单行值解释（`Rank` 枚举映射、`#STP` 格式等）+ 局部引用校验
+3. **查表无依赖** — 不依赖其他命令的结果
+
+### 局部引用校验
+
+域级判据见 `bms/AGENTS.md` 职责判据。tokenizer 须覆盖三层：
+
+1. **id 格式**——字符集（Base62）+ 长度（1–2 字符）。已由 `BmsIndex::FromStr` 覆盖
+2. **id 范围**——某些命令的 id 须落在特定段（如非保留段）
+3. **多字段局部一致性**——同一命令内字段间关联校验
 
 ## 泛型容器 `C`
 
@@ -74,5 +83,5 @@ let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 
 ### Never
 
-- 在 tokenizer 层解析 WAV/BMP 引用语义（属于 parser 层）
+- 在 tokenizer 层解析跨命令引用（WAV/BMP 引用语义归 processor；`Bms` 保真存引用形态）
 - 修改 `BmsIndex` 的比较语义

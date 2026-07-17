@@ -134,11 +134,11 @@ fn mine_event_fields() {
         position: pos,
         player: 2,
         lane: 5,
-        damage: 2.5,
+        raw_value: Some(5),
     };
     assert_eq!(ev.player, 2);
     assert_eq!(ev.lane, 5);
-    assert!((ev.damage - 2.5).abs() < f64::EPSILON);
+    assert_eq!(ev.raw_value, Some(5));
 }
 
 #[test]
@@ -207,24 +207,24 @@ fn mine_events_parsed() {
 }
 
 #[test]
-fn mine_damage_decoded() {
-    // #001D1:01 → damage = 1/2 = 0.5
+fn mine_raw_value_decoded() {
+    // #001D1:01 → base36 "01" = 1
     let msgs = parse_one("#001D1:01");
-    assert!((msgs.mine_events[0].damage - 0.5).abs() < f64::EPSILON);
+    assert_eq!(msgs.mine_events[0].raw_value, Some(1));
 }
 
 #[test]
-fn mine_damage_half_health() {
-    // 1E (36进制) = 50 → damage = 50/2 = 25.0
+fn mine_raw_value_half_health() {
+    // 1E (36进制) = 50
     let msgs = parse_one("#001D1:1E");
-    assert!((msgs.mine_events[0].damage - 25.0).abs() < f64::EPSILON);
+    assert_eq!(msgs.mine_events[0].raw_value, Some(50));
 }
 
 #[test]
-fn mine_damage_instant_kill() {
-    // ZZ = 1295 → damage = inf（即死）
+fn mine_raw_value_instant_kill() {
+    // ZZ = 1295（即死标记）
     let msgs = parse_one("#001D1:ZZ");
-    assert!(msgs.mine_events[0].damage.is_infinite());
+    assert_eq!(msgs.mine_events[0].raw_value, Some(1295));
 }
 
 #[test]
@@ -235,12 +235,12 @@ fn mine_zero_entries_filtered() {
 }
 
 #[test]
-fn mine_damage_mixed_zero_and_real() {
-    // 0A(=10) 00 ZZ(=1295) → first: 10/2=5, second: inf, 00 skipped.
+fn mine_raw_value_mixed_zero_and_real() {
+    // 0A(=10) 00 ZZ(=1295) → first: 10, second: 1295, 00 skipped.
     let msgs = parse_one("#001D1:0A00ZZ");
     assert_eq!(msgs.mine_events.len(), 2);
-    assert!((msgs.mine_events[0].damage - 5.0).abs() < f64::EPSILON);
-    assert!(msgs.mine_events[1].damage.is_infinite());
+    assert_eq!(msgs.mine_events[0].raw_value, Some(10));
+    assert_eq!(msgs.mine_events[1].raw_value, Some(1295));
 }
 
 #[test]

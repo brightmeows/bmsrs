@@ -6,12 +6,14 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 
 ## 设计哲学
 
-**信息保留优先。** 原始元数据值原样存储，不做推断或转换。
+**`Bms` 保真映射。** `Bms` 字段是 BMS 文件内容的直接结构化表示，不存需要计算或语义解释才能得到的派生值。域级判据见 `bms/AGENTS.md` 职责判据。
 
 | 不做什么 | 理由 |
 |----------|------|
 | 值解释（路径、URL、邮箱） | 字符串原样保留 |
 | 控制流展开 | 由 `bms-control-flow` 处理 |
+| 派生值计算 | 归 processor（如伤害 = base36/2、引用→绝对值） |
+| 引用-定义配对解析 | `Bms` 保真存引用形态（如 `BpmValue::Reference`）；查表归 processor |
 
 > `Metadata::parse_implicit_subtitle` 是例外：作为 opt-in 工具方法提供，
 > 不在 `from_flat_tokens` 中自动调用，调用方显式选择是否执行副标题推断。
@@ -48,12 +50,10 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 | 规则 | 说明 |
 |------|------|
 | 小节长值为比值 | `1.0` = 4/4，`0.75` = 3/4，`2.0` = 8/4。非百分比。 |
-| 地雷伤害计算 | Base36 值 / 2.0，`ZZ` = 即死 (`f64::INFINITY`) |
 | `finalize(base)` 参数 | 控制索引归一化：Base36 → 大写，Base62 → 保留原大小写 |
 | 事件索引均通过 `normalize(base)` | 确保与定义表的 key 大小写匹配 |
 | `"00"` 在不同通道语义不同 | note 通道 = 无音符（skip），BPM ch03 = 休止（skip），LN/ext 通道 = 有效值 |
 | 归一化契约（全 def 键统一） | `Timing`/`Visual`/`Gameplay` 的所有 `apply` 均接收 `base` 并对索引键 `normalize`（含 `ex_rank_defs`/`change_option_defs`）。`Gameplay::apply` 也已纳入此契约 |
-| `detected_base` 字段 | `Bms.detected_base` 由 `from_flat_tokens` 写入 `detect_base()` 结果（**首个** `#BASE` 胜出）。`finalize` 用它归一化所有索引。注意 `Gameplay.base` 是**最后胜出**，多 `#BASE` 文件二者分歧——以 `detected_base` 为准 |
 | `non_event_data` 预归一化 | 非事件通道（opacity/ARGB/text/option/seek 等）的合并串在 `finalize_merged` 中拆分为 2-char 值后，逐值按 `base` 归一化，存入 `NonEventData.values`。processor 查表无需再次归一化（消除了此前 F1/F2 标记的重复归一化）|
 
 ## Always / Ask / Never
@@ -74,6 +74,7 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 
 - 在 parser 层自动执行引擎特定的推断（`parse_implicit_subtitle` 等需调用方显式触发）
 - 假设 `"00"` 在所有通道都表示“无操作”
+- 存储 processor 才需要的派生值（见“设计哲学”派生值禁止）
 
 ## 测试
 

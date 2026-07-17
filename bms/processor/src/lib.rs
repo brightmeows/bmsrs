@@ -403,7 +403,7 @@ impl BmsConverter<'_> {
                 me.player,
                 me.lane,
                 NoteKind::Mine {
-                    damage: Damage::new(me.damage),
+                    damage: Damage::new(mine_damage(me.raw_value)),
                 },
                 None,
                 &mut self.events,
@@ -491,7 +491,7 @@ impl BmsConverter<'_> {
     /// 从 [`Messages::non_event_data`] 读取由 parser 合并且已归一化的通道数据，
     /// 转换为 [`EventKind::Custom`] 变体。每个非 `"00"` 值产生一个事件。
     ///
-    /// **归一化保证**：parser 层已按 `detected_base` 完成所有索引归一化，
+    /// **归一化保证**：parser 层已按预扫描的 `#BASE` 基数完成所有索引归一化，
     /// 此处查表无需再次归一化（消除了此前 F1/F2 标记的重复归一化）。
     #[expect(
         clippy::cast_possible_truncation,
@@ -1033,4 +1033,37 @@ fn build_bar_events(table: &MeasureTable) -> Vec<BmsEvent> {
         .iter()
         .map(|&tick| Event::bar(tick))
         .collect()
+}
+
+/// 将地雷原始 base36 值转换为伤害值。
+///
+/// - `Some(1295)`（`"ZZ"`）→ 即死（`f64::INFINITY`）
+/// - `Some(n)` → `n / 2.0`
+/// - `None`（解码失败）→ 默认 `1.0`
+fn mine_damage(raw: Option<u16>) -> f64 {
+    match raw {
+        None => 1.0,
+        Some(1295) => f64::INFINITY,
+        Some(n) => f64::from(n) / 2.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn instant_kill_value_produces_infinite_damage() {
+        assert!(mine_damage(Some(1295)).is_infinite());
+    }
+
+    #[test]
+    fn normal_value_produces_half_damage() {
+        assert!((mine_damage(Some(1)) - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn undecodable_value_produces_default_damage() {
+        assert!((mine_damage(None) - 1.0).abs() < f64::EPSILON);
+    }
 }
