@@ -124,39 +124,40 @@ impl Visual {
     /// 索引键（`BmpIndex`、`SeekIndex` 等）使用 `base` 归一化，以便在
     /// 标准 BMS 中进行不区分大小写的比较。
     pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefVisual<C>, base: BmsBase) {
-        macro_rules! norm_as {
-            ($id:expr, $ty:ident) => {
-                $ty::from($id.normalize(base))
-            };
-        }
-
         match header {
             BmsHeaderResDefVisual::Bmp { id, filename } => {
-                self.bmp_files
-                    .insert(norm_as!(id, BmpIndex), filename.as_ref().to_owned());
+                self.bmp_files.insert(
+                    BmpIndex::from(id.normalize(base)),
+                    filename.as_ref().to_owned(),
+                );
             }
             BmsHeaderResDefVisual::Seek { id, value } => {
-                self.seek_defs.insert(norm_as!(id, SeekIndex), *value);
+                self.seek_defs
+                    .insert(SeekIndex::from(id.normalize(base)), *value);
             }
             BmsHeaderResDefVisual::ExBmp { id, params } => {
-                self.ex_bmp_defs
-                    .insert(norm_as!(id, BmpIndex), OwnedExBmpParams::from(params));
+                self.ex_bmp_defs.insert(
+                    BmpIndex::from(id.normalize(base)),
+                    OwnedExBmpParams::from(params),
+                );
             }
             BmsHeaderResDefVisual::Bga { id, params } => {
                 self.crop_defs
-                    .insert(norm_as!(id, BmpIndex), params.clone());
+                    .insert(BmpIndex::from(id.normalize(base)), params.clone());
             }
             BmsHeaderResDefVisual::AtBga { id, params } => {
                 self.alt_crop_defs
-                    .insert(norm_as!(id, BmpIndex), params.clone());
+                    .insert(BmpIndex::from(id.normalize(base)), params.clone());
             }
             BmsHeaderResDefVisual::SwBga { id, params } => {
-                self.sw_bga_defs
-                    .insert(norm_as!(id, BmpIndex), OwnedSwBgaParams::from(params));
+                self.sw_bga_defs.insert(
+                    BmpIndex::from(id.normalize(base)),
+                    OwnedSwBgaParams::from(params),
+                );
             }
             BmsHeaderResDefVisual::Argb { id, params } => {
                 self.argb_defs
-                    .insert(norm_as!(id, BmpIndex), params.clone());
+                    .insert(BmpIndex::from(id.normalize(base)), params.clone());
             }
             BmsHeaderResDefVisual::VideoFile(s) => self.video_file = Some(s.as_ref().to_owned()),
             BmsHeaderResDefVisual::Movie(s) => self.movie = Some(s.as_ref().to_owned()),
