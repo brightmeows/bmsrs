@@ -32,9 +32,9 @@ fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
 #[test]
 fn position_new_and_fraction() {
     let pos = Position::new(1, 1, 4);
-    assert_eq!(pos.measure, 1);
-    assert_eq!(pos.numer, 1);
-    assert_eq!(pos.denom, 4);
+    assert_eq!(pos.measure(), 1);
+    assert_eq!(pos.numer(), 1);
+    assert_eq!(pos.denom(), 4);
     assert!((pos.fraction() - 0.25).abs() < f64::EPSILON);
 }
 
@@ -149,8 +149,8 @@ fn stp_event_fields() {
         duration_ms: 500.0,
     };
     assert!((ev.duration_ms - 500.0).abs() < f64::EPSILON);
-    assert_eq!(ev.position.numer, 128);
-    assert_eq!(ev.position.denom, 1000);
+    assert_eq!(ev.position.numer(), 128);
+    assert_eq!(ev.position.denom(), 1000);
 }
 
 #[test]
@@ -172,8 +172,8 @@ fn bgm_events_parsed() {
     assert_eq!(msgs.bgm_events[0].wav_id, "AA".try_into().unwrap());
     assert_eq!(msgs.bgm_events[1].wav_id, "BB".try_into().unwrap());
     assert_eq!(msgs.bgm_events[2].wav_id, "CC".try_into().unwrap());
-    assert_eq!(msgs.bgm_events[0].position.numer, 0);
-    assert_eq!(msgs.bgm_events[0].position.denom, 3);
+    assert_eq!(msgs.bgm_events[0].position.numer(), 0);
+    assert_eq!(msgs.bgm_events[0].position.denom(), 3);
 }
 
 #[test]
@@ -194,8 +194,8 @@ fn long_note_events_parsed() {
     assert_eq!(msgs.long_note_events[0].player, 1);
     assert_eq!(msgs.long_note_events[0].lane, 1);
     assert_eq!(msgs.long_note_events[1].lane, 1); // 同一轨道，不同位置
-    assert_eq!(msgs.long_note_events[0].position.numer, 0);
-    assert_eq!(msgs.long_note_events[1].position.numer, 1);
+    assert_eq!(msgs.long_note_events[0].position.numer(), 0);
+    assert_eq!(msgs.long_note_events[1].position.numer(), 1);
 }
 
 #[test]
@@ -294,9 +294,9 @@ fn speed_event_parsed() {
 fn speed_event_multiple_values() {
     let msgs = parse_one("#001SP:010203");
     assert_eq!(msgs.speed_events.len(), 3);
-    assert_eq!(msgs.speed_events[0].position.numer, 0);
-    assert_eq!(msgs.speed_events[1].position.numer, 1);
-    assert_eq!(msgs.speed_events[2].position.numer, 2);
+    assert_eq!(msgs.speed_events[0].position.numer(), 0);
+    assert_eq!(msgs.speed_events[1].position.numer(), 1);
+    assert_eq!(msgs.speed_events[2].position.numer(), 2);
 }
 
 #[test]

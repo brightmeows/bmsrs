@@ -930,12 +930,12 @@ fn find_max_measure(bms: &Bms) -> u16 {
         max_m = max_m.max(ml.measure);
     }
 
-    // 遍历所有事件类型，统一提取 position.measure。
+    // 遍历所有事件类型，统一提取 position.measure()。
     macro_rules! track_positions {
         ($($events:expr),+ $(,)?) => {
             $(
                 for ev in $events {
-                    max_m = max_m.max(ev.position.measure);
+                    max_m = max_m.max(ev.position.measure());
                 }
             )+
         };

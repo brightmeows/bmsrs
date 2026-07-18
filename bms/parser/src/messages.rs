@@ -20,14 +20,17 @@ use bmsrs_chart::BgaLayer;
 ///
 /// 对于一个小节内有 N 个值的通道，第 i 个值（从 0 开始）对应
 /// `numer = i`、`denom = N`。
+///
+/// 字段私有，仅可通过 [`Position::new`] 构造——这保证 `denom > 0` 不变式
+/// 在类型层面成立，外部代码无法绕过。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     /// 小节编号（0–999）。
-    pub measure: u16,
+    measure: u16,
     /// 分子（此对象在小节内的索引）。
-    pub numer: u32,
+    numer: u32,
     /// 分母（此通道在此小节中的对象总数）。
-    pub denom: u32,
+    denom: u32,
 }
 
 impl Position {
@@ -45,6 +48,29 @@ impl Position {
             numer,
             denom,
         }
+    }
+
+    /// 返回小节编号（0–999）。
+    #[inline]
+    #[must_use]
+    pub const fn measure(self) -> u16 {
+        self.measure
+    }
+
+    /// 返回分子（此对象在小节内的索引）。
+    #[inline]
+    #[must_use]
+    pub const fn numer(self) -> u32 {
+        self.numer
+    }
+
+    /// 返回分母（此通道在此小节中的对象总数）。
+    ///
+    /// 保证 `> 0`——由 [`Position::new`] 在构造时校验。
+    #[inline]
+    #[must_use]
+    pub const fn denom(self) -> u32 {
+        self.denom
     }
 
     /// 返回小节内的小数位置，即 `numer / denom`。

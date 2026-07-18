@@ -69,7 +69,7 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairing
 
     for (&(player, lane), group) in &groups {
         let mut sorted = group.clone();
-        sorted.sort_by_key(|ev| (ev.position.measure, ev.position.numer));
+        sorted.sort_by_key(|ev| (ev.position.measure(), ev.position.numer()));
 
         // 以连续对消费事件：第一个 = 起点，第二个 = 终点。
         let mut iter = sorted.into_iter();
@@ -123,7 +123,7 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairing
 
     for (&(player, lane), group) in &groups {
         let mut sorted = group.clone();
-        sorted.sort_by_key(|ev| (ev.position.measure, ev.position.numer));
+        sorted.sort_by_key(|ev| (ev.position.measure(), ev.position.numer()));
 
         let mut in_ln = false;
         let mut start_ev: Option<&LongNoteEvent> = None;
