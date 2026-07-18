@@ -714,14 +714,16 @@ fn parse_exwav_indexed() {
 
 #[test]
 fn parse_exwav_with_flags() {
-    let result =
-        bms_tokenizer::parse_header_line::<&str>("#EXWAV01 pvf -100 50 440 sound.wav", &['#', '%'])
-            .unwrap()
-            .unwrap();
+    let result = bms_tokenizer::parse_header_line::<&str>(
+        "#EXWAV01 pvf -100 -50 440 sound.wav",
+        &['#', '%'],
+    )
+    .unwrap()
+    .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
         assert_eq!(id.as_str(), "01");
         assert_eq!(params.pan, Some(-100));
-        assert_eq!(params.volume, Some(50));
+        assert_eq!(params.volume, Some(-50));
         assert_eq!(params.frequency, Some(440));
         assert_eq!(params.filename, "sound.wav");
     } else {
@@ -1271,6 +1273,48 @@ fn parse_stp_invalid_fallback() {
 }
 
 #[test]
+fn parse_stp_measure_999_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#STP 999 500", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::Timing(BmsHeaderTiming::Stp {
+            params: StpParams {
+                measure: 999,
+                position: 0,
+                duration_ms: 500.0
+            }
+        })
+    );
+}
+
+#[test]
+fn parse_stp_measure_over_999_fallback() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#STP 1000 500", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(result, BmsHeader::Fallback(_)));
+}
+
+#[test]
+fn parse_stp_measure_0_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#STP 000 500", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::Timing(BmsHeaderTiming::Stp {
+            params: StpParams {
+                measure: 0,
+                position: 0,
+                duration_ms: 500.0
+            }
+        })
+    );
+}
+
+#[test]
 fn parse_genre_alias() {
     let result = bms_tokenizer::parse_header_line::<&str>("#GENLE Pop", &['#', '%'])
         .unwrap()
@@ -1328,4 +1372,176 @@ fn parse_base_unknown_fallback() {
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
+}
+
+// #EXWAV 参数范围校验
+
+#[test]
+fn parse_exwav_pan_at_bounds() {
+    let r = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 p 10000 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
+        assert_eq!(params.pan, Some(10000));
+    } else {
+        panic!("expected ExWav variant");
+    }
+
+    let r2 = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 p -10000 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r2 {
+        assert_eq!(params.pan, Some(-10000));
+    } else {
+        panic!("expected ExWav variant");
+    }
+}
+
+#[test]
+fn parse_exwav_pan_out_of_range_fallback() {
+    let r = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 p 10001 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(r, BmsHeader::Fallback(_)));
+
+    let r2 = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 p -10001 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(r2, BmsHeader::Fallback(_)));
+}
+
+#[test]
+fn parse_exwav_volume_at_bounds() {
+    let r = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 v 0 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
+        assert_eq!(params.volume, Some(0));
+    } else {
+        panic!("expected ExWav variant");
+    }
+
+    let r2 = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 v -10000 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r2 {
+        assert_eq!(params.volume, Some(-10000));
+    } else {
+        panic!("expected ExWav variant");
+    }
+}
+#[test]
+fn parse_exwav_volume_positive_fallback() {
+    let r = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 v 1 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(r, BmsHeader::Fallback(_)));
+}
+#[test]
+fn parse_exwav_frequency_at_bounds() {
+    let r = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 f 100 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
+        assert_eq!(params.frequency, Some(100));
+    } else {
+        panic!("expected ExWav variant");
+    }
+
+    let r2 = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 f 100000 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r2 {
+        assert_eq!(params.frequency, Some(100_000));
+    } else {
+        panic!("expected ExWav variant");
+    }
+}
+#[test]
+fn parse_exwav_frequency_out_of_range_fallback() {
+    let r = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 f 99 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(r, BmsHeader::Fallback(_)));
+
+    let r2 = bms_tokenizer::parse_header_line::<&str>("#EXWAV01 f 100001 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(r2, BmsHeader::Fallback(_)));
+}
+#[test]
+fn parse_exwav_multi_flag_pan_out_of_range_fallback() {
+    let r =
+        bms_tokenizer::parse_header_line::<&str>("#EXWAV01 pf 10000 440 sound.wav", &['#', '%'])
+            .unwrap()
+            .unwrap();
+    if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
+        assert_eq!(params.pan, Some(10000));
+        assert_eq!(params.frequency, Some(440));
+    } else {
+        panic!("expected ExWav variant");
+    }
+
+    // pan 越界导致整个 EXWAV 回退
+    let r2 =
+        bms_tokenizer::parse_header_line::<&str>("#EXWAV01 pf 10001 440 sound.wav", &['#', '%'])
+            .unwrap()
+            .unwrap();
+    assert!(matches!(r2, BmsHeader::Fallback(_)));
+}
+
+// #WAVCMD pitch 范围校验
+
+#[test]
+fn parse_wavcmd_pitch_0_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 0", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command: WavCmdKind::Pitch,
+                wav_index: "01".parse().unwrap(),
+                value: 0,
+            }
+        })
+    );
+}
+
+#[test]
+fn parse_wavcmd_pitch_127_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 127", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command: WavCmdKind::Pitch,
+                wav_index: "01".parse().unwrap(),
+                value: 127,
+            }
+        })
+    );
+}
+
+#[test]
+fn parse_wavcmd_pitch_128_fallback() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 128", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(result, BmsHeader::Fallback(_)));
+}
+
+#[test]
+fn parse_wavcmd_pitch_0_boundary_still_allows_volume_over_100() {
+    // 音量命令（01）不受 pitch 范围限制
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 01 01 200", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        result,
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd { .. })
+    ));
 }

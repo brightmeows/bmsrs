@@ -26,7 +26,7 @@ use crate::{BmsHeader, BmsTryFromError};
 /// 冻结。Angolmois 与 Sonorous 的怪癖更少。
 #[derive(Debug, Clone, PartialEq)]
 pub struct StpParams {
-    /// 小节号。
+    /// 小节号（0–999，3 位零填充）。
     pub measure: u16,
     /// 小节内位置（0–999，即 `xxx.yyy` 中的 `yyy`）。
     ///
@@ -66,7 +66,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 
         let measure: u16 = measure_str.parse().ok()?;
         let position: u16 = position_str.parse().ok()?;
-        if position > 999 {
+        if measure > 999 || position > 999 {
             return None;
         }
 
@@ -233,6 +233,23 @@ mod tests {
     #[test]
     fn stp_params_position_over_999_rejected() {
         assert!(<StpParams as BmsValue<'_, &str>>::parse("001.1000 500").is_none());
+    }
+
+    #[test]
+    fn stp_params_measure_0_accepted() {
+        let p = <StpParams as BmsValue<'_, &str>>::parse("000 500").unwrap();
+        assert_eq!(p.measure, 0);
+    }
+
+    #[test]
+    fn stp_params_measure_999_accepted() {
+        let p = <StpParams as BmsValue<'_, &str>>::parse("999 500").unwrap();
+        assert_eq!(p.measure, 999);
+    }
+
+    #[test]
+    fn stp_params_measure_over_999_rejected() {
+        assert!(<StpParams as BmsValue<'_, &str>>::parse("1000 500").is_none());
     }
 
     #[test]
