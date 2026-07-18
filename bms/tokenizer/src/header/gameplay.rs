@@ -10,7 +10,6 @@ use std::str::FromStr;
 
 use crate::BmsTokenAttr;
 use crate::index::{BmsBase, ChangeOptionIndex, ExRankIndex, LnObjIndex};
-use crate::{BmsHeader, BmsTryFromError};
 
 /// `#PLAYER` 指定的游玩模式。
 ///
@@ -290,20 +289,6 @@ pub enum BmsHeaderGameplay<C> {
     #[bms_token("#BASE {}")]
     #[bms_fallback]
     Base(BmsBase),
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderGameplay<C> {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::Gameplay(g) => Ok(g),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }
 
 #[cfg(test)]

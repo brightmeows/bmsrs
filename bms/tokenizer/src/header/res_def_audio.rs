@@ -4,7 +4,7 @@
 use std::fmt;
 
 use crate::index::WavIndex;
-use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
+use crate::{BmsTokenAttr, BmsValue};
 
 /// `#EXWAV{id}` 的扩展音频效果参数（nanasi 扩展）。
 ///
@@ -304,18 +304,4 @@ pub enum BmsHeaderResDefAudio<C> {
     /// 避免在其他系统上的路径问题。
     #[bms_token("#PATH_WAV {}")]
     PathWav(C),
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefAudio<C> {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::ResDefAudio(a) => Ok(a),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }

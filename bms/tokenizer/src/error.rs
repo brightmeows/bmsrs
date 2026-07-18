@@ -163,9 +163,11 @@ impl fmt::Display for ParseBmsValueError {
 
 /// token 类型间 `TryFrom` 转换的错误类型。
 ///
-/// 当从 [`BmsToken`](crate::BmsToken)、[`BmsHeader`](crate::BmsHeader) 或
-/// `(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)` 元组中
-/// 提取特定的头部变体或消息时使用。
+/// 当从 [`BmsToken`](crate::BmsToken) 或 `(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)` 元组
+/// 中提取头部或消息时使用。
+///
+/// **注意**：子枚举提取（如 `BmsHeader::try_unwrap_gameplay`）不再通过此类型报告错误，
+/// 改为返回 [`derive_more::TryUnwrapError`]。`WrongHeaderType` 变体已在 `0.1.0` 周期中移除。
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum BmsTryFromError<C> {
     /// 源 `(NonZeroUsize, Result<BmsToken, …>)` 含有 `Err`。
@@ -182,7 +184,4 @@ pub enum BmsTryFromError<C> {
     /// `BmsToken` 是 `Header`，而非 `Message`。
     #[error("expected a message, but the token is a header")]
     NotAMessage,
-    /// `BmsHeader` 变体与请求的头部类型不匹配。
-    #[error("the header is not of the requested type")]
-    WrongHeaderType,
 }

@@ -6,7 +6,6 @@ use std::fmt;
 use crate::BmsTokenAttr;
 use crate::BmsValue;
 use crate::index::{BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
-use crate::{BmsHeader, BmsTryFromError};
 
 /// `#STP` 的参数——bemaniaDX 式停止（绝对时间，毫秒）。
 ///
@@ -186,20 +185,6 @@ pub enum BmsHeaderTiming {
         /// 解析出的步进计时参数。
         params: StpParams,
     },
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderTiming {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::Timing(t) => Ok(t),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }
 
 #[cfg(test)]

@@ -10,7 +10,6 @@ use thiserror::Error;
 
 use crate::BmsTokenAttr;
 use crate::IntoTokensError;
-use crate::{BmsHeader, BmsTryFromError};
 
 /// `#DIFFICULTY`（值 1–5）指定的难度分类。
 ///
@@ -139,20 +138,6 @@ pub enum BmsHeaderDisplay<C> {
     /// `preview*.wav` / `preview*.ogg`。
     #[bms_token("#PREVIEW {}")]
     Preview(C),
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderDisplay<C> {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::Display(d) => Ok(d),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }
 
 #[cfg(test)]

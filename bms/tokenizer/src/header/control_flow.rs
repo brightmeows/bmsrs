@@ -5,7 +5,6 @@
 //! 后续管道阶段（解析器/处理器）的职责。
 
 use crate::BmsTokenAttr;
-use crate::{BmsHeader, BmsTryFromError};
 
 /// 用于随机谱面分支的控制流头部。
 ///
@@ -87,18 +86,4 @@ pub enum BmsHeaderControlFlow {
     /// `#DEF`——`#SWITCH` 块内的默认分支。
     #[bms_token("#DEF")]
     Def,
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderControlFlow {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::ControlFlow(f) => Ok(f),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }

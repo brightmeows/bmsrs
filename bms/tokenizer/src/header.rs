@@ -22,14 +22,13 @@ use std::fmt;
 
 use crate::BmsTokenAttr;
 use crate::BmsTokenizeError;
-use crate::BmsTryFromError;
 
 /// BMS 文件中的头部命令，按语义域分类。
 ///
 /// 分发顺序遵循下方变体声明顺序。
 /// 标注了 `#[bms_fallback]` 的变体不参与分发，
 /// 而是捕获任何未匹配具体变体的内容。
-#[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From, derive_more::TryUnwrap)]
 pub enum BmsHeader<C> {
     /// 音频资源定义（`#WAV`、`#EXWAV`、`#WAVCMD` 等）。
     ResDefAudio(BmsHeaderResDefAudio<C>),
@@ -60,20 +59,6 @@ pub struct BmsHeaderFallback<C> {
     pub command: C,
     /// 空格分隔符之后的值。
     pub value: C,
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderFallback<C> {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::Fallback(f) => Ok(f),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }
 
 /// 将单行头部行解析为 `BmsHeader`。

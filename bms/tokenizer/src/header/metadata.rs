@@ -4,7 +4,6 @@
 
 use crate::BmsTokenAttr;
 use crate::index::TextIndex;
-use crate::{BmsHeader, BmsTryFromError};
 
 /// 乐曲/谱面元数据头部。
 ///
@@ -91,18 +90,4 @@ pub enum BmsHeaderMetadata<C> {
     /// **注意**：BMSE 与 iBMSC 在保存时会删除 `%EMAIL`。
     #[bms_token("%EMAIL {}")]
     Email(C),
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderMetadata<C> {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::Metadata(m) => Ok(m),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }

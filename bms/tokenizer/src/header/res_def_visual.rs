@@ -6,7 +6,7 @@ use std::fmt;
 
 use crate::header::display::PoorBgaMode;
 use crate::index::{BmpIndex, SeekIndex};
-use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
+use crate::{BmsTokenAttr, BmsValue};
 
 /// `#BGA{id}` 的参数——图片裁剪与放置定义。
 ///
@@ -424,18 +424,4 @@ pub enum BmsHeaderResDefVisual<C> {
     /// 默认：`0`（从头开始）。
     #[bms_token("#VIDEODLY {}")]
     VideoDly(f64),
-}
-
-// From / TryFrom 转换
-
-impl<C> TryFrom<BmsHeader<C>> for BmsHeaderResDefVisual<C> {
-    type Error = BmsTryFromError<C>;
-
-    #[inline]
-    fn try_from(header: BmsHeader<C>) -> Result<Self, Self::Error> {
-        match header {
-            BmsHeader::ResDefVisual(v) => Ok(v),
-            _ => Err(BmsTryFromError::WrongHeaderType),
-        }
-    }
 }
