@@ -18,6 +18,7 @@
 //! `lib.rs` 中重新导出这些类型）。
 
 mod codegen;
+mod index;
 mod parse;
 mod value_codegen;
 
@@ -116,4 +117,16 @@ pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
         }
         _ => generate_bms_value_enum(enum_name, generics, data_enum).into(),
     }
+}
+
+/// 为 BMS 索引 newtype 生成标准 trait 实现。
+///
+/// 输入必须是单字段元组结构体（如 `WavIndex(pub BmsIndex)`）。
+///
+/// 生成的 trait 实现：`Clone`、`Copy`、`Debug`、`PartialEq`、`Eq`、
+/// `PartialOrd`、`Ord`、`Hash`、`Deref`、`Display`、`From<Inner>`、
+/// `FromStr`、`TryFrom<&str>`。
+#[proc_macro_derive(BmsIndexNewtype)]
+pub fn derive_bms_index(input: TokenStream) -> TokenStream {
+    index::derive_bms_index_impl(input)
 }

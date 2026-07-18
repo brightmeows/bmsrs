@@ -27,10 +27,10 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
-use derive_more::{Deref, Display, From, FromStr};
+use derive_more::Display;
 use thiserror::Error;
 
-use crate::{BmsTokenAttr, IntoTokensError};
+use crate::{BmsIndexNewtype, BmsTokenAttr, IntoTokensError};
 
 // 字符集校验辅助函数
 
@@ -336,121 +336,59 @@ impl<C> IntoTokensError<C> for BmsIndexError {
 //   - 构造时校验所需的字符集
 //   - 实现 Display、FromStr、TryFrom<&str>、Clone、Copy 等
 
-/// 生成一个委托给 `FromStr` 的 `TryFrom<&str>` 实现。
-macro_rules! impl_try_from_str {
-    ($ty:ty) => {
-        impl TryFrom<&str> for $ty {
-            type Error = BmsIndexError;
-
-            #[inline]
-            fn try_from(s: &str) -> Result<Self, Self::Error> {
-                s.parse()
-            }
-        }
-    };
-}
-
 // 标准 Base62 newtype
 
 /// `#WAV{id}` / `#EXWAV{id}` 的索引——音频定义引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct WavIndex(pub BmsIndex);
-impl_try_from_str!(WavIndex);
 
 /// `#BMP{id}` / `#BGA{id}` / `#@BGA{id}` / `#SWBGA{id}` /
 /// `#ARGB{id}` / `#EXBMP{id}` 的索引——图片 / BGA 定义引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct BmpIndex(pub BmsIndex);
-impl_try_from_str!(BmpIndex);
 
 /// `#BPM{id}` / `#EXBPM{id}` 的索引——扩展 BPM 定义引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct BpmIndex(pub BmsIndex);
-impl_try_from_str!(BpmIndex);
 
 /// `#STOP{id}` 的索引——停止定义引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct StopIndex(pub BmsIndex);
-impl_try_from_str!(StopIndex);
 
 /// `#SCROLL{id}` 的索引——滚动速度定义引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct ScrollIndex(pub BmsIndex);
-impl_try_from_str!(ScrollIndex);
 
 /// `#SPEED{id}` 的索引——速度/间距定义引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct SpeedIndex(pub BmsIndex);
-impl_try_from_str!(SpeedIndex);
 
 /// `#EXRANK{id}` 的索引——逐位置判定覆盖引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct ExRankIndex(pub BmsIndex);
-impl_try_from_str!(ExRankIndex);
 
 /// `#SEEK{id}` 的索引——视频定位位置引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct SeekIndex(pub BmsIndex);
-impl_try_from_str!(SeekIndex);
 
 /// `#LNOBJ` 的索引——用作长音终止标记的 WAV 索引。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct LnObjIndex(pub BmsIndex);
-impl_try_from_str!(LnObjIndex);
 
 /// `#TEXT{id}` / `#SONG{id}` 的索引——定时屏幕文字引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct TextIndex(pub BmsIndex);
-impl_try_from_str!(TextIndex);
 
 /// `#CHANGEOPTION{id}` 的索引——动态选项变更引用。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct ChangeOptionIndex(pub BmsIndex);
-impl_try_from_str!(ChangeOptionIndex);
 
 /// 消息正文值中 2 字符对象 ID 的索引。
 ///
 /// 这是 [`BmsMessage`](crate::BmsMessage) 正文字符串中以宽松方式
 /// 解析的对象索引——每对连续的有效 Base62 字符构成一个对象 ID。
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deref, Display, From, FromStr,
-)]
-#[display("{}", _0)]
+#[derive(BmsIndexNewtype)]
 pub struct ObjectIndex(pub BmsIndex);
-impl_try_from_str!(ObjectIndex);
 
 // 特殊 newtype：ChannelIndex（Base36 校验）
 
@@ -523,6 +461,13 @@ impl FromStr for ChannelIndex {
     }
 }
 
-impl_try_from_str!(ChannelIndex);
+impl TryFrom<&str> for ChannelIndex {
+    type Error = BmsIndexError;
+
+    #[inline]
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        s.parse()
+    }
+}
 
 // 测试

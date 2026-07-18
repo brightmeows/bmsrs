@@ -31,7 +31,7 @@ mod index;
 mod message;
 mod preprocess;
 
-pub use bms_tokenizer_derive::BmsTokenAttr;
+pub use bms_tokenizer_derive::{BmsIndexNewtype, BmsTokenAttr};
 pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::parse_header_line;
