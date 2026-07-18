@@ -1489,3 +1489,59 @@ fn parse_exwav_multi_flag_pan_out_of_range_fallback() {
             .unwrap();
     assert!(matches!(r2, BmsHeader::Fallback(_)));
 }
+
+// #WAVCMD pitch 范围校验
+
+#[test]
+fn parse_wavcmd_pitch_0_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 0", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command: WavCmdKind::Pitch,
+                wav_index: "01".parse().unwrap(),
+                value: 0,
+            }
+        })
+    );
+}
+
+#[test]
+fn parse_wavcmd_pitch_127_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 127", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
+            params: WavCmdParams {
+                command: WavCmdKind::Pitch,
+                wav_index: "01".parse().unwrap(),
+                value: 127,
+            }
+        })
+    );
+}
+
+#[test]
+fn parse_wavcmd_pitch_128_fallback() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 00 01 128", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(result, BmsHeader::Fallback(_)));
+}
+
+#[test]
+fn parse_wavcmd_pitch_0_boundary_still_allows_volume_over_100() {
+    // 音量命令（01）不受 pitch 范围限制
+    let result = bms_tokenizer::parse_header_line::<&str>("#WAVCMD 01 01 200", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        result,
+        BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd { .. })
+    ));
+}

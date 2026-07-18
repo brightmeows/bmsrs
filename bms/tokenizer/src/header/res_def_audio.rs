@@ -216,6 +216,10 @@ impl std::str::FromStr for WavCmdParams {
             if parts.next().is_some() {
                 return None;
             }
+            // 音高命令（00）的值范围：MIDI 音符号 [0, 127]。
+            if command == WavCmdKind::Pitch && value > 127 {
+                return None;
+            }
             Some(Self {
                 command,
                 wav_index,
