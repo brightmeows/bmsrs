@@ -95,9 +95,27 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
                 let val_str = s.get(val_start..consumed)?;
                 let val: i64 = val_str.parse().ok()?;
                 match flag {
-                    'p' => pan = Some(val.try_into().ok()?),
-                    'v' => volume = Some(val.try_into().ok()?),
-                    'f' => frequency = Some(val.try_into().ok()?),
+                    'p' => {
+                        let v: i32 = val.try_into().ok()?;
+                        if !(-10000..=10000).contains(&v) {
+                            return None;
+                        }
+                        pan = Some(v);
+                    }
+                    'v' => {
+                        let v: i32 = val.try_into().ok()?;
+                        if !(-10000..=0).contains(&v) {
+                            return None;
+                        }
+                        volume = Some(v);
+                    }
+                    'f' => {
+                        let v: u32 = val.try_into().ok()?;
+                        if !(100..=100_000).contains(&v) {
+                            return None;
+                        }
+                        frequency = Some(v);
+                    }
                     _ => return None,
                 }
             }
