@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use bms_tokenizer::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ChannelIndex, ScrollIndex, SpeedIndex,
-    StopIndex, WavIndex,
+    StopIndex, WavIndex, base36_digit_value,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -921,9 +921,18 @@ impl Messages {
         };
 
         // 预留通道 `"10"`/`"20"`/... 的 lane 为 0，过滤。
-        let Some(lane) = base36_value(second) else {
+        // `base36_digit_value` 返回 `Option<u16>`，lane 值 0–35 在 u8 范围内，
+        // `try_from` 总是成功。
+        let Some(lane_u16) = base36_digit_value(second) else {
             return;
         };
+        #[expect(
+            clippy::expect_used,
+            reason = "base36 value 0–35 always fits in u8, guaranteed by base36_digit_value contract"
+        )]
+        let lane = u8::try_from(lane_u16).expect(
+            "base36 value 0–35 always fits in u8, guaranteed by base36_digit_value contract",
+        );
         if lane == 0 {
             return;
         }
@@ -973,19 +982,6 @@ impl Messages {
             b'E' if lane <= 9 => self.push_mine_full(values, measure, 2, lane, total_objects, base),
             _ => { /* 非音符第一字符 —— 仅保留在 raw 中 */ }
         }
-    }
-}
-
-/// 将 Base36 ASCII 字节解码为数值（0–35）。
-///
-/// tokenizer 的 `base36_digit_value` 是 `pub(crate)`，parser 跨 crate 不可
-/// 见，故在此定义本地等价物。
-const fn base36_value(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'A'..=b'Z' => Some(b - b'A' + 10),
-        b'a'..=b'z' => Some(b - b'a' + 10),
-        _ => None,
     }
 }
 

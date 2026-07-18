@@ -47,7 +47,7 @@ pub use header::{
 pub use index::{
     BmpIndex, BmsBase, BmsIndex, BmsIndexError, BpmIndex, ChangeOptionIndex, ChannelIndex,
     ExRankIndex, LnObjIndex, ObjectIndex, ScrollIndex, SeekIndex, SpeedIndex, StopIndex, TextIndex,
-    WavIndex,
+    WavIndex, base36_digit_value,
 };
 pub use message::BmsMessage;
 pub use message::parse_message_line;
