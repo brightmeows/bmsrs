@@ -278,9 +278,9 @@ fn stp_header_stored_as_event() {
     let bms = parse("#STP 001.128 500");
     assert_eq!(bms.messages.stp_events.len(), 1);
     let ev = &bms.messages.stp_events[0];
-    assert_eq!(ev.position.measure, 1);
-    assert_eq!(ev.position.numer, 128);
-    assert_eq!(ev.position.denom, 1000);
+    assert_eq!(ev.position.measure(), 1);
+    assert_eq!(ev.position.numer(), 128);
+    assert_eq!(ev.position.denom(), 1000);
     assert!((ev.duration_ms - 500.0).abs() < f64::EPSILON);
 }
 
@@ -294,9 +294,9 @@ fn bgm_messages_parsed() {
     assert_eq!(bms.messages.bgm_events[1].wav_id, "BB".parse().unwrap());
     assert_eq!(bms.messages.bgm_events[2].wav_id, "CC".parse().unwrap());
     // 位置
-    assert_eq!(bms.messages.bgm_events[0].position.numer, 0);
-    assert_eq!(bms.messages.bgm_events[0].position.denom, 3);
-    assert_eq!(bms.messages.bgm_events[2].position.numer, 2);
+    assert_eq!(bms.messages.bgm_events[0].position.numer(), 0);
+    assert_eq!(bms.messages.bgm_events[0].position.denom(), 3);
+    assert_eq!(bms.messages.bgm_events[2].position.numer(), 2);
 }
 
 #[test]
@@ -453,15 +453,15 @@ fn bgm_multi_line_polyphony() {
     // 每行 BGM 独立：2+2 = 共 4 个事件。
     assert_eq!(bms.messages.bgm_events.len(), 4);
     // 第 1 行：事件位于 (0/2, 1/2)
-    assert_eq!(bms.messages.bgm_events[0].position.numer, 0);
-    assert_eq!(bms.messages.bgm_events[0].position.denom, 2);
-    assert_eq!(bms.messages.bgm_events[1].position.numer, 1);
-    assert_eq!(bms.messages.bgm_events[1].position.denom, 2);
+    assert_eq!(bms.messages.bgm_events[0].position.numer(), 0);
+    assert_eq!(bms.messages.bgm_events[0].position.denom(), 2);
+    assert_eq!(bms.messages.bgm_events[1].position.numer(), 1);
+    assert_eq!(bms.messages.bgm_events[1].position.denom(), 2);
     // 第 2 行：事件位于 (0/2, 1/2)
-    assert_eq!(bms.messages.bgm_events[2].position.numer, 0);
-    assert_eq!(bms.messages.bgm_events[2].position.denom, 2);
-    assert_eq!(bms.messages.bgm_events[3].position.numer, 1);
-    assert_eq!(bms.messages.bgm_events[3].position.denom, 2);
+    assert_eq!(bms.messages.bgm_events[2].position.numer(), 0);
+    assert_eq!(bms.messages.bgm_events[2].position.denom(), 2);
+    assert_eq!(bms.messages.bgm_events[3].position.numer(), 1);
+    assert_eq!(bms.messages.bgm_events[3].position.denom(), 2);
 }
 
 #[test]
@@ -483,8 +483,8 @@ fn note_channel_merge_two_lines() {
     assert_eq!(bms.messages.note_events.len(), 2);
     assert_eq!(bms.messages.note_events[0].wav_id, "11".try_into().unwrap());
     assert_eq!(bms.messages.note_events[1].wav_id, "22".try_into().unwrap());
-    assert_eq!(bms.messages.note_events[0].position.numer, 0);
-    assert_eq!(bms.messages.note_events[1].position.numer, 1);
+    assert_eq!(bms.messages.note_events[0].position.numer(), 0);
+    assert_eq!(bms.messages.note_events[1].position.numer(), 1);
 }
 
 #[test]
@@ -502,9 +502,9 @@ fn note_channel_merge_different_division() {
     assert_eq!(bms.messages.note_events[0].wav_id, "AA".try_into().unwrap());
     assert_eq!(bms.messages.note_events[1].wav_id, "66".try_into().unwrap());
     assert_eq!(bms.messages.note_events[2].wav_id, "BB".try_into().unwrap());
-    assert_eq!(bms.messages.note_events[0].position.numer, 0);
-    assert_eq!(bms.messages.note_events[1].position.numer, 2);
-    assert_eq!(bms.messages.note_events[2].position.numer, 3);
+    assert_eq!(bms.messages.note_events[0].position.numer(), 0);
+    assert_eq!(bms.messages.note_events[1].position.numer(), 2);
+    assert_eq!(bms.messages.note_events[2].position.numer(), 3);
 }
 
 #[test]
@@ -712,12 +712,12 @@ fn merge_channel_different_resolution_merges_correctly() {
     assert_eq!(bms.messages.note_events[3].wav_id, "55".try_into().unwrap());
     assert_eq!(bms.messages.note_events[4].wav_id, "66".try_into().unwrap());
     // 验证位置基于 max 分辨率（6）
-    assert_eq!(bms.messages.note_events[0].position.denom, 6);
-    assert_eq!(bms.messages.note_events[0].position.numer, 0);
-    assert_eq!(bms.messages.note_events[1].position.numer, 1);
-    assert_eq!(bms.messages.note_events[2].position.numer, 3);
-    assert_eq!(bms.messages.note_events[3].position.numer, 4);
-    assert_eq!(bms.messages.note_events[4].position.numer, 5);
+    assert_eq!(bms.messages.note_events[0].position.denom(), 6);
+    assert_eq!(bms.messages.note_events[0].position.numer(), 0);
+    assert_eq!(bms.messages.note_events[1].position.numer(), 1);
+    assert_eq!(bms.messages.note_events[2].position.numer(), 3);
+    assert_eq!(bms.messages.note_events[3].position.numer(), 4);
+    assert_eq!(bms.messages.note_events[4].position.numer(), 5);
 }
 
 /// 验证解析器在 `C = String` 时正确收敛。
@@ -899,8 +899,8 @@ fn message_concat_same_channel() {
     let lines = measure_map.and_then(|m| m.get(&ch));
     assert_eq!(lines, Some(&vec!["1122".to_owned(), "3344".to_owned()]));
     assert_eq!(bms.messages.bgm_events.len(), 4);
-    assert_eq!(bms.messages.bgm_events[0].position.denom, 2);
-    assert_eq!(bms.messages.bgm_events[2].position.denom, 2);
+    assert_eq!(bms.messages.bgm_events[0].position.denom(), 2);
+    assert_eq!(bms.messages.bgm_events[2].position.denom(), 2);
 }
 
 #[test]
@@ -1057,9 +1057,9 @@ fn stp_event_parsed_from_header() {
     let bms = parse("#STP 001.128 500");
     assert_eq!(bms.messages.stp_events.len(), 1);
     let ev = &bms.messages.stp_events[0];
-    assert_eq!(ev.position.measure, 1);
-    assert_eq!(ev.position.numer, 128);
-    assert_eq!(ev.position.denom, 1000);
+    assert_eq!(ev.position.measure(), 1);
+    assert_eq!(ev.position.numer(), 128);
+    assert_eq!(ev.position.denom(), 1000);
     assert!((ev.duration_ms - 500.0).abs() < f64::EPSILON);
 }
 

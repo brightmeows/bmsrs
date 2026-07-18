@@ -72,24 +72,23 @@ impl MeasureTable {
     /// 使用 u128 中间运算并四舍五入，避免 u64 溢出且减少截断误差。
     /// 旧实现的整数除法 `numer * measure_len / denom` 在短小节或高分母
     /// 时大量位置坍缩到同一 tick（如 7-tick 小节中 1/8 位置 = 0）。
+    ///
+    /// `denom > 0` 由 [`Position::new`] 在构造时保证（字段私有，外部无法
+    /// 绕过），因此此处无需 `denom == 0` 防御性检查。
     #[expect(
         clippy::cast_possible_truncation,
         reason = "offset fits in u64 (bounded by measure_len)"
     )]
     pub(crate) fn position_to_tick(&self, pos: Position) -> u64 {
-        let m = usize::from(pos.measure);
+        let m = usize::from(pos.measure());
         let Some(&measure_start) = self.starts.get(m) else {
             return self.starts.last().copied().unwrap_or(0);
         };
         let measure_end = self.starts.get(m + 1).copied().unwrap_or(measure_start);
         let measure_len = measure_end - measure_start;
 
-        if pos.denom == 0 {
-            return measure_start;
-        }
-
-        let n = u128::from(pos.numer) * u128::from(measure_len);
-        let d = u128::from(pos.denom);
+        let n = u128::from(pos.numer()) * u128::from(measure_len);
+        let d = u128::from(pos.denom());
         // 四舍五入：加 d/2 后整除。
         let offset = ((n + d / 2) / d) as u64;
         measure_start + offset

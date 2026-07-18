@@ -301,11 +301,7 @@ const fn hex_digit_value(b: u8) -> Option<u8> {
 
 /// 将单个 Base-36 ASCII 字节解码为数值（0–35）。
 #[must_use]
-#[expect(
-    clippy::redundant_pub_crate,
-    reason = "needed for parent module BmsIndex access"
-)]
-pub(crate) const fn base36_digit_value(b: u8) -> Option<u16> {
+pub const fn base36_digit_value(b: u8) -> Option<u16> {
     match b {
         b'0'..=b'9' => Some((b - b'0') as u16),
         b'A'..=b'Z' => Some((b - b'A') as u16 + 10),

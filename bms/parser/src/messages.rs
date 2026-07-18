@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use bms_tokenizer::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ChannelIndex, ScrollIndex, SpeedIndex,
-    StopIndex, WavIndex,
+    StopIndex, WavIndex, base36_digit_value,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -20,14 +20,17 @@ use bmsrs_chart::BgaLayer;
 ///
 /// 对于一个小节内有 N 个值的通道，第 i 个值（从 0 开始）对应
 /// `numer = i`、`denom = N`。
+///
+/// 字段私有，仅可通过 [`Position::new`] 构造——这保证 `denom > 0` 不变式
+/// 在类型层面成立，外部代码无法绕过。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     /// 小节编号（0–999）。
-    pub measure: u16,
+    measure: u16,
     /// 分子（此对象在小节内的索引）。
-    pub numer: u32,
+    numer: u32,
     /// 分母（此通道在此小节中的对象总数）。
-    pub denom: u32,
+    denom: u32,
 }
 
 impl Position {
@@ -45,6 +48,29 @@ impl Position {
             numer,
             denom,
         }
+    }
+
+    /// 返回小节编号（0–999）。
+    #[inline]
+    #[must_use]
+    pub const fn measure(self) -> u16 {
+        self.measure
+    }
+
+    /// 返回分子（此对象在小节内的索引）。
+    #[inline]
+    #[must_use]
+    pub const fn numer(self) -> u32 {
+        self.numer
+    }
+
+    /// 返回分母（此通道在此小节中的对象总数）。
+    ///
+    /// 保证 `> 0`——由 [`Position::new`] 在构造时校验。
+    #[inline]
+    #[must_use]
+    pub const fn denom(self) -> u32 {
+        self.denom
     }
 
     /// 返回小节内的小数位置，即 `numer / denom`。
@@ -665,21 +691,14 @@ fn iter_nonzero_chunks(values: &str) -> impl Iterator<Item = (usize, &str)> {
 
 /// 将地雷通道的 2-char 值解码为 base36 数值。
 ///
-/// 解码规则：
-/// - Base62 模式：先尝试十进制解析，失败再 Base36 解码
-/// - 其他模式：大写化后 Base36 解码
+/// 地雷伤害值始终为 base36，不受 `#BASE 62` 影响
+///（见 BMS base62 规范 `bms/ext/base62-format.md` L127-129）。
 ///
 /// `"00"` 已由上层 `iter_nonzero_chunks` 过滤，不会进入此函数。
 /// 返回 `None` 表示原始值无法解码——processor 以默认伤害值处理。
-fn decode_mine_raw(val: &str, base: BmsBase) -> Option<u16> {
-    if base == BmsBase::Base62 {
-        val.parse::<u16>()
-            .ok()
-            .or_else(|| BmsBase::Base36.decode(val))
-    } else {
-        let upper = val.to_ascii_uppercase();
-        BmsBase::Base36.decode(&upper)
-    }
+fn decode_mine_raw(val: &str) -> Option<u16> {
+    let upper = val.to_ascii_uppercase();
+    BmsBase::Base36.decode(&upper)
 }
 
 impl Messages {
@@ -879,11 +898,10 @@ impl Messages {
         player: u8,
         lane: u8,
         total_objects: u32,
-        base: BmsBase,
     ) {
         for (i, val) in iter_nonzero_chunks(values) {
             // "00" 已由 iter_nonzero_chunks 跳过。
-            let raw_value = decode_mine_raw(val, base);
+            let raw_value = decode_mine_raw(val);
             self.mine_events.push(MineEvent {
                 position: event_pos(i, measure, total_objects),
                 player,
@@ -921,9 +939,18 @@ impl Messages {
         };
 
         // 预留通道 `"10"`/`"20"`/... 的 lane 为 0，过滤。
-        let Some(lane) = base36_value(second) else {
+        // `base36_digit_value` 返回 `Option<u16>`，lane 值 0–35 在 u8 范围内，
+        // `try_from` 总是成功。
+        let Some(lane_u16) = base36_digit_value(second) else {
             return;
         };
+        #[expect(
+            clippy::expect_used,
+            reason = "base36 value 0–35 always fits in u8, guaranteed by base36_digit_value contract"
+        )]
+        let lane = u8::try_from(lane_u16).expect(
+            "base36 value 0–35 always fits in u8, guaranteed by base36_digit_value contract",
+        );
         if lane == 0 {
             return;
         }
@@ -969,23 +996,10 @@ impl Messages {
             b'6' => self.push_long_note_full(values, measure, 2, lane, total_objects, base),
             // 地雷通道仅 lane 1–9 有效；`classify_channel` 已确保进入此
             // 分支的 D/E 通道 second ∈ '1'..='9'，此处显式拒绝扩展 lane。
-            b'D' if lane <= 9 => self.push_mine_full(values, measure, 1, lane, total_objects, base),
-            b'E' if lane <= 9 => self.push_mine_full(values, measure, 2, lane, total_objects, base),
+            b'D' if lane <= 9 => self.push_mine_full(values, measure, 1, lane, total_objects),
+            b'E' if lane <= 9 => self.push_mine_full(values, measure, 2, lane, total_objects),
             _ => { /* 非音符第一字符 —— 仅保留在 raw 中 */ }
         }
-    }
-}
-
-/// 将 Base36 ASCII 字节解码为数值（0–35）。
-///
-/// tokenizer 的 `base36_digit_value` 是 `pub(crate)`，parser 跨 crate 不可
-/// 见，故在此定义本地等价物。
-const fn base36_value(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'A'..=b'Z' => Some(b - b'A' + 10),
-        b'a'..=b'z' => Some(b - b'a' + 10),
-        _ => None,
     }
 }
 
