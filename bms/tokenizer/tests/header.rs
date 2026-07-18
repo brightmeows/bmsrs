@@ -1273,6 +1273,48 @@ fn parse_stp_invalid_fallback() {
 }
 
 #[test]
+fn parse_stp_measure_999_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#STP 999 500", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::Timing(BmsHeaderTiming::Stp {
+            params: StpParams {
+                measure: 999,
+                position: 0,
+                duration_ms: 500.0
+            }
+        })
+    );
+}
+
+#[test]
+fn parse_stp_measure_over_999_fallback() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#STP 1000 500", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert!(matches!(result, BmsHeader::Fallback(_)));
+}
+
+#[test]
+fn parse_stp_measure_0_accepted() {
+    let result = bms_tokenizer::parse_header_line::<&str>("#STP 000 500", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::Timing(BmsHeaderTiming::Stp {
+            params: StpParams {
+                measure: 0,
+                position: 0,
+                duration_ms: 500.0
+            }
+        })
+    );
+}
+
+#[test]
 fn parse_genre_alias() {
     let result = bms_tokenizer::parse_header_line::<&str>("#GENLE Pop", &['#', '%'])
         .unwrap()
