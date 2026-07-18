@@ -530,7 +530,7 @@ impl BmsConverter<'_> {
             }
 
             for (i, obj) in item.values.iter().enumerate() {
-                if obj == "00" {
+                if obj.as_str() == "00" {
                     continue;
                 }
                 // 值通道（0B-0E, 97, 98）使用十六进制（01-FF）；
@@ -550,7 +550,7 @@ impl BmsConverter<'_> {
                         let Some(layer) = layer_of(item.channel) else {
                             continue;
                         };
-                        let Ok(opacity) = u8::from_str_radix(obj, 16) else {
+                        let Some(opacity) = obj.as_u8_hex() else {
                             continue;
                         };
                         BmsCustomEvent::BgaOpacity { layer, opacity }
@@ -563,9 +563,12 @@ impl BmsConverter<'_> {
                             continue;
                         };
                         // 值已归一化，直接查表。
-                        let Some((a, r, g, b)) = BmpIndex::try_from(obj.as_str())
-                            .ok()
-                            .and_then(|idx| self.bms.visual.argb_defs.get(&idx).cloned())
+                        let Some((a, r, g, b)) = self
+                            .bms
+                            .visual
+                            .argb_defs
+                            .get(&BmpIndex::from(*obj))
+                            .cloned()
                             .map(|p| (p.a, p.r, p.g, p.b))
                         else {
                             continue;
@@ -574,50 +577,56 @@ impl BmsConverter<'_> {
                     }
                     RawChannel::BgaKeyBound => {
                         // 值已归一化，直接查 bmp_map。
-                        let Some(resource_id) = BmpIndex::try_from(obj.as_str())
-                            .ok()
-                            .and_then(|idx| bmp_map.get(&idx).map(|e| e.resource_id))
+                        let Some(resource_id) =
+                            bmp_map.get(&BmpIndex::from(*obj)).map(|e| e.resource_id)
                         else {
                             continue;
                         };
                         BmsCustomEvent::BgaKeyBound { resource_id }
                     }
                     RawChannel::Text => {
-                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        let index = u64::from(obj.to_index().unwrap_or(0));
                         BmsCustomEvent::TextDisplay {
                             text_index: index as u32,
                         }
                     }
                     RawChannel::Judge => {
-                        let index = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        let index = u64::from(obj.to_index().unwrap_or(0));
                         BmsCustomEvent::JudgeOverride { rank: index }
                     }
                     RawChannel::Option => {
-                        let option_id = u64::from_str_radix(obj, 36).unwrap_or(0);
+                        let option_id = u64::from(obj.to_index().unwrap_or(0));
                         // 值已归一化，直接查 change_option_defs（F1+F2 已在 parser 解决）。
-                        let opt_idx = ChangeOptionIndex::try_from(obj.as_str()).ok();
-                        let value = opt_idx
-                            .and_then(|id| self.bms.gameplay.change_option_defs.get(&id).cloned())
+                        let opt_idx = ChangeOptionIndex::from(*obj);
+                        let value = self
+                            .bms
+                            .gameplay
+                            .change_option_defs
+                            .get(&opt_idx)
+                            .cloned()
                             .unwrap_or_default();
                         BmsCustomEvent::OptionChange { option_id, value }
                     }
                     RawChannel::BgmVolume => {
-                        let Ok(volume) = u8::from_str_radix(obj, 16) else {
+                        let Some(volume) = obj.as_u8_hex() else {
                             continue;
                         };
                         BmsCustomEvent::BgmVolume { volume }
                     }
                     RawChannel::KeyVolume => {
-                        let Ok(volume) = u8::from_str_radix(obj, 16) else {
+                        let Some(volume) = obj.as_u8_hex() else {
                             continue;
                         };
                         BmsCustomEvent::KeyVolume { volume }
                     }
                     RawChannel::Seek => {
                         // 值已归一化，直接查 seek_defs。
-                        let Some(ms) = SeekIndex::try_from(obj.as_str())
-                            .ok()
-                            .and_then(|idx| self.bms.visual.seek_defs.get(&idx).copied())
+                        let Some(ms) = self
+                            .bms
+                            .visual
+                            .seek_defs
+                            .get(&SeekIndex::from(*obj))
+                            .copied()
                         else {
                             continue;
                         };

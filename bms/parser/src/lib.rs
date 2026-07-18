@@ -15,7 +15,7 @@ mod timing;
 mod visual;
 
 // 重新导出子模块的全部公开类型。
-pub use audio::{Audio, ExWavParams, WavCmdParams};
+pub use audio::{Audio, OwnedExWavParams};
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{

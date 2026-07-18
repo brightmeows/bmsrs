@@ -4,8 +4,8 @@
 
 use bms_parser::*;
 use bms_tokenizer::{
-    BmpIndex, BmsBase, BmsChannel, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
-    Rank, ScrollIndex, SpeedIndex, StopIndex, WavIndex,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode,
+    PoorBgaMode, Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -210,9 +210,9 @@ fn dropped_audio_headers_stored() {
     let bms = parse("#WAVCMD 01 05 100\n#CDDA track.bin\n#MIDIFILE song.mid\n#PATH_WAV ./sounds/");
     assert_eq!(
         bms.audio.wav_cmd,
-        Some(bms_parser::WavCmdParams {
-            command_id: "01".into(),
-            wav_index: "05".into(),
+        Some(WavCmdParams {
+            command: WavCmdKind::Volume,
+            wav_index: "05".parse().unwrap(),
             value: 100,
         })
     );
@@ -633,7 +633,7 @@ fn non_event_data_multi_channel_preserves_all() {
         .messages
         .non_event_data
         .iter()
-        .find(|d| d.values.join("") == "11223344");
+        .find(|d| d.values.iter().map(BmsIndex::as_str).collect::<String>() == "11223344");
     assert!(opacity.is_some());
     assert_eq!(opacity.unwrap().measure, 1);
     // BgmVolume 条目
@@ -641,7 +641,7 @@ fn non_event_data_multi_channel_preserves_all() {
         .messages
         .non_event_data
         .iter()
-        .find(|d| d.values.join("") == "AABB");
+        .find(|d| d.values.iter().map(BmsIndex::as_str).collect::<String>() == "AABB");
     assert!(volume.is_some());
     assert_eq!(volume.unwrap().measure, 1);
 }
@@ -653,10 +653,24 @@ fn non_event_data_cross_measure_preserves_all() {
     assert_eq!(bms.messages.non_event_data.len(), 2);
     let m1 = bms.messages.non_event_data.iter().find(|d| d.measure == 1);
     assert!(m1.is_some());
-    assert_eq!(m1.unwrap().values.join(""), "1122");
+    assert_eq!(
+        m1.unwrap()
+            .values
+            .iter()
+            .map(BmsIndex::as_str)
+            .collect::<String>(),
+        "1122"
+    );
     let m2 = bms.messages.non_event_data.iter().find(|d| d.measure == 2);
     assert!(m2.is_some());
-    assert_eq!(m2.unwrap().values.join(""), "3344");
+    assert_eq!(
+        m2.unwrap()
+            .values
+            .iter()
+            .map(BmsIndex::as_str)
+            .collect::<String>(),
+        "3344"
+    );
 }
 
 /// `non_event_data` 在 `Bms::from_flat_tokens` 后正确填充。
@@ -668,7 +682,14 @@ fn non_event_data_populated_after_parse() {
     // 验证 BgaBaseOpacity (ch 0B) 的数据
     let entry = &bms.messages.non_event_data[0];
     assert_eq!(entry.measure, 1);
-    assert_eq!(entry.values.join(""), "0102");
+    assert_eq!(
+        entry
+            .values
+            .iter()
+            .map(BmsIndex::as_str)
+            .collect::<String>(),
+        "0102"
+    );
 }
 
 // F5: merge_channel 不同分辨率集成测试
@@ -952,9 +973,9 @@ fn wavcmd_stored() {
     let bms = parse("#WAVCMD 01 05 100");
     assert_eq!(
         bms.audio.wav_cmd,
-        Some(bms_parser::WavCmdParams {
-            command_id: "01".into(),
-            wav_index: "05".into(),
+        Some(WavCmdParams {
+            command: WavCmdKind::Volume,
+            wav_index: "05".parse().unwrap(),
             value: 100,
         })
     );

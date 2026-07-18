@@ -39,9 +39,9 @@ fn position_new_and_fraction() {
 }
 
 #[test]
-fn position_denom_zero_returns_zero() {
-    let pos = Position::new(0, 5, 0);
-    assert!(pos.fraction().abs() < f64::EPSILON);
+#[should_panic(expected = "Position denom must be non-zero")]
+fn position_zero_denom_panics() {
+    let _position = Position::new(0, 5, 0);
 }
 
 #[test]
@@ -474,4 +474,95 @@ fn base62_lowercase_and_uppercase_wav_indices_are_distinct() {
         msgs_lower.note_events[0].wav_id,
         msgs_upper.note_events[0].wav_id
     );
+}
+
+// 扩展音符通道（pomu2 系 `1A`–`1Z` 等）
+
+/// 扩展可见通道 `1A` 解码出 lane 10。
+#[test]
+fn extended_visible_channel_1a_decodes_lane_10() {
+    let msgs = parse_one("#0011A:01");
+    assert_eq!(msgs.note_events.len(), 1);
+    assert_eq!(msgs.note_events[0].player, 1);
+    assert_eq!(msgs.note_events[0].lane, 10);
+    assert_eq!(msgs.note_events[0].key_type, KeyType::Visible);
+}
+
+/// 扩展可见通道 `1Z` 解码出 lane 35。
+#[test]
+fn extended_visible_channel_1z_decodes_lane_35() {
+    let msgs = parse_one("#0011Z:01");
+    assert_eq!(msgs.note_events.len(), 1);
+    assert_eq!(msgs.note_events[0].player, 1);
+    assert_eq!(msgs.note_events[0].lane, 35);
+}
+
+/// 2P 扩展可见通道 `2A` 解码出 player 2, lane 10。
+#[test]
+fn extended_visible_channel_2a_decodes_player_2_lane_10() {
+    let msgs = parse_one("#0012A:01");
+    assert_eq!(msgs.note_events.len(), 1);
+    assert_eq!(msgs.note_events[0].player, 2);
+    assert_eq!(msgs.note_events[0].lane, 10);
+    assert_eq!(msgs.note_events[0].key_type, KeyType::Visible);
+}
+
+/// 扩展不可见通道 `3A`/`4A` 解码出 lane 10 的不可见音符。
+#[test]
+fn extended_invisible_channel_3a_decodes_lane_10() {
+    let msgs = parse_one("#0013A:01");
+    assert_eq!(msgs.note_events.len(), 1);
+    assert_eq!(msgs.note_events[0].player, 1);
+    assert_eq!(msgs.note_events[0].lane, 10);
+    assert_eq!(msgs.note_events[0].key_type, KeyType::Invisible);
+
+    let msgs_4a = parse_one("#0014A:01");
+    assert_eq!(msgs_4a.note_events[0].player, 2);
+    assert_eq!(msgs_4a.note_events[0].key_type, KeyType::Invisible);
+}
+
+/// 扩展长音通道 `5A`/`6A` 解码出 lane 10 的长音。
+#[test]
+fn extended_long_note_channel_5a_decodes_lane_10() {
+    let msgs = parse_one("#0015A:01");
+    assert_eq!(msgs.long_note_events.len(), 1);
+    assert_eq!(msgs.long_note_events[0].player, 1);
+    assert_eq!(msgs.long_note_events[0].lane, 10);
+
+    let msgs_6a = parse_one("#0016A:01");
+    assert_eq!(msgs_6a.long_note_events[0].player, 2);
+    assert_eq!(msgs_6a.long_note_events[0].lane, 10);
+}
+
+/// 预留通道 `"10"`/`"20"`（lane 0）不产生 `NoteEvent`。
+#[test]
+fn reserved_channel_10_produces_no_note() {
+    let msgs_10 = parse_one("#00110:01");
+    assert_eq!(msgs_10.note_events.len(), 0);
+    let msgs_20 = parse_one("#00120:01");
+    assert_eq!(msgs_20.note_events.len(), 0);
+}
+
+/// 回归：地雷通道 `D0`（lane 0）不产生 `MineEvent`。
+#[test]
+fn mine_channel_d0_produces_no_event() {
+    let msgs = parse_one("#001D0:01");
+    assert_eq!(msgs.mine_events.len(), 0);
+}
+
+/// 回归：假设性的 `DA`（lane 10）不产生 `MineEvent`——
+/// `classify_channel` 已将其归为 `Unknown`，仅 `D1`–`D9` 有效。
+#[test]
+fn mine_channel_da_produces_no_event() {
+    let msgs = parse_one("#001DA:01");
+    assert_eq!(msgs.mine_events.len(), 0);
+}
+
+/// 回归：标准地雷 `D1`–`D9` 仍正常产生 `MineEvent`（lane 1–9）。
+#[test]
+fn mine_channel_d1_still_works() {
+    let msgs = parse_one("#001D1:01");
+    assert_eq!(msgs.mine_events.len(), 1);
+    assert_eq!(msgs.mine_events[0].player, 1);
+    assert_eq!(msgs.mine_events[0].lane, 1);
 }

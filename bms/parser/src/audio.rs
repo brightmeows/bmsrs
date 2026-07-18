@@ -4,47 +4,41 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsBase, BmsHeaderResDefAudio, WavIndex};
+use bms_tokenizer::{BmsBase, BmsHeaderResDefAudio, ExWavParams, WavCmdParams, WavIndex};
 
-/// `#WAVCMD` 的解析参数——音高/音量/时长覆盖（MacBeat 扩展）。
-///
-/// `value` 的语义由 `command_id` 决定：
-/// - `00`（音高）：MIDI 音符号，基准 `60` = 中央 C，范围 `0`–`127`
-/// - `01`（音量）：百分比，`100` = 原始音量
-/// - `02`（再生时长）：半毫秒单位（秒 × 2000）
+/// `#EXWAV` 的 owned 参数（tokenizer 的 `ExWavParams` 的 owned 对应）。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WavCmdParams {
-    /// 命令 ID（`00` = 音高、`01` = 音量、`02` = 时长）。
-    pub command_id: String,
-    /// 目标 WAV 索引。
-    pub wav_index: String,
-    /// 参数值（非负整数，语义由 `command_id` 决定）。
-    pub value: u32,
+pub struct OwnedExWavParams {
+    /// 声像。
+    pub pan: Option<i32>,
+    /// 音量衰减。
+    pub volume: Option<i32>,
+    /// 频率。
+    pub frequency: Option<u32>,
+    /// 文件名。
+    pub filename: String,
 }
 
-/// `#EXWAV` 的扩展音频效果参数。
-///
-/// 每个标志字符（`p`/`v`/`f`）都有一个对应的数值：
-/// - **pan（声像）**（`p`）：`-10000` 到 `10000`，默认 `0`。
-/// - **volume（音量）**（`v`）：`-10000` 到 `0`，默认 `0`（原始音量）。
-/// - **frequency（频率）**（`f`）：`100` 到 `100000` Hz。
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ExWavParams {
-    /// 标志字符（例如 `"pvf"`）。
-    pub flags: String,
-    /// 数值，按标志字符的顺序一一对应。
-    pub values: Vec<f64>,
+impl<C: AsRef<str>> From<&ExWavParams<C>> for OwnedExWavParams {
+    fn from(p: &ExWavParams<C>) -> Self {
+        Self {
+            pan: p.pan,
+            volume: p.volume,
+            frequency: p.frequency,
+            filename: p.filename.as_ref().to_owned(),
+        }
+    }
 }
 
 /// 音频资源定义。
 ///
 /// 索引定义使用 `BTreeMap`；标量字段使用 `Option`。
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Audio {
     /// 音效 / BGM 文件定义（`#WAV`、`#EXWAV`）。
     pub wav_files: BTreeMap<WavIndex, String>,
-    /// 按索引存储的 `#EXWAV` 效果参数（pvf/pan/vol/freq）。
-    pub ex_wav_params: BTreeMap<WavIndex, ExWavParams>,
+    /// 按索引存储的 `#EXWAV` 效果参数（pan/volume/frequency）。
+    pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
     /// 音频播放命令（`#WAVCMD`）。
     pub wav_cmd: Option<WavCmdParams>,
     /// CD 音轨引用（`#CDDA`）。
@@ -72,20 +66,11 @@ impl Audio {
                 let nid = WavIndex::from(id.normalize(base));
                 self.wav_files
                     .insert(nid, params.filename.as_ref().to_owned());
-                self.ex_wav_params.insert(
-                    nid,
-                    ExWavParams {
-                        flags: params.flags.as_ref().to_owned(),
-                        values: params.values.clone(),
-                    },
-                );
+                self.ex_wav_params
+                    .insert(nid, OwnedExWavParams::from(params));
             }
             BmsHeaderResDefAudio::WavCmd { params } => {
-                self.wav_cmd = Some(WavCmdParams {
-                    command_id: params.command_id.as_ref().to_owned(),
-                    wav_index: params.wav_index.as_ref().to_owned(),
-                    value: params.value,
-                });
+                self.wav_cmd = Some(params.clone());
             }
             BmsHeaderResDefAudio::Cdda(s) => self.cdda = Some(s.as_ref().to_owned()),
             BmsHeaderResDefAudio::Midifile(s) => self.midifile = Some(s.as_ref().to_owned()),

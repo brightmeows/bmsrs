@@ -5,7 +5,7 @@ use bms_tokenizer::{
     BmsHeaderGameplay, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
     BmsHeaderTiming, BpmIndex, ChangeOptionIndex, DifficultyLevel, ExRankIndex, LnMode, LnObjIndex,
     LnType, PlayerMode, PoorBgaMode, Rank, ScrollIndex, SeekIndex, SpeedIndex, StopIndex,
-    StpParams, TextIndex, WavCmdParams, WavIndex,
+    StpParams, TextIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 
 #[test]
@@ -414,8 +414,8 @@ fn parse_wavcmd() {
         result,
         BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
             params: WavCmdParams {
-                command_id: "01",
-                wav_index: "05",
+                command: WavCmdKind::Volume,
+                wav_index: "05".parse().unwrap(),
                 value: 100,
             }
         })
@@ -704,7 +704,9 @@ fn parse_exwav_indexed() {
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
         assert_eq!(id.as_str(), "01");
         assert_eq!(params.filename, "extra.ogg");
-        assert!(params.flags.is_empty());
+        assert!(params.pan.is_none());
+        assert!(params.volume.is_none());
+        assert!(params.frequency.is_none());
     } else {
         panic!("expected ExWav variant");
     }
@@ -718,8 +720,9 @@ fn parse_exwav_with_flags() {
             .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
         assert_eq!(id.as_str(), "01");
-        assert_eq!(params.flags, "pvf");
-        assert_eq!(params.values, vec![-100.0, 50.0, 440.0]);
+        assert_eq!(params.pan, Some(-100));
+        assert_eq!(params.volume, Some(50));
+        assert_eq!(params.frequency, Some(440));
         assert_eq!(params.filename, "sound.wav");
     } else {
         panic!("expected ExWav variant");
@@ -1050,8 +1053,8 @@ fn wavcmd_not_confused_as_wav_indexed() {
         result,
         BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd {
             params: WavCmdParams {
-                command_id: "00",
-                wav_index: "01",
+                command: WavCmdKind::Pitch,
+                wav_index: "01".parse().unwrap(),
                 value: 100,
             }
         })
