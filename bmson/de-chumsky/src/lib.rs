@@ -44,6 +44,25 @@ pub use error::BmsonDeError;
 
 use bmson_def::DetectedVersion;
 
+use crate::json::ParseError;
+
+/// 将 `serde_json::Error` 包装为版本标记的 `BmsonDeError::Deserialize`。
+fn deser_err(version: &'static str) -> impl FnOnce(serde_json::Error) -> BmsonDeError {
+    move |e| BmsonDeError::Deserialize {
+        version,
+        message: e.to_string(),
+    }
+}
+
+/// 将解析器错误列表格式化为以 `sep` 分隔的字符串。
+fn join_errors(errors: &[ParseError<'_>], sep: &str) -> String {
+    errors
+        .iter()
+        .map(|e| format!("{e}"))
+        .collect::<Vec<_>>()
+        .join(sep)
+}
+
 /// 零大小入口类型，通过关联方法 [`BmsonParser::parse`] 暴露 BMSON 解析。
 ///
 /// # 用法
@@ -91,11 +110,7 @@ impl BmsonParser {
         // 2. 若解析器完全未产生输出，无论各错误如何归类都返回解析错误。
         if !had_output {
             let (_warnings, _recovered, fatal) = json::classify_errors(errors, false);
-            let msg = fatal
-                .iter()
-                .map(|e| format!("{e}"))
-                .collect::<Vec<_>>()
-                .join("\n");
+            let msg = join_errors(&fatal, "\n");
             return Err(BmsonDeError::JsonParse(msg));
         }
 
@@ -112,11 +127,7 @@ impl BmsonParser {
                     version: deser_version,
                     message,
                 } => {
-                    let diag = errors
-                        .iter()
-                        .map(|diag_err| format!("{diag_err}"))
-                        .collect::<Vec<_>>()
-                        .join("; ");
+                    let diag = join_errors(&errors, "; ");
                     BmsonDeError::Deserialize {
                         version: deser_version,
                         message: format!("{message}\n  (parser diagnostics: {diag})"),
@@ -134,26 +145,17 @@ fn deserialize_by_version<'a>(
     version: DetectedVersion,
 ) -> Result<bmson_def::Bmson<'a>, BmsonDeError> {
     match version {
-        DetectedVersion::V2 => serde_json::from_str::<bmson_def::Bmson<'a>>(json).map_err(|e| {
-            BmsonDeError::Deserialize {
-                version: "v2.0.0",
-                message: e.to_string(),
-            }
-        }),
+        DetectedVersion::V2 => {
+            serde_json::from_str::<bmson_def::Bmson<'a>>(json).map_err(deser_err("v2.0.0"))
+        }
         DetectedVersion::V1 => {
             let v1: bmson_def::v1::Bmson<'a> =
-                serde_json::from_str(json).map_err(|e| BmsonDeError::Deserialize {
-                    version: "v1.0.0",
-                    message: e.to_string(),
-                })?;
+                serde_json::from_str(json).map_err(deser_err("v1.0.0"))?;
             Ok(bmson_def::Bmson::from(v1))
         }
         DetectedVersion::V0 => {
             let v0: bmson_def::v0::Bmson<'a> =
-                serde_json::from_str(json).map_err(|e| BmsonDeError::Deserialize {
-                    version: "v0.2.1",
-                    message: e.to_string(),
-                })?;
+                serde_json::from_str(json).map_err(deser_err("v0.2.1"))?;
             Ok(bmson_def::Bmson::try_from(v0)?)
         }
     }
