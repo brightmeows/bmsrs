@@ -243,6 +243,15 @@ fn mine_raw_value_mixed_zero_and_real() {
     assert_eq!(msgs.mine_events[1].raw_value, Some(1295));
 }
 
+/// 回归：Base62 模式下地雷伤害值仍按 base36 解码——
+/// `"10"` 应为 base36 = 36，而非十进制 10。
+/// 见 `bms/ext/base62-format.md` L127-129：地雷值不受 `#BASE 62` 影响。
+#[test]
+fn mine_raw_value_base62_mode_still_base36() {
+    let msgs = parse_one_with_base("#001D1:10", BmsBase::Base62);
+    assert_eq!(msgs.mine_events[0].raw_value, Some(36));
+}
+
 #[test]
 fn bpm_absolute_parsed() {
     let msgs = parse_one("#00103:7F");

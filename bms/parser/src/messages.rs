@@ -665,21 +665,14 @@ fn iter_nonzero_chunks(values: &str) -> impl Iterator<Item = (usize, &str)> {
 
 /// 将地雷通道的 2-char 值解码为 base36 数值。
 ///
-/// 解码规则：
-/// - Base62 模式：先尝试十进制解析，失败再 Base36 解码
-/// - 其他模式：大写化后 Base36 解码
+/// 地雷伤害值始终为 base36，不受 `#BASE 62` 影响
+///（见 BMS base62 规范 `bms/ext/base62-format.md` L127-129）。
 ///
 /// `"00"` 已由上层 `iter_nonzero_chunks` 过滤，不会进入此函数。
 /// 返回 `None` 表示原始值无法解码——processor 以默认伤害值处理。
-fn decode_mine_raw(val: &str, base: BmsBase) -> Option<u16> {
-    if base == BmsBase::Base62 {
-        val.parse::<u16>()
-            .ok()
-            .or_else(|| BmsBase::Base36.decode(val))
-    } else {
-        let upper = val.to_ascii_uppercase();
-        BmsBase::Base36.decode(&upper)
-    }
+fn decode_mine_raw(val: &str) -> Option<u16> {
+    let upper = val.to_ascii_uppercase();
+    BmsBase::Base36.decode(&upper)
 }
 
 impl Messages {
@@ -879,11 +872,10 @@ impl Messages {
         player: u8,
         lane: u8,
         total_objects: u32,
-        base: BmsBase,
     ) {
         for (i, val) in iter_nonzero_chunks(values) {
             // "00" 已由 iter_nonzero_chunks 跳过。
-            let raw_value = decode_mine_raw(val, base);
+            let raw_value = decode_mine_raw(val);
             self.mine_events.push(MineEvent {
                 position: event_pos(i, measure, total_objects),
                 player,
@@ -978,8 +970,8 @@ impl Messages {
             b'6' => self.push_long_note_full(values, measure, 2, lane, total_objects, base),
             // 地雷通道仅 lane 1–9 有效；`classify_channel` 已确保进入此
             // 分支的 D/E 通道 second ∈ '1'..='9'，此处显式拒绝扩展 lane。
-            b'D' if lane <= 9 => self.push_mine_full(values, measure, 1, lane, total_objects, base),
-            b'E' if lane <= 9 => self.push_mine_full(values, measure, 2, lane, total_objects, base),
+            b'D' if lane <= 9 => self.push_mine_full(values, measure, 1, lane, total_objects),
+            b'E' if lane <= 9 => self.push_mine_full(values, measure, 2, lane, total_objects),
             _ => { /* 非音符第一字符 —— 仅保留在 raw 中 */ }
         }
     }
