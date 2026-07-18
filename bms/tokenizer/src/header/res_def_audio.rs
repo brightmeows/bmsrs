@@ -19,11 +19,11 @@ use crate::{BmsHeader, BmsTokenAttr, BmsTryFromError, BmsValue};
 /// `#EXWAV` 索引与 `#WAV` 共享同一命名空间。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExWavParams<C> {
-    /// 声像（`p` flag）。
+    /// 声像（`p` flag）。范围：`[-10000, 10000]`，`0` = 居中。
     pub pan: Option<i32>,
-    /// 音量衰减（`v` flag）。
+    /// 音量衰减（`v` flag）。范围：`[-10000, 0]`，`0` = 原声。
     pub volume: Option<i32>,
-    /// 频率（`f` flag）。
+    /// 频率（`f` flag）。范围：`[100, 100000]` Hz。
     pub frequency: Option<u32>,
     /// 资源文件路径或名称。
     pub filename: C,
@@ -149,7 +149,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// `#WAVCMD` 的命令种类。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WavCmdKind {
-    /// `00`——音高（MIDI 音符号，基准 60 = 中央 C）。
+    /// `00`——音高（MIDI 音符号，基准 60 = 中央 C）。范围：`[0, 127]`。
     Pitch,
     /// `01`——音量（百分比，100 = 原始）。
     Volume,
@@ -195,6 +195,10 @@ pub struct WavCmdParams {
     /// 目标 WAV 索引。
     pub wav_index: WavIndex,
     /// 参数值（非负整数，语义由 `command` 决定）。
+    ///
+    /// - `Pitch`：MIDI 音符号，范围 `[0, 127]`。
+    /// - `Volume`：百分比，`100` = 原始。大于 `100` 的值可能导致削波。
+    /// - `Time`：半毫秒单位。小于 `50` 的值可能不可靠。
     pub value: u32,
 }
 

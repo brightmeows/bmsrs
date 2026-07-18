@@ -26,7 +26,7 @@ use crate::{BmsHeader, BmsTryFromError};
 /// 冻结。Angolmois 与 Sonorous 的怪癖更少。
 #[derive(Debug, Clone, PartialEq)]
 pub struct StpParams {
-    /// 小节号。
+    /// 小节号（0–999，3 位零填充）。
     pub measure: u16,
     /// 小节内位置（0–999，即 `xxx.yyy` 中的 `yyy`）。
     ///
