@@ -76,25 +76,13 @@ cargo deny check                       # 依赖审计（CI）
 
 ### 提交格式
 
-Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下表：
+Conventional Commits，匹配 `release-plz.toml` changelog 分组。
+Title/body 用中文（type 与 scope 仍用英文，如 `docs(chart):`）。
+breaking change 用 `!` 放在冒号前。
 
-| 类型 | changelog 分组 | scope 示例 |
-|------|---------------|-----------|
-| `feat:` | 🚀 Features | `feat(bms-parser):` |
-| `fix:` | 🐛 Bug Fixes | `fix(tokenizer):` |
-| `refactor:` | 💅 Code Refactoring | `refactor(processor)!:` |
-| `perf:` | ⚡ Performance | `perf(player):` |
-| `test:` | ✅ Tests | `test(parser):` |
-| `docs:` | 📚 Documentation | `docs(chart):` |
-| `ci:` | 👷 CI | — |
-| `security:` | 🔒 Security | — |
-| `deprecated:` | 🗑️ Deprecated | — |
-| `revert:` | ⏪ Revert | — |
+### 工作树目录
 
-- Title/body 用中文（type 与 scope 仍用英文，如 `docs(chart):`）
-- body 可选，无特殊情况可省略
-- breaking change 用 `!`：`feat!:` 或 `feat(scope)!:`
-- `!` 放在冒号前
+Git worktree 统一放在 `.worktrees/` 目录下。
 
 ### MSRV 与 Edition
 
