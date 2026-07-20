@@ -49,8 +49,6 @@
 //!                    track=0, channel="SC"
 //! ```
 
-use std::fmt;
-
 use crate::channel::{BmsChannel, classify_channel};
 use crate::index::{ChannelIndex, is_base62};
 use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
@@ -59,11 +57,11 @@ use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 ///
 /// 格式描述见模块级文档。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BmsMessage<C> {
+pub struct BmsMessage {
     /// 原始地址字符串（`:` 之前）。
-    pub addr: C,
+    pub addr: String,
     /// 原始正文字符串（`:` 之后）。
-    pub body: C,
+    pub body: String,
 
     /// 0 起索引的小节号，从 [`addr`](BmsMessage::addr) 中
     /// 通道后缀之前的数字位提取。
@@ -73,7 +71,7 @@ pub struct BmsMessage<C> {
     channel: BmsChannel,
 }
 
-impl<C> BmsMessage<C> {
+impl BmsMessage {
     /// 返回 0 起索引的小节号。
     #[inline]
     #[must_use]
@@ -89,11 +87,11 @@ impl<C> BmsMessage<C> {
     }
 }
 
-impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
-    type Error = BmsTryFromError<C>;
+impl TryFrom<BmsToken> for BmsMessage {
+    type Error = BmsTryFromError;
 
     #[inline]
-    fn try_from(token: BmsToken<C>) -> Result<Self, Self::Error> {
+    fn try_from(token: BmsToken) -> Result<Self, Self::Error> {
         match token {
             BmsToken::Message(m) => Ok(m),
             BmsToken::Header(_) => Err(BmsTryFromError::NotAMessage),
@@ -116,9 +114,7 @@ impl<C> TryFrom<BmsToken<C>> for BmsMessage<C> {
     clippy::string_slice,
     reason = "BMS message lines are ASCII-only (hex digits, Base62 chars, colons); byte indexing is safe"
 )]
-pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
-    line: &'a str,
-) -> Result<Option<BmsMessage<C>>, BmsTokenizeError<C>> {
+pub fn parse_message_line(line: &str) -> Result<Option<BmsMessage>, BmsTokenizeError> {
     if line.is_empty() || !line.starts_with('#') {
         return Ok(None);
     }
@@ -153,7 +149,7 @@ pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a st
         let last = bytes[len - 1];
         if !is_base62(last) {
             return Err(BmsTokenizeError::InvalidChannel {
-                value: C::from(addr),
+                value: addr.to_owned(),
             });
         }
         if len >= 2 {
@@ -176,7 +172,7 @@ pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a st
             .as_str()
             .try_into()
             .map_err(|_e| BmsTokenizeError::InvalidChannel {
-                value: C::from(addr),
+                value: addr.to_owned(),
             })?;
     let channel = classify_channel(channel_idx);
 
@@ -191,8 +187,8 @@ pub fn parse_message_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a st
         });
 
     Ok(Some(BmsMessage {
-        addr: C::from(addr),
-        body: C::from(body),
+        addr: addr.to_owned(),
+        body: body.to_owned(),
         track,
         channel,
     }))

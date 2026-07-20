@@ -8,32 +8,31 @@ use bms_tokenizer::{
 
 #[test]
 fn tokenize_empty_input() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("");
     assert!(tokens.is_empty());
 }
 
 #[test]
 fn tokenize_whitespace_only() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("  \n  \n  ");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("  \n  \n  ");
     assert!(tokens.is_empty());
 }
 
 #[test]
 fn tokenize_comment_only() {
-    let tokens: Vec<_> =
-        BmsTokenizer::new().tokenize::<_, &str>("// just a comment\n// another one");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("// just a comment\n// another one");
     assert!(tokens.is_empty());
 }
 
 #[test]
 fn tokenize_semicolon_comment() {
     let tokens: Vec<_> =
-        BmsTokenizer::new().tokenize::<_, &str>("; debug line\n#TITLE real\n  ; indented comment");
+        BmsTokenizer::new().tokenize("; debug line\n#TITLE real\n  ; indented comment");
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Title("real")
+            BmsHeaderMetadata::Title(..)
         )))
     ));
 }
@@ -41,12 +40,12 @@ fn tokenize_semicolon_comment() {
 #[test]
 fn inline_slash_comment_with_whitespace_prefix_stripped() {
     // 空白前置的 `//` 视为行内注释，剥离注释部分
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#TITLE Song // comment");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("#TITLE Song // comment");
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Title("Song")
+            BmsHeaderMetadata::Title(..)
         )))
     ));
 }
@@ -54,32 +53,32 @@ fn inline_slash_comment_with_whitespace_prefix_stripped() {
 #[test]
 fn url_double_slash_without_whitespace_preserved() {
     // `://` 中的 `//` 前一字符为 `:`（非空白），不视为注释
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("%URL https://example.com");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("%URL https://example.com");
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Url("https://example.com")
+            BmsHeaderMetadata::Url(..)
         )))
     ));
 }
 
 #[test]
 fn tokenize_single_header() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#TITLE My Song");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("#TITLE My Song");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].0.get(), 1);
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Title("My Song")
+            BmsHeaderMetadata::Title(..)
         )))
     ));
 }
 
 #[test]
 fn tokenize_single_message() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#00111:11223344");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("#00111:11223344");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].0.get(), 1);
     match &tokens[0].1 {
@@ -102,14 +101,14 @@ fn tokenize_mixed_content() {
 #00111:11223344
 #00201:AABB
 ";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
     insta::assert_debug_snapshot!(tokens);
 }
 
 #[test]
 fn tokenize_crlf_line_endings() {
     let bms = "#TITLE Test\r\n#ARTIST Artist\r\n";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
     assert_eq!(tokens.len(), 2);
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 2);
@@ -118,7 +117,7 @@ fn tokenize_crlf_line_endings() {
 #[test]
 fn tokenize_cr_line_endings() {
     let bms = "#TITLE Test\r#ARTIST Artist\r";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
     assert_eq!(tokens.len(), 2);
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 2);
@@ -127,7 +126,7 @@ fn tokenize_cr_line_endings() {
 #[test]
 fn tokenize_mixed_line_endings() {
     let bms = "#TITLE Test\n#ARTIST Artist\r\n#GENRE Piano\r#BPM 180\n";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
     assert_eq!(tokens.len(), 4);
     assert_eq!(tokens[0].0.get(), 1);
     assert_eq!(tokens[1].0.get(), 2);
@@ -137,7 +136,7 @@ fn tokenize_mixed_line_endings() {
 
 #[test]
 fn tokenize_with_unknown_header() {
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>("#UNKNOWN value");
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize("#UNKNOWN value");
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
@@ -153,7 +152,7 @@ fn tokenize_interleaved_headers_and_messages() {
 #ARTIST Me
 #00201:22
 ";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
     assert_eq!(tokens.len(), 4);
     assert!(matches!(tokens[0].1, Ok(BmsToken::Header(_))));
     assert!(matches!(tokens[1].1, Ok(BmsToken::Message(_))));
@@ -170,7 +169,7 @@ fn collect_all_returns_all_results() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::CollectAll)
-        .tokenize::<_, &str>(bms);
+        .tokenize(bms);
     // 注释行被跳过；预期 2 个 token
     assert_eq!(tokens.len(), 2);
     // 行号反映原始输入（注释被跳过）
@@ -188,7 +187,7 @@ fn collect_all_continues_past_errors() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::CollectAll)
-        .tokenize::<_, &str>(bms);
+        .tokenize(bms);
     assert_eq!(tokens.len(), 3);
     // 第一行：OK
     assert!(tokens[0].1.is_ok());
@@ -207,7 +206,7 @@ fn fail_fast_stops_at_first_error() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
-        .tokenize::<_, &str>(bms);
+        .tokenize(bms);
     // FailFast 在错误行（第 2 行）停止，包含该行
     assert_eq!(tokens.len(), 2);
     assert!(tokens[0].1.is_ok());
@@ -225,7 +224,7 @@ fn fail_fast_no_error_returns_all() {
 ";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
-        .tokenize::<_, &str>(bms);
+        .tokenize(bms);
     assert_eq!(tokens.len(), 2);
     assert!(tokens[0].1.is_ok());
     assert!(tokens[1].1.is_ok());
@@ -240,7 +239,7 @@ fn line_number_gaps_with_skipped_lines() {
 
 #00101:11
 ";
-    let tokens: Vec<_> = BmsTokenizer::new().tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().tokenize(bms);
     assert_eq!(tokens.len(), 3);
     assert_eq!(tokens[0].0.get(), 1); // #TITLE
     assert_eq!(tokens[1].0.get(), 3); // #BPM（第 2 行为空）
@@ -252,7 +251,7 @@ fn default_strategy_is_collect_all() {
     let tokenizer = BmsTokenizer::new();
     // 默认分词应为 CollectAll
     let bms = "#00101:11\n#001..:FF\n#00201:22";
-    let tokens: Vec<_> = tokenizer.tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = tokenizer.tokenize(bms);
     assert_eq!(tokens.len(), 3);
     assert!(tokens[0].1.is_ok());
     assert!(tokens[1].1.is_err());
@@ -261,43 +260,57 @@ fn default_strategy_is_collect_all() {
 
 #[test]
 fn debug_and_clone_bms_token() {
-    let token = BmsToken::Header(BmsHeader::Metadata(BmsHeaderMetadata::Title("t")));
+    let token = BmsToken::Header(BmsHeader::Metadata(BmsHeaderMetadata::Title(
+        "t".to_owned(),
+    )));
     let cloned = token.clone();
     assert_eq!(format!("{token:?}"), format!("{cloned:?}"));
 }
 
 #[test]
 fn tokenizer_error_display_invalid_measure() {
-    let err = BmsTokenizeError::InvalidMeasure { value: "abc" };
+    let err = BmsTokenizeError::InvalidMeasure {
+        value: "abc".to_owned(),
+    };
     assert_eq!(err.to_string(), "invalid measure number: \"abc\"");
 }
 
 #[test]
 fn tokenizer_error_display_invalid_channel() {
-    let err = BmsTokenizeError::InvalidChannel { value: "xyz" };
+    let err = BmsTokenizeError::InvalidChannel {
+        value: "xyz".to_owned(),
+    };
     assert_eq!(err.to_string(), "invalid channel number: \"xyz\"");
 }
 
 #[test]
 fn tokenizer_error_trait_is_implemented() {
     fn assert_error<T: std::error::Error>() {}
-    assert_error::<BmsTokenizeError<&'static str>>();
+    assert_error::<BmsTokenizeError>();
 }
 
 #[test]
 fn tokenizer_error_debug_and_clone() {
-    let err = BmsTokenizeError::InvalidMeasure { value: "000" };
+    let err = BmsTokenizeError::InvalidMeasure {
+        value: "000".to_owned(),
+    };
     let cloned = err.clone();
     assert_eq!(format!("{err:?}"), format!("{cloned:?}"));
 }
 
 #[test]
 fn tokenizer_error_partial_eq() {
-    let a = BmsTokenizeError::InvalidMeasure { value: "000" };
-    let b = BmsTokenizeError::InvalidMeasure { value: "000" };
+    let a = BmsTokenizeError::InvalidMeasure {
+        value: "000".to_owned(),
+    };
+    let b = BmsTokenizeError::InvalidMeasure {
+        value: "000".to_owned(),
+    };
     assert_eq!(a, b);
 
-    let c = BmsTokenizeError::InvalidChannel { value: "00" };
+    let c = BmsTokenizeError::InvalidChannel {
+        value: "00".to_owned(),
+    };
     assert_ne!(a, c);
 }
 
@@ -308,7 +321,7 @@ fn tokenize_into_btreemap() {
 #BPM 180
 #00101:1122
 ";
-    let map: HashMap<_, _> = BmsTokenizer::new().tokenize::<_, &str>(bms);
+    let map: HashMap<_, _> = BmsTokenizer::new().tokenize(bms);
     assert_eq!(map.len(), 3);
     assert!(map.contains_key(&std::num::NonZeroUsize::MIN));
     assert!(map.contains_key(&std::num::NonZeroUsize::new(2).unwrap()));
@@ -320,7 +333,7 @@ fn fail_fast_error_line_included_in_results() {
     let bms = "#00101:11\n#001..:FF";
     let tokens: Vec<_> = BmsTokenizer::new()
         .error_strategy(ErrorStrategy::FailFast)
-        .tokenize::<_, &str>(bms);
+        .tokenize(bms);
     assert_eq!(tokens.len(), 2);
     // 错误行本身被包含（未被丢弃）
     assert!(tokens[1].1.is_err());
@@ -330,29 +343,27 @@ fn fail_fast_error_line_included_in_results() {
 fn bms_tokenizer_debug_and_clone() {
     let t1 = BmsTokenizer::new().error_strategy(ErrorStrategy::FailFast);
     let t2 = t1.clone();
-    let r1: Vec<_> = t1.tokenize::<_, &str>("#TITLE A");
-    let r2: Vec<_> = t2.tokenize::<_, &str>("#TITLE A");
+    let r1: Vec<_> = t1.tokenize("#TITLE A");
+    let r2: Vec<_> = t2.tokenize("#TITLE A");
     assert_eq!(r1.len(), r2.len());
 }
 
 #[test]
 fn bms_tokenizer_default() {
     let t = BmsTokenizer::default();
-    assert!(t.tokenize::<Vec<_>, &str>("").is_empty());
+    assert!(t.tokenize::<Vec<_>>("").is_empty());
 }
 
 #[test]
 fn custom_prefix_filters_percent() {
     // 仅 `#` 前缀时，`%URL` 行应被跳过。
     let bms = "#TITLE Song\n%URL https://example.com";
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .header_prefixes(&['#'])
-        .tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&['#']).tokenize(bms);
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Title("Song")
+            BmsHeaderMetadata::Title(..)
         )))
     ));
 }
@@ -361,14 +372,12 @@ fn custom_prefix_filters_percent() {
 fn custom_prefix_accepts_percent_only() {
     // 仅 `%` 前缀时，`#TITLE` 被跳过，但 `%URL` 被解析。
     let bms = "#TITLE Song\n%URL https://example.com";
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .header_prefixes(&['%'])
-        .tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&['%']).tokenize(bms);
     assert_eq!(tokens.len(), 1);
     assert!(matches!(
         tokens[0].1,
         Ok(BmsToken::Header(BmsHeader::Metadata(
-            BmsHeaderMetadata::Url("https://example.com")
+            BmsHeaderMetadata::Url(..)
         )))
     ));
 }
@@ -376,9 +385,7 @@ fn custom_prefix_accepts_percent_only() {
 #[test]
 fn empty_prefixes_skips_all() {
     let bms = "#TITLE Song\n#BPM 180\n#00101:11";
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .header_prefixes(&[])
-        .tokenize::<_, &str>(bms);
+    let tokens: Vec<_> = BmsTokenizer::new().header_prefixes(&[]).tokenize(bms);
     // 仅剩通道消息行（无 `#` 行作为头部）
     assert_eq!(tokens.len(), 1);
     assert!(matches!(tokens[0].1, Ok(BmsToken::Message(_))));
@@ -389,7 +396,7 @@ fn custom_prefix_single_char() {
     let bms = "#TITLE A\n@CUSTOM value";
     let tokens: Vec<_> = BmsTokenizer::new()
         .header_prefixes(&['#', '@'])
-        .tokenize::<_, &str>(bms);
+        .tokenize(bms);
     assert_eq!(tokens.len(), 2);
     // `@CUSTOM` 不是已知头部，因此回退到 Fallback
     assert!(matches!(
@@ -403,8 +410,8 @@ fn header_prefixes_default() {
     let default = BmsTokenizer::new();
     let explicit = BmsTokenizer::new().header_prefixes(&['#', '%']);
     let bms = "#TITLE A\n%URL b\n";
-    let r1: Vec<_> = default.tokenize::<_, &str>(bms);
-    let r2: Vec<_> = explicit.tokenize::<_, &str>(bms);
+    let r1: Vec<_> = default.tokenize(bms);
+    let r2: Vec<_> = explicit.tokenize(bms);
     assert_eq!(r1.len(), r2.len());
     assert_eq!(r1, r2);
 }

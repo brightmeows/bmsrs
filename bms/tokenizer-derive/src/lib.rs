@@ -57,7 +57,7 @@ pub fn derive_bms_token_attr(input: TokenStream) -> TokenStream {
     };
 
     // Dispatch 模式：所有变体都没有 #[bms_token]，且全部为单字段 tuple 变体
-    // （如 Metadata(BmsHeaderMetadata<'a>)）。
+    // （如 Metadata(BmsHeaderMetadata)）。
     let has_bms_token = data_enum
         .variants
         .iter()

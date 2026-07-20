@@ -179,7 +179,7 @@ impl fmt::Display for Rank {
 /// 血量槽（生命条）行为、长音解读，以及谱面
 /// 选项。
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderGameplay<C> {
+pub enum BmsHeaderGameplay {
     /// `#PLAYER`——游戏模式（Single / Couple / Double / Battle）。
     ///
     /// 现代播放器基本忽略，从通道推断模式。
@@ -269,7 +269,7 @@ pub enum BmsHeaderGameplay<C> {
     /// 多行 `#OPTION` 可共存；同类选项使用
     /// 最接近 EOF 的行。
     #[bms_token("#OPTION {}")]
-    Option(C),
+    Option(String),
     /// `#CHANGEOPTION{id}`——游玩过程中动态改变选项（nanasi）。
     ///
     /// 被通道 `#xxxA6` 引用。并非所有选项都支持动态
@@ -279,7 +279,7 @@ pub enum BmsHeaderGameplay<C> {
         /// 2 字符索引。
         id: ChangeOptionIndex,
         /// 选项字符串（例如 `"774:HIDDEN_STEALTH"`）。
-        value: C,
+        value: String,
     },
     /// `#BASE`——声明索引命令的进制基数。
     ///

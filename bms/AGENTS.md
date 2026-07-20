@@ -17,7 +17,7 @@ flowchart LR
 
 | 阶段 | Crate | 职责 |
 |------|-------|------|
-| 1 词法 | `bms-tokenizer` | 原始文本 → `BmsToken<C>` |
+| 1 词法 | `bms-tokenizer` | 原始文本 → `BmsToken` |
 | — 派生 | `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro，无运行时逻辑 |
 | 2 控制流 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip |
 | 3 语义 | `bms-parser` | flat token → `Bms` 模型 |
@@ -28,7 +28,7 @@ flowchart LR
 | 原则 | 含义 |
 |------|------|
 | 分层不越界 | tokenizer 不做跨命令验证、control-flow 不依赖 parser、parser 不展开控制流、processor 不引入 I/O |
-| 泛型贯穿 | `C`（`&str` 零拷贝或 `String` owned）和 `P`（负载类型）由调用侧选择，贯穿管道 |
+| `P` 泛型贯穿 | `P`（负载类型）由调用侧选择，贯穿管道；字符串字段统一使用 `String` |
 | 模式族解耦 | 键位映射通过零大小类型实现 `BmsLayout` trait，不在 `Chart` 中存储模式信息 |
 
 ## 职责判据

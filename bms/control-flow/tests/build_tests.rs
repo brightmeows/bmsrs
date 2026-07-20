@@ -16,24 +16,22 @@ use bms_tokenizer::{BmsToken, BmsTokenizer};
 type TestResult = std::result::Result<(), ControlFlowError>;
 
 /// 辅助函数：对 BMS 文本分词，仅保留成功的 token。
-fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken<&str>)> {
+fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken)> {
     BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(input)
+        .tokenize::<Vec<_>>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect()
 }
 
-/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
-fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
+/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload>`。
+fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload>, ControlFlowError> {
     let tokens = tokenize(input);
     FlowDoc::from_tokens(tokens)
 }
 
 /// 将首个根节点作为 `Random` 块引用提取出来，否则 panic。
-fn as_random<'a>(
-    root: &'a [FlowNode<TokenPayload<&'a str>>],
-) -> &'a RandomBlock<TokenPayload<&'a str>> {
+fn as_random(root: &[FlowNode<TokenPayload>]) -> &RandomBlock<TokenPayload> {
     let Some(FlowNode::Block(FlowBlock::Random(r))) = root.first() else {
         panic!("expected Random block");
     };
@@ -41,9 +39,7 @@ fn as_random<'a>(
 }
 
 /// 将首个根节点作为 `Switch` 块引用提取出来，否则 panic。
-fn as_switch<'a>(
-    root: &'a [FlowNode<TokenPayload<&'a str>>],
-) -> &'a SwitchBlock<TokenPayload<&'a str>> {
+fn as_switch(root: &[FlowNode<TokenPayload>]) -> &SwitchBlock<TokenPayload> {
     let Some(FlowNode::Block(FlowBlock::Switch(s))) = root.first() else {
         panic!("expected Switch block");
     };

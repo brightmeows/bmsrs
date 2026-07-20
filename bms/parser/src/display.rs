@@ -27,15 +27,15 @@ pub struct Display {
 
 impl Display {
     /// 将一个显示头部命令应用到此结构体。
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderDisplay<C>) {
+    pub fn apply(&mut self, header: &BmsHeaderDisplay) {
         match header {
-            BmsHeaderDisplay::StageFile(s) => self.stage_file = Some(s.as_ref().to_owned()),
-            BmsHeaderDisplay::Banner(s) => self.banner = Some(s.as_ref().to_owned()),
-            BmsHeaderDisplay::BackBmp(s) => self.back_bmp = Some(s.as_ref().to_owned()),
-            BmsHeaderDisplay::CharFile(s) => self.char_file = Some(s.as_ref().to_owned()),
+            BmsHeaderDisplay::StageFile(s) => self.stage_file = Some(s.clone()),
+            BmsHeaderDisplay::Banner(s) => self.banner = Some(s.clone()),
+            BmsHeaderDisplay::BackBmp(s) => self.back_bmp = Some(s.clone()),
+            BmsHeaderDisplay::CharFile(s) => self.char_file = Some(s.clone()),
             BmsHeaderDisplay::PlayLevel(v) => self.play_level = Some(*v),
             BmsHeaderDisplay::Difficulty(d) => self.difficulty = Some(*d),
-            BmsHeaderDisplay::Preview(s) => self.preview = Some(s.as_ref().to_owned()),
+            BmsHeaderDisplay::Preview(s) => self.preview = Some(s.clone()),
         }
     }
 }

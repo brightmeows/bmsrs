@@ -37,20 +37,20 @@ pub struct Metadata {
 
 impl Metadata {
     /// 将一个元数据头部命令应用到此结构体。
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderMetadata<C>) {
+    pub fn apply(&mut self, header: &BmsHeaderMetadata) {
         match header {
-            BmsHeaderMetadata::Title(s) => self.title = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Subtitle(s) => self.subtitle = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Artist(s) => self.artist = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::SubArtist(s) => self.sub_artist = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Genre(s) => self.genre = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Maker(s) => self.maker = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Comment(s) => self.comment = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Charset(s) => self.charset = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Url(s) => self.url = Some(s.as_ref().to_owned()),
-            BmsHeaderMetadata::Email(s) => self.email = Some(s.as_ref().to_owned()),
+            BmsHeaderMetadata::Title(s) => self.title = Some(s.clone()),
+            BmsHeaderMetadata::Subtitle(s) => self.subtitle = Some(s.clone()),
+            BmsHeaderMetadata::Artist(s) => self.artist = Some(s.clone()),
+            BmsHeaderMetadata::SubArtist(s) => self.sub_artist = Some(s.clone()),
+            BmsHeaderMetadata::Genre(s) => self.genre = Some(s.clone()),
+            BmsHeaderMetadata::Maker(s) => self.maker = Some(s.clone()),
+            BmsHeaderMetadata::Comment(s) => self.comment = Some(s.clone()),
+            BmsHeaderMetadata::Charset(s) => self.charset = Some(s.clone()),
+            BmsHeaderMetadata::Url(s) => self.url = Some(s.clone()),
+            BmsHeaderMetadata::Email(s) => self.email = Some(s.clone()),
             BmsHeaderMetadata::Text { id, value } => {
-                self.text_defs.insert(*id, value.as_ref().to_owned());
+                self.text_defs.insert(*id, value.clone());
             }
         }
     }

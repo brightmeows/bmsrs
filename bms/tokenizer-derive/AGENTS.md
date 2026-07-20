@@ -40,9 +40,10 @@
 | `#[bms_fallback]` | Command 模式：失败 → `Ok(None)`；Dispatch 模式：跳过此变体 |
 | `#[doc(hidden)]` | 跳过 codegen（用于 phantom 变体）|
 
-## `C` 字段检测
+## `String` 字段检测
 
-enum 的第一个类型参数 = 字符串容器。匹配该 ident 的字段通过 `<C as From<&str>>::from(value)` 解析，而非 `FromStr`/`BmsValue`。
+字段类型为 `String` 时，通过 `String::from(value)` 解析（owned 转换），
+而非 `FromStr`/`BmsValue`。
 
 ## 错误映射
 

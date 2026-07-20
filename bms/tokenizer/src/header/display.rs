@@ -43,8 +43,8 @@ impl DifficultyLevel {
 #[error("invalid #DIFFICULTY value: {0} (expected 1-5)")]
 pub struct ParseDifficultyError(pub String);
 
-impl<C> IntoTokensError<C> for ParseDifficultyError {
-    fn into_error(self, context: &'static str, value: C) -> crate::BmsTokenizeError<C> {
+impl IntoTokensError for ParseDifficultyError {
+    fn into_error(self, context: &'static str, value: String) -> crate::BmsTokenizeError {
         crate::BmsTokenizeError::OutOfRange {
             context,
             value,
@@ -92,31 +92,31 @@ pub enum PoorBgaMode {
 /// 这些命令控制实际游玩音符*之外*玩家*所见*的内容——
 /// 加载画面、横幅、难度标签等。
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderDisplay<C> {
+pub enum BmsHeaderDisplay {
     /// `#STAGEFILE`——加载期间显示的启动画面图片（通常 640×480）。
     ///
     /// 可选。省略时播放器显示其默认加载画面。
     #[bms_token("#STAGEFILE {}")]
-    StageFile(C),
+    StageFile(String),
     /// `#BANNER`——选曲与结算界面的横幅图片（300×80）。
     ///
     /// 可选。支持相对路径（仅下级）。路径长度
     /// 限制为 260 字节。
     #[bms_token("#BANNER {}")]
-    Banner(C),
+    Banner(String),
     /// `#BACKBMP`——游玩界面的背景图片（通常 640×480）。
     ///
     /// 原始规范：图片填充游玩区域背景。在某些
     /// LR2 皮肤中，它被用作标题卡。尺寸与行为
     /// 取决于皮肤。
     #[bms_token("#BACKBMP {}")]
-    BackBmp(C),
+    BackBmp(String),
     /// `#CHARFILE`——pop'n music 风格的角色文件（pomu2 扩展）。
     ///
     /// 一个 `.chp` 文件，定义游玩期间显示的动画角色。
     /// 仅 pomu2 与 PMChr-V 支持。
     #[bms_token("#CHARFILE {}")]
-    CharFile(C),
+    CharFile(String),
     /// `#PLAYLEVEL`——选曲列表中显示的难度数值。
     ///
     /// 显示格式因播放器而异（星星、条形图、整数）。
@@ -137,7 +137,7 @@ pub enum BmsHeaderDisplay<C> {
     /// 省略时，beatoraja 自动发现谱面文件夹中的
     /// `preview*.wav` / `preview*.ogg`。
     #[bms_token("#PREVIEW {}")]
-    Preview(C),
+    Preview(String),
 }
 
 #[cfg(test)]

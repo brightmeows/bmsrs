@@ -1,4 +1,4 @@
-//! 示例：从 `FlowDoc<TokenPayload<C>>` 派生出 `FlowDoc<Bms>` 视图。
+//! 示例：从 `FlowDoc<TokenPayload>` 派生出 `FlowDoc<Bms>` 视图。
 //!
 //! `bms-control-flow` 并不知道 `Bms` 的存在——这正是 payload 泛型设计的
 //! 核心目的。本示例展示下游使用模式：先构建 token 级控制流树，再用
@@ -40,7 +40,7 @@ const SOURCE: &str = "\
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. 将 BMS 文本分词为 `(line, token)` 流。
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, String>(SOURCE)
+        .tokenize::<Vec<_>>(SOURCE)
         .into_iter()
         .filter_map(|(line, res)| res.ok().map(|token| (line, token)))
         .collect();

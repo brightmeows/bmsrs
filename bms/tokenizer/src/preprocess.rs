@@ -50,7 +50,7 @@ enum State {
 /// ```ignore
 /// let cleaned = bms_tokenizer::preprocess(raw_bms);
 /// let tokens: Vec<(_, _)> = BmsTokenizer::new()
-///     .tokenize::<Vec<_>, String>(&cleaned);
+///     .tokenize::<Vec<_>>(&cleaned);
 /// ```
 #[must_use]
 #[expect(clippy::indexing_slicing, reason = "guard checks ensure bounds")]

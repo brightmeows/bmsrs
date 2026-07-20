@@ -1,7 +1,7 @@
 //! `#[derive(BmsTokenAttr)]` 的代码生成器。
 
 use proc_macro2::TokenStream;
-use quote::{ToTokens as _, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::spanned::Spanned as _;
 
 use crate::parse::{BmsTokenTemplate, Placeholder};
@@ -12,8 +12,10 @@ struct GenericsCtx<'a> {
     /// 枚举首个类型参数的 ident（如 `C`），如有。
     type_param_ident: Option<&'a syn::Ident>,
     /// 枚举的首个生命周期，如有。
+    #[expect(dead_code, reason = "retained for API compatibility with downstream")]
     first_lifetime: Option<&'a syn::Lifetime>,
     /// 在生成签名中使用的合成 `'header` 生命周期。
+    #[expect(dead_code, reason = "retained for API compatibility with downstream")]
     header_lifetime: &'a syn::Lifetime,
 }
 
@@ -42,37 +44,11 @@ pub fn generate_impl(
     let type_param_ident = type_param.map(|tp| &tp.ident);
 
     // 构建 try_match_header 的 where 子句：
-    // C 需要 Display + AsRef<str> + Clone + From<&'a str>（来自 BmsValue
-    // trait）。我们在 From 约束中不使用 'header —— 而是通过 'header: 'a
-    // 约束将值由 &'header str 协变到 &'a str。
-    let header_where = match (first_lifetime_param, &type_param) {
-        (Some(lt), Some(tp)) => {
-            let lifetime = &lt.lifetime;
-            let tp_ident = &tp.ident;
-            quote! {
-                where #tp_ident: ::std::fmt::Display
-                    + ::std::convert::AsRef<str>
-                    + ::std::clone::Clone
-                    + ::std::convert::From<&#lifetime str>,
-                      'header: #lifetime
-            }
-        }
-        (Some(lt), None) => {
-            let lifetime = &lt.lifetime;
-            quote! { where 'header: #lifetime }
-        }
-        (None, Some(tp)) => {
-            let tp_ident = &tp.ident;
-            quote! {
-                where #tp_ident: ::std::fmt::Display
-                    + ::std::convert::AsRef<str>
-                    + ::std::clone::Clone
-                    + ::std::convert::From<&'header str>
-                    + 'header
-            }
-        }
-        (None, None) => TokenStream::new(),
-    };
+    // 仅需确保 'header 不短于枚举的生命周期参数。
+    let header_where = first_lifetime_param.map_or_else(TokenStream::new, |lt| {
+        let lifetime = &lt.lifetime;
+        quote! { where 'header: #lifetime }
+    });
 
     let header_lifetime = syn::Lifetime::new("'header", proc_macro2::Span::call_site());
     let generics_ctx = GenericsCtx {
@@ -80,23 +56,11 @@ pub fn generate_impl(
         first_lifetime,
         header_lifetime: &header_lifetime,
     };
-    let error_type = type_param.as_ref().map_or_else(
-        || quote! { crate::BmsTokenizeError<&'header str> },
-        |tp| {
-            quote! { crate::BmsTokenizeError<#tp> }
-        },
-    );
+    let error_type = quote! { crate::BmsTokenizeError };
     let try_match_body = generate_try_match_body(data_enum, templates, fallbacks, &generics_ctx);
     let format_body = generate_format_body(data_enum, templates);
 
-    // 构建 format_header 的 where 子句：C 必须实现 Display + AsRef<str>。
-    let format_where: TokenStream = type_param.as_ref().map_or_else(TokenStream::new, |tp| {
-        let tp_ident = &tp.ident;
-        quote! {
-            where #tp_ident: ::std::fmt::Display
-                + ::std::convert::AsRef<str>
-        }
-    });
+    let format_where = TokenStream::new();
 
     quote! {
         impl #impl_generics #enum_name #ty_generics #where_clause {
@@ -549,7 +513,7 @@ fn variant_to_wildcard_pattern(variant: &syn::Variant) -> TokenStream {
 /// 当字段类型为给定类型参数 ident 时返回 `true`。
 ///
 /// 检查类型路径的末段是否等于 `type_param_ident`。
-/// 用于区分字符串容器字段（`C`）与普通字段。
+/// 用于区分字符串字段与普通字段（在移除 C 泛型前曾用于匹配 `C` 参数）。
 fn is_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
     let syn::Type::Path(type_path) = ty else {
         return false;
@@ -560,20 +524,12 @@ fn is_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
         .is_some_and(|id| id == type_param_ident)
 }
 
-/// 当类型路径包含给定类型参数 ident 时返回 `true`。
-///
-/// 检查路径是否含有包含 `type_param_ident` 的泛型参数。
-fn has_type_param(ty: &syn::Type, type_param_ident: &syn::Ident) -> bool {
+/// 当字段类型为 `String` 时返回 `true`。
+fn is_string_type(ty: &syn::Type) -> bool {
     let syn::Type::Path(type_path) = ty else {
         return false;
     };
-    type_path.path.segments.iter().any(|seg| {
-        seg.arguments
-            .clone()
-            .to_token_stream()
-            .to_string()
-            .contains(&type_param_ident.to_string())
-    })
+    type_path.path.is_ident("String")
 }
 
 /// 当字段类型为 `&str`（任意生命周期）时返回 `true`。
@@ -586,10 +542,12 @@ fn is_str_ref(ty: &syn::Type) -> bool {
 
 /// 生成从一个字符串源初始化字段的 `let` 绑定。
 ///
-/// 四种情形：
-/// - 字段类型匹配 `type_param_ident` (C)：`let #ident = From::from(#value_src);`
+/// 五种情形：
+/// - 字段类型匹配 `type_param_ident`：`let #ident = From::from(#value_src);`
 ///   （使用 `From::from` 而非 `BmsStr::from_borrowed`，因为 `BmsStr` 的约束
 ///   会通过其 blanket 实现引发 E0283；`From::from` 是父 trait 约束的等价形式）
+/// - 字段类型为 `String`：`let #ident = From::from(#value_src);`
+/// - `&str` 字段：直接赋值
 /// - 回退字段：`let Some(#ident) = <T as BmsValue>::parse(#value_src) else { return Ok(None); };`
 /// - 其他字段：`let #ident: T = #value_src.parse()...?;`（通过 `IntoTokensError`）
 fn gen_field_parse(
@@ -602,11 +560,11 @@ fn gen_field_parse(
 ) -> TokenStream {
     let GenericsCtx {
         type_param_ident,
-        first_lifetime,
-        header_lifetime,
+        first_lifetime: _,
+        header_lifetime: _,
     } = generics;
-    // 情形 1：字段类型匹配 C 类型参数 → 用枚举的生命周期 'a 调用 From::from
-    // （值由 &'header str 协变到 &'a str）。
+    // 情形 1：字段类型匹配泛型类型参数 → From::from
+    // （仅当 enum 仍有泛型参数时匹配，当前统一使用 String 故通常不触发）。
     if let Some(tp_ident) = type_param_ident
         && is_type_param(field_ty, tp_ident)
     {
@@ -615,41 +573,29 @@ fn gen_field_parse(
         };
     }
 
-    // 情形 2：&str 字段（字面 &str，非 C 类型参数） → 直接赋值。
+    // 情形 2：String 字段 → From::from(value)（owned 转换）。
+    if is_string_type(field_ty) {
+        return quote! {
+            let #ident = ::std::convert::From::from(#value_src);
+        };
+    }
+
+    // 情形 3：&str 字段 → 直接赋值。
     if is_str_ref(field_ty) {
         return quote! { let #ident = #value_src; };
     }
 
-    // 情形 3/4：回退（BmsValue）或 FromStr。
+    // 情形 4/5：回退（BmsValue）或 FromStr。
     if is_fallback {
-        // 当可用时，在 BmsValue 上使用显式 C 参数，以便手动实现能正确解析
-        // （如 `ExWavParams<'a, C>` 实现了 `BmsValue<'a, C>`）。
-        let bms_value_path = match (first_lifetime, type_param_ident) {
-            (Some(life), Some(tp)) => quote! { crate::BmsValue<#life, #tp> },
-            (Some(life), None) => quote! { crate::BmsValue<#life> },
-            (None, Some(tp)) => quote! { crate::BmsValue<#header_lifetime, #tp> },
-            (None, None) => quote! { crate::BmsValue<#header_lifetime> },
-        };
+        let bms_value_path = quote! { crate::BmsValue };
         quote! {
             let Some(#ident) = <#field_ty as #bms_value_path>::parse(#value_src) else {
                 return Ok(None);
             };
         }
     } else {
-        let (into_tokens_path, value_arg) = type_param_ident.map_or_else(
-            || {
-                (
-                    quote! { crate::IntoTokensError<&'header str> },
-                    quote! { #value_src },
-                )
-            },
-            |_tp| {
-                (
-                    quote! { crate::IntoTokensError<#_tp> },
-                    quote! { ::std::convert::From::from(#value_src) },
-                )
-            },
-        );
+        let into_tokens_path = quote! { crate::IntoTokensError };
+        let value_arg = quote! { #value_src.to_owned() };
         quote! {
             let #ident: #field_ty = #value_src.parse().map_err(|e|
                 <<#field_ty as ::std::str::FromStr>::Err as #into_tokens_path>::into_error(
@@ -736,43 +682,13 @@ pub fn generate_header_dispatch(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let first_lifetime = generics.lifetimes().next();
-    let type_param_ident = generics.type_params().next();
 
-    let header_where = match (first_lifetime, &type_param_ident) {
-        (Some(lt), Some(tp)) => {
-            let lifetime = &lt.lifetime;
-            let tp_ident = &tp.ident;
-            quote! {
-                where #tp_ident: ::std::fmt::Display
-                    + ::std::convert::AsRef<str>
-                    + ::std::clone::Clone
-                    + ::std::convert::From<&#lifetime str>,
-                      'header: #lifetime
-            }
-        }
-        (Some(lt), None) => {
-            let lifetime = &lt.lifetime;
-            quote! { where 'header: #lifetime }
-        }
-        (None, Some(tp)) => {
-            let tp_ident = &tp.ident;
-            quote! {
-                where #tp_ident: ::std::fmt::Display
-                    + ::std::convert::AsRef<str>
-                    + ::std::clone::Clone
-                    + ::std::convert::From<&'header str>
-                    + 'header
-            }
-        }
-        (None, None) => TokenStream::new(),
-    };
+    let header_where = first_lifetime.map_or_else(TokenStream::new, |lt| {
+        let lifetime = &lt.lifetime;
+        quote! { where 'header: #lifetime }
+    });
 
-    let error_type = type_param_ident.as_ref().map_or_else(
-        || quote! { crate::BmsTokenizeError<&'header str> },
-        |tp| {
-            quote! { crate::BmsTokenizeError<#tp> }
-        },
-    );
+    let error_type = quote! { crate::BmsTokenizeError };
     let mut dispatch_arms = TokenStream::new();
 
     for variant in &data_enum.variants {
@@ -796,24 +712,11 @@ pub fn generate_header_dispatch(
         #[expect(clippy::unwrap_used, reason = "len() == 1 confirmed above")]
         let inner_type = &fields.unnamed.first().unwrap().ty;
 
-        // 若内部类型含父级的类型参数（如 C），其错误类型与父级一致；
-        // 否则通过 BmsTokenizeError::from_ref 转换。
-        let has_c = type_param_ident.is_some_and(|tp| has_type_param(inner_type, &tp.ident));
-        if has_c {
-            dispatch_arms.extend(quote! {
-                if let Some(v) = <#inner_type>::try_match_header(command, value)? {
-                    return Ok(Some(Self::#variant_ident(v)));
-                }
-            });
-        } else {
-            dispatch_arms.extend(quote! {
-                if let Some(v) = <#inner_type>::try_match_header(command, value)
-                    .map_err(|e| crate::BmsTokenizeError::from_ref(&e))?
-                {
-                    return Ok(Some(Self::#variant_ident(v)));
-                }
-            });
-        }
+        dispatch_arms.extend(quote! {
+            if let Some(v) = <#inner_type>::try_match_header(command, value)? {
+                return Ok(Some(Self::#variant_ident(v)));
+            }
+        });
     }
 
     quote! {

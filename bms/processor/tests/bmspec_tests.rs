@@ -22,7 +22,7 @@ type BmsChart = Chart<(), BmsCustomEvent>;
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn process(bms_text: &str) -> BmsChart {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(bms_text)
+        .tokenize::<Vec<_>>(bms_text)
         .into_iter()
         .filter_map(|(_, res)| res.ok())
         .collect();
@@ -538,7 +538,7 @@ impl bms_control_flow::BranchRng for TestRng {
 
 fn process_with_cf(bms_text: &str) -> BmsChart {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(bms_text)
+        .tokenize::<Vec<_>>(bms_text)
         .into_iter()
         .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
         .collect();
@@ -673,7 +673,7 @@ fn bmspec_1_07_basic_info() {
 #[test]
 fn bmspec_1_08_wav_references() {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(
+        .tokenize::<Vec<_>>(
             "#TITLE #WAV test case\n\
              #WAV01 index.mp3\n\
              #WAVZZ wow.mp3\n\

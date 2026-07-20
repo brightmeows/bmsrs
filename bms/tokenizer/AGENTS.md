@@ -12,7 +12,6 @@ BMS 语法分析第一关：原始文本 → 结构化 token 流。
 | 跨命令引用保留 | 不解析跨命令引用，保留 raw index | 引用语义（WAV→定义、`#BGA`→`#BMP`）归 processor；`#BASE` 模式由 parser 决定 |
 | 字符集 | Base62（最宽松） | 统一入口，`#BASE` 声明在 parser 层生效 |
 | 注释预处理 | 独立 `preprocess()` 函数 | 保持 tokenizer 零拷贝路径不受影响 |
-| `C` 泛型 | `&str`（零拷贝）或 `String`（owned） | 调用侧选择，贯穿管道 |
 
 ## 目标
 
@@ -29,16 +28,13 @@ BMS 语法分析第一关：原始文本 → 结构化 token 流。
 2. **id 范围**——某些命令的 id 须落在特定段（如非保留段）
 3. **多字段局部一致性**——同一命令内字段间关联校验
 
-## 泛型容器 `C`
+## 字符串存储
 
-`BmsToken<C>` / `BmsHeader<C>` / `BmsMessage<C>` 用单个类型参数承载字符串容器。
-调用侧在 `tokenize` 时选择，贯穿管道：
+`BmsToken` / `BmsHeader` / `BmsMessage` 中的字符串字段统一使用 `String` 类型。
+`tokenize` 方法始终产出 owned `String` 值：
 
 ```rust
-// C = &str（零拷贝，借用自输入）
 let tokens: Vec<(_, _)> = BmsTokenizer::new().tokenize(input);
-// C = String（owned）
-let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 ```
 
 ## 新增 Header
@@ -50,12 +46,12 @@ let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 | 层级 | 机制 | 失败路径 |
 |------|------|----------|
 | Command match | derive 匹配命令名，提取 `{id}` | 不匹配 → `BmsHeaderFallback` |
-| Value parse | derive per-field：`C` / `FromStr` / `BmsValue::parse` | 解析失败 → error（`#[bms_fallback]` 则返回 `None`） |
+| Value parse | derive per-field：`String` / `FromStr` / `BmsValue::parse` | 解析失败 → error（`#[bms_fallback]` 则返回 `None`） |
 | Fallback | `#[bms_fallback]` 捕获未匹配 | → `BmsHeaderFallback` |
 
 ### Value 类型
 
-- 实现 `BmsValue<'a, C>`（或 `FromStr + Display` —— 对所有 `C` 有 blanket impl）
+- 实现 `BmsValue`（或 `FromStr + Display` —— 有 blanket impl）
 - `ParseBmsValueError` / `BmsChannelIdError` / `ParseDifficultyError` 已内置 `IntoTokensError`
 - 自定义 `FromStr` 类型可实现 `IntoTokensError` 选择错误变体
 
@@ -79,7 +75,6 @@ let owned: Vec<(_, _)> = BmsTokenizer::new().tokenize::<_, String>(input);
 ### Ask
 
 - 新增 `BmsChannel` 变体（涉及通道分类映射，需确认通道号表）
-- 修改 `C` 泛型的 trait 约束（影响下游管道）
 
 ### Never
 

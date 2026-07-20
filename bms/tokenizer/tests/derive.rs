@@ -173,8 +173,8 @@ impl fmt::Display for TestStp {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C> for TestStp {
-    fn parse(s: &'a str) -> Option<Self> {
+impl BmsValue for TestStp {
+    fn parse(s: &str) -> Option<Self> {
         let (pos, dur) = s.split_once(' ')?;
         Some(Self {
             measure: pos.parse().ok()?,

@@ -22,7 +22,7 @@ pub enum BranchValue {
 /// [`FlowDoc::from_tokens`] 构建，再用 [`FlowDoc::select_branches`]、
 /// [`FlowDoc::to_tokens`] 或 [`FlowDoc::map_payload`] 派生其他视图。
 ///
-/// `FlowDoc<TokenPayload<C>>` 是 token 级真相源（可编辑、可 roundtrip）。
+/// `FlowDoc<TokenPayload>` 是 token 级真相源（可编辑、可 roundtrip）。
 /// `FlowDoc<Bms>`（通过下游 `map_payload` 获得）是只读视图，展示每个片段
 /// 解析后的聚合结果。
 ///
@@ -136,9 +136,9 @@ pub enum SwitchCaseKind {
 /// （[`FlowDoc::to_tokens`]）与分支选择（[`FlowDoc::select_branches`]）
 /// 都基于此载荷类型运作。
 #[derive(Debug, Clone, PartialEq)]
-pub struct TokenPayload<C> {
+pub struct TokenPayload {
     /// 此片段中连续的 `(line, token)` 对。
-    pub tokens: Vec<(NonZeroUsize, BmsToken<C>)>,
+    pub tokens: Vec<(NonZeroUsize, BmsToken)>,
 }
 
 /// `select_branches` 期间所做分支选择决策的记录。

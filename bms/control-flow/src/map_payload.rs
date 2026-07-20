@@ -2,7 +2,7 @@
 //!
 //! 这些操作遍历控制流骨架，并通过调用者提供的闭包重写每个载荷片段，
 //! 保留分支/case 结构不变。下游代码可借此派生控制流 crate 自身并不知晓
-//! 的载荷视图（例如由 `FlowDoc<TokenPayload<C>>` 构建出
+//! 的载荷视图（例如由 `FlowDoc<TokenPayload>` 构建出
 //! `FlowDoc<Bms>`）。
 
 use crate::{

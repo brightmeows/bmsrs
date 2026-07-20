@@ -12,7 +12,7 @@ use bmsrs_chart::BgaLayer;
 /// 辅助函数：将 BMS 字符串解析为 `Bms`（默认 C = &str）。
 fn parse(input: &str) -> Bms {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(input)
+        .tokenize::<Vec<_>>(input)
         .into_iter()
         .filter_map(|(_, res)| res.ok())
         .collect();
@@ -22,7 +22,7 @@ fn parse(input: &str) -> Bms {
 /// 辅助函数：使用 `C = String` 解析，验证拥有字符串管道工作正常。
 fn parse_string(input: &str) -> Bms {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, String>(input)
+        .tokenize::<Vec<_>>(input)
         .into_iter()
         .filter_map(|(_, res)| res.ok())
         .collect();

@@ -18,7 +18,7 @@ let flat2 = tree.to_tokens();
 
 | 类型 | 用途 | 可编辑？ | 可 roundtrip？ |
 |------|------|----------|----------------|
-| `FlowDoc<TokenPayload<C>>` | token 级真相源 | ✅ | ✅ |
+| `FlowDoc<TokenPayload>` | token 级真相源 | ✅ | ✅ |
 | `FlowDoc<Bms>`（下游构建） | parser 级只读视图 | ❌ | ❌ |
 
 通过 `map_payload` / `try_map_payload` 派生其他 payload 视图，同时保留控制流骨架。

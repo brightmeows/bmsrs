@@ -8,7 +8,7 @@ use crate::{
     SwitchCaseKind, TokenPayload,
 };
 
-impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
+impl FlowDoc<TokenPayload> {
     /// 使用 `rng` 为每个控制流块选择一个分支。
     ///
     /// 返回仅含已选分支的扁平 token 流，以及记录每次决策的
@@ -19,7 +19,7 @@ impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
     /// - `#SWITCH` 块：选择与值匹配的第一个 `#CASE`，并 fall-through 到
     ///   后续 case，直到遇到 `#SKIP`。
     #[must_use]
-    pub fn select_branches(&self, rng: &mut impl BranchRng) -> (Vec<BmsToken<C>>, BranchSelection) {
+    pub fn select_branches(&self, rng: &mut impl BranchRng) -> (Vec<BmsToken>, BranchSelection) {
         let mut output = Vec::new();
         let mut decisions = Vec::new();
 
@@ -32,10 +32,10 @@ impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
 }
 
 /// 处理单个 [`FlowNode`]，将 token 追加到 `output`。
-fn select_node<C: Clone + PartialEq>(
-    node: &FlowNode<TokenPayload<C>>,
+fn select_node(
+    node: &FlowNode<TokenPayload>,
     rng: &mut impl BranchRng,
-    output: &mut Vec<BmsToken<C>>,
+    output: &mut Vec<BmsToken>,
     decisions: &mut Vec<BlockDecision>,
 ) {
     match node {
@@ -49,10 +49,10 @@ fn select_node<C: Clone + PartialEq>(
 }
 
 /// 在 [`FlowBlock`] 内选择分支。
-fn select_block<C: Clone + PartialEq>(
-    block: &FlowBlock<TokenPayload<C>>,
+fn select_block(
+    block: &FlowBlock<TokenPayload>,
     rng: &mut impl BranchRng,
-    output: &mut Vec<BmsToken<C>>,
+    output: &mut Vec<BmsToken>,
     decisions: &mut Vec<BlockDecision>,
 ) {
     match block {

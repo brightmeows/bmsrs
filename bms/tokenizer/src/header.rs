@@ -18,8 +18,6 @@ pub use res_def_visual::{
 };
 pub use timing::{BmsHeaderTiming, StpParams};
 
-use std::fmt;
-
 use crate::BmsTokenAttr;
 use crate::BmsTokenizeError;
 
@@ -29,24 +27,24 @@ use crate::BmsTokenizeError;
 /// 标注了 `#[bms_fallback]` 的变体不参与分发，
 /// 而是捕获任何未匹配具体变体的内容。
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From, derive_more::TryUnwrap)]
-pub enum BmsHeader<C> {
+pub enum BmsHeader {
     /// 音频资源定义（`#WAV`、`#EXWAV`、`#WAVCMD` 等）。
-    ResDefAudio(BmsHeaderResDefAudio<C>),
+    ResDefAudio(BmsHeaderResDefAudio),
     /// 计时定义（`#BPM`、`#STOP`、`#SCROLL`、`#SPEED` 等）。
     Timing(BmsHeaderTiming),
     /// 视觉资源定义（`#BMP`、`#BGA`、`#ARGB` 等）。
-    ResDefVisual(BmsHeaderResDefVisual<C>),
+    ResDefVisual(BmsHeaderResDefVisual),
     /// 控制流命令（`#RANDOM`、`#SWITCH`、`#IF` 等）。
     ControlFlow(BmsHeaderControlFlow),
     /// 游玩行为（`#PLAYER`、`#RANK`、`#TOTAL`、`#LNTYPE` 等）。
-    Gameplay(BmsHeaderGameplay<C>),
+    Gameplay(BmsHeaderGameplay),
     /// 显示与难度标记（`#STAGEFILE`、`#DIFFICULTY` 等）。
-    Display(BmsHeaderDisplay<C>),
+    Display(BmsHeaderDisplay),
     /// 乐曲/谱面标识（`#TITLE`、`#ARTIST`、`#GENRE` 等）。
-    Metadata(BmsHeaderMetadata<C>),
+    Metadata(BmsHeaderMetadata),
     /// 无法识别或引擎特有的头部命令。
     #[bms_fallback]
-    Fallback(BmsHeaderFallback<C>),
+    Fallback(BmsHeaderFallback),
 }
 
 /// 无法识别的头部命令的兜底类型。
@@ -54,11 +52,11 @@ pub enum BmsHeader<C> {
 /// 捕获原始命令名与值，使下游消费方（解析器、工具）
 /// 能处理分词器不认识的引擎扩展。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BmsHeaderFallback<C> {
+pub struct BmsHeaderFallback {
     /// 文件中出现的原始命令名（例如 `"MYEXT"`）。
-    pub command: C,
+    pub command: String,
     /// 空格分隔符之后的值。
-    pub value: C,
+    pub value: String,
 }
 
 /// 将单行头部行解析为 `BmsHeader`。
@@ -78,10 +76,10 @@ pub struct BmsHeaderFallback<C> {
     clippy::string_slice,
     reason = "BMS header lines are ASCII-only; byte indexing at whitespace boundaries is safe"
 )]
-pub fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a>(
-    line: &'a str,
+pub fn parse_header_line(
+    line: &str,
     prefixes: &[char],
-) -> Result<Option<BmsHeader<C>>, BmsTokenizeError<C>> {
+) -> Result<Option<BmsHeader>, BmsTokenizeError> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() {
@@ -133,8 +131,8 @@ pub fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str
         && !command.eq_ignore_ascii_case("EMAIL")
     {
         return Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
-            command: C::from(command),
-            value: C::from(value),
+            command: command.to_owned(),
+            value: value.to_owned(),
         })));
     }
 
@@ -147,7 +145,7 @@ pub fn parse_header_line<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str
 
     // 无匹配项 → Fallback。
     Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
-        command: C::from(command),
-        value: C::from(value),
+        command: command.to_owned(),
+        value: value.to_owned(),
     })))
 }

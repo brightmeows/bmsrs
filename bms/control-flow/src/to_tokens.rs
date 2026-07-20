@@ -6,13 +6,13 @@ use crate::{
     BranchValue, FlowBlock, FlowDoc, FlowNode, RandomBranchKind, SwitchCaseKind, TokenPayload,
 };
 
-impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
+impl FlowDoc<TokenPayload> {
     /// 将树转换回扁平 token 流。
     ///
     /// 在结构化分支周围重建控制流头部命令（`#RANDOM`、`#IF` 等），并解包
     /// 每个载荷片段，产出的序列可被重新分词为等价的文档。
     #[must_use]
-    pub fn to_tokens(&self) -> Vec<BmsToken<C>> {
+    pub fn to_tokens(&self) -> Vec<BmsToken> {
         let mut output = Vec::new();
         for node in self.iter() {
             push_node_tokens(node, &mut output);
@@ -22,10 +22,7 @@ impl<C: Clone + PartialEq> FlowDoc<TokenPayload<C>> {
 }
 
 /// 压入单个 [`FlowNode`] 的 token。
-fn push_node_tokens<C: Clone + PartialEq>(
-    node: &FlowNode<TokenPayload<C>>,
-    output: &mut Vec<BmsToken<C>>,
-) {
+fn push_node_tokens(node: &FlowNode<TokenPayload>, output: &mut Vec<BmsToken>) {
     match node {
         FlowNode::Payload(payload) => {
             for (_, token) in &payload.tokens {
@@ -37,10 +34,7 @@ fn push_node_tokens<C: Clone + PartialEq>(
 }
 
 /// 压入 [`FlowBlock`] 的 token，包含所有控制流头部命令。
-fn push_block_tokens<C: Clone + PartialEq>(
-    block: &FlowBlock<TokenPayload<C>>,
-    output: &mut Vec<BmsToken<C>>,
-) {
+fn push_block_tokens(block: &FlowBlock<TokenPayload>, output: &mut Vec<BmsToken>) {
     match block {
         FlowBlock::Random(r) => {
             let open = match r.value {

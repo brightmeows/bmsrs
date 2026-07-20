@@ -16,10 +16,10 @@ use std::fmt::Write as _;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// 辅助函数：对 BMS 文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
-fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
+/// 辅助函数：对 BMS 文本分词并构建 `FlowDoc<TokenPayload>`。
+fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(input)
+        .tokenize::<Vec<_>>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
@@ -39,21 +39,21 @@ fn find_seed(target: u64, max: u64) -> Option<u64> {
 }
 
 /// 从 token 中提取 WAV 文件名。
-fn wav_filenames<'a>(tokens: &'a [BmsToken<&str>]) -> Vec<&'a str> {
+fn wav_filenames(tokens: &[BmsToken]) -> Vec<&str> {
     tokens
         .iter()
         .filter_map(|t| match t {
             BmsToken::Header(BmsHeader::ResDefAudio(BmsHeaderResDefAudio::Wav {
                 filename,
                 ..
-            })) => Some(*filename),
+            })) => Some(filename.as_str()),
             _ => None,
         })
         .collect()
 }
 
 /// 从 token 列表中提取控制流头部命令。
-fn cf_headers(tokens: &[BmsToken<&str>]) -> Vec<BmsHeaderControlFlow> {
+fn cf_headers(tokens: &[BmsToken]) -> Vec<BmsHeaderControlFlow> {
     tokens
         .iter()
         .filter_map(|t| match t {

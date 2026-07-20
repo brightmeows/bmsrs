@@ -3,7 +3,7 @@
 use bms_tokenizer::{BmsChannel, BmsMessage, BmsTokenizeError, ChannelIndex, parse_message_line};
 
 /// 避免测试调用中 turbofish 的辅助函数。
-fn parse_msg(s: &str) -> Result<Option<BmsMessage<&str>>, BmsTokenizeError<&str>> {
+fn parse_msg(s: &str) -> Result<Option<BmsMessage>, BmsTokenizeError> {
     parse_message_line(s)
 }
 

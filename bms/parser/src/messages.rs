@@ -343,13 +343,13 @@ impl Messages {
     /// 保留文件顺序。在接收全部消息后调用
     /// [`finalize`](Self::finalize)；它将按位置合并非 BGM 通道，然后
     /// 解析事件。
-    pub fn concat_raw<C: AsRef<str>>(&mut self, msg: &bms_tokenizer::BmsMessage<C>) {
+    pub fn concat_raw(&mut self, msg: &bms_tokenizer::BmsMessage) {
         self.raw
             .entry(msg.track())
             .or_default()
             .entry(msg.channel())
             .or_default()
-            .push(msg.body.as_ref().to_owned());
+            .push(msg.body.clone());
     }
 
     /// 从原始多行存储中完成事件解析的最终化。

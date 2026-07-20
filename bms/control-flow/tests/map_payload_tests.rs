@@ -11,10 +11,10 @@ use bms_tokenizer::BmsTokenizer;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
-fn build_doc(input: &str) -> Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
+/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload>`。
+fn build_doc(input: &str) -> Result<FlowDoc<TokenPayload>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(input)
+        .tokenize::<Vec<_>>(input)
         .into_iter()
         .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
         .collect();
@@ -37,7 +37,7 @@ fn map_payload_transforms_each_span_preserving_structure() -> TestResult {
     )?;
 
     // 将每个载荷片段映射为其 token 数量。
-    let counted: FlowDoc<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
+    let counted: FlowDoc<usize> = tree.map_payload(|p: TokenPayload| p.tokens.len());
 
     // 根节点先携带顶层载荷（1 个 token：#TITLE），随后是 Random 块。
     assert_eq!(counted.len(), 2);
@@ -82,7 +82,7 @@ fn map_payload_handles_switch_skeleton() -> TestResult {
     )?;
 
     // 收集每个片段的 token 数量。
-    let spans: FlowDoc<usize> = tree.map_payload(|p: TokenPayload<&str>| p.tokens.len());
+    let spans: FlowDoc<usize> = tree.map_payload(|p: TokenPayload| p.tokens.len());
 
     let Some(FlowNode::Block(FlowBlock::Switch(s))) = spans.first() else {
         panic!("expected Switch block");
@@ -120,15 +120,14 @@ fn try_map_payload_propagates_first_error() -> TestResult {
 
     // 通过计数调用次数，让第二个片段失败。
     let mut calls = 0;
-    let result: Result<FlowDoc<usize>, SpanError> =
-        tree.try_map_payload(|p: TokenPayload<&str>| {
-            calls += 1;
-            if calls == 1 {
-                Ok(p.tokens.len())
-            } else {
-                Err(SpanError)
-            }
-        });
+    let result: Result<FlowDoc<usize>, SpanError> = tree.try_map_payload(|p: TokenPayload| {
+        calls += 1;
+        if calls == 1 {
+            Ok(p.tokens.len())
+        } else {
+            Err(SpanError)
+        }
+    });
 
     assert_eq!(result, Err(SpanError));
     Ok(())
@@ -138,7 +137,7 @@ fn try_map_payload_propagates_first_error() -> TestResult {
 fn try_map_payload_succeeds_when_all_spans_ok() -> TestResult {
     let tree = build_doc("#RANDOM 2\n#IF 1\n#00101:11\n#ENDIF\n#ENDRANDOM")?;
     let result: Result<FlowDoc<usize>, SpanError> =
-        tree.try_map_payload(|p: TokenPayload<&str>| Ok(p.tokens.len()));
+        tree.try_map_payload(|p: TokenPayload| Ok(p.tokens.len()));
     let mapped = result.expect("all spans ok");
     assert_eq!(mapped.len(), 1);
     Ok(())

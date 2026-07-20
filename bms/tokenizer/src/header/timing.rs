@@ -50,12 +50,12 @@ impl fmt::Display for StpParams {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C> for StpParams {
+impl BmsValue for StpParams {
     #[expect(
         clippy::string_slice,
         reason = "pos_part is ASCII digits and dots from BMS format; byte indexing is safe"
     )]
-    fn parse(s: &'a str) -> Option<Self> {
+    fn parse(s: &str) -> Option<Self> {
         let (pos_part, dur_part) = s.split_once(' ')?;
         let dur_ms: f64 = dur_part.trim().parse().ok()?;
 
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn stp_params_with_position() {
-        let p = <StpParams as BmsValue<'_, &str>>::parse("001.128 500").unwrap();
+        let p = <StpParams as BmsValue>::parse("001.128 500").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 128);
         assert!((p.duration_ms - 500.0).abs() < f64::EPSILON);
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn stp_params_without_position() {
-        let p = <StpParams as BmsValue<'_, &str>>::parse("001 500.5").unwrap();
+        let p = <StpParams as BmsValue>::parse("001 500.5").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 0);
         assert!((p.duration_ms - 500.5).abs() < f64::EPSILON);
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn stp_params_position_999_accepted() {
-        let p = <StpParams as BmsValue<'_, &str>>::parse("001.999 500").unwrap();
+        let p = <StpParams as BmsValue>::parse("001.999 500").unwrap();
         assert_eq!(p.measure, 1);
         assert_eq!(p.position, 999);
         assert!((p.duration_ms - 500.0).abs() < f64::EPSILON);
@@ -217,30 +217,30 @@ mod tests {
 
     #[test]
     fn stp_params_position_over_999_rejected() {
-        assert!(<StpParams as BmsValue<'_, &str>>::parse("001.1000 500").is_none());
+        assert!(<StpParams as BmsValue>::parse("001.1000 500").is_none());
     }
 
     #[test]
     fn stp_params_measure_0_accepted() {
-        let p = <StpParams as BmsValue<'_, &str>>::parse("000 500").unwrap();
+        let p = <StpParams as BmsValue>::parse("000 500").unwrap();
         assert_eq!(p.measure, 0);
     }
 
     #[test]
     fn stp_params_measure_999_accepted() {
-        let p = <StpParams as BmsValue<'_, &str>>::parse("999 500").unwrap();
+        let p = <StpParams as BmsValue>::parse("999 500").unwrap();
         assert_eq!(p.measure, 999);
     }
 
     #[test]
     fn stp_params_measure_over_999_rejected() {
-        assert!(<StpParams as BmsValue<'_, &str>>::parse("1000 500").is_none());
+        assert!(<StpParams as BmsValue>::parse("1000 500").is_none());
     }
 
     #[test]
     fn stp_params_invalid_format_rejected() {
-        assert!(<StpParams as BmsValue<'_, &str>>::parse("invalid").is_none());
-        assert!(<StpParams as BmsValue<'_, &str>>::parse("").is_none());
+        assert!(<StpParams as BmsValue>::parse("invalid").is_none());
+        assert!(<StpParams as BmsValue>::parse("").is_none());
     }
 
     #[test]

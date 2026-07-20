@@ -19,13 +19,13 @@ pub struct OwnedExWavParams {
     pub filename: String,
 }
 
-impl<C: AsRef<str>> From<&ExWavParams<C>> for OwnedExWavParams {
-    fn from(p: &ExWavParams<C>) -> Self {
+impl From<&ExWavParams> for OwnedExWavParams {
+    fn from(p: &ExWavParams) -> Self {
         Self {
             pan: p.pan,
             volume: p.volume,
             frequency: p.frequency,
-            filename: p.filename.as_ref().to_owned(),
+            filename: p.filename.clone(),
         }
     }
 }
@@ -54,27 +54,24 @@ impl Audio {
     ///
     /// 索引键（`WavIndex`）使用 `base` 归一化，以便在标准（Base36）
     /// BMS 文件中进行不区分大小写的比较。
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefAudio<C>, base: BmsBase) {
+    pub fn apply(&mut self, header: &BmsHeaderResDefAudio, base: BmsBase) {
         match header {
             BmsHeaderResDefAudio::Wav { id, filename } => {
-                self.wav_files.insert(
-                    WavIndex::from(id.normalize(base)),
-                    filename.as_ref().to_owned(),
-                );
+                self.wav_files
+                    .insert(WavIndex::from(id.normalize(base)), filename.clone());
             }
             BmsHeaderResDefAudio::ExWav { id, params } => {
                 let nid = WavIndex::from(id.normalize(base));
-                self.wav_files
-                    .insert(nid, params.filename.as_ref().to_owned());
+                self.wav_files.insert(nid, params.filename.clone());
                 self.ex_wav_params
                     .insert(nid, OwnedExWavParams::from(params));
             }
             BmsHeaderResDefAudio::WavCmd { params } => {
                 self.wav_cmd = Some(params.clone());
             }
-            BmsHeaderResDefAudio::Cdda(s) => self.cdda = Some(s.as_ref().to_owned()),
-            BmsHeaderResDefAudio::Midifile(s) => self.midifile = Some(s.as_ref().to_owned()),
-            BmsHeaderResDefAudio::PathWav(s) => self.path_wav = Some(s.as_ref().to_owned()),
+            BmsHeaderResDefAudio::Cdda(s) => self.cdda = Some(s.clone()),
+            BmsHeaderResDefAudio::Midifile(s) => self.midifile = Some(s.clone()),
+            BmsHeaderResDefAudio::PathWav(s) => self.path_wav = Some(s.clone()),
         }
     }
 }

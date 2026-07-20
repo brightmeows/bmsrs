@@ -15,7 +15,7 @@ fn parse_one(line: &str) -> Messages {
 /// 辅助函数：通过 Messages 解析单条标准消息行，并指定进制。
 fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(line)
+        .tokenize::<Vec<_>>(line)
         .into_iter()
         .filter_map(|(_, res)| res.ok())
         .collect();

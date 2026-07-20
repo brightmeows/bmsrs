@@ -63,7 +63,7 @@ impl Bms {
     /// 2. 随后所有 token 以正确的基数处理，将索引键（`WavIndex`、
     ///    `BmpIndex` 等）归一化，以便在标准（Base36）BMS 文件中进行
     ///    不区分大小写的比较。
-    pub fn from_flat_tokens<C: AsRef<str>>(tokens: impl IntoIterator<Item = BmsToken<C>>) -> Self {
+    pub fn from_flat_tokens(tokens: impl IntoIterator<Item = BmsToken>) -> Self {
         let mut bms = Self::default();
 
         // 预扫描 #BASE。先收集 token 迭代器，因为需要迭代两次
@@ -118,7 +118,7 @@ impl Bms {
 
         let token_pairs = BmsTokenizer::new()
             .error_strategy(error_strategy)
-            .tokenize::<Vec<_>, String>(text)
+            .tokenize::<Vec<_>>(text)
             .into_iter()
             .filter_map(|(line, res)| res.ok().map(|token| (line, token)));
 
@@ -133,7 +133,7 @@ impl Bms {
     /// 将头部命令路由到对应子模块的 `apply` 方法。
     ///
     /// `base` 是由 `#BASE` 确定的进制基数（默认为 [`BmsBase::Base36`]）。
-    fn process_header<C: AsRef<str>>(&mut self, header: &BmsHeader<C>, base: BmsBase) {
+    fn process_header(&mut self, header: &BmsHeader, base: BmsBase) {
         match header {
             BmsHeader::Metadata(m) => self.metadata.apply(m),
             BmsHeader::Gameplay(g) => self.gameplay.apply(g, base),
@@ -157,14 +157,14 @@ impl Bms {
             BmsHeader::ControlFlow(_) => { /* skipped — not stored in Bms */ }
             BmsHeader::Fallback(f) => self
                 .fallback_headers
-                .push((f.command.as_ref().to_owned(), f.value.as_ref().to_owned())),
+                .push((f.command.clone(), f.value.clone())),
         }
     }
 
     // 消息
 
     /// 将通道消息插入到消息容器中。
-    fn process_message<C: AsRef<str>>(&mut self, m: &BmsMessage<C>) {
+    fn process_message(&mut self, m: &BmsMessage) {
         self.messages.concat_raw(m);
     }
 }
@@ -172,7 +172,7 @@ impl Bms {
 /// 预扫描 token 以查找 `#BASE`，确定进制基数。
 ///
 /// 当未找到 `#BASE` 头部命令时，默认为 [`BmsBase::Base36`]。
-fn detect_base<C: AsRef<str>>(tokens: &[BmsToken<C>]) -> BmsBase {
+fn detect_base(tokens: &[BmsToken]) -> BmsBase {
     tokens
         .iter()
         .find_map(|token| {

@@ -12,10 +12,7 @@
 //!
 //! 子模块为私有；所有公开类型均从 crate 根重新导出。
 //!
-//! # 字符串存储
-//!
-//! 字符串数据使用类型参数 `C`（默认为 `&str` 实现零拷贝，
-//! 或 `String` 为 owned）。类型化值（数值转换、解析出的枚举）
+//! 类型化值（数值转换、解析出的枚举）
 //! 始终为 owned。
 //! [`ErrorStrategy::FailFast`] 在首个错误处停止——适用于
 //! 偏好即时反馈的交互式校验场景。
@@ -62,55 +59,37 @@ pub use encoding::BmsEncoding;
 /// [`std::fmt::Display`] 的类型可获得 blanket 实现——简单的数值或
 /// 标识符类型无需手动实现。
 ///
-/// # 生命周期
-///
-/// `'a` 生命周期是输入字符串的生命周期——实现可以
-/// 借用它而无需分配（例如 `ExBmpParams<'a>`）。仅 owned 的
-/// 类型可以用任意 `'a` 安全地实现此 trait。
-///
-/// # 类型参数
-///
-/// `C` 是下游使用的字符串容器类型（例如 `&str`、`String`、
-/// `Cow<'_, str>`）。该参数的存在使消费方可以在
-/// 零拷贝与 owned 存储之间选择。
-///
 /// # 格式化
 ///
 /// 此 trait 以 [`std::fmt::Display`] 作为父 trait，而非提供自己的
 /// 格式化方法。调用方使用 `.to_string()` 获取 BMS
 /// 表示；这使该 trait 与标准库的格式化基础设施保持兼容。
-pub trait BmsValue<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a = &'a str>:
-    fmt::Display + Sized
-{
+pub trait BmsValue: fmt::Display + Sized {
     /// 将 `s` 解析为 `Self`。
     ///
     /// 返回 `None` 表示解析失败——调用方可以让输入
     /// 回退到 `BmsHeaderFallback`，而非将失败视为硬错误。
     #[must_use]
-    fn parse(s: &'a str) -> Option<Self>;
+    fn parse(s: &str) -> Option<Self>;
 }
 
 // 覆盖基本类型（f64、u8、i32）、BmsIndex、PoorBgaMode、DifficultyLevel，
 // 以及任何已实现 FromStr + Display 的类型。
 
-impl<'a, C, T> BmsValue<'a, C> for T
-where
-    C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a,
-    T: std::str::FromStr + fmt::Display,
-{
+impl<T: std::str::FromStr + fmt::Display> BmsValue for T {
     #[inline]
-    fn parse(s: &'a str) -> Option<Self> {
+    fn parse(s: &str) -> Option<Self> {
         s.parse().ok()
     }
 }
 
 // From / TryFrom 转换
 
-impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
-    type Error = BmsTryFromError<C>;
+impl TryFrom<BmsToken> for BmsHeader {
+    type Error = BmsTryFromError;
 
     #[inline]
-    fn try_from(token: BmsToken<C>) -> Result<Self, Self::Error> {
+    fn try_from(token: BmsToken) -> Result<Self, Self::Error> {
         match token {
             BmsToken::Header(h) => Ok(h),
             BmsToken::Message(_) => Err(BmsTryFromError::NotAHeader),
@@ -118,13 +97,11 @@ impl<C> TryFrom<BmsToken<C>> for BmsHeader<C> {
     }
 }
 
-impl<C> TryFrom<(NonZeroUsize, Result<Self, BmsTokenizeError<C>>)> for BmsToken<C> {
-    type Error = BmsTryFromError<C>;
+impl TryFrom<(NonZeroUsize, Result<Self, BmsTokenizeError>)> for BmsToken {
+    type Error = BmsTryFromError;
 
     #[inline]
-    fn try_from(
-        pair: (NonZeroUsize, Result<Self, BmsTokenizeError<C>>),
-    ) -> Result<Self, Self::Error> {
+    fn try_from(pair: (NonZeroUsize, Result<Self, BmsTokenizeError>)) -> Result<Self, Self::Error> {
         let (line, result) = pair;
         result.map_err(|error| BmsTryFromError::TokenizationError { line, error })
     }
@@ -132,11 +109,11 @@ impl<C> TryFrom<(NonZeroUsize, Result<Self, BmsTokenizeError<C>>)> for BmsToken<
 
 /// 分词 BMS 文件产生的单个 token。
 #[derive(Debug, Clone, PartialEq, derive_more::From)]
-pub enum BmsToken<C> {
+pub enum BmsToken {
     /// 头部命令（元数据、游玩、计时、资源等）。
-    Header(BmsHeader<C>),
+    Header(BmsHeader),
     /// 通道数据行（`#xxxYY:values`）。
-    Message(BmsMessage<C>),
+    Message(BmsMessage),
 }
 
 /// BMS 分词的错误处理策略。
@@ -153,13 +130,8 @@ pub enum ErrorStrategy {
     FailFast,
 }
 
-/// [`tokenize`](BmsTokenizer::tokenize) 返回的 owned token 向量类型。
-///
-/// 等同于 `Vec<(NonZeroUsize, Result<BmsToken<String>, BmsTokenizeError<String>>)>`。
-type TokenizeOwnedResult = Vec<(
-    NonZeroUsize,
-    Result<BmsToken<String>, BmsTokenizeError<String>>,
-)>;
+/// [`tokenize`](BmsTokenizer::tokenize) 返回的 token 向量类型。
+type TokenizeOwnedResult = Vec<(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)>;
 
 /// 在 `s` 中查找第一个不在 `"..."` 字符串字面量内的 `//`。
 ///
@@ -205,7 +177,7 @@ fn find_inline_comment(s: &str) -> Option<usize> {
 /// let tokens: Vec<_> = BmsTokenizer::new()
 ///     .error_strategy(ErrorStrategy::CollectAll)
 ///     .encoding(BmsEncoding::ShiftJis)
-///     .tokenize::<_, &str>("#TITLE My Song\n#00101:11");
+///     .tokenize("#TITLE My Song\n#00101:11");
 /// ```
 #[derive(Debug, Clone)]
 pub struct BmsTokenizer {
@@ -272,8 +244,6 @@ impl BmsTokenizer {
     /// # 类型参数
     ///
     /// - `Out` —— 输出集合类型（例如 `Vec`、`Box<[_]>`）。
-    /// - `C` —— 字符串容器类型。默认为 `&'a str`
-    ///   以实现零拷贝分词。
     ///
     /// # 错误策略
     ///
@@ -286,10 +256,9 @@ impl BmsTokenizer {
     ///
     /// 输入行数超过 `usize` 上限时 panic（实际 BMS 文件不可能达到此上限）。
     #[must_use]
-    pub fn tokenize<'a, Out, C>(&self, input: &'a str) -> Out
+    pub fn tokenize<Out>(&self, input: &str) -> Out
     where
-        Out: FromIterator<(NonZeroUsize, Result<BmsToken<C>, BmsTokenizeError<C>>)>,
-        C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a,
+        Out: FromIterator<(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)>,
     {
         let mut results = Vec::new();
         let mut line_number: usize = 0;
@@ -327,16 +296,15 @@ impl BmsTokenizer {
                 let nz_line = NonZeroUsize::new(line_number)
                     .expect("line_number always >= 1, guaranteed by increment-before-use");
 
-                let result: Result<BmsToken<C>, BmsTokenizeError<C>> =
-                    match parse_message_line::<C>(line) {
-                        Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
-                        Ok(None) => match parse_header_line::<C>(line, &self.header_prefixes) {
-                            Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
-                            Ok(None) => continue,
-                            Err(e) => Err(e),
-                        },
+                let result: Result<BmsToken, BmsTokenizeError> = match parse_message_line(line) {
+                    Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
+                    Ok(None) => match parse_header_line(line, &self.header_prefixes) {
+                        Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
+                        Ok(None) => continue,
                         Err(e) => Err(e),
-                    };
+                    },
+                    Err(e) => Err(e),
+                };
 
                 if self.error_strategy == ErrorStrategy::FailFast && result.is_err() {
                     results.push((nz_line, result));
@@ -350,9 +318,9 @@ impl BmsTokenizer {
         results.into_iter().collect()
     }
 
-    /// 将 BMS 字符串分词为 owned token（`C = String`）。
+    /// 将 BMS 字符串分词为 owned token。
     ///
-    /// 等价于 `tokenize::<Vec<_>, String>(input)`，适合需要在分词完成后
+    /// 等价于 `self.tokenize(input)`，适合需要在分词完成后
     /// 释放原输入字符串的场景（如读取文件到 `String` 后分词）。
     ///
     /// # Panics
@@ -367,8 +335,6 @@ impl BmsTokenizer {
     ///
     /// 内部自动检测编码（除非通过 [`encoding`](Self::encoding) 预设），
     /// 解码为 UTF-8 后调用 [`tokenize`](Self::tokenize)。
-    ///
-    /// 始终产生 `C = String` 的 owned token。
     ///
     /// # Panics
     ///

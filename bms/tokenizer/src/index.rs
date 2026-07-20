@@ -321,9 +321,9 @@ pub struct BmsIndexError {
     pub input: String,
 }
 
-impl<C> IntoTokensError<C> for BmsIndexError {
+impl IntoTokensError for BmsIndexError {
     #[inline]
-    fn into_error(self, _context: &'static str, value: C) -> crate::BmsTokenizeError<C> {
+    fn into_error(self, _context: &'static str, value: String) -> crate::BmsTokenizeError {
         crate::BmsTokenizeError::InvalidInteger { value }
     }
 }

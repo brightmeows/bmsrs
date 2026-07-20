@@ -44,8 +44,8 @@ impl fmt::Display for BgaParams {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C> for BgaParams {
-    fn parse(s: &'a str) -> Option<Self> {
+impl BmsValue for BgaParams {
+    fn parse(s: &str) -> Option<Self> {
         let [bmp_index_raw, x1, y1, x2, y2, dx, dy] = parse_seven_ints(s)?;
         let bmp_index = u16::try_from(bmp_index_raw).ok()?;
         Some(Self {
@@ -92,10 +92,8 @@ impl fmt::Display for AtBgaParams {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for AtBgaParams
-{
-    fn parse(s: &'a str) -> Option<Self> {
+impl BmsValue for AtBgaParams {
+    fn parse(s: &str) -> Option<Self> {
         let [bmp_index_raw, sx, sy, w, h, dx, dy] = parse_seven_ints(s)?;
         let bmp_index = u16::try_from(bmp_index_raw).ok()?;
         Some(Self {
@@ -117,7 +115,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// 而非默认的纯黑（`RGB:00:00:00`）。索引
 /// 与 `#BMP` 共享命名空间。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExBmpParams<C> {
+pub struct ExBmpParams {
     /// Alpha 分量（0–255）。
     pub a: u8,
     /// Red 分量（0–255）。
@@ -127,10 +125,10 @@ pub struct ExBmpParams<C> {
     /// Blue 分量（0–255）。
     pub b: u8,
     /// 资源文件路径或名称。
-    pub filename: C,
+    pub filename: String,
 }
 
-impl<C: AsRef<str> + fmt::Display> fmt::Display for ExBmpParams<C> {
+impl fmt::Display for ExBmpParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -140,10 +138,8 @@ impl<C: AsRef<str> + fmt::Display> fmt::Display for ExBmpParams<C> {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for ExBmpParams<C>
-{
-    fn parse(s: &'a str) -> Option<Self> {
+impl BmsValue for ExBmpParams {
+    fn parse(s: &str) -> Option<Self> {
         let (argb_part, rest) = s.split_once(' ')?;
         let (alpha, red, green, blue) = parse_argb(argb_part)?;
         Some(Self {
@@ -151,7 +147,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
             r: red,
             g: green,
             b: blue,
-            filename: C::from(rest.trim()),
+            filename: rest.trim().to_owned(),
         })
     }
 }
@@ -165,7 +161,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
 /// 索引。与普通 BMS 消息不同，此处的 `00` **显示** `#BMP00`
 /// 而非休止。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SwBgaParams<C> {
+pub struct SwBgaParams {
     /// 帧率。
     pub fr: u32,
     /// 过渡时长（帧数）。
@@ -183,10 +179,10 @@ pub struct SwBgaParams<C> {
     /// Blue 分量。
     pub b: u8,
     /// 过渡图样名称或路径。
-    pub pattern: C,
+    pub pattern: String,
 }
 
-impl<C: AsRef<str> + fmt::Display> fmt::Display for SwBgaParams<C> {
+impl fmt::Display for SwBgaParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let loop_val = if self.r#loop { "1" } else { "0" };
         write!(
@@ -197,11 +193,9 @@ impl<C: AsRef<str> + fmt::Display> fmt::Display for SwBgaParams<C> {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for SwBgaParams<C>
-{
+impl BmsValue for SwBgaParams {
     #[expect(clippy::many_single_char_names, reason = "ARGB component names")]
-    fn parse(s: &'a str) -> Option<Self> {
+    fn parse(s: &str) -> Option<Self> {
         let (param_part, pattern) = s.split_once(' ')?;
         let mut groups = param_part.split(':');
         let fr: u32 = groups.next()?.parse().ok()?;
@@ -221,7 +215,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
             r,
             g,
             b,
-            pattern: C::from(pattern.trim()),
+            pattern: pattern.trim().to_owned(),
         })
     }
 }
@@ -250,8 +244,8 @@ impl fmt::Display for ArgbParams {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C> for ArgbParams {
-    fn parse(s: &'a str) -> Option<Self> {
+impl BmsValue for ArgbParams {
+    fn parse(s: &str) -> Option<Self> {
         let (alpha, red, green, blue) = parse_argb(s.trim())?;
         Some(Self {
             a: alpha,
@@ -297,7 +291,7 @@ fn parse_argb(s: &str) -> Option<(u8, u8, u8, u8)> {
 /// 这些命令定义谱面使用的图片、视频与 BGA（背景
 /// 动画）图层。
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
-pub enum BmsHeaderResDefVisual<C> {
+pub enum BmsHeaderResDefVisual {
     /// `#BMP{id}`——图片文件定义。
     ///
     /// 被 BGA 通道 `#xxx04`（BASE）、`#xxx06`（POOR）、
@@ -318,7 +312,7 @@ pub enum BmsHeaderResDefVisual<C> {
         /// 2 字符索引。
         id: BmpIndex,
         /// 资源文件路径或名称。
-        filename: C,
+        filename: String,
     },
     /// `#EXBMP{id}`——带自定义透明色的图片（nanasi）。
     #[bms_token("#EXBMP{id} {params}")]
@@ -327,7 +321,7 @@ pub enum BmsHeaderResDefVisual<C> {
         /// 2 字符索引。
         id: BmpIndex,
         /// 解析出的参数。
-        params: ExBmpParams<C>,
+        params: ExBmpParams,
     },
     /// `#BGA{id}`——图片裁剪与放置定义。
     #[bms_token("#BGA{id} {params}")]
@@ -358,7 +352,7 @@ pub enum BmsHeaderResDefVisual<C> {
         /// 2 字符索引。
         id: BmpIndex,
         /// 解析出的过渡参数。
-        params: SwBgaParams<C>,
+        params: SwBgaParams,
     },
     /// `#ARGB{id}`——逐图层 ARGB 颜色/alpha 叠加（nanasi）。
     #[bms_token("#ARGB{id} {params}")]
@@ -375,14 +369,14 @@ pub enum BmsHeaderResDefVisual<C> {
     /// 视频音频被静音（nazoZZ 除外）。兼容格式：MPG
     /// （兼容性最好）、AVI、`WebM`、MP4 等（取决于播放器）。
     #[bms_token("#VIDEOFILE {}")]
-    VideoFile(C),
+    VideoFile(String),
     /// `#MOVIE`——作为 BGA 的视频文件，不循环（`DXEmu` 起源）。
     ///
     /// 从 `#000` 播放一次；结束时保持最后一帧。
     /// 与 `#xxx04` 冲突：`#xxx04` 中的图片文件输给
     /// `#MOVIE`，但 `#xxx04` 中的视频文件优先。
     #[bms_token("#MOVIE {}")]
-    Movie(C),
+    Movie(String),
     /// `#SEEK{id}`——以毫秒为单位的视频定位位置（LR 起源）。
     ///
     /// 被通道 `#xxx05` 引用。改变视频播放
@@ -405,7 +399,7 @@ pub enum BmsHeaderResDefVisual<C> {
     /// （`#xxx18-19`）标准化之前。DDR 检测特定的 `#ExtChr`
     /// 模式以激活 `Project2DX` 模式。
     #[bms_token("#ExtChr {}")]
-    ExtChr(C),
+    ExtChr(String),
     /// `#VIDEOf/s`——视频帧率覆盖（仅 `bemaniaDX`）。
     ///
     /// 覆盖由 `#VIDEOFILE` 指定的视频的播放帧率。

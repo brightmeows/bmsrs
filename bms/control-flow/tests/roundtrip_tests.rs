@@ -11,22 +11,10 @@ use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizer};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
-/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload<&str>>`。
-fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload<&str>>, ControlFlowError> {
+/// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload>`。
+fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload>, ControlFlowError> {
     let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, &str>(input)
-        .into_iter()
-        .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
-        .collect();
-    FlowDoc::from_tokens(tokens)
-}
-
-/// 辅助函数：以 `C = String` 分词并构建，用于多态覆盖测试。
-fn build_doc_string(
-    input: &str,
-) -> std::result::Result<FlowDoc<TokenPayload<String>>, ControlFlowError> {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>, String>(input)
+        .tokenize::<Vec<_>>(input)
         .into_iter()
         .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
         .collect();
@@ -34,7 +22,7 @@ fn build_doc_string(
 }
 
 /// 从 token 列表中提取控制流头部命令，作为 Debug 字符串返回。
-fn cf_debug(tokens: &[BmsToken<&str>]) -> Vec<String> {
+fn cf_debug(tokens: &[BmsToken]) -> Vec<String> {
     tokens
         .iter()
         .filter_map(|t| match t {
@@ -410,10 +398,10 @@ fn random_empty_block_roundtrip() -> TestResult {
     Ok(())
 }
 
-/// 验证控制流 roundtrip 在 `C = String` 时也能工作。
+/// 验证控制流 roundtrip 也正常工作。
 #[test]
-fn random_block_roundtrip_with_string_container() -> TestResult {
-    let items = build_doc_string(
+fn random_block_roundtrip_works() -> TestResult {
+    let items = build_doc(
         "#RANDOM 2\n\
          #IF 1\n\
          #00101:11\n\
@@ -424,7 +412,7 @@ fn random_block_roundtrip_with_string_container() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    let tokens: Vec<BmsToken<String>> = items.to_tokens();
+    let tokens = items.to_tokens();
     let cfs: Vec<String> = tokens
         .iter()
         .filter_map(|t| match t {

@@ -50,7 +50,7 @@ impl Gameplay {
     /// 以便在标准 BMS 中进行不区分大小写的比较——与
     /// [`Timing`](crate::timing::Timing) / [`Visual`](crate::visual::Visual)
     /// 的归一化契约保持一致。
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderGameplay<C>, base: BmsBase) {
+    pub fn apply(&mut self, header: &BmsHeaderGameplay, base: BmsBase) {
         match header {
             BmsHeaderGameplay::Player(m) => self.player = Some(*m),
             BmsHeaderGameplay::Rank(r) => self.rank = Some(*r),
@@ -66,12 +66,10 @@ impl Gameplay {
             BmsHeaderGameplay::LnMode(m) => self.ln_mode = Some(*m),
             BmsHeaderGameplay::Base(m) => self.base = Some(*m),
             BmsHeaderGameplay::OctFp => self.oct_fp = Some(true),
-            BmsHeaderGameplay::Option(s) => self.option = Some(s.as_ref().to_owned()),
+            BmsHeaderGameplay::Option(s) => self.option = Some(s.clone()),
             BmsHeaderGameplay::ChangeOption { id, value } => {
-                self.change_option_defs.insert(
-                    ChangeOptionIndex::from(id.normalize(base)),
-                    value.as_ref().to_owned(),
-                );
+                self.change_option_defs
+                    .insert(ChangeOptionIndex::from(id.normalize(base)), value.clone());
             }
         }
     }

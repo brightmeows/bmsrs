@@ -18,7 +18,7 @@ use crate::{BmsTokenAttr, BmsValue};
 ///
 /// `#EXWAV` 索引与 `#WAV` 共享同一命名空间。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExWavParams<C> {
+pub struct ExWavParams {
     /// 声像（`p` flag）。范围：`[-10000, 10000]`，`0` = 居中。
     pub pan: Option<i32>,
     /// 音量衰减（`v` flag）。范围：`[-10000, 0]`，`0` = 原声。
@@ -26,10 +26,10 @@ pub struct ExWavParams<C> {
     /// 频率（`f` flag）。范围：`[100, 100000]` Hz。
     pub frequency: Option<u32>,
     /// 资源文件路径或名称。
-    pub filename: C,
+    pub filename: String,
 }
 
-impl<C: AsRef<str> + fmt::Display> fmt::Display for ExWavParams<C> {
+impl fmt::Display for ExWavParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // 按 pan→volume→frequency 固定顺序输出存在的 flag。
         let mut flags = String::new();
@@ -58,10 +58,8 @@ impl<C: AsRef<str> + fmt::Display> fmt::Display for ExWavParams<C> {
     }
 }
 
-impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a, C>
-    for ExWavParams<C>
-{
-    fn parse(s: &'a str) -> Option<Self> {
+impl BmsValue for ExWavParams {
+    fn parse(s: &str) -> Option<Self> {
         let mut parts = s.split_whitespace();
         let first = parts.next()?;
 
@@ -132,7 +130,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
                 pan,
                 volume,
                 frequency,
-                filename: C::from(filename),
+                filename: filename.to_owned(),
             })
         } else {
             // 无 flags：整体为 filename。
@@ -140,7 +138,7 @@ impl<'a, C: AsRef<str> + fmt::Display + Clone + From<&'a str> + 'a> BmsValue<'a,
                 pan: None,
                 volume: None,
                 frequency: None,
-                filename: C::from(s.trim()),
+                filename: s.trim().to_owned(),
             })
         }
     }
@@ -240,7 +238,7 @@ impl std::str::FromStr for WavCmdParams {
 /// 受支持最广的格式；MP3 在大多数播放器中引入可感知的延迟，
 /// 通常避免使用。
 #[derive(Debug, Clone, PartialEq, Eq, BmsTokenAttr)]
-pub enum BmsHeaderResDefAudio<C> {
+pub enum BmsHeaderResDefAudio {
     /// `#WAV{id}`——音效或 BGM 文件定义。
     ///
     /// 被通道 `#xxx01`（BGM）、`#xxx11-19` / `#xxx21-29`
@@ -259,7 +257,7 @@ pub enum BmsHeaderResDefAudio<C> {
         /// 2 字符索引（例如 `"01"`、`"2A"`）。
         id: WavIndex,
         /// 资源文件路径或名称。
-        filename: C,
+        filename: String,
     },
     /// `#EXWAV{id}`——带声相/音量/频率控制的扩展 WAV（nanasi）。
     ///
@@ -271,7 +269,7 @@ pub enum BmsHeaderResDefAudio<C> {
         /// 2 字符索引。
         id: WavIndex,
         /// 解析出的 EXWAV 参数。
-        params: ExWavParams<C>,
+        params: ExWavParams,
     },
     /// `#WAVCMD`——音高/音量/时长覆盖（`MacBeat` 扩展）。
     ///
@@ -290,18 +288,18 @@ pub enum BmsHeaderResDefAudio<C> {
     ///
     /// 指定一个 CD 音轨号作为背景音乐播放。
     #[bms_token("#CDDA {}")]
-    Cdda(C),
+    Cdda(String),
     /// `#MIDIFILE`——以 MIDI 文件作为 BGM（BM98 起源）。
     ///
     /// 依赖硬件且有可感知延迟。不推荐用于
     /// 新谱面。受 BM98、DDR、`IIDXv`、HDX、Sonorous 支持。
     #[bms_token("#MIDIFILE {}")]
-    Midifile(C),
+    Midifile(String),
     /// `#PATH_WAV`——音频文件查找的目录前缀（BMEV 起源）。
     ///
     /// 存在时，`#WAV` 文件名相对于此
     /// 目录解析。**分发前应注释掉**以
     /// 避免在其他系统上的路径问题。
     #[bms_token("#PATH_WAV {}")]
-    PathWav(C),
+    PathWav(String),
 }

@@ -11,7 +11,7 @@ use bms_tokenizer::{
 
 // 拥有型参数类型
 //
-// 分词器的 ExBmpParams<'_> 与 SwBgaParams<'_> 借用自输入字符串。由于
+// 分词器的 ExBmpParams 与 SwBgaParams 借用自输入字符串。由于
 // Bms 拥有全部数据，此处转换为对应的拥有型等价类型。
 
 /// [`ExBmpParams`] 的拥有型版本，文件名为 `String`。
@@ -29,14 +29,14 @@ pub struct OwnedExBmpParams {
     pub filename: String,
 }
 
-impl<C: AsRef<str>> From<&ExBmpParams<C>> for OwnedExBmpParams {
-    fn from(p: &ExBmpParams<C>) -> Self {
+impl From<&ExBmpParams> for OwnedExBmpParams {
+    fn from(p: &ExBmpParams) -> Self {
         Self {
             a: p.a,
             r: p.r,
             g: p.g,
             b: p.b,
-            filename: p.filename.as_ref().to_owned(),
+            filename: p.filename.clone(),
         }
     }
 }
@@ -64,8 +64,8 @@ pub struct OwnedSwBgaParams {
     pub pattern: String,
 }
 
-impl<C: AsRef<str>> From<&SwBgaParams<C>> for OwnedSwBgaParams {
-    fn from(p: &SwBgaParams<C>) -> Self {
+impl From<&SwBgaParams> for OwnedSwBgaParams {
+    fn from(p: &SwBgaParams) -> Self {
         Self {
             fr: p.fr,
             time: p.time,
@@ -75,7 +75,7 @@ impl<C: AsRef<str>> From<&SwBgaParams<C>> for OwnedSwBgaParams {
             r: p.r,
             g: p.g,
             b: p.b,
-            pattern: p.pattern.as_ref().to_owned(),
+            pattern: p.pattern.clone(),
         }
     }
 }
@@ -123,13 +123,11 @@ impl Visual {
     ///
     /// 索引键（`BmpIndex`、`SeekIndex` 等）使用 `base` 归一化，以便在
     /// 标准 BMS 中进行不区分大小写的比较。
-    pub fn apply<C: AsRef<str>>(&mut self, header: &BmsHeaderResDefVisual<C>, base: BmsBase) {
+    pub fn apply(&mut self, header: &BmsHeaderResDefVisual, base: BmsBase) {
         match header {
             BmsHeaderResDefVisual::Bmp { id, filename } => {
-                self.bmp_files.insert(
-                    BmpIndex::from(id.normalize(base)),
-                    filename.as_ref().to_owned(),
-                );
+                self.bmp_files
+                    .insert(BmpIndex::from(id.normalize(base)), filename.clone());
             }
             BmsHeaderResDefVisual::Seek { id, value } => {
                 self.seek_defs
@@ -159,9 +157,9 @@ impl Visual {
                 self.argb_defs
                     .insert(BmpIndex::from(id.normalize(base)), params.clone());
             }
-            BmsHeaderResDefVisual::VideoFile(s) => self.video_file = Some(s.as_ref().to_owned()),
-            BmsHeaderResDefVisual::Movie(s) => self.movie = Some(s.as_ref().to_owned()),
-            BmsHeaderResDefVisual::ExtChr(s) => self.ext_chr = Some(s.as_ref().to_owned()),
+            BmsHeaderResDefVisual::VideoFile(s) => self.video_file = Some(s.clone()),
+            BmsHeaderResDefVisual::Movie(s) => self.movie = Some(s.clone()),
+            BmsHeaderResDefVisual::ExtChr(s) => self.ext_chr = Some(s.clone()),
             BmsHeaderResDefVisual::VideoFps(v) => self.video_fps = Some(*v),
             BmsHeaderResDefVisual::VideoColors(c) => self.video_colors = Some(*c),
             BmsHeaderResDefVisual::VideoDly(d) => self.video_dly = Some(*d),
