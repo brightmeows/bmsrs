@@ -92,4 +92,4 @@ repos:
         entry: bash -c '! rg -l "^\s*#!\[(expect|allow)\(" "$@"' _
         language: system
         types: [rust]
-        exclude: ^.*/(tests|benches|examples)/.*$
+        exclude: ^(.*/)?(tests|benches|examples)/.*$

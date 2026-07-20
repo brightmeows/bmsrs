@@ -41,6 +41,10 @@ flowchart LR
 
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 
+### facade crate
+
+根目录即 `bmsrs` facade crate。新增 workspace crate 时在 `src/lib.rs` 添加 `pub mod` + `pub use`。
+
 ## 命令
 
 ### 提交前自动执行（pre-commit hooks）
@@ -154,7 +158,7 @@ Conventional Commits，匹配 `release-plz.toml` changelog 分组。类型见下
 - commit message 符合 Conventional Commits + scope；subject/body 用中文（type/scope 用英文）
 - 每个提交只做一个逻辑变更，`feat:` + `fix:` 不混入同提交
 - 文档注释（`///`、`//!`）与实现注释（`//`）一律用中文，代码标识符用反引号保留英文
-- 新增 crate 时在 `bmsrs/` 和根 AGENTS.md 中添加对应的 `pub use` 和记录
+- 新增 crate 时在 `src/lib.rs` 和根 AGENTS.md 中添加对应的 `pub use` 和记录
 
 ### Ask
 
