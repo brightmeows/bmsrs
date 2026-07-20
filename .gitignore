@@ -6,3 +6,12 @@
 
 # BrightMeowS workflow
 /docs/blueprint
+
+# Agent Config (From OpenSpec)
+/.opencode/**/openspec-*
+/.opencode/**/opsx-*
+/.pi/**/openspec-*
+/.pi/**/opsx-*
+
+# OpenSpec Changes Archive
+/openspec/changes/archive/
