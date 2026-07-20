@@ -10,7 +10,7 @@
 
 ```text
 bms::{tokenizer, control_flow, parser, processor}
-bmson::{def, de, processor}
+bmson::{def, processor}
 chart
 player
 ```
@@ -21,7 +21,6 @@ player
 |------|------|
 | 新增 workspace crate | 在 `lib.rs` 加 `pub mod` + `pub use new_crate::*;` |
 | 占位 crate | 无公开 API 的不 re-export |
-| 模块别名 | 目录名含连字符时映射为下划线模块（如 `bmson/de-chumsky` → `bmson::de`） |
 
 ## 非显而易见的规则
 

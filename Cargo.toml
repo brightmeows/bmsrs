@@ -8,7 +8,6 @@ members = [
     "bms/parser",
     "bms/processor",
     "bmson/def",
-    "bmson/de-chumsky",
     "bmson/processor",
     "common/chart",
     "common/player",
@@ -59,7 +58,6 @@ bmsrs-chart = { path = "common/chart" }
 bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }
 bmsrs-player = { path = "common/player" }
-bmson-de-chumsky = { path = "bmson/de-chumsky" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

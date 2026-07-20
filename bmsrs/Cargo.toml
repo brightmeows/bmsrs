@@ -24,7 +24,7 @@ bmson-def.workspace = true
 bmson-processor.workspace = true
 bmsrs-chart.workspace = true
 bmsrs-player.workspace = true
-bmson-de-chumsky.workspace = true
+
 
 [dev-dependencies]
 macroquad.workspace = true
@@ -32,3 +32,4 @@ kira.workspace = true
 clap.workspace = true
 encoding_rs.workspace = true
 rayon.workspace = true
+serde_json.workspace = true

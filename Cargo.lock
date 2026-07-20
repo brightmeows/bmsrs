@@ -248,19 +248,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "bmson-de-chumsky"
-version = "0.1.0"
-dependencies = [
- "bmson-def",
- "chumsky",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "bmson-def"
 version = "0.1.0"
 dependencies = [
+ "chumsky",
  "derive_more",
  "serde",
  "serde_json",
@@ -286,7 +277,6 @@ dependencies = [
  "bms-parser",
  "bms-processor",
  "bms-tokenizer",
- "bmson-de-chumsky",
  "bmson-def",
  "bmson-processor",
  "bmsrs-chart",
@@ -296,6 +286,7 @@ dependencies = [
  "kira",
  "macroquad",
  "rayon",
+ "serde_json",
 ]
 
 [[package]]

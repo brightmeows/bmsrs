@@ -16,8 +16,7 @@ flowchart LR
     CF --> Par[bms-parser]
     Par --> BProc[bms-processor]
 
-    BMSON[".bmson file"] --> DeChumsky[bmson-de-chumsky]
-    DeChumsky --> BDef[bmson-def]
+    BMSON[".bmson file"] --> BDef[bmson-def]
     BDef --> BMProc[bmson-processor]
 
     BProc --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
@@ -35,7 +34,6 @@ flowchart LR
 | `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` |
 | `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
 | `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
-| `bmson-de-chumsky` | bmson JSON 反序列化（chumsky 实现） | 替代 serde 的自定义 parser |
 | `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |

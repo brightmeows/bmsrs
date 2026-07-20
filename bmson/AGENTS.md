@@ -10,16 +10,14 @@ BMSON（BMS 的 JSON 序列化格式）解析管道。`.bmson` JSON 经解析、
 
 ```mermaid
 flowchart LR
-    JSON[".bmson (JSON)"] --> DeChumsky[bmson-de-chumsky]
-    DeChumsky --> Def[bmson-def]
+    JSON[".bmson (JSON)"] --> Def[bmson-def]
     Def --> Proc[bmson-processor]
     Proc --> Chart["Chart&lt;T&gt;"]
 ```
 
 | 阶段 | Crate | 职责 |
 |------|-------|------|
-| 解析 | `bmson-de-chumsky` | JSON 文本 → bmson-def 类型（chumsky + serde_json） |
-| 类型定义 | `bmson-def` | 纯数据模型（v0/v1/v2），不依赖 JSON 库 |
+| 类型定义 + 反序列化 | `bmson-def` | BMSON 纯数据模型（v0/v1/v2），支持 serde 反序列化 |
 | 转换 | `bmson-processor` | `Bmson` (v2) → `Chart` |
 
 ## 版本模型
@@ -31,7 +29,7 @@ v0/v1 必须先通过 `Bmson::from` / `TryFrom` 升版到 v2 才能被 processor
 
 | 原则 | 含义 |
 |------|------|
-| 类型定义与解析分离 | `bmson-def` 纯数据模型，不依赖任何 JSON 库；`bmson-de-chumsky` 负责反序列化 |
+| 类型定义与解析合一 | `bmson-def` 直接通过 `serde` 支持 JSON 反序列化，无需独立解析层 |
 | 模式族解耦 | `BmsonLayout` 零大小类型解耦键位映射，`mode_hint` 决定分发 |
 | 音频预切片 | `SoundChannel` 在启动时预切片为 `AudioAsset` 数组，运行时按索引查 |
 
@@ -43,7 +41,12 @@ BMSON 字段、schema 版本差异等术语参照 **bmson skill**（`~/.agents/s
 ## 测试
 
 ```bash
-cargo test -p bmson-de-chumsky
 cargo test -p bmson-def
 cargo test -p bmson-processor
+```
+
+## 示例
+
+```bash
+cargo run --example bmson_parser -p bmson-def
 ```

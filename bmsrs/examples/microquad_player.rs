@@ -47,7 +47,6 @@ use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
 use bmsrs::bms::tokenizer::BmsTokenizer;
-use bmsrs::bmson::de::BmsonParser;
 use bmsrs::bmson::processor::{BmsonNoteExt, BmsonProcessor};
 use bmsrs::chart::{AudioAsset, Chart, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide};
 use bmsrs::player::Player;
@@ -212,8 +211,9 @@ fn load_bmson(path: &Path) -> Result<Chart<(), NoCustomEvent>, String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("无法读取文件 {}: {e}", path.display()))?;
 
-    // 使用 bmson-de-chumsky 解析（支持 v0/v1/v2）。
-    let bmson = BmsonParser::parse(&content).map_err(|e| format!("BMSON 解析失败: {e}"))?;
+    // 使用 serde_json 直接反序列化（v2 格式）。
+    let bmson: bmson_def::Bmson<'_> =
+        serde_json::from_str(&content).map_err(|e| format!("BMSON 解析失败: {e}"))?;
 
     // 转换为 Chart<BmsonNoteExt>。
     let chart =

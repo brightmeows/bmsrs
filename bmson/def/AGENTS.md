@@ -22,8 +22,15 @@ bmson JSON 格式类型定义（v0/v1/v2）。
 
 ## 依赖
 
-`serde_json` 是 **dev-only** 依赖——lib 本身不依赖任何 JSON 库。
+`serde_json` 和 `chumsky` 是 **dev-only** 依赖——lib 本身不依赖任何 JSON 库。
 测试直接用 `serde_json::from_str`/`to_string` 与版本特有类型交互。
+`chumsky` 用于示例 `bmson_parser`（支持错误恢复的 JSON 解析器演示）。
+
+## 示例
+
+```bash
+cargo run --example bmson_parser -p bmson-def
+```
 
 ## 非显而易见的规则
 
