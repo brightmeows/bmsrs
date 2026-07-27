@@ -13,5 +13,5 @@
 /.pi/**/openspec-*
 /.pi/**/opsx-*
 
-# OpenSpec Changes Archive
-/openspec/changes/archive/
+# OpenSpec Changes
+/openspec/changes/
