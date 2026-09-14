@@ -80,6 +80,7 @@ jobs:
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
           CARGO_INCREMENTAL: 0
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           echo "::group::Install release-plz + cargo-semver-checks"
           cargo binstall --no-confirm release-plz@0.3.159 cargo-semver-checks@0.48
@@ -95,5 +96,3 @@ jobs:
             --forge github \
             --git-token "${{ secrets.GITHUB_TOKEN }}"
           echo "::endgroup::"
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
