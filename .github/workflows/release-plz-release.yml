@@ -6,18 +6,17 @@ on:
     paths: ['**/Cargo.toml']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   release-plz-release:
     name: Publish crates and create release
-    runs-on: codeberg-small
-    container:
-      image: ghcr.io/catthehacker/ubuntu:rust-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
-        env:
-          GIT_DEFAULT_HASH: sha256
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: true
@@ -41,13 +40,24 @@ jobs:
             echo "needed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Install Rust toolchain
+        if: steps.check-release.outputs.needed == 'true'
+        # GitHub hosted runners do not ship a Rust toolchain; the Codeberg
+        # variant relied on a container image instead.
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-binstall
+        if: steps.check-release.outputs.needed == 'true'
+        # The Codeberg container image bundled it; GitHub runners do not.
+        run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
       - name: Get Rust version
         if: steps.check-release.outputs.needed == 'true'
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> $GITHUB_ENV
 
       - name: Restore cargo registry
         if: steps.check-release.outputs.needed == 'true'
-        uses: https://data.forgejo.org/actions/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -58,7 +68,7 @@ jobs:
 
       - name: Restore cargo target
         if: steps.check-release.outputs.needed == 'true'
-        uses: https://data.forgejo.org/actions/cache@v4
+        uses: actions/cache@v4
         with:
           path: target
           key: rust-target-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
@@ -67,6 +77,9 @@ jobs:
 
       - name: Install release-plz and publish crates
         if: steps.check-release.outputs.needed == 'true'
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+          CARGO_INCREMENTAL: 0
         run: |
           echo "::group::Install release-plz + cargo-semver-checks"
           cargo binstall --no-confirm release-plz@0.3.159 cargo-semver-checks@0.48
@@ -79,7 +92,7 @@ jobs:
 
           echo "::group::Run release-plz release"
           release-plz release \
-            --forge gitea \
+            --forge github \
             --git-token "${{ secrets.GITHUB_TOKEN }}"
           echo "::endgroup::"
         env:

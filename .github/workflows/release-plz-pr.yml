@@ -4,18 +4,18 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   release-plz-pr:
     name: Prepare release PR
-    runs-on: codeberg-small
-    container:
-      image: ghcr.io/catthehacker/ubuntu:rust-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
-        env:
-          GIT_DEFAULT_HASH: sha256
+        uses: actions/checkout@v7
         with:
           # Full history is required by release-plz to determine version bumps
           # based on conventional commits.
@@ -23,11 +23,20 @@ jobs:
           # Persist credentials so git push (called by release-plz) can authenticate.
           persist-credentials: true
 
+      - name: Install Rust toolchain
+        # GitHub hosted runners do not ship a Rust toolchain; the Codeberg
+        # variant relied on a container image instead.
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-binstall
+        # The Codeberg container image bundled it; GitHub runners do not.
+        run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> $GITHUB_ENV
 
       - name: Restore cargo registry
-        uses: https://data.forgejo.org/actions/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -37,7 +46,7 @@ jobs:
             rust-reg-${{ runner.os }}-
 
       - name: Restore cargo target
-        uses: https://data.forgejo.org/actions/cache@v4
+        uses: actions/cache@v4
         with:
           # 各子目录理由：
           #   deps/         — registry 依赖的 .rlib/.rmeta，源码路径稳定，编译指纹一致，可重用
@@ -52,10 +61,7 @@ jobs:
             rust-target-pr-${{ runner.os }}-${{ env.RUST_VERSION }}-
 
       - name: Install release-plz and prepare release PR
-        # Uses cargo-binstall — assumes it is pre-installed in the container
-        # (ghcr.io/catthehacker/ubuntu:rust-latest includes it).
-        # CARGO_TARGET_DIR: 将 release-plz 临时目录内的编译重定向到工作区 target，使其被缓存覆盖
-        # CARGO_INCREMENTAL: 增量数据路径绑定临时目录，永不命中，禁用以节省 I/O 和缓存空间
+        # Uses cargo-binstall — installed in the step above.
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
           CARGO_INCREMENTAL: 0
@@ -71,6 +77,6 @@ jobs:
 
           echo "::group::Run release-plz release-pr"
           release-plz release-pr \
-            --forge gitea \
+            --forge github \
             --git-token "${{ secrets.GITHUB_TOKEN }}"
           echo "::endgroup::"

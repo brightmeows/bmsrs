@@ -1,7 +1,7 @@
 [workspace]
 # Repository URL for changelog links and PR creation.
 # Auto-detected from git remote; explicit for safety.
-repo_url = "https://codeberg.org/brightmeows/bmsrs"
+repo_url = "https://github.com/brightmeows/bmsrs"
 
 # Enable semver checks for early detection of breaking API changes.
 # (On 0.x, cargo-semver-checks flags any public API change as
