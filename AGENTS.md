@@ -109,8 +109,8 @@ Git worktree 统一放在 `.worktrees/` 目录下。
 
 | Skill | 来源仓库 | 用途 |
 |-------|----------|------|
-| `bms` / `bmson` | <https://codeberg.org/brightmeows/bms-skills> | BMS/bmson 格式规范、领域术语译法 |
-| `rust-meta-cognition` | <https://codeberg.org/brightmeows/rust-meta-skills> | Rust 设计/编译问题路由 |
+| `bms` / `bmson` | <https://github.com/brightmeows/bms-skills> | BMS/bmson 格式规范、领域术语译法 |
+| `rust-meta-cognition` | <https://github.com/brightmeows/rust-meta-skills> | Rust 设计/编译问题路由 |
 
 引用其内容时，引向 skill 指向的原始来源，而非 skill 文档本身。
 
