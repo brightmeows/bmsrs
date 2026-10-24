@@ -27,10 +27,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - name: Install ALSA headers
-        # kira/cpal 的 Linux 后端依赖 alsa-sys，其 build script 需要
-        # pkg-config 与 ALSA 头文件；runner 镜像默认不带
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
+      - name: Install system headers
+        # kira/cpal 的 Linux 后端依赖 alsa-sys（需要 ALSA 头文件）；kira 0.12.5
+        # 起依赖树带进 libdbus-sys（需要 D-Bus 头文件）。runner 镜像默认不带
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev libdbus-1-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -92,8 +92,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install ALSA headers
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
+      - name: Install system headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev libdbus-1-dev
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
@@ -156,8 +156,8 @@ jobs:
       # 工具链版本须与 workspace.package.rust-version 同步；guard 式
       # let-chain（if_let_guard）于 Rust 1.95.0 稳定化
       - uses: dtolnay/rust-toolchain@1.95
-      - name: Install ALSA headers
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
+      - name: Install system headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev libdbus-1-dev
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
