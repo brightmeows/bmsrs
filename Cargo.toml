@@ -57,7 +57,7 @@ authors = ["白喵斯 <brightmeows@163.com>"]
 homepage = "https://github.com/brightmeows/bmsrs"
 keywords = ["bms", "bmson", "rhythm-game", "music-game"]
 categories = ["multimedia::encoding", "game::development"]
-rust-version = "1.88"
+rust-version = "1.95"
 readme = "README.md"
 
 [workspace.dependencies]
