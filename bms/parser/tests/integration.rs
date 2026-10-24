@@ -200,7 +200,10 @@ fn full_header_parse() {
 
     // 无消息，无回退
     assert!(bms.messages.raw.is_empty());
-    assert!(bms.fallback_headers.is_empty());
+    assert_eq!(
+        bms.fallback_headers,
+        [] as [(std::string::String, std::string::String); 0]
+    );
 }
 
 // 此前被丢弃的头部命令存储
@@ -518,7 +521,10 @@ fn empty_input() {
     assert!(bms.audio.wav_files.is_empty());
     assert!(bms.visual.bmp_files.is_empty());
     assert!(bms.messages.raw.is_empty());
-    assert!(bms.fallback_headers.is_empty());
+    assert_eq!(
+        bms.fallback_headers,
+        [] as [(std::string::String, std::string::String); 0]
+    );
 }
 
 #[test]
@@ -533,8 +539,8 @@ fn unknown_header_fallback() {
 fn unknown_channel_stays_raw() {
     let bms = parse("#001FF:1122");
     // 通道 FF 未知 —— 仅在 raw 中，无事件
-    assert!(bms.messages.bgm_events.is_empty());
-    assert!(bms.messages.note_events.is_empty());
+    assert_eq!(bms.messages.bgm_events, [] as [bms_parser::BgmEvent; 0]);
+    assert_eq!(bms.messages.note_events, [] as [bms_parser::NoteEvent; 0]);
     let ch = BmsChannel::from_raw("FF").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
@@ -546,7 +552,7 @@ fn unknown_channel_stays_raw() {
 fn empty_message_values() {
     let bms = parse("#00111:");
     // 值为空 —— 无事件，但 raw 中有一个空字符串条目
-    assert!(bms.messages.note_events.is_empty());
+    assert_eq!(bms.messages.note_events, [] as [bms_parser::NoteEvent; 0]);
     let ch = BmsChannel::from_raw("11").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
@@ -617,7 +623,10 @@ fn default_bms_is_empty() {
     assert!(bms.metadata.title.is_none());
     assert!(bms.audio.wav_files.is_empty());
     assert!(bms.messages.raw.is_empty());
-    assert!(bms.fallback_headers.is_empty());
+    assert_eq!(
+        bms.fallback_headers,
+        [] as [(std::string::String, std::string::String); 0]
+    );
 }
 
 // F4: non_event_data merge behavior tests
@@ -678,7 +687,10 @@ fn non_event_data_cross_measure_preserves_all() {
 fn non_event_data_populated_after_parse() {
     let bms = parse("#WAV01 kick.wav\n#0010B:0102\n#TITLE test\n");
     // non_event_data 不应为空
-    assert!(!bms.messages.non_event_data.is_empty());
+    assert_ne!(
+        bms.messages.non_event_data,
+        [] as [bms_parser::NonEventData; 0]
+    );
     // 验证 BgaBaseOpacity (ch 0B) 的数据
     let entry = &bms.messages.non_event_data[0];
     assert_eq!(entry.measure, 1);
@@ -827,7 +839,7 @@ fn bmspec_speed_without_channel() {
     let bms = parse("#SPEED01 0.5\n");
     let idx: SpeedIndex = "01".parse().unwrap();
     assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
-    assert!(bms.messages.speed_events.is_empty());
+    assert_eq!(bms.messages.speed_events, [] as [bms_parser::SpeedEvent; 0]);
 }
 
 #[test]
@@ -953,7 +965,10 @@ fn default_is_all_none_empty() {
     assert!(bms.timing.bpm.is_none());
     assert!(bms.audio.wav_files.is_empty());
     assert!(bms.messages.raw.is_empty());
-    assert!(bms.fallback_headers.is_empty());
+    assert_eq!(
+        bms.fallback_headers,
+        [] as [(std::string::String, std::string::String); 0]
+    );
 }
 
 #[test]
@@ -985,7 +1000,10 @@ fn wavcmd_stored() {
 fn wavcmd_invalid_format_fallback() {
     let bms = parse("#WAVCMD some-command");
     assert!(bms.audio.wav_cmd.is_none());
-    assert!(!bms.fallback_headers.is_empty());
+    assert_ne!(
+        bms.fallback_headers,
+        [] as [(std::string::String, std::string::String); 0]
+    );
 }
 
 #[test]

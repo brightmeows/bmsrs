@@ -357,7 +357,7 @@ fn player_audio_assets() {
     let player = Player::new(chart).unwrap();
 
     let assets = player.audio_assets();
-    assert!(assets.is_empty());
+    assert_eq!(assets, []);
 }
 
 #[test]
@@ -366,7 +366,7 @@ fn player_bga_resources() {
     let player = Player::new(chart).unwrap();
 
     let resources = player.bga_resources();
-    assert!(resources.is_empty());
+    assert_eq!(resources, []);
 }
 
 // 带 BPM 变化的更大范围测试

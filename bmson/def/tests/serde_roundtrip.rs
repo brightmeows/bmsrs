@@ -112,8 +112,11 @@ fn bmson_null_lines_is_some_none() {
     }"#;
     let bmson: Bmson = serde_json::from_str(json).unwrap();
     assert!(bmson.chart_data.lines.is_none());
-    assert!(bmson.chart_data.bpm_events.is_empty());
-    assert!(bmson.chart_data.stop_events.is_empty());
+    assert_eq!(bmson.chart_data.bpm_events, [] as [bmson_def::BpmEvent; 0]);
+    assert_eq!(
+        bmson.chart_data.stop_events,
+        [] as [bmson_def::StopEvent; 0]
+    );
 }
 
 #[test]
@@ -282,10 +285,10 @@ fn chart_data_ln_hints_roundtrip() {
 #[test]
 fn bga_default_is_empty() {
     let bga = BGA::default();
-    assert!(bga.bga_header.is_empty());
-    assert!(bga.bga_events.is_empty());
-    assert!(bga.layer_events.is_empty());
-    assert!(bga.poor_events.is_empty());
+    assert_eq!(bga.bga_header, [] as [bmson_def::BGAHeader<'_>; 0]);
+    assert_eq!(bga.bga_events, [] as [bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.layer_events, [] as [bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.poor_events, [] as [bmson_def::BGAEvent; 0]);
 }
 
 #[test]

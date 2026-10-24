@@ -114,8 +114,8 @@ fn v1_with_null_arrays_handled() {
         "bga": { "bga_header": [], "bga_events": [], "layer_events": [], "poor_events": [] }
     }"#;
     let v1: v1::Bmson = serde_json::from_str(json).unwrap();
-    assert!(v1.bpm_events.is_empty());
-    assert!(v1.stop_events.is_empty());
+    assert_eq!(v1.bpm_events, [] as [bmson_def::BpmEvent; 0]);
+    assert_eq!(v1.stop_events, [] as [bmson_def::StopEvent; 0]);
 }
 
 // v0 转换测试

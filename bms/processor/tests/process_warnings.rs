@@ -67,7 +67,7 @@ fn normal_chart_produces_no_warnings() {
     });
 
     let (_chart, warnings) = BmsProcessor::process_with_warnings::<Bme>(&bms).unwrap();
-    assert!(warnings.is_empty());
+    assert_eq!(warnings, [] as [bms_processor::ProcessWarning; 0]);
 }
 
 #[test]

@@ -648,57 +648,57 @@ fn test_v2_scroll_events() {
 
 fn test_json_null() {
     let (val, errors) = parse_json("null");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::Null));
 }
 
 fn test_json_true() {
     let (val, errors) = parse_json("true");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::Bool(true)));
 }
 
 fn test_json_false() {
     let (val, errors) = parse_json("false");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::Bool(false)));
 }
 
 fn test_json_integer() {
     let (val, errors) = parse_json("42");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::Number(serde_json::Number::from(42))));
 }
 
 fn test_json_float() {
     let (val, errors) = parse_json("2.5");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     let n = val.as_ref().and_then(Value::as_f64).unwrap();
     assert!((n - 2.5).abs() < 1e-10);
 }
 
 fn test_json_string() {
     let (val, errors) = parse_json(r#""hello world""#);
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::String("hello world".to_owned())));
 }
 
 fn test_json_empty_array() {
     let (val, errors) = parse_json("[]");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::Array(vec![])));
 }
 
 fn test_json_empty_object() {
     let (val, errors) = parse_json("{}");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::Object(serde_json::Map::new())));
 }
 
 fn test_json_nested_object() {
     let json = r#"{"outer": {"inner": 42}}"#;
     let (val, errors) = parse_json(json);
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     let inner = val
         .as_ref()
         .and_then(Value::as_object)
@@ -711,13 +711,13 @@ fn test_json_nested_object() {
 
 fn test_json_escape_sequences() {
     let (val, errors) = parse_json(r#""\n\t\r\\\"""#);
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::String("\n\t\r\\\"".to_owned())));
 }
 
 fn test_json_unicode_escape() {
     let (val, errors) = parse_json(r#""\u0041""#);
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     assert_eq!(val, Some(Value::String("A".to_owned())));
 }
 
@@ -733,30 +733,30 @@ fn test_json_trailing_comma() {
 fn test_json_missing_comma() {
     let (val, errors) = parse_json(r#"{"a": 1 "b": 2}"#);
     assert!(val.is_some());
-    assert!(!errors.is_empty());
+    assert_ne!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
 }
 
 fn test_json_unterminated_array() {
     let (val, errors) = parse_json("[1, 2, 3");
     assert!(val.is_some());
-    assert!(!errors.is_empty());
+    assert_ne!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
 }
 
 fn test_json_exponential() {
     let (val, errors) = parse_json("1.5e2");
-    assert!(errors.is_empty());
+    assert_eq!(errors, [] as [chumsky::error::Rich<'_, char>; 0]);
     let n = val.as_ref().and_then(Value::as_f64).unwrap();
     assert!((n - 150.0).abs() < 1e-10);
 }
 
 fn test_json_error_classification() {
     let (warnings, recovered, fatal) = classify_errors(vec![], true);
-    assert!(warnings.is_empty());
-    assert!(recovered.is_empty());
-    assert!(fatal.is_empty());
+    assert_eq!(warnings, [] as [chumsky::error::Rich<'_, char>; 0]);
+    assert_eq!(recovered, [] as [chumsky::error::Rich<'_, char>; 0]);
+    assert_eq!(fatal, [] as [chumsky::error::Rich<'_, char>; 0]);
 
     let err = Rich::<'_, char>::custom((0..1).into(), "test diagnostic");
     let (w, _, f) = classify_errors(vec![err], false);
     assert_eq!(w.len(), 1);
-    assert!(f.is_empty());
+    assert_eq!(f, [] as [chumsky::error::Rich<'_, char>; 0]);
 }

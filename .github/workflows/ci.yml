@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一分支的新 push 取消尚未完成的旧检查，避免重复消耗 runner
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ALSA headers
+        # kira/cpal 的 Linux 后端依赖 alsa-sys，其 build script 需要
+        # pkg-config 与 ALSA 头文件；runner 镜像默认不带
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Get Rust version
+        run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
+      - name: Restore cargo registry
+        uses: actions/cache@v4
+        with:
+          # registry 缓存键与 release-plz-pr.yml 完全一致，两侧互相复用
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-reg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-reg-${{ runner.os }}-
+      - name: Restore cargo target
+        uses: actions/cache@v4
+        with:
+          # deps/ 与 .fingerprint/：依赖产物与编译指纹，命中后跳过依赖重编
+          path: |
+            target/debug/deps
+            target/debug/.fingerprint
+          key: rust-target-clippy-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-target-clippy-${{ runner.os }}-${{ env.RUST_VERSION }}-
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  doc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Get Rust version
+        run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
+      - name: Restore cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-reg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-reg-${{ runner.os }}-
+      - name: Restore cargo target
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/debug/deps
+            target/debug/.fingerprint
+          key: rust-target-doc-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-target-doc-${{ runner.os }}-${{ env.RUST_VERSION }}-
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --quiet
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install ALSA headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
+      - name: Get Rust version
+        run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
+      - name: Restore cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-reg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-reg-${{ runner.os }}-
+      - name: Restore cargo target
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/debug/deps
+            target/debug/.fingerprint
+          key: rust-target-test-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-target-test-${{ runner.os }}-${{ env.RUST_VERSION }}-
+      - run: cargo test --workspace --quiet
+
+  deny:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-binstall
+        # 与 release-plz-pr.yml 同一安装脚本；cargo-deny 锁 minor（0.20），
+        # 与 release-plz 锁 cargo-semver-checks@0.48 的口径一致
+        run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+      - name: Restore cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-reg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-reg-${{ runner.os }}-
+      - name: Restore advisory database
+        uses: actions/cache@v4
+        with:
+          # cargo-deny 的 OSV/advisory-db 缓存；命中后每次运行做增量更新。
+          # 路径与 deny.toml 的 db-path 保持一致
+          path: ~/.cargo/advisory-db
+          key: rust-advisory-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-advisory-${{ runner.os }}-
+      - run: |
+          cargo binstall --no-confirm cargo-deny@0.20
+          cargo deny check
+
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # 工具链版本须与 workspace.package.rust-version 同步；guard 式
+      # let-chain（if_let_guard）于 Rust 1.95.0 稳定化
+      - uses: dtolnay/rust-toolchain@1.95
+      - name: Install ALSA headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
+      - name: Get Rust version
+        run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
+      - name: Restore cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-reg-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-reg-${{ runner.os }}-
+      - name: Restore cargo target
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/debug/deps
+            target/debug/.fingerprint
+          key: rust-target-msrv-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-target-msrv-${{ runner.os }}-${{ env.RUST_VERSION }}-
+      # resolver "3" 是 rust-version 感知的：依赖把 MSRV 抬过声明值时在这
+      # 里解析失败，拦住会破坏 MSRV 用户的升级
+      - run: cargo check --workspace --all-targets --quiet

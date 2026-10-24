@@ -46,9 +46,9 @@ fn chart_construction_is_empty_by_default() {
             audio_assets: vec![],
         },
     };
-    assert!(chart.song.title.is_empty());
-    assert!(chart.chart.subtitle.is_empty());
-    assert!(chart.data.events.is_empty());
+    assert_eq!(chart.song.title, "");
+    assert_eq!(chart.chart.subtitle, "");
+    assert_eq!(chart.data.events, [] as [bmsrs_chart::Event; 0]);
 }
 
 #[test]
@@ -89,19 +89,19 @@ fn chart_construction() {
 #[test]
 fn chart_song_info_default() {
     let info = SongInfo::default();
-    assert!(info.title.is_empty());
-    assert!(info.artist.is_empty());
-    assert!(info.genre.is_empty());
-    assert!(info.subartists.is_empty());
+    assert_eq!(info.title, "");
+    assert_eq!(info.artist, "");
+    assert_eq!(info.genre, "");
+    assert_eq!(info.subartists, [] as [std::string::String; 0]);
 }
 
 #[test]
 fn chart_info_default() {
     let info = ChartInfo::default();
-    assert!(info.subtitle.is_empty());
-    assert!(info.chart_name.is_empty());
+    assert_eq!(info.subtitle, "");
+    assert_eq!(info.chart_name, "");
     assert_eq!(info.level, 0);
-    assert!(info.bga_resources.is_empty());
+    assert_eq!(info.bga_resources, [] as [bmsrs_chart::BgaResource; 0]);
 }
 
 // ChartData
@@ -400,6 +400,7 @@ fn bga_resource_construction() {
 // NoteExt
 
 #[test]
+#[expect(clippy::clone_on_copy, reason = "该测试本身就是在验证 () 实现 Clone")]
 fn unit_note_ext() {
     let ext: () = <_ as Clone>::clone(&());
     assert_eq!(ext, ());
@@ -411,8 +412,8 @@ fn unit_note_ext() {
 fn timing_track_default() {
     let tt = TimingTrack::default();
     assert!((tt.init_bpm() - 120.0).abs() < f64::EPSILON);
-    assert!(tt.bpm_changes().is_empty());
-    assert!(tt.stops().is_empty());
+    assert_eq!(tt.bpm_changes(), []);
+    assert_eq!(tt.stops(), []);
 }
 
 #[test]

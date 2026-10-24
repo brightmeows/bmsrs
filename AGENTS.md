@@ -88,7 +88,7 @@ Git worktree 统一放在 `.worktrees/` 目录下。
 
 | 项目 | 值 |
 |------|-----|
-| MSRV | 1.88 |
+| MSRV | 1.95 |
 | Edition | 2024（`resolver = "3"`）|
 
 ### Lint 约定

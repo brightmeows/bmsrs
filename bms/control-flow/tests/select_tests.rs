@@ -268,7 +268,10 @@ fn no_control_flow_preserves_all_tokens() -> TestResult {
     let mut rng = StdRng::seed_from_u64(0);
     let (tokens, selection) = items.select_branches(&mut rng);
 
-    assert!(selection.decisions.is_empty());
+    assert_eq!(
+        selection.decisions,
+        [] as [bms_control_flow::BlockDecision; 0]
+    );
     assert_eq!(tokens.len(), 3);
     Ok(())
 }
@@ -449,7 +452,7 @@ fn random_no_branch_matches_yields_no_output() -> TestResult {
     let mut rng = StdRng::seed_from_u64(seed);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
-    assert!(wav_filenames(&tokens).is_empty());
+    assert_eq!(wav_filenames(&tokens), [] as [&str; 0]);
     assert_eq!(decisions.decisions[0].selected_index, 1); // 无匹配（branches.len()）
     Ok(())
 }
@@ -483,7 +486,7 @@ fn empty_random_block_select_yields_nothing() -> TestResult {
     let mut rng = StdRng::seed_from_u64(0);
     let (tokens, decisions) = items.select_branches(&mut rng);
 
-    assert!(tokens.is_empty());
+    assert_eq!(tokens, [] as [bms_tokenizer::BmsToken; 0]);
     assert_eq!(decisions.decisions[0].selected_index, 0);
     Ok(())
 }
@@ -778,7 +781,7 @@ fn switch_insane_multi_level_select() -> TestResult {
     // RNG [4]：SWITCH→4（无 CASE 4，不选出任何内容）→ 空
     let (result_4, dec_4) = items.select_branches(&mut SequenceRng::new(&[4]));
     assert_eq!(dec_4.decisions.len(), 1);
-    assert!(wav_filenames(&result_4).is_empty());
+    assert_eq!(wav_filenames(&result_4), [] as [&str; 0]);
     Ok(())
 }
 
@@ -790,7 +793,7 @@ fn random_zero_yields_empty_branch_without_panicking() -> TestResult {
     let (tokens, decisions) = doc.select_branches(&mut SequenceRng::new(&[]));
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(decisions.decisions[0].value, 0);
-    assert!(wav_filenames(&tokens).is_empty());
+    assert_eq!(wav_filenames(&tokens), [] as [&str; 0]);
     Ok(())
 }
 
@@ -801,7 +804,7 @@ fn switch_zero_yields_empty_branch_without_panicking() -> TestResult {
     let (tokens, decisions) = doc.select_branches(&mut SequenceRng::new(&[]));
     assert_eq!(decisions.decisions.len(), 1);
     assert_eq!(decisions.decisions[0].value, 0);
-    assert!(wav_filenames(&tokens).is_empty());
+    assert_eq!(wav_filenames(&tokens), [] as [&str; 0]);
     Ok(())
 }
 
