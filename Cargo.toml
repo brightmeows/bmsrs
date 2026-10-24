@@ -64,7 +64,7 @@ readme = "README.md"
 # External
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
-syn = { version = "2", features = ["full"] }
+syn = { version = "3", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
 chumsky = { version = "0.13", features = ["serde"] }
