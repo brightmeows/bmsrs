@@ -27,6 +27,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - name: Install ALSA headers
+        # kira/cpal 的 Linux 后端依赖 alsa-sys，其 build script 需要
+        # pkg-config 与 ALSA 头文件；runner 镜像默认不带
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -88,6 +92,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install ALSA headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
@@ -132,8 +138,9 @@ jobs:
       - name: Restore advisory database
         uses: actions/cache@v4
         with:
-          # cargo-deny 的 OSV/advisory-db 缓存；命中后每次运行做增量更新
-          path: ~/.cargo/advisory-dbs
+          # cargo-deny 的 OSV/advisory-db 缓存；命中后每次运行做增量更新。
+          # 路径与 deny.toml 的 db-path 保持一致
+          path: ~/.cargo/advisory-db
           key: rust-advisory-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             rust-advisory-${{ runner.os }}-
@@ -147,6 +154,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.88
+      - name: Install ALSA headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
@@ -167,6 +176,6 @@ jobs:
           key: rust-target-msrv-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             rust-target-msrv-${{ runner.os }}-${{ env.RUST_VERSION }}-
-      # resolver "3" 是 rust-version 感知的：依赖把 MSRV 抬过 1.88 时在这里
-      # 解析失败，拦住会破坏 MSRV 用户的升级
+      # resolver "3" 是 rust-version 感知的：依赖把 MSRV 抬过声明值时在这
+      # 里解析失败，拦住会破坏 MSRV 用户的升级
       - run: cargo check --workspace --all-targets --quiet
