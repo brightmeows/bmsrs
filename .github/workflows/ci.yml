@@ -37,7 +37,7 @@ jobs:
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # registry 缓存键与 release-plz-pr.yml 完全一致，两侧互相复用
           path: |
@@ -47,7 +47,7 @@ jobs:
           restore-keys: |
             rust-reg-${{ runner.os }}-
       - name: Restore cargo target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # deps/ 与 .fingerprint/：依赖产物与编译指纹，命中后跳过依赖重编
           path: |
@@ -67,7 +67,7 @@ jobs:
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -76,7 +76,7 @@ jobs:
           restore-keys: |
             rust-reg-${{ runner.os }}-
       - name: Restore cargo target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             target/debug/deps
@@ -97,7 +97,7 @@ jobs:
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -106,7 +106,7 @@ jobs:
           restore-keys: |
             rust-reg-${{ runner.os }}-
       - name: Restore cargo target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             target/debug/deps
@@ -127,7 +127,7 @@ jobs:
         # 与 release-plz 锁 cargo-semver-checks@0.48 的口径一致
         run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
       - name: Restore cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -136,7 +136,7 @@ jobs:
           restore-keys: |
             rust-reg-${{ runner.os }}-
       - name: Restore advisory database
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # cargo-deny 的 OSV/advisory-db 缓存；命中后每次运行做增量更新。
           # 路径与 deny.toml 的 db-path 保持一致
@@ -161,7 +161,7 @@ jobs:
       - name: Get Rust version
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> "$GITHUB_ENV"
       - name: Restore cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -170,7 +170,7 @@ jobs:
           restore-keys: |
             rust-reg-${{ runner.os }}-
       - name: Restore cargo target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             target/debug/deps

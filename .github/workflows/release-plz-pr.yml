@@ -36,7 +36,7 @@ jobs:
         run: echo "RUST_VERSION=$(rustc --version | cut -d' ' -f2)" >> $GITHUB_ENV
 
       - name: Restore cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -46,7 +46,7 @@ jobs:
             rust-reg-${{ runner.os }}-
 
       - name: Restore cargo target
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           # 各子目录理由：
           #   deps/         — registry 依赖的 .rlib/.rmeta，源码路径稳定，编译指纹一致，可重用
