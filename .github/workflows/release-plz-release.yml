@@ -57,7 +57,7 @@ jobs:
 
       - name: Restore cargo registry
         if: steps.check-release.outputs.needed == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -68,7 +68,7 @@ jobs:
 
       - name: Restore cargo target
         if: steps.check-release.outputs.needed == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: target
           key: rust-target-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
