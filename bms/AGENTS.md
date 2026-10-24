@@ -2,7 +2,7 @@
 
 ## 定位
 
-BMS（Be-Music Script）格式解析管道。`.bms` 原始文本经四阶段管道转换为格式无关的 `Chart<T>`。
+BMS（Be-Music Script）格式解析管道。`.bms` 原始字节经文档层与四阶段解析管道转换为格式无关的 `Chart<T>`。
 
 ## 管道
 
