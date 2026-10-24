@@ -10,6 +10,11 @@ pub mod bms {
         pub use bms_tokenizer::*;
     }
 
+    /// 无损文档层——字节保真、行级编辑与编码处理。
+    pub mod document {
+        pub use bms_document::*;
+    }
+
     /// 控制流树构建、分支选择与往返转换。
     pub mod control_flow {
         pub use bms_control_flow::*;
