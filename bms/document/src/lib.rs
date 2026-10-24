@@ -42,7 +42,7 @@ mod flow;
 mod line;
 mod source;
 
-pub use document::{Document, DocumentOptions, EditError};
+pub use document::{Document, DocumentOptions, EditError, ErrorStrategy};
 pub use encoding::{
     DetectedEncoding, DetectionMethod, SourceEncoding, UnmappableCharacter, UnsupportedEncoding,
 };

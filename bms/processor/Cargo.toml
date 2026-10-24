@@ -19,6 +19,7 @@ bmsrs-chart.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+bms-document.workspace = true
 bms-control-flow.workspace = true
 bmsrs-player.workspace = true
 

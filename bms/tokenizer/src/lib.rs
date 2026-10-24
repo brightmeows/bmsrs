@@ -1,32 +1,27 @@
-//! BMS（Be-Music Script）格式的分词器。
+//! BMS（Be-Music Script）格式的单行语法。
 //!
-//! 本 crate 提供 BMS 解析管道的第一阶段：
-//! 将原始 BMS 文本转换为结构化的 token 流。
+//! 本 crate 提供 BMS 解析管道的最底层：把**一行**文本解析为结构化 token。
+//! 整文件的分行、注释状态机、编码与行级编辑由 `bms-document` 负责。
 //!
-//! # 架构
+//! # 结构
 //!
 //! - [`enum@BmsToken`] 表示 BMS 文件中一行有意义的内容。
 //! - [`BmsHeader`] 涵盖所有头部命令，按语义域分类。
 //! - [`BmsMessage`] 涵盖通道数据行（`#xxxYY:values`）。
-//! - [`BmsTokenizer`] 是主入口，可配置错误处理策略。
+//! - [`parse_header_line`] / [`parse_message_line`] 是单行入口。
 //!
 //! 子模块为私有；所有公开类型均从 crate 根重新导出。
 //!
-//! 类型化值（数值转换、解析出的枚举）
-//! 始终为 owned。
-//! [`ErrorStrategy::FailFast`] 在首个错误处停止——适用于
-//! 偏好即时反馈的交互式校验场景。
+//! 类型化值（数值转换、解析出的枚举）始终为 owned。
 
 use std::fmt;
 use std::num::NonZeroUsize;
 
 mod channel;
-pub mod encoding;
 mod error;
 mod header;
 mod index;
 mod message;
-mod preprocess;
 
 pub use bms_tokenizer_derive::{BmsIndexNewtype, BmsTokenAttr};
 pub use channel::BmsChannel;
@@ -48,9 +43,6 @@ pub use index::{
 };
 pub use message::BmsMessage;
 pub use message::parse_message_line;
-pub use preprocess::preprocess;
-
-pub use encoding::BmsEncoding;
 
 /// BMS 头部值的统一 trait。
 ///
@@ -114,235 +106,4 @@ pub enum BmsToken {
     Header(BmsHeader),
     /// 通道数据行（`#xxxYY:values`）。
     Message(BmsMessage),
-}
-
-/// BMS 分词的错误处理策略。
-///
-/// 控制分词器如何处理解析失败的行。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ErrorStrategy {
-    /// 处理每一行；每行的结果单独包装。
-    /// 分词会越过错误继续，使调用方可以一次检视所有失败。
-    #[default]
-    CollectAll,
-    /// 在首个错误处停止，返回至（并包含）
-    /// 该行的结果。后续行不被检视。
-    FailFast,
-}
-
-/// [`tokenize`](BmsTokenizer::tokenize) 返回的 token 向量类型。
-type TokenizeOwnedResult = Vec<(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)>;
-
-/// 在 `s` 中查找第一个不在 `"..."` 字符串字面量内的 `//`。
-///
-/// 返回 `//` 的起始位置；若不存在行内注释则返回 `None`。
-///
-/// `//` 仅当前一字符为 ASCII 空白（或位于行首）时才视为注释起始，
-/// 避免 URL 中的 `//`（如 `https://`）被误判为注释。
-#[expect(
-    clippy::indexing_slicing,
-    reason = "i < bytes.len() 由 while 循环边界保证"
-)]
-const fn find_inline_comment(s: &str) -> Option<usize> {
-    let bytes = s.as_bytes();
-    let mut in_string = false;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'"' => {
-                in_string = !in_string;
-                i += 1;
-            }
-            b'/' if !in_string
-                && i + 1 < bytes.len()
-                && bytes[i + 1] == b'/'
-                && (i == 0 || bytes[i - 1].is_ascii_whitespace()) =>
-            {
-                return Some(i);
-            }
-            _ => {
-                i += 1;
-            }
-        }
-    }
-    None
-}
-
-/// 采用 builder 风格配置的 BMS 分词器。
-///
-/// # 示例
-///
-/// ```
-/// # use bms_tokenizer::{BmsTokenizer, ErrorStrategy, BmsEncoding};
-/// let tokens: Vec<_> = BmsTokenizer::new()
-///     .error_strategy(ErrorStrategy::CollectAll)
-///     .encoding(BmsEncoding::ShiftJis)
-///     .tokenize("#TITLE My Song\n#00101:11");
-/// ```
-#[derive(Debug, Clone)]
-pub struct BmsTokenizer {
-    /// 控制如何处理解析错误。
-    error_strategy: ErrorStrategy,
-    /// 允许的头部命令前缀字符。
-    header_prefixes: Vec<char>,
-    /// 预设的编码（可选）。设置后 `tokenize_bytes` 跳过检测直接使用此编码。
-    encoding: Option<BmsEncoding>,
-}
-
-impl Default for BmsTokenizer {
-    fn default() -> Self {
-        Self {
-            error_strategy: ErrorStrategy::default(),
-            header_prefixes: vec!['#', '%'],
-            encoding: None,
-        }
-    }
-}
-
-impl BmsTokenizer {
-    /// 创建一个使用默认配置
-    /// （[`ErrorStrategy::CollectAll`]、前缀 `#` 和 `%`）的 `BmsTokenizer`。
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// 设置错误处理策略。
-    #[must_use]
-    pub const fn error_strategy(mut self, strategy: ErrorStrategy) -> Self {
-        self.error_strategy = strategy;
-        self
-    }
-
-    /// 设置允许的头部前缀字符。
-    ///
-    /// 仅以这些字符之一开头的行才会被视为
-    /// 潜在的头部命令。默认：`['#', '%']`。
-    #[must_use]
-    pub fn header_prefixes(mut self, prefixes: &[char]) -> Self {
-        self.header_prefixes = prefixes.to_vec();
-        self
-    }
-
-    /// 预设文件编码。设置后在调用 [`tokenize_bytes`](Self::tokenize_bytes) 时
-    /// 跳过自动检测，直接使用此编码解码。
-    ///
-    /// 不影响 [`tokenize`](Self::tokenize)（后者始终接受 UTF-8 `&str`）。
-    #[must_use]
-    pub const fn encoding(mut self, encoding: BmsEncoding) -> Self {
-        self.encoding = Some(encoding);
-        self
-    }
-
-    /// 将 BMS 字符串分词为带行号的结果集合。
-    ///
-    /// 每个元素是一个 `(从 1 开始的行号, 结果)` 元组。
-    /// 空行与注释被跳过（不产生输出项）。
-    ///
-    /// 支持 LF（`\n`）、CRLF（`\r\n`）以及独立的 CR（`\r`）行尾。
-    ///
-    /// # 类型参数
-    ///
-    /// - `Out` —— 输出集合类型（例如 `Vec`、`Box<[_]>`）。
-    ///
-    /// # 错误策略
-    ///
-    /// - [`ErrorStrategy::CollectAll`]（默认）：处理所有行。
-    ///   错误以逐元素的 [`Result::Err`] 嵌入。
-    /// - [`ErrorStrategy::FailFast`]：在首个错误处停止。集合
-    ///   包含至（并包含）错误行为止的结果。
-    ///
-    /// # Panics
-    ///
-    /// 输入行数超过 `usize` 上限时 panic（实际 BMS 文件不可能达到此上限）。
-    #[must_use]
-    pub fn tokenize<Out>(&self, input: &str) -> Out
-    where
-        Out: FromIterator<(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)>,
-    {
-        let mut results = Vec::new();
-        let mut line_number: usize = 0;
-
-        for raw_line in input.lines() {
-            for segment in raw_line.split('\r') {
-                line_number += 1;
-
-                let trimmed = segment.trim();
-                if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with(';') {
-                    continue;
-                }
-
-                // 处理行内 // 注释（跳过 "..." 字符串内的）
-                let line = match find_inline_comment(trimmed) {
-                    Some(pos) => {
-                        // 安全：pos 位于 ASCII `//` 处，保证为字符边界
-                        let Some(head) = trimmed.get(..pos) else {
-                            continue;
-                        };
-                        let trimmed_head = head.trim_end();
-                        if trimmed_head.is_empty() {
-                            continue;
-                        }
-                        trimmed_head
-                    }
-                    None => trimmed,
-                };
-
-                // `line_number` 首次使用前从 0 自增，此处永远 >= 1。
-                #[expect(
-                    clippy::expect_used,
-                    reason = "line_number always >= 1, guaranteed by increment-before-use"
-                )]
-                let nz_line = NonZeroUsize::new(line_number)
-                    .expect("line_number always >= 1, guaranteed by increment-before-use");
-
-                let result: Result<BmsToken, BmsTokenizeError> = match parse_message_line(line) {
-                    Ok(Some(msg)) => Ok(BmsToken::Message(msg)),
-                    Ok(None) => match parse_header_line(line, &self.header_prefixes) {
-                        Ok(Some(hdr)) => Ok(BmsToken::Header(hdr)),
-                        Ok(None) => continue,
-                        Err(e) => Err(e),
-                    },
-                    Err(e) => Err(e),
-                };
-
-                if self.error_strategy == ErrorStrategy::FailFast && result.is_err() {
-                    results.push((nz_line, result));
-                    return results.into_iter().collect();
-                }
-
-                results.push((nz_line, result));
-            }
-        }
-
-        results.into_iter().collect()
-    }
-
-    /// 将 BMS 字符串分词为 owned token。
-    ///
-    /// 等价于 `self.tokenize(input)`，适合需要在分词完成后
-    /// 释放原输入字符串的场景（如读取文件到 `String` 后分词）。
-    ///
-    /// # Panics
-    ///
-    /// 参见 [`tokenize`](Self::tokenize) 的 Panics 说明——条件相同。
-    #[must_use]
-    pub fn tokenize_owned(&self, input: &str) -> TokenizeOwnedResult {
-        self.tokenize(input)
-    }
-
-    /// 将 BMS 字节数据分词为 owned token。
-    ///
-    /// 内部自动检测编码（除非通过 [`encoding`](Self::encoding) 预设），
-    /// 解码为 UTF-8 后调用 [`tokenize`](Self::tokenize)。
-    ///
-    /// # Panics
-    ///
-    /// 参见 [`tokenize`](Self::tokenize) 的 Panics 说明——条件相同。
-    #[must_use]
-    pub fn tokenize_bytes(&self, input: &[u8]) -> TokenizeOwnedResult {
-        let encoding = self.encoding.unwrap_or_else(|| BmsEncoding::detect(input));
-        let decoded = encoding.decode(input);
-        self.tokenize(&decoded)
-    }
 }

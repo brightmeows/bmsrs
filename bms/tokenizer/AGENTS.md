@@ -2,7 +2,10 @@
 
 ## 定位
 
-BMS 语法分析第一关：原始文本 → 结构化 token 流。
+BMS 单行语法：把**一行**文本解析为 `BmsToken`，并提供 header 声明表。
+
+整文件的分行、注释状态机、编码检测与行级编辑归 `bms-document`；本 crate
+不持有任何整文件循环。
 
 ## 关键设计决策
 
@@ -11,12 +14,14 @@ BMS 语法分析第一关：原始文本 → 结构化 token 流。
 | 通道分类时机 | tokenizer 阶段 | 下游 parser 无需重复解析通道号 |
 | 跨命令引用保留 | 不解析跨命令引用，保留 raw index | 引用语义（WAV→定义、`#BGA`→`#BMP`）归 processor；`#BASE` 模式由 parser 决定 |
 | 字符集 | Base62（最宽松） | 统一入口，`#BASE` 声明在 parser 层生效 |
-| 注释预处理 | 独立 `preprocess()` 函数 | 保持 tokenizer 零拷贝路径不受影响 |
+| 注释与编码 | 不处理 | 归 `bms-document`：注释状态机、BOM、行尾与编码检测都在那里 |
+| 整文件循环 | 不提供 | `Document` 是唯一整文件入口，避免两份分行规则 |
 
 ## 目标
 
 每个 token 的存在只为三个目的：
-1. **Roundtrip 保真** — `format_header` 还原原始行
+
+1. **Roundtrip 保真** — `format_header` 还原命令与值
 2. **单行验证** — 语法 + 单行值解释（`Rank` 枚举映射、`#STP` 格式等）+ 局部引用校验
 3. **查表无依赖** — 不依赖其他命令的结果
 
@@ -31,11 +36,8 @@ BMS 语法分析第一关：原始文本 → 结构化 token 流。
 ## 字符串存储
 
 `BmsToken` / `BmsHeader` / `BmsMessage` 中的字符串字段统一使用 `String` 类型。
-`tokenize` 方法始终产出 owned `String` 值：
-
-```rust
-let tokens: Vec<(_, _)> = BmsTokenizer::new().tokenize(input);
-```
+单行解析入口 `parse_header_line` / `parse_message_line` 产出 owned 值，
+不借用输入。
 
 ## 新增 Header
 
@@ -61,9 +63,8 @@ let tokens: Vec<(_, _)> = BmsTokenizer::new().tokenize(input);
 |------|------|
 | `BmsIndex` 比较大小写敏感 | 标准 BMS 在 parser 层 normalize 为大写；Base62 模式保留原大小写 |
 | `parse_message_line` / `parse_header_line` 对集成测试可见 | 已 re-export，测试可直接调用 |
-| `#` + `%` 是默认 header 前缀 | 可通过 `BmsTokenizer::header_prefixes()` 自定义 |
-| 三行结尾格式均支持 | LF / CRLF / standalone CR |
-| `//` 和 `;` 行首注释 | tokenizer 主循环跳过；inline `//`（前一字符须为空白或行首，含 `"..."` 字符串保护）也由主循环处理；`/* */` 和 `;` 行中注释仍由 `preprocess()` 处理。空白前置规则避免 URL 中的 `//`（如 `https://`）被误判 |
+| `##` 开头的行不是头部 | `parse_header_line` 返回 `Ok(None)`；`bms-document` 将其分类为注释 |
+| `#` + `%` 前缀由调用方提供 | 前缀列表是 `parse_header_line` 的参数，默认值在 `DocumentOptions` |
 
 ## Always / Ask / Never
 
@@ -80,3 +81,4 @@ let tokens: Vec<(_, _)> = BmsTokenizer::new().tokenize(input);
 
 - 在 tokenizer 层解析跨命令引用（WAV/BMP 引用语义归 processor；`Bms` 保真存引用形态）
 - 修改 `BmsIndex` 的比较语义
+- 在这里重新引入整文件分词循环或编码检测

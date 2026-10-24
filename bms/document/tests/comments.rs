@@ -91,6 +91,16 @@ fn escaped_quote_keeps_comment_marker_out_of_string() {
 }
 
 #[test]
+fn double_hash_line_is_comment() {
+    let document = Document::from_text("## note\n#TITLE x\n");
+    assert!(
+        document
+            .line(0)
+            .is_some_and(|line| matches!(line.kind(), LineKind::Comment))
+    );
+}
+
+#[test]
 fn bare_text_line_is_classified_as_text() {
     let document = Document::from_text("hello world\n");
     assert!(

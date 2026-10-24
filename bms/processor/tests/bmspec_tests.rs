@@ -7,11 +7,11 @@
 //! 节拍（beat）换算：1 beat = resolution（240）个脉冲。
 
 use bms_control_flow::FlowDoc;
+use bms_document::Document;
 use bms_parser::Bms;
 use bms_processor::BmsProcessor;
 use bms_processor::custom_event::BmsCustomEvent;
 use bms_processor::layout::Bme;
-use bms_tokenizer::BmsTokenizer;
 use bmsrs_chart::{Chart, EventKind, NoteKind};
 use bmsrs_player::Player;
 
@@ -21,12 +21,11 @@ type BmsChart = Chart<(), BmsCustomEvent>;
 /// 管道辅助：BMS 原文 → `Chart<(), BmsCustomEvent>`。
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn process(bms_text: &str) -> BmsChart {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(bms_text)
-        .into_iter()
-        .filter_map(|(_, res)| res.ok())
-        .collect();
-    let bms = Bms::from_flat_tokens(tokens);
+    let bms = Bms::from_flat_tokens(
+        Document::from_text(bms_text)
+            .tokens()
+            .map(|(_, token)| token),
+    );
     BmsProcessor::process::<Bme>(&bms).expect("process should succeed")
 }
 
@@ -537,11 +536,7 @@ impl bms_control_flow::BranchRng for TestRng {
 }
 
 fn process_with_cf(bms_text: &str) -> BmsChart {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(bms_text)
-        .into_iter()
-        .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
-        .collect();
+    let tokens: Vec<_> = Document::from_text(bms_text).tokens().collect();
     #[expect(clippy::expect_used, reason = "test helper panics on build failure")]
     let tree = FlowDoc::from_tokens(tokens).expect("build FlowDoc");
     let (flat, _) = tree.select_branches(&mut TestRng);
@@ -672,16 +667,15 @@ fn bmspec_1_07_basic_info() {
 /// bmspec-1-08-WAV: WAV 定义引用（在 Bms 模型层验证，Chart 不保留 WavIndex→文件名映射）。
 #[test]
 fn bmspec_1_08_wav_references() {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(
-            "#TITLE #WAV test case\n\
-             #WAV01 index.mp3\n\
-             #WAVZZ wow.mp3\n\
-             #WAVAA zz.ogg\n",
-        )
-        .into_iter()
-        .filter_map(|(_, res)| res.ok())
-        .collect();
+    let tokens: Vec<_> = Document::from_text(
+        "#TITLE #WAV test case\n\
+         #WAV01 index.mp3\n\
+         #WAVZZ wow.mp3\n\
+         #WAVAA zz.ogg\n",
+    )
+    .tokens()
+    .map(|(_, token)| token)
+    .collect();
     let bms = Bms::from_flat_tokens(tokens);
 
     let wav01: bms_tokenizer::WavIndex = "01".parse().unwrap();

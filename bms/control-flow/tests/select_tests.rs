@@ -7,22 +7,18 @@
 )]
 
 use bms_control_flow::{BranchRng, ControlFlowError, FlowDoc, TokenPayload};
-use bms_tokenizer::{
-    BmsHeader, BmsHeaderControlFlow, BmsHeaderResDefAudio, BmsToken, BmsTokenizer,
-};
+use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsHeaderResDefAudio, BmsToken};
 use rand::SeedableRng as _;
 use rand::rngs::StdRng;
 use std::fmt::Write as _;
+
+mod common;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
 /// 辅助函数：对 BMS 文本分词并构建 `FlowDoc<TokenPayload>`。
 fn build_doc(input: &str) -> std::result::Result<FlowDoc<TokenPayload>, ControlFlowError> {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
-        .into_iter()
-        .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
-        .collect();
+    let tokens = common::tokenize(input);
     FlowDoc::from_tokens(tokens)
 }
 

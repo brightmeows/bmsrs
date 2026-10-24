@@ -185,6 +185,10 @@ pub fn classify_str(text: &str, scanned: &Scanned, prefixes: &[char]) -> LineKin
 
 /// 把内容段解析为 token 分类。
 fn parse_content(text: &str, prefixes: &[char]) -> LineKind {
+    // `##` 是 BMS 惯例的行注释，`parse_header_line` 对它返回 `None`。
+    if text.starts_with("##") {
+        return LineKind::Comment;
+    }
     match parse_message_line(text) {
         Ok(Some(message)) => LineKind::Message(message),
         Ok(None) => match parse_header_line(text, prefixes) {

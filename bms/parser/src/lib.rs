@@ -86,8 +86,8 @@ impl Bms {
     /// [`Bms`]，同时返回控制流阶段产生的警告。
     ///
     /// 等价于以下步骤的组合调用：
-    /// 1. 使用 [`BmsTokenizer`] 分词
-    /// 2. 跳过分词错误
+    /// 1. 使用 [`Document`] 构建无损文档
+    /// 2. 按 `error_strategy` 抽取 token 并跳过错误
     /// 3. 使用 [`FlowDoc::from_tokens`] 构建控制流树
     /// 4. 使用 `rng` 选择分支
     /// 5. 使用 [`Bms::from_flat_tokens`] 解析
@@ -103,24 +103,23 @@ impl Bms {
     /// 当控制流结构不合法时返回
     /// [`ControlFlowError`](bms_control_flow::ControlFlowError)。
     ///
-    /// [`BmsTokenizer`]: bms_tokenizer::BmsTokenizer
+    /// [`Document`]: bms_document::Document
     /// [`FlowDoc::from_tokens`]: bms_control_flow::FlowDoc::from_tokens
     pub fn from_text<R>(
         text: &str,
         rng: &mut R,
-        error_strategy: bms_tokenizer::ErrorStrategy,
+        error_strategy: bms_document::ErrorStrategy,
     ) -> Result<(Self, Vec<bms_control_flow::ControlFlowWarning>), bms_control_flow::ControlFlowError>
     where
         R: bms_control_flow::BranchRng,
     {
         use bms_control_flow::FlowDoc;
-        use bms_tokenizer::BmsTokenizer;
+        use bms_document::Document;
 
-        let token_pairs = BmsTokenizer::new()
-            .error_strategy(error_strategy)
-            .tokenize::<Vec<_>>(text)
-            .into_iter()
-            .filter_map(|(line, res)| res.ok().map(|token| (line, token)));
+        let document = Document::from_text(text);
+        let token_pairs = document
+            .token_results_with(error_strategy)
+            .filter_map(|(line, result)| result.ok().map(|token| (line, token)));
 
         let doc = FlowDoc::from_tokens(token_pairs)?;
         let warnings = doc.warnings().to_vec();

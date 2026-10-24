@@ -43,10 +43,10 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use bmsrs::bms::document::Document;
 use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
-use bmsrs::bms::tokenizer::BmsTokenizer;
 use bmsrs::bmson::processor::{BmsonNoteExt, BmsonProcessor};
 use bmsrs::chart::{AudioAsset, Chart, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide};
 use bmsrs::player::Player;
@@ -185,22 +185,19 @@ fn load_chart(path: &Path) -> Result<(Chart<(), NoCustomEvent>, PathBuf), String
 fn load_bms(path: &Path) -> Result<Chart<(), BmsCustomEvent>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("无法读取文件 {}: {e}", path.display()))?;
 
-    // BMS 文件通常使用 Shift-JIS 编码。
-    let content = encoding_rs::SHIFT_JIS.decode(&bytes).0.into_owned();
+    // 文档层自动检测编码（Shift_JIS 等）并保留原始字节。
+    let document = Document::from_bytes(bytes);
 
-    // 分词后直接送入解析器，避免不必要的中间收集。
-    let bms = Bms::from_flat_tokens(
-        BmsTokenizer::new()
-            .tokenize_owned(&content)
-            .into_iter()
-            .filter_map(|(_, res)| match res {
-                Ok(tok) => Some(tok),
-                Err(e) => {
-                    eprintln!("警告: 跳过无效 token: {e}");
-                    None
-                }
-            }),
-    );
+    // 解析失败的行跳过，保留其余 token。
+    let bms = Bms::from_flat_tokens(document.token_results().filter_map(
+        |(_, result)| match result {
+            Ok(token) => Some(token),
+            Err(error) => {
+                eprintln!("警告: 跳过无效 token: {error}");
+                None
+            }
+        },
+    ));
 
     // 转换为格式无关的 Chart。
     BmsProcessor::process_default(&bms).map_err(|e| format!("BMS 处理失败: {e}"))

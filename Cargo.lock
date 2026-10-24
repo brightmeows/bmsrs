@@ -223,8 +223,9 @@ dependencies = [
  "bms-control-flow",
  "bms-tokenizer",
  "encoding_rs",
+ "itertools 0.15.0",
  "proptest",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -232,6 +233,7 @@ name = "bms-parser"
 version = "0.1.0"
 dependencies = [
  "bms-control-flow",
+ "bms-document",
  "bms-tokenizer",
  "bmsrs-chart",
 ]
@@ -241,6 +243,7 @@ name = "bms-processor"
 version = "0.1.0"
 dependencies = [
  "bms-control-flow",
+ "bms-document",
  "bms-parser",
  "bms-tokenizer",
  "bmsrs-chart",
@@ -254,10 +257,8 @@ version = "0.1.0"
 dependencies = [
  "bms-tokenizer-derive",
  "derive_more",
- "encoding_rs",
  "insta",
  "itertools 0.15.0",
- "proptest",
  "thiserror 2.0.21",
 ]
 

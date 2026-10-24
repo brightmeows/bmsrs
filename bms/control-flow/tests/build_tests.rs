@@ -11,17 +11,15 @@ use bms_control_flow::{
     ControlFlowError, FlowBlock, FlowDoc, FlowNode, RandomBlock, RandomBranchKind, SwitchBlock,
     SwitchCaseKind, TokenPayload,
 };
-use bms_tokenizer::{BmsToken, BmsTokenizer};
+use bms_tokenizer::BmsToken;
+
+mod common;
 
 type TestResult = std::result::Result<(), ControlFlowError>;
 
 /// 辅助函数：对 BMS 文本分词，仅保留成功的 token。
 fn tokenize(input: &str) -> Vec<(NonZeroUsize, BmsToken)> {
-    BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
-        .into_iter()
-        .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
-        .collect()
+    common::tokenize(input)
 }
 
 /// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload>`。

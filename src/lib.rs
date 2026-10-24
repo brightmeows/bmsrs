@@ -5,7 +5,7 @@
 
 /// BMS 格式的解析与处理。
 pub mod bms {
-    /// BMS 分词器——底层逐行解析。
+    /// BMS 单行语法解析。
     pub mod tokenizer {
         pub use bms_tokenizer::*;
     }

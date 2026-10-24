@@ -8,7 +8,8 @@ BMS（Be-Music Script）格式解析管道。`.bms` 原始文本经四阶段管�
 
 ```mermaid
 flowchart LR
-    Raw[".bms (&str)"] --> Tok[bms-tokenizer]
+    Raw[".bms bytes"] --> Doc[bms-document]
+    Doc -->|逐行| Tok[bms-tokenizer]
     Tok --> CF[bms-control-flow]
     CF --> Par[bms-parser]
     Par --> Proc[bms-processor]
@@ -17,7 +18,8 @@ flowchart LR
 
 | 阶段 | Crate | 职责 |
 |------|-------|------|
-| 1 词法 | `bms-tokenizer` | 原始文本 → `BmsToken` |
+| 0 文档 | `bms-document` | 原始字节 → 行（含 trivia）；token 抽取、行编辑与字节保真写回 |
+| 1 词法 | `bms-tokenizer` | 单行文本 → `BmsToken` |
 | — 派生 | `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro，无运行时逻辑 |
 | 2 控制流 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip |
 | 3 语义 | `bms-parser` | flat token → `Bms` 模型 |
@@ -28,6 +30,7 @@ flowchart LR
 | 原则 | 含义 |
 |------|------|
 | 分层不越界 | tokenizer 不做跨命令验证、control-flow 不依赖 parser、parser 不展开控制流、processor 不引入 I/O |
+| 整文件循环只有一份 | 分行、注释状态机、编码与行尾都在 `bms-document`；tokenizer 只做单行 |
 | `P` 泛型贯穿 | `P`（负载类型）由调用侧选择，贯穿管道；字符串字段统一使用 `String` |
 | 模式族解耦 | 键位映射通过零大小类型实现 `BmsLayout` trait，不在 `Chart` 中存储模式信息 |
 

@@ -7,17 +7,14 @@
 )]
 
 use bms_control_flow::{ControlFlowError, FlowBlock, FlowDoc, FlowNode, TokenPayload};
-use bms_tokenizer::BmsTokenizer;
+
+mod common;
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
 /// 辅助函数：对文本分词并构建 `FlowDoc<TokenPayload>`。
 fn build_doc(input: &str) -> Result<FlowDoc<TokenPayload>, ControlFlowError> {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
-        .into_iter()
-        .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
-        .collect();
+    let tokens = common::tokenize(input);
     FlowDoc::from_tokens(tokens)
 }
 

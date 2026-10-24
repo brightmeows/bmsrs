@@ -5,6 +5,7 @@ use std::num::NonZeroUsize;
 
 use bms_control_flow::{ControlFlowError, FlowDoc, FlowRow};
 use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizeError};
+use itertools::Itertools as _;
 
 use crate::classify::{ScanState, classify_line, classify_str, scan_line};
 use crate::source::split_lines;
@@ -29,6 +30,16 @@ impl Default for DocumentOptions {
             header_prefixes: vec!['#', '%'],
         }
     }
+}
+
+/// token 抽取的错误处理策略。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ErrorStrategy {
+    /// 遍历全部行，错误以逐项的 `Err` 出现。
+    #[default]
+    CollectAll,
+    /// 在首个错误处停止，结果包含该错误行。
+    FailFast,
 }
 
 /// 一份 BMS 无损文档。
@@ -412,6 +423,25 @@ impl Document {
             }
         }
         output
+    }
+
+    /// 按错误策略迭代 token 解析结果。
+    ///
+    /// [`ErrorStrategy::CollectAll`] 遍历全部行；
+    /// [`ErrorStrategy::FailFast`] 在首个错误处停止，并把该错误行包含在
+    /// 结果中。
+    pub fn token_results_with(
+        &self,
+        strategy: ErrorStrategy,
+    ) -> impl Iterator<Item = (NonZeroUsize, Result<BmsToken, BmsTokenizeError>)> + '_ {
+        let results: Vec<_> = match strategy {
+            ErrorStrategy::CollectAll => self.token_results().collect(),
+            ErrorStrategy::FailFast => self
+                .token_results()
+                .take_while_inclusive(|(_, result)| result.is_ok())
+                .collect(),
+        };
+        results.into_iter()
     }
 
     /// 返回指定行的当前字节（优先使用编辑后的替换字节）。
