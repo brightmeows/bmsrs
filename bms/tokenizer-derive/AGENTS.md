@@ -64,7 +64,6 @@ macro 将每个 `FromStr::Err` 通过 `IntoTokensError` 转换为 `BmsTokenizeEr
 # 通过 bms-tokenizer 的 roundtrip 测试间接测试
 cargo test -p bms-tokenizer --test bms_token
 # 多态测试
-cargo test -p bms-tokenizer --test generic
 ```
 
 proc-macro 单元测试在 `parse.rs` 中（使用 `proc_macro2` 类型）。

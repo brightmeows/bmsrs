@@ -16,12 +16,10 @@ readme.workspace = true
 thiserror.workspace = true
 derive_more.workspace = true
 itertools.workspace = true
-encoding_rs.workspace = true
 bms-tokenizer-derive.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
-proptest.workspace = true
 
 [lib]
 

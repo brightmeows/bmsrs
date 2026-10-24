@@ -1,0 +1,26 @@
+[package]
+name = "bms-document"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BMS 无损文档模型：原始字节、行级编辑与编码保真写回"
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[dependencies]
+bms-tokenizer.workspace = true
+bms-control-flow.workspace = true
+encoding_rs.workspace = true
+itertools.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

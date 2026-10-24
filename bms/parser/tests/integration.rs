@@ -2,31 +2,48 @@
 //!
 //! 这些测试仅通过公开 API 消费 crate，与外部消费者的使用方式完全一致。
 
+use bms_control_flow::BranchRng;
+use bms_document::{Document, ErrorStrategy};
 use bms_parser::*;
 use bms_tokenizer::{
-    BmpIndex, BmsBase, BmsChannel, BmsIndex, BmsTokenizer, BpmIndex, LnMode, LnType, PlayerMode,
-    PoorBgaMode, Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
+    Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 use bmsrs_chart::BgaLayer;
 
 /// 辅助函数：将 BMS 字符串解析为 `Bms`（默认 C = &str）。
 fn parse(input: &str) -> Bms {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
-        .into_iter()
-        .filter_map(|(_, res)| res.ok())
-        .collect();
-    Bms::from_flat_tokens(tokens)
+    Bms::from_flat_tokens(Document::from_text(input).tokens().map(|(_, token)| token))
 }
 
 /// 辅助函数：使用 `C = String` 解析，验证拥有字符串管道工作正常。
 fn parse_string(input: &str) -> Bms {
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(input)
-        .into_iter()
-        .filter_map(|(_, res)| res.ok())
-        .collect();
-    Bms::from_flat_tokens(tokens)
+    Bms::from_flat_tokens(Document::from_text(input).tokens().map(|(_, token)| token))
+}
+
+/// 固定返回 1 的 RNG，用于 `from_text` 测试。
+struct FixedRng;
+
+impl BranchRng for FixedRng {
+    fn gen_range(&mut self, _max: u64) -> u64 {
+        1
+    }
+}
+
+#[test]
+fn from_text_collect_all_keeps_tokens_after_error() {
+    let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
+    let (bms, _) = Bms::from_text(text, &mut FixedRng, ErrorStrategy::CollectAll)
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(bms.metadata.artist.as_deref(), Some("B"));
+}
+
+#[test]
+fn from_text_fail_fast_stops_at_error() {
+    let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
+    let (bms, _) = Bms::from_text(text, &mut FixedRng, ErrorStrategy::FailFast)
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert!(bms.metadata.artist.is_none());
 }
 
 // 重新导出可访问性

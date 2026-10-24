@@ -5,9 +5,14 @@
 
 /// BMS 格式的解析与处理。
 pub mod bms {
-    /// BMS 分词器——底层逐行解析。
+    /// BMS 单行语法解析。
     pub mod tokenizer {
         pub use bms_tokenizer::*;
+    }
+
+    /// 无损文档层——字节保真、行级编辑与编码处理。
+    pub mod document {
+        pub use bms_document::*;
     }
 
     /// 控制流树构建、分支选择与往返转换。

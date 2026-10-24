@@ -17,8 +17,8 @@
 #![expect(clippy::print_stdout, reason = "example prints to stdout by design")]
 
 use bmsrs::bms::control_flow::{FlowBlock, FlowDoc, FlowNode, TokenPayload};
+use bmsrs::bms::document::Document;
 use bmsrs::bms::parser::Bms;
-use bmsrs::bms::tokenizer::BmsTokenizer;
 
 /// 一份极小谱面：含一个顶层区间和一个 `#RANDOM` 块，
 /// 后者分裂为两条分支，各带自己的通道消息。
@@ -39,11 +39,7 @@ const SOURCE: &str = "\
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. 将 BMS 文本分词为 `(line, token)` 流。
-    let tokens: Vec<_> = BmsTokenizer::new()
-        .tokenize::<Vec<_>>(SOURCE)
-        .into_iter()
-        .filter_map(|(line, res)| res.ok().map(|token| (line, token)))
-        .collect();
+    let tokens: Vec<_> = Document::from_text(SOURCE).tokens().collect();
 
     // 2. 构建 token 级控制流树——可编辑的事实来源。
     //    连续的非控制流 token 打包成 payload 区间；

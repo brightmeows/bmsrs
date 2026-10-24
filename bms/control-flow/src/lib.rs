@@ -7,14 +7,19 @@
 //! # Usage
 //!
 //! ```
-//! use bms_control_flow::FlowDoc;
-//! use bms_tokenizer::BmsTokenizer;
+//! use std::num::NonZeroUsize;
 //!
-//! let tokens: Vec<_> = BmsTokenizer::new()
-//!     .tokenize::<Vec<_>>("#RANDOM 2\n#IF 1\n#00101:11\n#ENDIF\n#ENDRANDOM")
-//!     .into_iter()
-//!     .filter_map(|(line, res)| res.ok().map(|t| (line, t)))
-//!     .collect();
+//! use bms_control_flow::FlowDoc;
+//! use bms_tokenizer::{BmsHeader, BmsHeaderControlFlow, BmsHeaderMetadata, BmsToken};
+//!
+//! let line = NonZeroUsize::MIN;
+//! let tokens = vec![
+//!     (line, BmsToken::Header(BmsHeader::ControlFlow(BmsHeaderControlFlow::Random(2)))),
+//!     (line, BmsToken::Header(BmsHeader::ControlFlow(BmsHeaderControlFlow::If(1)))),
+//!     (line, BmsToken::Header(BmsHeader::Metadata(BmsHeaderMetadata::Title("x".to_owned())))),
+//!     (line, BmsToken::Header(BmsHeader::ControlFlow(BmsHeaderControlFlow::EndIf))),
+//!     (line, BmsToken::Header(BmsHeader::ControlFlow(BmsHeaderControlFlow::EndRandom))),
+//! ];
 //!
 //! let tree = FlowDoc::from_tokens(tokens).unwrap();
 //! let flat = tree.to_tokens();

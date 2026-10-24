@@ -8,6 +8,29 @@ use crate::{
     SwitchCaseKind, TokenPayload,
 };
 
+impl<P: Clone> FlowDoc<P> {
+    /// 使用 `rng` 为每个控制流块选择一个分支。
+    ///
+    /// 返回仅含已选分支的载荷片段序列，以及记录每次决策的
+    /// [`BranchSelection`]。
+    ///
+    /// - `#SETRANDOM` / `#SETSWITCH` 块直接使用其 `max` 值，不调用 `rng`。
+    /// - `#RANDOM` 块：选择条件与 RNG 值匹配的第一个分支。
+    /// - `#SWITCH` 块：选择与值匹配的第一个 `#CASE`，并 fall-through 到
+    ///   后续 case，直到遇到 `#SKIP`。
+    #[must_use]
+    pub fn select_payloads(&self, rng: &mut impl BranchRng) -> (Vec<P>, BranchSelection) {
+        let mut output = Vec::new();
+        let mut decisions = Vec::new();
+
+        for node in self.iter() {
+            select_node(node, rng, &mut output, &mut decisions);
+        }
+
+        (output, BranchSelection { decisions })
+    }
+}
+
 impl FlowDoc<TokenPayload> {
     /// 使用 `rng` 为每个控制流块选择一个分支。
     ///
@@ -20,39 +43,33 @@ impl FlowDoc<TokenPayload> {
     ///   后续 case，直到遇到 `#SKIP`。
     #[must_use]
     pub fn select_branches(&self, rng: &mut impl BranchRng) -> (Vec<BmsToken>, BranchSelection) {
-        let mut output = Vec::new();
-        let mut decisions = Vec::new();
-
-        for node in self.iter() {
-            select_node(node, rng, &mut output, &mut decisions);
-        }
-
-        (output, BranchSelection { decisions })
+        let (payloads, selection) = self.select_payloads(rng);
+        let tokens = payloads
+            .into_iter()
+            .flat_map(|payload| payload.tokens.into_iter().map(|(_, token)| token))
+            .collect();
+        (tokens, selection)
     }
 }
 
-/// 处理单个 [`FlowNode`]，将 token 追加到 `output`。
-fn select_node(
-    node: &FlowNode<TokenPayload>,
+/// 处理单个 [`FlowNode`]，将载荷追加到 `output`。
+fn select_node<P: Clone>(
+    node: &FlowNode<P>,
     rng: &mut impl BranchRng,
-    output: &mut Vec<BmsToken>,
+    output: &mut Vec<P>,
     decisions: &mut Vec<BlockDecision>,
 ) {
     match node {
-        FlowNode::Payload(payload) => {
-            for (_, token) in &payload.tokens {
-                output.push(token.clone());
-            }
-        }
+        FlowNode::Payload(payload) => output.push(payload.clone()),
         FlowNode::Block(block) => select_block(block, rng, output, decisions),
     }
 }
 
 /// 在 [`FlowBlock`] 内选择分支。
-fn select_block(
-    block: &FlowBlock<TokenPayload>,
+fn select_block<P: Clone>(
+    block: &FlowBlock<P>,
     rng: &mut impl BranchRng,
-    output: &mut Vec<BmsToken>,
+    output: &mut Vec<P>,
     decisions: &mut Vec<BlockDecision>,
 ) {
     match block {
@@ -67,8 +84,8 @@ fn select_block(
             };
 
             // 每条互斥链（#IF…#ENDIF）独立按首匹配选择；同一 #RANDOM
-            // 块的多条链共享同一个随机值。selected_index 记录第一条链
-            // 的选择（单链场景即唯一选择），供 BranchSelection 断言。
+            // 块的多条链共享同一个随机值。selected_index 记录第一条链的
+            // 选择（单链场景即唯一选择），供 BranchSelection 断言。
             let mut first_selected = 0;
             for (chain_idx, chain) in r.chains.iter().enumerate() {
                 let selected_index = chain

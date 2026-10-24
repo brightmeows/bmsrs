@@ -2,7 +2,7 @@
 
 use std::num::NonZeroUsize;
 
-use bms_tokenizer::BmsToken;
+use bms_tokenizer::{BmsHeaderControlFlow, BmsToken};
 
 use crate::ControlFlowWarning;
 
@@ -139,6 +139,41 @@ pub enum SwitchCaseKind {
 pub struct TokenPayload {
     /// 此片段中连续的 `(line, token)` 对。
     pub tokens: Vec<(NonZeroUsize, BmsToken)>,
+}
+
+/// 控制流树构建的输入行。
+///
+/// [`ControlFlow`](Self::ControlFlow) 成为树的骨架，
+/// [`Payload`](Self::Payload) 进入连续的载荷片段。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FlowRow<T> {
+    /// 控制流命令（`#RANDOM`、`#IF` 等）。
+    ControlFlow(BmsHeaderControlFlow),
+    /// 普通条目，进入载荷片段。
+    Payload(T),
+}
+
+/// 载荷片段的构造契约。
+///
+/// 构建器把连续的非控制流条目收集成一段，再交给此 trait 构造载荷。
+/// [`TokenPayload`] 保存整段 token；行导向的载荷（如行区间）只需记录
+/// 这段条目的范围。
+pub trait FlowPayload {
+    /// 单个条目类型。
+    type Item;
+
+    /// 由一段连续的 `(行号, 条目)` 构造载荷。
+    ///
+    /// 构建器保证 `run` 非空。
+    fn from_run(run: Vec<(NonZeroUsize, Self::Item)>) -> Self;
+}
+
+impl FlowPayload for TokenPayload {
+    type Item = BmsToken;
+
+    fn from_run(run: Vec<(NonZeroUsize, BmsToken)>) -> Self {
+        Self { tokens: run }
+    }
 }
 
 /// `select_branches` 期间所做分支选择决策的记录。

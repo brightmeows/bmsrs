@@ -11,7 +11,8 @@ BMS（Be-Music Script）/ BMSON 谱面格式解析、转换与模拟播放的 Ru
 
 ```mermaid
 flowchart LR
-    BMS[".bms file"] --> Tok[bms-tokenizer]
+    BMS[".bms file"] --> Doc[bms-document]
+    Doc -->|逐行| Tok[bms-tokenizer]
     Tok --> CF[bms-control-flow]
     CF --> Par[bms-parser]
     Par --> BProc[bms-processor]
@@ -28,7 +29,8 @@ flowchart LR
 
 | Crate | 定位 | 输入 → 输出 |
 |-------|------|-------------|
-| `bms-tokenizer` | BMS 语法分析第一关：原始文本 → 结构化 token 流 | `&str` → `BmsToken` |
+| `bms-document` | BMS 无损文档层：字节保真、行级编辑与编码处理 | `Vec<u8>` → `Document` |
+| `bms-tokenizer` | BMS 单行语法：一行文本 → 结构化 token | `&str`（单行）→ `BmsToken` |
 | `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` |
 | `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` |
