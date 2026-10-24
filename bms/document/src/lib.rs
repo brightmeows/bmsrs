@@ -10,7 +10,9 @@
 //!   包含未编辑行的新字节序列。
 //!
 //! BMS 的嵌套结构（`#RANDOM` / `#SWITCH`）不在这里建模，而是由
-//! `Document::flow` 交给 `bms-control-flow` 构建为控制流树。
+//! [`Document::flow`] 把行序列交给 `bms-control-flow` 构建为
+//! [`FlowDoc<LineRef>`](bms_control_flow::FlowDoc)，分支选择的结果可以直接
+//! 按原文行渲染。
 //!
 //! # 行模型
 //!
@@ -36,6 +38,7 @@
 mod classify;
 mod document;
 mod encoding;
+mod flow;
 mod line;
 mod source;
 
@@ -43,4 +46,5 @@ pub use document::{Document, DocumentOptions, EditError};
 pub use encoding::{
     DetectedEncoding, DetectionMethod, SourceEncoding, UnmappableCharacter, UnsupportedEncoding,
 };
+pub use flow::LineRef;
 pub use line::{Line, LineEnding, LineError, LineKind};

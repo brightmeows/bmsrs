@@ -3,13 +3,14 @@
 use std::fmt;
 use std::num::NonZeroUsize;
 
-use bms_tokenizer::{BmsToken, BmsTokenizeError};
+use bms_control_flow::{ControlFlowError, FlowDoc, FlowRow};
+use bms_tokenizer::{BmsHeader, BmsToken, BmsTokenizeError};
 
 use crate::classify::{ScanState, classify_line, classify_str, scan_line};
 use crate::source::split_lines;
 use crate::{
-    DetectedEncoding, DetectionMethod, Line, LineEnding, LineError, LineKind, SourceEncoding,
-    UnmappableCharacter,
+    DetectedEncoding, DetectionMethod, Line, LineEnding, LineError, LineKind, LineRef,
+    SourceEncoding, UnmappableCharacter,
 };
 
 /// 文档构建选项。
@@ -371,6 +372,46 @@ impl Document {
                     .to_token()
                     .map(|token| (line_number(index), Ok(token))),
             })
+    }
+
+    /// 构建行导向的控制流树。
+    ///
+    /// 每一行都作为一个条目进入树：控制流命令行成为骨架，其余行（含
+    /// 空白、注释与错误行）进入载荷片段。因此载荷行区间覆盖原文的连续
+    /// 行，[`select_payloads`](bms_control_flow::FlowDoc::select_payloads)
+    /// 的结果可以直接交给 [`render_lines`](Self::render_lines) 做字节保真
+    /// 渲染。
+    ///
+    /// # Errors
+    ///
+    /// 控制流嵌套错误时返回 [`ControlFlowError`]。
+    pub fn flow(&self) -> Result<FlowDoc<LineRef>, ControlFlowError> {
+        let rows = self.lines.iter().enumerate().map(|(index, line)| {
+            let number = line_number(index);
+            match &line.kind {
+                LineKind::Header(BmsHeader::ControlFlow(cf)) => {
+                    (number, FlowRow::ControlFlow(cf.clone()))
+                }
+                _ => (number, FlowRow::Payload(())),
+            }
+        });
+        FlowDoc::from_rows(rows)
+    }
+
+    /// 按行区间渲染扁平输出。
+    ///
+    /// 输出包含 BOM（若有），随后按给定顺序拼接各行。未编辑行取原始
+    /// 字节，因此结果中对应行的字节与原文一致。
+    #[must_use]
+    pub fn render_lines(&self, ranges: &[LineRef]) -> Vec<u8> {
+        let mut output = Vec::new();
+        output.extend_from_slice(self.bom());
+        for range in ranges {
+            for number in range.start.get()..=range.end.get() {
+                output.extend_from_slice(self.line_bytes(number.saturating_sub(1)));
+            }
+        }
+        output
     }
 
     /// 返回指定行的当前字节（优先使用编辑后的替换字节）。
