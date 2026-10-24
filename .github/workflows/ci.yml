@@ -155,7 +155,7 @@ jobs:
       - uses: actions/checkout@v7
       # 工具链版本须与 workspace.package.rust-version 同步；guard 式
       # let-chain（if_let_guard）于 Rust 1.95.0 稳定化
-      - uses: dtolnay/rust-toolchain@1.95
+      - uses: dtolnay/rust-toolchain@1.120
       - name: Install system headers
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev libdbus-1-dev
       - name: Get Rust version
