@@ -15,9 +15,12 @@ feature-depth = 1
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "warn"
-# ignore = [
-#     { id = "RUSTSEC-0000-0000", reason = "..." },
-# ]
+# unmaintained 是维护状态信号而非漏洞，降为 warn 不挡合并；
+# 无安全升级的 unsound/vulnerability 逐条豁免并写明理由，可随时撤
+unmaintained = "warn"
+ignore = [
+    { id = "RUSTSEC-2025-0035", reason = "macroquad 的多个 soundness 问题仅经 facade 的 dev 依赖进 examples（microquad_player）；0.4.x 无安全升级，示例仅本机演示运行，不进入发布产物" },
+]
 
 [licenses]
 unused-allowed-license = "warn"
