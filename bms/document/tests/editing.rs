@@ -34,6 +34,36 @@ fn replace_line_preserves_other_lines() {
 }
 
 #[test]
+fn shift_jis_edit_preserves_other_lines() {
+    let source = "#CHARSET Shift_JIS\n#TITLE テスト\n// 注釈\n#00111:0102\n";
+    let mut document = shift_jis_document(source);
+    let before = document.render();
+    document
+        .replace_line(1, "#TITLE 変更")
+        .unwrap_or_else(|error| panic!("{error}"));
+    let after = document.render();
+    let before_lines: Vec<&[u8]> = before.split(|byte| *byte == b'\n').collect();
+    let after_lines: Vec<&[u8]> = after.split(|byte| *byte == b'\n').collect();
+    assert_eq!(
+        (before_lines[0], before_lines[2], before_lines[3]),
+        (after_lines[0], after_lines[2], after_lines[3])
+    );
+}
+
+#[test]
+fn shift_jis_replace_content_keeps_comment() {
+    let source = "  #TITLE テスト // 注釈
+";
+    let mut document = shift_jis_document(source);
+    document
+        .replace_content(0, "#TITLE 変更")
+        .unwrap_or_else(|error| panic!("{error}"));
+    let expected = "  #TITLE 変更 // 注釈\n";
+    let (expected_bytes, _, _) = encoding_rs::SHIFT_JIS.encode(expected);
+    assert_eq!(document.render(), expected_bytes.into_owned());
+}
+
+#[test]
 fn replace_line_keeps_terminator() {
     let mut document = Document::from_text("#TITLE A\r\n#ARTIST B\r\n");
     document

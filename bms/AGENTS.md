@@ -61,6 +61,7 @@ BMS 命令、通道映射、头部字段等术语参照 **bms skill**（`~/.agen
 ## 测试
 
 ```bash
+cargo test -p bms-document
 cargo test -p bms-tokenizer
 cargo test -p bms-control-flow
 cargo test -p bms-parser
