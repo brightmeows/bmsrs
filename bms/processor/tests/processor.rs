@@ -370,7 +370,7 @@ fn process_bar_lines_generated() {
         .iter()
         .filter_map(|e| matches!(&e.kind, EventKind::Bar).then_some(e.tick()))
         .collect();
-    assert!(!bar_lines.is_empty());
+    assert_ne!(bar_lines, [] as [u64; 0]);
     assert_eq!(bar_lines[0], 0);
     assert_eq!(bar_lines[1], 960);
 }

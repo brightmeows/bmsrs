@@ -359,7 +359,7 @@ fn measure_length_fractional() {
 fn measure_length_default_on_invalid() {
     // 无效值被静默忽略。
     let msgs = parse_one("#00102:notanumber");
-    assert!(msgs.measure_lengths.is_empty());
+    assert_eq!(msgs.measure_lengths, [] as [bms_parser::MeasureLength; 0]);
 }
 
 #[test]

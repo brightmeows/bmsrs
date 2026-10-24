@@ -143,7 +143,7 @@ type TokenizeOwnedResult = Vec<(NonZeroUsize, Result<BmsToken, BmsTokenizeError>
     clippy::indexing_slicing,
     reason = "i < bytes.len() 由 while 循环边界保证"
 )]
-fn find_inline_comment(s: &str) -> Option<usize> {
+const fn find_inline_comment(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();
     let mut in_string = false;
     let mut i = 0;

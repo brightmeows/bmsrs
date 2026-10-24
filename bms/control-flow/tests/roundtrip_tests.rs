@@ -172,7 +172,7 @@ fn no_endrandom_block_not_in_top_level() -> TestResult {
     )?;
 
     let tokens = items.to_tokens();
-    assert!(tokens.is_empty());
+    assert_eq!(tokens, [] as [bms_tokenizer::BmsToken; 0]);
     Ok(())
 }
 

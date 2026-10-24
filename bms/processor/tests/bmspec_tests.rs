@@ -641,7 +641,7 @@ fn bmspec_4_random_no_match() {
          #ENDRANDOM\n",
     );
     // RNG=3 不匹配任何 IF → 不产出 WAV
-    assert!(chart.data.audio_assets.is_empty());
+    assert_eq!(chart.data.audio_assets, [] as [bmsrs_chart::AudioAsset; 0]);
 }
 
 /// bmspec-5-Subtitle: 基本副标题。

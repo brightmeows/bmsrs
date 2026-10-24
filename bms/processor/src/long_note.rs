@@ -252,7 +252,7 @@ mod tests {
         assert_eq!(ln.tick, 0);
         assert_eq!(ln.end_tick, 960);
         assert_eq!(ln.duration, 960); // 分辨率 240 下的 1 小节
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     #[test]
@@ -269,7 +269,7 @@ mod tests {
         assert_eq!(result.paired.len(), 2);
         assert_eq!(result.paired[0].tick, 0);
         assert_eq!(result.paired[1].tick, 960);
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     #[test]
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(result.paired.len(), 2);
         assert_eq!(result.paired[0].lane, 1);
         assert_eq!(result.paired[1].lane, 2);
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     #[test]
@@ -366,7 +366,7 @@ mod tests {
 
         assert_eq!(result.paired.len(), 1);
         assert_eq!(result.paired[0].wav_id, "AA".parse().unwrap());
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     #[test]
@@ -387,7 +387,7 @@ mod tests {
         assert_eq!(result.paired.len(), 2);
         assert_eq!(result.paired[0].wav_id, "AA".parse().unwrap());
         assert_eq!(result.paired[1].wav_id, "CC".parse().unwrap());
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod tests {
         let result = pair_lntype1(&events, &table);
 
         assert!(result.paired.is_empty());
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     // LNTYPE 2 (MGQ)
@@ -421,7 +421,7 @@ mod tests {
         assert_eq!(result.paired[0].wav_id, "AA".parse().unwrap());
         // 00 在 numer=3（共 8）→ 位置 = 3/8 小节 → 脉冲 = 960 * 3/8 = 360
         assert_eq!(result.paired[0].duration, 360);
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     #[test]
@@ -456,7 +456,7 @@ mod tests {
         assert_eq!(result.paired[2].tick, 1080);
         assert_eq!(result.paired[2].end_tick, 1200);
         assert_eq!(result.paired[2].duration, 120);
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 
     #[test]
@@ -485,6 +485,6 @@ mod tests {
         let result = pair_lntype2(&events, &table);
 
         assert_eq!(result.paired.len(), 2);
-        assert!(result.unpaired_starts.is_empty());
+        assert_eq!(result.unpaired_starts, [] as [(u8, u8, u64); 0]);
     }
 }

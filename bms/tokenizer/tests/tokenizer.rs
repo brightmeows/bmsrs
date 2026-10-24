@@ -9,19 +9,37 @@ use bms_tokenizer::{
 #[test]
 fn tokenize_empty_input() {
     let tokens: Vec<_> = BmsTokenizer::new().tokenize("");
-    assert!(tokens.is_empty());
+    assert_eq!(
+        tokens,
+        [] as [(
+            std::num::NonZero<usize>,
+            std::result::Result<bms_tokenizer::BmsToken, bms_tokenizer::BmsTokenizeError>
+        ); 0]
+    );
 }
 
 #[test]
 fn tokenize_whitespace_only() {
     let tokens: Vec<_> = BmsTokenizer::new().tokenize("  \n  \n  ");
-    assert!(tokens.is_empty());
+    assert_eq!(
+        tokens,
+        [] as [(
+            std::num::NonZero<usize>,
+            std::result::Result<bms_tokenizer::BmsToken, bms_tokenizer::BmsTokenizeError>
+        ); 0]
+    );
 }
 
 #[test]
 fn tokenize_comment_only() {
     let tokens: Vec<_> = BmsTokenizer::new().tokenize("// just a comment\n// another one");
-    assert!(tokens.is_empty());
+    assert_eq!(
+        tokens,
+        [] as [(
+            std::num::NonZero<usize>,
+            std::result::Result<bms_tokenizer::BmsToken, bms_tokenizer::BmsTokenizeError>
+        ); 0]
+    );
 }
 
 #[test]
@@ -351,7 +369,13 @@ fn bms_tokenizer_debug_and_clone() {
 #[test]
 fn bms_tokenizer_default() {
     let t = BmsTokenizer::default();
-    assert!(t.tokenize::<Vec<_>>("").is_empty());
+    assert_eq!(
+        t.tokenize::<Vec<_>>(""),
+        [] as [(
+            std::num::NonZero<usize>,
+            std::result::Result<bms_tokenizer::BmsToken, bms_tokenizer::BmsTokenizeError>
+        ); 0]
+    );
 }
 
 #[test]

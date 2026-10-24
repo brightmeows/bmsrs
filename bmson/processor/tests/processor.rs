@@ -727,7 +727,7 @@ fn bar_lines_auto_generated() -> TestResult {
         .map(Event::tick)
         .collect();
 
-    assert!(!bars.is_empty());
+    assert_ne!(bars, [] as [u64; 0]);
     assert_eq!(bars[0], 0);
     assert_eq!(bars[1], 960);
     Ok(())

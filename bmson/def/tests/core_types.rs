@@ -58,8 +58,8 @@ fn bga_v0_camelcase_aliases() {
     assert_eq!(bga.bga_header[0].name, Path::new("bg.png"));
     assert_eq!(bga.bga_events.len(), 1);
     assert_eq!(bga.bga_events[0].y, 0);
-    assert!(bga.layer_events.is_empty());
-    assert!(bga.poor_events.is_empty());
+    assert_eq!(bga.layer_events, [] as [bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.poor_events, [] as [bmson_def::BGAEvent; 0]);
 }
 
 #[test]
@@ -116,12 +116,12 @@ fn null_arrays_become_empty() {
     let cd: ChartData =
         serde_json::from_str(r#"{"init_bpm": 120, "bpm_events": null, "stop_events": null}"#)
             .unwrap();
-    assert!(cd.bpm_events.is_empty());
-    assert!(cd.stop_events.is_empty());
+    assert_eq!(cd.bpm_events, [] as [bmson_def::BpmEvent; 0]);
+    assert_eq!(cd.stop_events, [] as [bmson_def::StopEvent; 0]);
 
     let cd_no_events: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
-    assert!(cd_no_events.bpm_events.is_empty());
-    assert!(cd_no_events.stop_events.is_empty());
+    assert_eq!(cd_no_events.bpm_events, [] as [bmson_def::BpmEvent; 0]);
+    assert_eq!(cd_no_events.stop_events, [] as [bmson_def::StopEvent; 0]);
 }
 
 #[test]
@@ -337,9 +337,9 @@ fn bmson_extensions_absent_default_empty() {
         "chart_data": {"init_bpm": 120}
     }"#;
     let root: bmson_def::Bmson = serde_json::from_str(json).unwrap();
-    assert!(root.scroll_events.is_empty());
-    assert!(root.mine_channels.is_empty());
-    assert!(root.key_channels.is_empty());
+    assert_eq!(root.scroll_events, [] as [bmson_def::ScrollEvent; 0]);
+    assert_eq!(root.mine_channels, [] as [bmson_def::MineChannel<'_>; 0]);
+    assert_eq!(root.key_channels, [] as [bmson_def::KeyChannel<'_>; 0]);
 }
 
 #[test]

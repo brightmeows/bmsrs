@@ -335,7 +335,7 @@ fn properly_closed_random_has_no_warnings() -> TestResult {
          #ENDRANDOM",
     )?;
 
-    assert!(tree.warnings().is_empty());
+    assert_eq!(tree.warnings(), []);
     Ok(())
 }
 
