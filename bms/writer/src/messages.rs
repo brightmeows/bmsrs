@@ -5,8 +5,6 @@ use std::collections::BTreeMap;
 use bms_parser::Messages;
 use bms_tokenizer::BmsChannel;
 
-use crate::channel::fixed_channel_str;
-
 /// 序列化全部通道行。
 ///
 /// 按（小节，通道）升序输出。合并语义与 [`bms_parser`] 的解析一致：
@@ -72,16 +70,6 @@ fn chunk_2char(body: &str) -> impl Iterator<Item = &str> {
 
 /// 格式化一条通道行（`#MMMCC:body`）。
 fn message_line(measure: u16, channel: BmsChannel, body: &str) -> String {
-    let channel_str =
-        fixed_channel_str(&channel).map_or_else(|| channel_display(channel), str::to_owned);
+    let channel_str = channel.as_str();
     format!("#{measure:03}{channel_str}:{body}")
-}
-
-/// 携带原始索引的通道号格式化（Base36 大写）。
-fn channel_display(channel: BmsChannel) -> String {
-    match channel {
-        BmsChannel::Note(idx) | BmsChannel::Unknown(idx) => idx.to_string(),
-        // 其余变体在 fixed_channel_str 中穷尽；此分支仅为 match 完整性。
-        _ => String::new(),
-    }
 }

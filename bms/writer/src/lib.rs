@@ -12,7 +12,6 @@
 //! bms_parser::Bms → BmsWriter::write → String（BMS 文本）
 //! ```
 
-pub mod channel;
 mod headers;
 mod messages;
 

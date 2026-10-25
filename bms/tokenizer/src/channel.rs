@@ -104,6 +104,53 @@ impl BmsChannel {
         let idx: ChannelIndex = upper.as_str().try_into().ok()?;
         Some(classify_channel(idx))
     }
+
+    /// 返回通道号字符串（大写，1–2 字符）。
+    ///
+    /// 已知非音符通道返回其规范编号（如 `"01"`、`"SC"`）；携带
+    /// 原始索引的变体返回该索引的大写形式。供行级编辑写回时
+    /// 组装地址段使用。
+    #[must_use]
+    pub fn as_str(&self) -> std::borrow::Cow<'_, str> {
+        match self {
+            Self::Note(idx) | Self::Unknown(idx) => std::borrow::Cow::Owned(idx.to_string()),
+            fixed => std::borrow::Cow::Borrowed(fixed_number(*fixed)),
+        }
+    }
+}
+
+/// 已知非音符通道的规范编号字符串。
+const fn fixed_number(ch: BmsChannel) -> &'static str {
+    match ch {
+        BmsChannel::Bgm => "01",
+        BmsChannel::MeasureLength => "02",
+        BmsChannel::BpmChange => "03",
+        BmsChannel::BgaBase => "04",
+        BmsChannel::Seek => "05",
+        BmsChannel::BgaPoor => "06",
+        BmsChannel::BgaLayer => "07",
+        BmsChannel::ExtendedBpm => "08",
+        BmsChannel::Stop => "09",
+        BmsChannel::BgaLayer2 => "0A",
+        BmsChannel::BgaBaseOpacity => "0B",
+        BmsChannel::BgaLayerOpacity => "0C",
+        BmsChannel::BgaLayer2Opacity => "0D",
+        BmsChannel::BgaPoorOpacity => "0E",
+        BmsChannel::BgmVolume => "97",
+        BmsChannel::KeyVolume => "98",
+        BmsChannel::Text => "99",
+        BmsChannel::Judge => "A0",
+        BmsChannel::BgaArgbBase => "A1",
+        BmsChannel::BgaArgbLayer => "A2",
+        BmsChannel::BgaArgbLayer2 => "A3",
+        BmsChannel::BgaArgbPoor => "A4",
+        BmsChannel::BgaKeyBound => "A5",
+        BmsChannel::Option => "A6",
+        BmsChannel::Scroll => "SC",
+        BmsChannel::Speed => "SP",
+        // 携带索引的变体在 `as_str` 中处理。
+        BmsChannel::Note(_) | BmsChannel::Unknown(_) => "",
+    }
 }
 
 /// 将一个已校验的 [`ChannelIndex`] 归类为

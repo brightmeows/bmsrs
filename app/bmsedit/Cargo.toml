@@ -1,0 +1,40 @@
+[package]
+name = "bmsedit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[[bin]]
+name = "bmsedit"
+path = "src/main.rs"
+
+[dependencies]
+bms-control-flow.workspace = true
+bms-processor.workspace = true
+bms-document.workspace = true
+bms-parser.workspace = true
+bms-tokenizer.workspace = true
+bms-writer.workspace = true
+bmson-def.workspace = true
+clap.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+bms-document.workspace = true
+bms-parser.workspace = true
+bms-control-flow.workspace = true
+bms-tokenizer.workspace = true
+
+[lints]
+workspace = true
