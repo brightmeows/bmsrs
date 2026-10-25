@@ -24,7 +24,7 @@ mod slice;
 
 pub mod layout;
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -193,11 +193,13 @@ impl BmsonProcessor {
 
         let timing = build_timing(bmson_data)?;
         let resolution = bmson_data.resolution;
+        let bga_ids = build_bga_id_map(&bmson.chart_info.bga);
         let mut conv = BmsonConverter {
             bmson,
             decode,
             timing: timing.clone(),
             resolution,
+            bga_ids: &bga_ids,
             audio_assets: Vec::new(),
             events: Vec::new(),
             warnings: Vec::new(),
@@ -272,6 +274,8 @@ struct BmsonConverter<'a> {
     timing: TimingTrack,
     /// 节拍分辨率。
     resolution: u64,
+    /// BMSON BGA 原始 id → 稠密资源下标映射。
+    bga_ids: &'a BTreeMap<u64, u32>,
     /// 正在构建的音频素材向量。
     audio_assets: Vec<AudioAsset>,
     /// 正在构建的事件向量。
@@ -316,36 +320,45 @@ impl BmsonConverter<'_> {
     }
 
     /// 收集 BGA 事件（三层：Base / Layer / Poor）。
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "BGA header/event ids are in the u32 range for practical charts"
-    )]
+    ///
+    /// `resource_id` 经 [`BmsonConverter::bga_ids`] 重编号为稠密下标；
+    /// 引用 `bga_header` 中不存在 id 的事件被跳过（与 BMS 侧查表未命中
+    /// 行为一致）。
     fn collect_bga_events(&mut self) {
         let bga = &self.bmson.chart_info.bga;
         for e in &bga.bga_events {
+            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
+                continue;
+            };
             self.events.push(Event::new(
                 e.y,
                 EventKind::Bga {
                     layer: BgaLayer::Base,
-                    resource_id: e.id as u32,
+                    resource_id,
                 },
             ));
         }
         for e in &bga.layer_events {
+            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
+                continue;
+            };
             self.events.push(Event::new(
                 e.y,
                 EventKind::Bga {
                     layer: BgaLayer::Layer,
-                    resource_id: e.id as u32,
+                    resource_id,
                 },
             ));
         }
         for e in &bga.poor_events {
+            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
+                continue;
+            };
             self.events.push(Event::new(
                 e.y,
                 EventKind::Bga {
                     layer: BgaLayer::Poor,
-                    resource_id: e.id as u32,
+                    resource_id,
                 },
             ));
         }
@@ -544,6 +557,26 @@ const fn ln_life_to_hint(ll: bmson_def::LnLife) -> LnLifeHint {
     }
 }
 
+/// 建立 BMSON BGA 原始 id 到稠密下标的映射。
+///
+/// `resource_id == bga_resources` 下标的不变量由本映射保证：`bga_header`
+/// 的 id 可能稀疏或巨大，重编号后渲染器可安全按索引取资源表。
+/// 重复的原始 id 以最后一次出现者生效（与 schema 注释一致，insert
+/// 覆盖）。
+fn build_bga_id_map(bga: &bmson_def::BGA<'_>) -> BTreeMap<u64, u32> {
+    bga.bga_header
+        .iter()
+        .enumerate()
+        .map(|(i, h)| {
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "BGA header count fits in u32"
+            )]
+            (h.id, i as u32)
+        })
+        .collect()
+}
+
 /// 从 BMSON 乐曲信息构建 [`SongInfo`]。
 fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
     SongInfo {
@@ -562,16 +595,19 @@ fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
 /// 从 BMSON 谱面信息构建 [`ChartInfo`]。
 fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> ChartInfo {
     let bga = &bmson.chart_info.bga;
+    // 稠密下标：与 build_bga_id_map 的 enumerate 序一致，
+    // 保证 resource_id == bga_resources 下标的不变量。
     let bga_resources: Vec<BgaResource> = bga
         .bga_header
         .iter()
-        .map(|h| {
+        .enumerate()
+        .map(|(i, h)| {
             #[expect(
                 clippy::cast_possible_truncation,
                 reason = "BGA header count fits in u32"
             )]
             BgaResource {
-                id: h.id as u32,
+                id: i as u32,
                 path: h.name.to_path_buf(),
                 // BMSON 无裁剪/放置概念（图片/视频统一为路径）。
                 crop: None,

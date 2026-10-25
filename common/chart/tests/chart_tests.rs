@@ -798,3 +798,54 @@ fn chart_filter_map_events_preserves_metadata() {
     assert_eq!(mapped.chart.chart_name, "HYPER");
     assert_eq!(mapped.data.events.len(), 3);
 }
+
+// Chart::validate
+
+#[test]
+fn validate_rejects_dangling_bga_resource() {
+    let mut chart = Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: valid_chart_data(),
+    };
+    chart.data.events = vec![Event::new(
+        0,
+        EventKind::Bga {
+            layer: BgaLayer::Base,
+            resource_id: 2,
+        },
+    )];
+    chart.chart.bga_resources = vec![BgaResource {
+        id: 0,
+        path: std::path::PathBuf::from("bg.png"),
+        crop: None,
+    }];
+
+    assert_eq!(
+        chart.validate(),
+        Err(ChartDataError::DanglingBgaResource { id: 2, len: 1 })
+    );
+}
+
+#[test]
+fn validate_accepts_consistent_bga_references() {
+    let mut chart = Chart {
+        song: SongInfo::default(),
+        chart: ChartInfo::default(),
+        data: valid_chart_data(),
+    };
+    chart.data.events = vec![Event::new(
+        0,
+        EventKind::Bga {
+            layer: BgaLayer::Base,
+            resource_id: 0,
+        },
+    )];
+    chart.chart.bga_resources = vec![BgaResource {
+        id: 0,
+        path: std::path::PathBuf::from("bg.png"),
+        crop: None,
+    }];
+
+    assert_eq!(chart.validate(), Ok(()));
+}

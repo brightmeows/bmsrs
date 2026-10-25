@@ -92,10 +92,10 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     ///
     /// # Errors
     ///
-    /// 若谱面数据不合法（`resolution == 0` 或初始 BPM 零/非有限值），
+    /// 若谱面不合法（`ChartData` 不变量或 BGA 资源引用越界），
     /// 返回 [`ChartDataError`]。
     pub fn new(mut chart: Chart<T, C>) -> Result<Self, ChartDataError> {
-        chart.data.validate()?;
+        chart.validate()?;
         chart.data.sort_events();
         let resolution = chart.data.resolution;
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);

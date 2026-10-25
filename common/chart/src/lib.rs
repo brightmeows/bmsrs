@@ -194,6 +194,16 @@ pub enum ChartDataError {
         /// 音频素材表长度。
         len: usize,
     },
+    /// BGA 事件引用了越界的资源 id。
+    ///
+    /// 两侧 processor 均重编号为稠密下标，`resource_id` 必须落在
+    /// [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources) 范围内。
+    DanglingBgaResource {
+        /// 越界的资源 id。
+        id: u32,
+        /// BGA 资源表长度。
+        len: usize,
+    },
 }
 
 impl fmt::Display for ChartDataError {
@@ -209,6 +219,9 @@ impl fmt::Display for ChartDataError {
             ),
             Self::DanglingAudioIndex { index, len } => {
                 write!(f, "audio index {index} out of range (0..{len})")
+            }
+            Self::DanglingBgaResource { id, len } => {
+                write!(f, "bga resource id {id} out of range (0..{len})")
             }
         }
     }
@@ -439,6 +452,32 @@ pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
 impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Chart<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
+    /// 验证谱面的关键不变量。
+    ///
+    /// 检查项：
+    /// - [`ChartData`] 的全部不变量（委托 [`ChartData::validate`]）
+    /// - BGA 事件的 `resource_id` 均落在
+    ///   [`bga_resources`](crate::ChartInfo::bga_resources) 范围内
+    ///
+    /// # Errors
+    ///
+    /// 若任何检查失败，返回 [`ChartDataError`]。
+    pub fn validate(&self) -> Result<(), ChartDataError> {
+        self.data.validate()?;
+        let len = self.chart.bga_resources.len();
+        for event in &self.data.events {
+            if let EventKind::Bga { resource_id, .. } = &event.kind
+                && *resource_id as usize >= len
+            {
+                return Err(ChartDataError::DanglingBgaResource {
+                    id: *resource_id,
+                    len,
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// 通过映射函数转换所有事件，返回新的 `Chart`，其余字段不变。
     ///
     /// 见 [`ChartData::map_events`]。

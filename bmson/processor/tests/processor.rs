@@ -579,7 +579,8 @@ fn process_bga_events() -> TestResult {
     assert!(bga_evts.contains(&(960, BgaLayer::Poor)));
 
     assert_eq!(chart.chart.bga_resources.len(), 1);
-    assert_eq!(chart.chart.bga_resources[0].id, 1);
+    // 稠密化：原始 id 1 → 下标 0
+    assert_eq!(chart.chart.bga_resources[0].id, 0);
     Ok(())
 }
 
