@@ -321,41 +321,18 @@ impl BmsonConverter<'_> {
     /// 行为一致）。
     fn collect_bga_events(&mut self) {
         let bga = &self.bmson.chart_info.bga;
-        for e in &bga.bga_events {
-            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
-                continue;
-            };
-            self.events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Base,
-                    resource_id,
-                },
-            ));
-        }
-        for e in &bga.layer_events {
-            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
-                continue;
-            };
-            self.events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Layer,
-                    resource_id,
-                },
-            ));
-        }
-        for e in &bga.poor_events {
-            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
-                continue;
-            };
-            self.events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Poor,
-                    resource_id,
-                },
-            ));
+        for (layer, events) in [
+            (BgaLayer::Base, &bga.bga_events),
+            (BgaLayer::Layer, &bga.layer_events),
+            (BgaLayer::Poor, &bga.poor_events),
+        ] {
+            for e in events {
+                let Some(&resource_id) = self.bga_ids.get(&e.id) else {
+                    continue;
+                };
+                self.events
+                    .push(Event::new(e.y, EventKind::Bga { layer, resource_id }));
+            }
         }
     }
 
