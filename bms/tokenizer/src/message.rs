@@ -85,6 +85,58 @@ impl BmsMessage {
     pub const fn channel(&self) -> BmsChannel {
         self.channel
     }
+
+    /// 由部件构造一条消息行。
+    ///
+    /// 行级编辑器在重打包通道数据时用此方法重建
+    /// [`BmsMessage`]，与 [`parse_message_line`](crate::parse_message_line)
+    /// 构成解包/打包的互逆面。
+    ///
+    /// `channel` 须为 1–2 字符的 Base62 标识符；小写输入在
+    /// 构造时规范化为大写，与解析行为一致。
+    ///
+    /// # Errors
+    ///
+    /// 若 `channel` 不是有效的 Base62 通道号，返回
+    /// [`BmsTokenizeError::InvalidChannel`]。
+    pub fn compose(
+        track: u16,
+        channel: &str,
+        body: impl Into<String>,
+    ) -> Result<Self, BmsTokenizeError> {
+        let upper = channel.to_ascii_uppercase();
+        let idx: ChannelIndex =
+            upper
+                .as_str()
+                .try_into()
+                .map_err(|_e| BmsTokenizeError::InvalidChannel {
+                    value: channel.to_owned(),
+                })?;
+        Ok(Self {
+            addr: format!("{track:03}{upper}"),
+            body: body.into(),
+            track,
+            channel: classify_channel(idx),
+        })
+    }
+
+    /// 格式化为单行文本（`#ADDR:body`）。
+    ///
+    /// 地址以 3 位零填充小节号加规范化（大写）通道号输出；
+    /// `body` 原样输出。供行级编辑写回使用。
+    #[must_use]
+    pub fn to_line_text(&self) -> String {
+        format!("#{}:{}", self.addr, self.body)
+    }
+
+    /// 将 2 字符对象索引序列打包为通道行正文字符串。
+    ///
+    /// 打包即按序拼接；每个值须恰为 2 字符，调用方负责
+    /// 保证槽位数与分辨率一致。
+    #[must_use]
+    pub fn encode_body<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
+        values.into_iter().collect()
+    }
 }
 
 impl TryFrom<BmsToken> for BmsMessage {
