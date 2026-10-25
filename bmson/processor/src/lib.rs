@@ -74,8 +74,9 @@ pub enum ProcessError {
     /// `ZeroResolution` 被译成 `InvalidBpm(0.0)`，报误导性错误。
     #[error(transparent)]
     Timing(#[from] TimingTrackError),
-    /// `generic-nkeys` 模式的按键数必须为正且在 `u16` 范围内。
-    #[error("generic-nkeys key count must be in 1..=65535, got {0}")]
+    /// `generic-nkeys` 模式的按键数必须为正且在 `u8` 范围内
+    /// （[`Lane::Key`] 的索引上限）。
+    #[error("generic-nkeys key count must be in 1..=255, got {0}")]
     InvalidKeyCount(u64),
 }
 
@@ -125,7 +126,7 @@ impl BmsonProcessor {
     /// [`ProcessError::Timing`]。
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
-        keys: u16,
+        keys: u8,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
@@ -139,7 +140,7 @@ impl BmsonProcessor {
     /// [`ProcessError::Timing`]。
     pub fn process_nkeys_with_warnings(
         bmson: &bmson_def::Bmson<'_>,
-        keys: u16,
+        keys: u8,
     ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body_with_warnings(bmson, &|x| layout.map_x(x))
@@ -155,8 +156,9 @@ impl BmsonProcessor {
     ///
     /// - 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
     ///   [`ProcessError::Timing`]。
-    /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 `u16` 范围，
-    ///   返回 [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
+    /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 255
+    ///   （[`Lane::Key`] 的索引上限），返回
+    ///   [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
     ///   被静默丢弃）。
     pub fn process_default(
         bmson: &bmson_def::Bmson<'_>,
@@ -166,7 +168,7 @@ impl BmsonProcessor {
                 Self::process::<Pms>(bmson)
             }
             bmson_def::ModeHint::Generic(n) => {
-                let keys = u16::try_from(n).map_err(|_e| ProcessError::InvalidKeyCount(n))?;
+                let keys = u8::try_from(n).map_err(|_e| ProcessError::InvalidKeyCount(n))?;
                 if keys == 0 {
                     return Err(ProcessError::InvalidKeyCount(n));
                 }
