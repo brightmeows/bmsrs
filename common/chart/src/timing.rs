@@ -95,20 +95,6 @@ impl TimingTrack {
     pub const fn resolution(&self) -> u64 {
         self.resolution
     }
-
-    /// 验证当前状态的不变量。
-    ///
-    /// # Errors
-    ///
-    /// 若 `init_bpm` 无效（零、NaN 或无穷大），返回
-    /// [`TimingTrackError::InvalidBpm`]。
-    pub fn validate(&self) -> Result<(), TimingTrackError> {
-        if self.init_bpm.is_finite() && self.init_bpm != 0.0 {
-            Ok(())
-        } else {
-            Err(TimingTrackError::InvalidBpm { bpm: self.init_bpm })
-        }
-    }
 }
 
 /// BPM 变更事件。
@@ -766,26 +752,6 @@ mod tests {
     fn simple_rejects_zero_resolution() {
         let result = TimingTrack::simple(120.0, 0);
         assert_eq!(result, Err(TimingTrackError::ZeroResolution));
-    }
-
-    // validate
-
-    #[test]
-    fn validate_returns_ok_for_valid_track() {
-        let timing = TimingTrack::simple(120.0, RES).unwrap();
-        assert!(timing.validate().is_ok());
-    }
-
-    #[test]
-    fn validate_accepts_negative_bpm() {
-        let timing = TimingTrack::simple(-120.0, RES).unwrap();
-        assert!(timing.validate().is_ok());
-    }
-
-    #[test]
-    fn validate_returns_err_for_invalid_track() {
-        let timing = TimingTrack::simple(0.0, RES);
-        assert!(timing.is_err());
     }
 
     #[test]
