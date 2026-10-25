@@ -87,8 +87,6 @@ pub use audio::AudioAsset;
 pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
-#[expect(deprecated, reason = "TimingCache 仍保留供旧调用方使用")]
-pub use timing::TimingCache;
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
 pub use visual::{BgaLayer, BgaResource, CropRect, VideoAsset};
 
