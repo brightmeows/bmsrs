@@ -207,37 +207,6 @@ fn player_notes_in_range() {
 }
 
 #[test]
-fn player_notes_in_lane() {
-    let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
-
-    let notes_p1k1: Vec<_> = player
-        .notes_in_lane(NoteSide::P1, key(1), ..)
-        .filter_map(|e| {
-            if let EventKind::Note { .. } = &e.kind {
-                Some(e.tick())
-            } else {
-                None
-            }
-        })
-        .collect();
-    assert_eq!(notes_p1k1, vec![480]);
-}
-
-#[test]
-fn player_notes_in_lane_wrong_side() {
-    let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
-
-    assert!(
-        player
-            .notes_in_lane(NoteSide::P2, key(1), ..)
-            .next()
-            .is_none()
-    );
-}
-
-#[test]
 fn player_notes_for_judgement() {
     let chart = make_test_chart();
     let player = Player::new(chart).unwrap();
@@ -247,42 +216,15 @@ fn player_notes_for_judgement() {
 }
 
 #[test]
-fn player_bgm_in_range() {
-    let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
-
-    let bgm: Vec<_> = player
-        .bgm_in_range(..)
-        .filter_map(|e| {
-            if let EventKind::Bgm { .. } = &e.kind {
-                Some(e.tick())
-            } else {
-                None
-            }
-        })
-        .collect();
-    assert_eq!(bgm, vec![240]);
-}
-
-#[test]
-fn player_bar_lines_in_range() {
-    let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
-
-    let bars: Vec<_> = player
-        .bar_lines_in_range(..)
-        .filter(|e| matches!(&e.kind, EventKind::Bar))
-        .map(Event::tick)
-        .collect();
-    assert_eq!(bars, vec![0, 960]);
-}
-
-#[test]
 fn player_bga_events_empty() {
     let chart = make_test_chart();
     let player = Player::new(chart).unwrap();
 
-    assert!(player.bga_events_in_range(..).next().is_none());
+    let bga = player
+        .events_in_range(..)
+        .iter()
+        .find(|e| matches!(e.kind, EventKind::Bga { .. }));
+    assert!(bga.is_none());
 }
 
 // Scroll 缓存
@@ -637,14 +579,15 @@ fn make_chart_with_bga() -> Chart {
     }
 }
 
-/// `bgm_in_range` 返回正确的 BGM 事件。
+/// BGM 事件经 `events_in_range` 加调用方 kind 过滤取出。
 #[test]
 fn player_bgm_in_range_returns_events() {
     let chart = make_chart_with_bgm();
     let player = Player::new(chart).unwrap();
 
     let bgm: Vec<_> = player
-        .bgm_in_range(..)
+        .events_in_range(..)
+        .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { audio_index } = &e.kind {
                 Some((e.tick(), *audio_index))
@@ -656,14 +599,15 @@ fn player_bgm_in_range_returns_events() {
     assert_eq!(bgm, vec![(120, 0), (240, 1), (360, 2)]);
 }
 
-/// `bgm_in_range` 在指定范围内返回正确的事件。
+/// BGM 子区间经 `events_in_range` 取出。
 #[test]
 fn player_bgm_in_range_subrange_returns_subset() {
     let chart = make_chart_with_bgm();
     let player = Player::new(chart).unwrap();
 
     let bgm: Vec<_> = player
-        .bgm_in_range(120..=360)
+        .events_in_range(120..=360)
+        .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { .. } = &e.kind {
                 Some(e.tick())
@@ -675,14 +619,15 @@ fn player_bgm_in_range_subrange_returns_subset() {
     assert_eq!(bgm, vec![120, 240, 360]);
 }
 
-/// `bga_events_in_range` 返回所有图层的 BGA 事件。
+/// 所有图层的 BGA 事件经 `events_in_range` 加调用方 kind 过滤取出。
 #[test]
 fn player_bga_events_base_returns_all_events() {
     let chart = make_chart_with_bga();
     let player = Player::new(chart).unwrap();
 
     let bga: Vec<_> = player
-        .bga_events_in_range(..)
+        .events_in_range(..)
+        .iter()
         .filter_map(|e| {
             if let EventKind::Bga { layer, resource_id } = &e.kind {
                 Some((*layer, *resource_id, e.tick()))
@@ -705,7 +650,8 @@ fn player_bga_events_filter_by_layer() {
     let player = Player::new(chart).unwrap();
 
     let base: Vec<_> = player
-        .bga_events_in_range(..)
+        .events_in_range(..)
+        .iter()
         .filter(|e| {
             matches!(
                 &e.kind,
@@ -720,7 +666,8 @@ fn player_bga_events_filter_by_layer() {
     assert_eq!(base[0].tick(), 120);
 
     let layer: Vec<_> = player
-        .bga_events_in_range(..)
+        .events_in_range(..)
+        .iter()
         .filter(|e| {
             matches!(
                 &e.kind,
@@ -735,7 +682,8 @@ fn player_bga_events_filter_by_layer() {
     assert_eq!(layer[0].tick(), 240);
 
     let poor: Vec<_> = player
-        .bga_events_in_range(..)
+        .events_in_range(..)
+        .iter()
         .filter(|e| {
             matches!(
                 &e.kind,
@@ -750,7 +698,8 @@ fn player_bga_events_filter_by_layer() {
     assert_eq!(poor[0].tick(), 360);
 
     let layer2: Vec<_> = player
-        .bga_events_in_range(..)
+        .events_in_range(..)
+        .iter()
         .filter(|e| {
             matches!(
                 &e.kind,
@@ -772,7 +721,8 @@ fn player_bgm_multiple_channels_returns_all() {
     let player = Player::new(chart).unwrap();
 
     let mut bgm_pairs: Vec<_> = player
-        .bgm_in_range(..)
+        .events_in_range(..)
+        .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { audio_index } = &e.kind {
                 Some((e.tick(), *audio_index))

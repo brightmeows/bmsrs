@@ -22,7 +22,7 @@
 
 | 查询类型 | 作用 |
 |----------|------|
-| 音符 | 可按 lane 或判定范围过滤 |
+| 音符 | `events_in_range` + 调用方 kind 过滤；`notes_for_judgement` 预置判定相关过滤（Normal/Long）|
 | BGM/音频 | 时间轴上的音频触发 |
 | BGA（三层） | Base / Layer / Layer2 动画事件 |
 | 视觉效果 | Bar line、scroll/speed 变化 |

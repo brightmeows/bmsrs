@@ -55,8 +55,8 @@ use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaResource, Chart, ChartDataError, CustomEvent, Event, EventKind, Lane,
-    NoCustomEvent, NoteExt, NoteKind, NoteSide,
+    AudioAsset, BgaResource, Chart, ChartDataError, CustomEvent, Event, EventKind, NoCustomEvent,
+    NoteExt, NoteKind,
 };
 
 use crate::scroll_cache::ScrollCache;
@@ -227,18 +227,6 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .filter(|e| matches!(e.kind, EventKind::Note { .. }))
     }
 
-    /// 返回 `range` 范围内位于 `(side, lane)` 的 Note 事件的迭代器。
-    pub fn notes_in_lane(
-        &self,
-        side: NoteSide,
-        lane: Lane,
-        range: impl RangeBounds<u64>,
-    ) -> impl Iterator<Item = &Event<T, C>> {
-        self.notes_in_range(range).filter(
-            move |e| matches!(e.kind, EventKind::Note { side: s, lane: l, .. } if s == side && l == lane),
-        )
-    }
-
     /// 返回 `range` 范围内与判定相关的 Note 事件的迭代器。
     ///
     /// 与判定相关的音符为普通音符与长音（不含不可见音符与地雷，
@@ -256,13 +244,6 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
                 }
             )
         })
-    }
-
-    /// 返回 `range` 范围内 BGM 事件的迭代器。
-    pub fn bgm_in_range(&self, range: impl RangeBounds<u64>) -> impl Iterator<Item = &Event<T, C>> {
-        self.events_in_range(range)
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::Bgm { .. }))
     }
 
     /// 返回音频素材表。
@@ -300,28 +281,6 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     #[must_use]
     pub fn spacing_at(&self, tick: u64) -> f64 {
         self.speed_cache.spacing_at(tick)
-    }
-
-    /// 返回 `range` 范围内 Bar 事件的迭代器。
-    pub fn bar_lines_in_range(
-        &self,
-        range: impl RangeBounds<u64>,
-    ) -> impl Iterator<Item = &Event<T, C>> {
-        self.events_in_range(range)
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::Bar))
-    }
-
-    /// 返回 `range` 范围内 BGA 事件的迭代器。
-    ///
-    /// 如有需要，调用方可进一步按 [`bmsrs_chart::BgaLayer`] 过滤。
-    pub fn bga_events_in_range(
-        &self,
-        range: impl RangeBounds<u64>,
-    ) -> impl Iterator<Item = &Event<T, C>> {
-        self.events_in_range(range)
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::Bga { .. }))
     }
 
     /// 返回 BGA 资源。
