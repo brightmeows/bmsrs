@@ -366,21 +366,9 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     #[must_use]
     pub fn map_events<U: NoteExt>(
         self,
-        f: impl FnMut(Event<T, C>) -> Event<U, C>,
+        mut f: impl FnMut(Event<T, C>) -> Event<U, C>,
     ) -> ChartData<U, C> {
-        ChartData {
-            resolution: self.resolution,
-            timing: self.timing,
-            judge_multiplier: self.judge_multiplier,
-            life_multiplier: self.life_multiplier,
-            ln_type_hint: self.ln_type_hint,
-            ln_judge_hint: self.ln_judge_hint,
-            ln_life_hint: self.ln_life_hint,
-            judge_deltas: self.judge_deltas,
-            life_deltas: self.life_deltas,
-            events: self.events.into_iter().map(f).collect(),
-            audio_assets: self.audio_assets,
-        }
+        self.rebuild_events(|e| Some(f(e)))
     }
 
     /// 通过映射+过滤函数转换所有事件，可同时改变 `T` 和 `C` 两个泛型参数。
@@ -417,18 +405,43 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         self,
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
     ) -> ChartData<U, D> {
+        self.rebuild_events(f)
+    }
+
+    /// 按映射函数重建事件向量，其余字段原样保留。
+    ///
+    /// [`map_events`](Self::map_events) 与
+    /// [`filter_map_events`](Self::filter_map_events) 的共同底层——
+    /// 字段重列收敛在此一处，新增字段时只需同步本方法。
+    fn rebuild_events<U: NoteExt, D: CustomEvent>(
+        self,
+        f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
+    ) -> ChartData<U, D> {
+        let Self {
+            resolution,
+            timing,
+            judge_multiplier,
+            life_multiplier,
+            ln_type_hint,
+            ln_judge_hint,
+            ln_life_hint,
+            judge_deltas,
+            life_deltas,
+            events,
+            audio_assets,
+        } = self;
         ChartData {
-            resolution: self.resolution,
-            timing: self.timing,
-            judge_multiplier: self.judge_multiplier,
-            life_multiplier: self.life_multiplier,
-            ln_type_hint: self.ln_type_hint,
-            ln_judge_hint: self.ln_judge_hint,
-            ln_life_hint: self.ln_life_hint,
-            judge_deltas: self.judge_deltas,
-            life_deltas: self.life_deltas,
-            events: self.events.into_iter().filter_map(f).collect(),
-            audio_assets: self.audio_assets,
+            resolution,
+            timing,
+            judge_multiplier,
+            life_multiplier,
+            ln_type_hint,
+            ln_judge_hint,
+            ln_life_hint,
+            judge_deltas,
+            life_deltas,
+            events: events.into_iter().filter_map(f).collect(),
+            audio_assets,
         }
     }
 }
