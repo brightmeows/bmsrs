@@ -119,12 +119,15 @@ impl Document {
             let line_body = body.get(span.body.clone()).unwrap_or(&[]);
             let scanned = scan_line(line_body, utf16, &mut state);
             let kind = classify_line(line_body, &scanned, encoding, &prefixes);
+            let line_start = bom_len + span.range.start;
             lines.push(Line {
-                span: bom_len + span.range.start..bom_len + span.range.end,
+                span: line_start..bom_len + span.range.end,
                 terminator: span.terminator,
+                // `scanned.content` 相对行 body 起算，换算到文档字节须
+                // 加上行自身的起始偏移；仅加 BOM 会使第二行起错位。
                 content: scanned
                     .content
-                    .map(|range| bom_len + range.start..bom_len + range.end),
+                    .map(|range| line_start + range.start..line_start + range.end),
                 kind,
                 replacement: None,
             });
@@ -255,7 +258,6 @@ impl Document {
         let terminator = line.terminator;
         let body_end = span.end.saturating_sub(terminator.byte_len(self.encoding));
         let encoded = self.encoding.encode(text)?;
-
         let mut bytes = Vec::with_capacity(span.len().saturating_add(encoded.len()));
         bytes.extend_from_slice(self.bytes.get(span.start..content.start).unwrap_or(&[]));
         bytes.extend_from_slice(&encoded);
