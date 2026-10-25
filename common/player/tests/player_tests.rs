@@ -304,8 +304,9 @@ fn player_audio_assets() {
     let chart = make_test_chart();
     let player = Player::new(chart).unwrap();
 
+    // 夹具含一条音频素材（validate 要求 BGM 引用可解析）。
     let assets = player.audio_assets();
-    assert_eq!(assets, []);
+    assert_eq!(assets.len(), 1);
 }
 
 #[test]
