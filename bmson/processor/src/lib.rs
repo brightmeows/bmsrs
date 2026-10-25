@@ -149,8 +149,10 @@ impl BmsonProcessor {
     /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族。
     ///
     /// `beat-*` 与 `dj-*` 提示映射到 [`Beat`]；`popn-*` 映射到 [`Pms`]；
-    /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；其它情况
-    /// 回退到 [`Beat`]（BMSON 默认值）。
+    /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；
+    /// 规范外的扩展提示（[`ModeHint::Other`](bmson_def::ModeHint::Other)）
+    /// 回退到 [`Beat`]（BMSON 默认值），需感知回退时请改用
+    /// [`process_default_with_warnings`](Self::process_default_with_warnings)。
     ///
     /// # Errors
     ///
@@ -163,18 +165,38 @@ impl BmsonProcessor {
     pub fn process_default(
         bmson: &bmson_def::Bmson<'_>,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
-        match bmson.chart_data.mode_hint {
+        Self::process_default_with_warnings(bmson).map(|(chart, _)| chart)
+    }
+
+    /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族，并收集处理警告。
+    ///
+    /// 与 [`process_default`](Self::process_default) 相同的分发逻辑；
+    /// `mode_hint` 为规范外的扩展提示时回退到 [`Beat`] 布局，并产生
+    /// [`BmsonProcessWarning::UnknownModeHint`]。
+    ///
+    /// # Errors
+    ///
+    /// 与 [`process_default`](Self::process_default) 相同。
+    pub fn process_default_with_warnings(
+        bmson: &bmson_def::Bmson<'_>,
+    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
+        match &bmson.chart_data.mode_hint {
             bmson_def::ModeHint::Popn5k | bmson_def::ModeHint::Popn9k => {
-                Self::process::<Pms>(bmson)
+                Self::process_with_warnings::<Pms>(bmson)
             }
             bmson_def::ModeHint::Generic(n) => {
-                let keys = u8::try_from(n).map_err(|_e| ProcessError::InvalidKeyCount(n))?;
+                let keys = u8::try_from(*n).map_err(|_e| ProcessError::InvalidKeyCount(*n))?;
                 if keys == 0 {
-                    return Err(ProcessError::InvalidKeyCount(n));
+                    return Err(ProcessError::InvalidKeyCount(*n));
                 }
-                Self::process_nkeys(bmson, keys)
+                Self::process_nkeys_with_warnings(bmson, keys)
             }
-            _ => Self::process::<Beat>(bmson),
+            bmson_def::ModeHint::Other(hint) => {
+                let (chart, mut warnings) = Self::process_with_warnings::<Beat>(bmson)?;
+                warnings.push(BmsonProcessWarning::UnknownModeHint { hint: hint.clone() });
+                Ok((chart, warnings))
+            }
+            _ => Self::process_with_warnings::<Beat>(bmson),
         }
     }
 
