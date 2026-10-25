@@ -13,15 +13,16 @@
 | 方法 | 作用 |
 |------|------|
 | `Player::new(chart)` | 构造播放器，返回 `Result`（校验 `ChartData` 合法性）|
-| `advance(Duration)` | 前进播放游标 |
+| `advance(Duration)` | 纯累加播放时间（O(1)），脉冲按需派生 |
 | `seek(Duration)` | 跳到指定位置 |
-| `current_time() -> Duration` | 当前播放位置 |
+| `current_time() -> Duration` | 当前播放位置（状态本身）|
+| `current_tick() -> u64` | 当前脉冲位置（从时间派生，O(log n)）|
 
 ## 查询
 
 | 查询类型 | 作用 |
 |----------|------|
-| 音符 | 可按 lane 或判定范围过滤 |
+| 音符 | `events_in_range` + 调用方 kind 过滤；`notes_for_judgement` 预置判定相关过滤（Normal/Long）|
 | BGM/音频 | 时间轴上的音频触发 |
 | BGA（三层） | Base / Layer / Layer2 动画事件 |
 | 视觉效果 | Bar line、scroll/speed 变化 |
@@ -34,6 +35,8 @@
 |------|------|
 | Duration 是唯一时间接口 | 外部不暴露 tick，转换在内部 |
 | 播放器无判定 | 判定逻辑由上层（渲染器/UI）实现 |
+| 时间驱动状态机 | `current_time` 是唯一状态字段；`current_tick()` 每次派生。停止段内多个时刻对应同一脉冲，`tick → time` 不单射——以 tick 为状态会让帧步进的小步 `advance` 永久卡在 stop 内 |
+| STOP 期间语义 | `current_tick()` 停住；`current_time()` 继续流逝。需“暂停前”时刻语义时用 `current_tick` 经 `tick_to_duration` 换算 |
 
 ## 性能基准
 

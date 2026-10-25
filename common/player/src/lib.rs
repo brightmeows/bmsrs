@@ -55,8 +55,8 @@ use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaResource, Chart, ChartDataError, CustomEvent, Event, EventKind, Lane,
-    NoCustomEvent, NoteExt, NoteKind, NoteSide, TimingTrack,
+    AudioAsset, BgaResource, Chart, ChartDataError, CustomEvent, Event, EventKind, NoCustomEvent,
+    NoteExt, NoteKind,
 };
 
 use crate::scroll_cache::ScrollCache;
@@ -64,22 +64,25 @@ use crate::speed_cache::SpeedCache;
 
 /// 跟踪 [`Chart`] 播放进度的有状态仿真器。
 ///
-/// 播放器维护当前脉冲位置，提供对给定范围内音符、BGM 与视觉事件的查询。
-/// 所有时间推进均以实际时间 [`Duration`] 表示；脉冲位置通过内部预计算的
-/// 计时缓存派生得到。
+/// 播放器维护当前播放时间（实际时间），提供对给定范围内音符、BGM 与
+/// 视觉事件的查询。脉冲位置按需从播放时间派生；所有时间推进均以实际
+/// 时间 [`Duration`] 表示。
+///
+/// 时间驱动的原因：停止（STOP）段内多个时刻对应同一脉冲，`tick → time`
+/// 不再单射——以脉冲为状态会让帧循环的小步 `advance` 永久卡在停止段
+/// 内。以时间为状态、脉冲为派生量后，`advance` 是纯累加，任何步长都能
+/// 穿过停止段。
 ///
 /// 播放器是纯仿真层：无音频播放、渲染、输入处理、判定或计分。
 pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// 正在播放的谱面。
     chart: Chart<T, C>,
-    /// 预计算的计时轨，用于 O(log n) 查询。
-    timing: TimingTrack,
     /// 预计算的滚动速度缓存，用于 O(log n) 查询。
     scroll_cache: ScrollCache,
     /// 预计算的 SPEED 间距插值缓存。
     speed_cache: SpeedCache,
-    /// 当前播放位置（脉冲）。
-    current_tick: u64,
+    /// 当前播放时间（唯一状态字段；脉冲位置按需派生）。
+    current_time: Duration,
 }
 
 impl<T: NoteExt, C: CustomEvent> Player<T, C> {
@@ -95,15 +98,13 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         chart.data.validate()?;
         chart.data.sort_events();
         let resolution = chart.data.resolution;
-        let timing = chart.data.timing.clone();
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
         let speed_cache = SpeedCache::build(&chart.data.events);
         Ok(Self {
             chart,
-            timing,
             scroll_cache,
             speed_cache,
-            current_tick: 0,
+            current_time: Duration::ZERO,
         })
     }
 
@@ -111,37 +112,43 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
 
     /// 按实际时间增量 `delta` 推进播放。
     ///
-    /// 播放器的脉冲位置更新为 `current_time + delta` 所对应的脉冲。
-    /// 停止（STOP）期间的时间不会推进脉冲。
-    pub fn advance(&mut self, delta: Duration) {
-        let new_time = self.current_time() + delta;
-        // PERF: TimingTrack 内部使用 O(log n) 二分——advance 在播放循环中每帧调用。
-        self.current_tick = self.timing.duration_to_tick(new_time);
+    /// 播放时间纯累加 `delta`（O(1)，溢出钳位到 [`Duration::MAX`]）；
+    /// 脉冲位置在 [`Self::current_tick`] 处按需派生。停止（STOP）期间
+    /// 脉冲不推进，但播放时间继续流逝。帧循环中小步 `advance` 可以
+    /// 穿过停止段——无需单步跨过整个停止时长。
+    pub const fn advance(&mut self, delta: Duration) {
+        self.current_time = self.current_time.saturating_add(delta);
     }
 
     /// 跳转到指定的绝对实际时间。
-    pub fn seek(&mut self, target: Duration) {
-        // PERF: 同 advance，使用 TimingTrack 的 O(log n) 快路径。
-        self.current_tick = self.timing.duration_to_tick(target);
+    pub const fn seek(&mut self, target: Duration) {
+        self.current_time = target;
     }
 
     /// 将播放重置到脉冲 0。
     pub const fn reset(&mut self) {
-        self.current_tick = 0;
+        self.current_time = Duration::ZERO;
     }
 
     // 时间查询
 
     /// 当前播放位置（脉冲）。
+    ///
+    /// 从当前播放时间派生（O(log n) 二分）。停止期间本值停住，而
+    /// [`Self::current_time`] 继续流逝。
     #[must_use]
-    pub const fn current_tick(&self) -> u64 {
-        self.current_tick
+    pub fn current_tick(&self) -> u64 {
+        self.chart.data.timing.duration_to_tick(self.current_time)
     }
 
     /// 以实际时间 [`Duration`] 表示的当前播放位置。
+    ///
+    /// 停止期间本值继续流逝（与脉冲位置解耦）；如需“暂停前”的时刻
+    /// 语义，用 [`Self::current_tick`] 经
+    /// [`Self::tick_to_duration`](Self::tick_to_duration) 换算。
     #[must_use]
-    pub fn current_time(&self) -> Duration {
-        self.timing.tick_to_duration(self.current_tick)
+    pub const fn current_time(&self) -> Duration {
+        self.current_time
     }
 
     /// 将脉冲位置换算为实际时间 [`Duration`]。
@@ -151,7 +158,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 内部使用 O(log n) 二分查找。
     #[must_use]
     pub fn tick_to_duration(&self, tick: u64) -> Duration {
-        self.timing.tick_to_duration(tick)
+        self.chart.data.timing.tick_to_duration(tick)
     }
 
     /// 将实际时间 [`Duration`] 换算为最接近的脉冲位置。
@@ -161,7 +168,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 内部使用 O(log n) 二分查找。
     #[must_use]
     pub fn duration_to_tick(&self, duration: Duration) -> u64 {
-        self.timing.duration_to_tick(duration)
+        self.chart.data.timing.duration_to_tick(duration)
     }
 
     /// 谱面总时长。
@@ -173,7 +180,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 播放位置处的当前 BPM。
     #[must_use]
     pub fn current_bpm(&self) -> f64 {
-        self.timing.bpm_at_tick(self.current_tick)
+        self.chart.data.timing.bpm_at_tick(self.current_tick())
     }
 
     // 事件查询
@@ -184,17 +191,17 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 预见未来时长。返回 `(start_tick, end_tick)`，可直接传给
     /// [`events_in_range`](Self::events_in_range)。
     ///
-    /// 内部执行两次 [`TimingTrack::duration_to_tick`]（O(log n)），
+    /// 内部执行两次
+    /// [`TimingTrack::duration_to_tick`](bmsrs_chart::TimingTrack::duration_to_tick)
+    /// （O(log n)），
     /// 封装了 `current_time ± duration → tick` 的换算逻辑。
     #[must_use]
     pub fn visible_tick_range(&self, reaction: Duration, lookahead: Duration) -> (u64, u64) {
         let current = self.current_time();
         let start = current.checked_sub(reaction).unwrap_or(Duration::ZERO);
         let end = current.checked_add(lookahead).unwrap_or(Duration::MAX);
-        (
-            self.timing.duration_to_tick(start),
-            self.timing.duration_to_tick(end),
-        )
+        let timing = &self.chart.data.timing;
+        (timing.duration_to_tick(start), timing.duration_to_tick(end))
     }
 
     /// 返回 `range` 范围内的全部事件。
@@ -220,18 +227,6 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .filter(|e| matches!(e.kind, EventKind::Note { .. }))
     }
 
-    /// 返回 `range` 范围内位于 `(side, lane)` 的 Note 事件的迭代器。
-    pub fn notes_in_lane(
-        &self,
-        side: NoteSide,
-        lane: Lane,
-        range: impl RangeBounds<u64>,
-    ) -> impl Iterator<Item = &Event<T, C>> {
-        self.notes_in_range(range).filter(
-            move |e| matches!(e.kind, EventKind::Note { side: s, lane: l, .. } if s == side && l == lane),
-        )
-    }
-
     /// 返回 `range` 范围内与判定相关的 Note 事件的迭代器。
     ///
     /// 与判定相关的音符为普通音符与长音（不含不可见音符与地雷，
@@ -249,13 +244,6 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
                 }
             )
         })
-    }
-
-    /// 返回 `range` 范围内 BGM 事件的迭代器。
-    pub fn bgm_in_range(&self, range: impl RangeBounds<u64>) -> impl Iterator<Item = &Event<T, C>> {
-        self.events_in_range(range)
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::Bgm { .. }))
     }
 
     /// 返回音频素材表。
@@ -293,28 +281,6 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     #[must_use]
     pub fn spacing_at(&self, tick: u64) -> f64 {
         self.speed_cache.spacing_at(tick)
-    }
-
-    /// 返回 `range` 范围内 Bar 事件的迭代器。
-    pub fn bar_lines_in_range(
-        &self,
-        range: impl RangeBounds<u64>,
-    ) -> impl Iterator<Item = &Event<T, C>> {
-        self.events_in_range(range)
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::Bar))
-    }
-
-    /// 返回 `range` 范围内 BGA 事件的迭代器。
-    ///
-    /// 如有需要，调用方可进一步按 [`bmsrs_chart::BgaLayer`] 过滤。
-    pub fn bga_events_in_range(
-        &self,
-        range: impl RangeBounds<u64>,
-    ) -> impl Iterator<Item = &Event<T, C>> {
-        self.events_in_range(range)
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::Bga { .. }))
     }
 
     /// 返回 BGA 资源。
