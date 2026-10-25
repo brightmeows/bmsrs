@@ -126,6 +126,11 @@ pub mod bms {
     pub mod processor {
         pub use bms_processor::*;
     }
+
+    /// BMS 生成器——将 `Bms` 全量重写为 BMS 文本。
+    pub mod writer {
+        pub use bms_writer::*;
+    }
 }
 
 /// BMSON 格式的类型定义与转换器。

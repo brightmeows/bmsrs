@@ -7,6 +7,7 @@ members = [
     "bms/control-flow",
     "bms/parser",
     "bms/processor",
+    "bms/writer",
     "bmson/def",
     "bmson/processor",
     "common/chart",
@@ -32,6 +33,7 @@ workspace = true
 
 [dependencies]
 bms-tokenizer.workspace = true
+bms-writer.workspace = true
 bms-document.workspace = true
 bms-control-flow.workspace = true
 bms-parser.workspace = true
@@ -95,6 +97,7 @@ bms-tokenizer-derive = { path = "bms/tokenizer-derive" }
 bmsrs-chart = { path = "common/chart" }
 bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }
+bms-writer = { path = "bms/writer" }
 bmsrs-player = { path = "common/player" }
 
 [workspace.lints.rust]
