@@ -90,22 +90,22 @@ impl BmsonLayout for Pms {
 /// 本模式族带有运行时状态（按键数），因此**不**实现无状态的
 /// [`BmsonLayout`]。请通过 [`crate::BmsonProcessor::process_nkeys`] 调用。
 ///
-/// 其 `keys` 为 `u16`，可能超出 [`Lane::Key`] 的 `u8` 范围；超过 255 的
-/// 通道会被拒绝。
+/// `keys` 为 `u8`：[`Lane::Key`] 的索引上限就是 `NonZeroU8`，
+/// 超出 255 的按键数本就无法正确映射，类型上直接拒绝。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GenericLayout {
-    /// 按键数（全部位于玩家 1）。
-    pub keys: u16,
+    /// 按键数（全部位于玩家 1，至少为 1）。
+    pub keys: u8,
 }
 
 impl GenericLayout {
     /// 针对当前按键数，将 BMSON `x` 值映射为音符位置。
     #[must_use]
     pub fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
-        if !(1..=u64::from(self.keys)).contains(&x) {
+        let n = u8::try_from(x).ok()?;
+        if n == 0 || n > self.keys {
             return None;
         }
-        let n = nz(u8::try_from(x).ok()?)?;
-        Some((NoteSide::P1, Lane::Key(n)))
+        Some((NoteSide::P1, Lane::Key(nz(n)?)))
     }
 }

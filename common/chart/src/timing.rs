@@ -95,20 +95,6 @@ impl TimingTrack {
     pub const fn resolution(&self) -> u64 {
         self.resolution
     }
-
-    /// 验证当前状态的不变量。
-    ///
-    /// # Errors
-    ///
-    /// 若 `init_bpm` 无效（零、NaN 或无穷大），返回
-    /// [`TimingTrackError::InvalidBpm`]。
-    pub fn validate(&self) -> Result<(), TimingTrackError> {
-        if self.init_bpm.is_finite() && self.init_bpm != 0.0 {
-            Ok(())
-        } else {
-            Err(TimingTrackError::InvalidBpm { bpm: self.init_bpm })
-        }
-    }
 }
 
 /// BPM 变更事件。
@@ -118,6 +104,18 @@ pub struct BpmChange {
     pub tick: u64,
     /// 新的 BPM（每分钟拍数）。
     pub bpm: f64,
+}
+
+impl BpmChange {
+    /// 判断 BPM 值是否有效（有限且非零）。
+    ///
+    /// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在消费点被跳过，保持
+    /// 上一个有效 BPM 不变——与 beatoraja 行为一致。计时轨构造与两侧
+    /// processor 共用本谓词，保证计时轨与统一事件流的过滤语义一致。
+    #[must_use]
+    pub const fn is_valid(bpm: f64) -> bool {
+        bpm.is_finite() && bpm != 0.0
+    }
 }
 
 /// 停止（暂停）事件。
@@ -139,14 +137,6 @@ enum TimingEvent {
     Bpm(f64),
     /// 停止，时长以脉冲数表示。
     Stop(u64),
-}
-
-/// 检查 BPM 值是否有效（有限且非零）。
-///
-/// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在消费点被跳过，
-/// 保持上一个有效 BPM 不变——与 beatoraja 行为一致。
-const fn is_valid_bpm(bpm: f64) -> bool {
-    bpm.is_finite() && bpm != 0.0
 }
 
 /// 将秒数安全转换为 [`Duration`]，避免溢出 panic。
@@ -199,7 +189,7 @@ impl TimingTrack {
         let mut current_bpm = init_bpm;
 
         for bc in &bpm_changes {
-            if !is_valid_bpm(bc.bpm) {
+            if !BpmChange::is_valid(bc.bpm) {
                 continue;
             }
             if bc.tick > current_tick {
@@ -401,7 +391,11 @@ impl BpmLookup<'_> {
     /// 构造 `BpmLookup`。
     ///
     /// `bpm_changes` 必须按 `tick` 升序排列（由调用方保证；
-    /// [`BpmChange`] 本身无排序不变量）。
+    /// [`BpmChange`] 本身无排序不变量）。`init_bpm` **不做**有效性
+    /// 校验（与 [`TimingTrack::new`] 不同）：传入零/非有限值时
+    /// [`bpm_at_tick`](Self::bpm_at_tick) 会返回该无效值。调用方若
+    /// 依赖换算结果，须自行保证 `init_bpm` 有效；BMS 管道中
+    /// [`TimingTrack::new`] 在后续构造点完成最终校验。
     #[must_use]
     pub const fn new(init_bpm: f64, bpm_changes: &[BpmChange]) -> BpmLookup<'_> {
         BpmLookup {
@@ -498,7 +492,7 @@ fn merge_inv(
         }
         match ev {
             TimingEvent::Bpm(b) => {
-                if !is_valid_bpm(b) {
+                if !BpmChange::is_valid(b) {
                     continue;
                 }
                 cur_bpm = b;
@@ -766,26 +760,6 @@ mod tests {
     fn simple_rejects_zero_resolution() {
         let result = TimingTrack::simple(120.0, 0);
         assert_eq!(result, Err(TimingTrackError::ZeroResolution));
-    }
-
-    // validate
-
-    #[test]
-    fn validate_returns_ok_for_valid_track() {
-        let timing = TimingTrack::simple(120.0, RES).unwrap();
-        assert!(timing.validate().is_ok());
-    }
-
-    #[test]
-    fn validate_accepts_negative_bpm() {
-        let timing = TimingTrack::simple(-120.0, RES).unwrap();
-        assert!(timing.validate().is_ok());
-    }
-
-    #[test]
-    fn validate_returns_err_for_invalid_track() {
-        let timing = TimingTrack::simple(0.0, RES);
-        assert!(timing.is_err());
     }
 
     #[test]

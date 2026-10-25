@@ -23,9 +23,25 @@ fn from_text_collect_all_keeps_tokens_after_error() {
 }
 
 #[test]
-fn from_text_fail_fast_stops_at_error() {
+fn from_text_collect_all_reports_tokenize_warnings() {
+    // CollectAll 跳过错误行，但逐条错误必须以警告形式可见。
     let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
-    let (bms, _) = bmsrs::bms::from_text(text, &mut FixedRng, ErrorStrategy::FailFast)
+    let (_, warnings) = bmsrs::bms::from_text(text, &mut FixedRng, ErrorStrategy::CollectAll)
         .unwrap_or_else(|error| panic!("{error}"));
-    assert!(bms.metadata.artist.is_none());
+    assert!(matches!(
+        warnings.as_slice(),
+        [bmsrs::bms::FromTextWarning::Tokenize { line, .. }] if line.get() == 2
+    ));
+}
+
+#[test]
+fn from_text_fail_fast_returns_tokenize_error() {
+    // FailFast 的语义是“在错误处失败”：首个分词错误作为 Err 返回，
+    // 携带行号，而非静默截断后返回 Ok。
+    let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
+    let result = bmsrs::bms::from_text(text, &mut FixedRng, ErrorStrategy::FailFast);
+    assert!(matches!(
+        result,
+        Err(bmsrs::bms::FromTextError::Tokenize { line, .. }) if line.get() == 2
+    ));
 }

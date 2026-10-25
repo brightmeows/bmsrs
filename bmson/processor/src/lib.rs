@@ -74,8 +74,9 @@ pub enum ProcessError {
     /// `ZeroResolution` 被译成 `InvalidBpm(0.0)`，报误导性错误。
     #[error(transparent)]
     Timing(#[from] TimingTrackError),
-    /// `generic-nkeys` 模式的按键数必须为正且在 `u16` 范围内。
-    #[error("generic-nkeys key count must be in 1..=65535, got {0}")]
+    /// `generic-nkeys` 模式的按键数必须为正且在 `u8` 范围内
+    /// （[`Lane::Key`] 的索引上限）。
+    #[error("generic-nkeys key count must be in 1..=255, got {0}")]
     InvalidKeyCount(u64),
 }
 
@@ -125,7 +126,7 @@ impl BmsonProcessor {
     /// [`ProcessError::Timing`]。
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
-        keys: u16,
+        keys: u8,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
@@ -139,7 +140,7 @@ impl BmsonProcessor {
     /// [`ProcessError::Timing`]。
     pub fn process_nkeys_with_warnings(
         bmson: &bmson_def::Bmson<'_>,
-        keys: u16,
+        keys: u8,
     ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body_with_warnings(bmson, &|x| layout.map_x(x))
@@ -148,31 +149,54 @@ impl BmsonProcessor {
     /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族。
     ///
     /// `beat-*` 与 `dj-*` 提示映射到 [`Beat`]；`popn-*` 映射到 [`Pms`]；
-    /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；其它情况
-    /// 回退到 [`Beat`]（BMSON 默认值）。
+    /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；
+    /// 规范外的扩展提示（[`ModeHint::Other`](bmson_def::ModeHint::Other)）
+    /// 回退到 [`Beat`]（BMSON 默认值），需感知回退时请改用
+    /// [`process_default_with_warnings`](Self::process_default_with_warnings)。
     ///
     /// # Errors
     ///
     /// - 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
     ///   [`ProcessError::Timing`]。
-    /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 `u16` 范围，
-    ///   返回 [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
+    /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 255
+    ///   （[`Lane::Key`] 的索引上限），返回
+    ///   [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
     ///   被静默丢弃）。
     pub fn process_default(
         bmson: &bmson_def::Bmson<'_>,
     ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
-        match bmson.chart_data.mode_hint {
+        Self::process_default_with_warnings(bmson).map(|(chart, _)| chart)
+    }
+
+    /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族，并收集处理警告。
+    ///
+    /// 与 [`process_default`](Self::process_default) 相同的分发逻辑；
+    /// `mode_hint` 为规范外的扩展提示时回退到 [`Beat`] 布局，并产生
+    /// [`BmsonProcessWarning::UnknownModeHint`]。
+    ///
+    /// # Errors
+    ///
+    /// 与 [`process_default`](Self::process_default) 相同。
+    pub fn process_default_with_warnings(
+        bmson: &bmson_def::Bmson<'_>,
+    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
+        match &bmson.chart_data.mode_hint {
             bmson_def::ModeHint::Popn5k | bmson_def::ModeHint::Popn9k => {
-                Self::process::<Pms>(bmson)
+                Self::process_with_warnings::<Pms>(bmson)
             }
             bmson_def::ModeHint::Generic(n) => {
-                let keys = u16::try_from(n).map_err(|_e| ProcessError::InvalidKeyCount(n))?;
+                let keys = u8::try_from(*n).map_err(|_e| ProcessError::InvalidKeyCount(*n))?;
                 if keys == 0 {
-                    return Err(ProcessError::InvalidKeyCount(n));
+                    return Err(ProcessError::InvalidKeyCount(*n));
                 }
-                Self::process_nkeys(bmson, keys)
+                Self::process_nkeys_with_warnings(bmson, keys)
             }
-            _ => Self::process::<Beat>(bmson),
+            bmson_def::ModeHint::Other(hint) => {
+                let (chart, mut warnings) = Self::process_with_warnings::<Beat>(bmson)?;
+                warnings.push(BmsonProcessWarning::UnknownModeHint { hint: hint.clone() });
+                Ok((chart, warnings))
+            }
+            _ => Self::process_with_warnings::<Beat>(bmson),
         }
     }
 
@@ -192,13 +216,11 @@ impl BmsonProcessor {
         let bmson_data = &bmson.chart_data;
 
         let timing = build_timing(bmson_data)?;
-        let resolution = bmson_data.resolution;
         let bga_ids = build_bga_id_map(&bmson.chart_info.bga);
         let mut conv = BmsonConverter {
             bmson,
             decode,
             timing: timing.clone(),
-            resolution,
             bga_ids: &bga_ids,
             audio_assets: Vec::new(),
             events: Vec::new(),
@@ -218,7 +240,6 @@ impl BmsonProcessor {
         let chart_info = build_chart_info(bmson);
 
         let mut data = ChartData {
-            resolution,
             timing,
             judge_multiplier: bmson_data.judge_multiplier,
             life_multiplier: bmson_data.life_multiplier,
@@ -272,8 +293,6 @@ struct BmsonConverter<'a> {
     decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
     /// 预计算的计时缓存。
     timing: TimingTrack,
-    /// 节拍分辨率。
-    resolution: u64,
     /// BMSON BGA 原始 id → 稠密资源下标映射。
     bga_ids: &'a BTreeMap<u64, u32>,
     /// 正在构建的音频素材向量。
@@ -326,41 +345,18 @@ impl BmsonConverter<'_> {
     /// 行为一致）。
     fn collect_bga_events(&mut self) {
         let bga = &self.bmson.chart_info.bga;
-        for e in &bga.bga_events {
-            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
-                continue;
-            };
-            self.events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Base,
-                    resource_id,
-                },
-            ));
-        }
-        for e in &bga.layer_events {
-            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
-                continue;
-            };
-            self.events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Layer,
-                    resource_id,
-                },
-            ));
-        }
-        for e in &bga.poor_events {
-            let Some(&resource_id) = self.bga_ids.get(&e.id) else {
-                continue;
-            };
-            self.events.push(Event::new(
-                e.y,
-                EventKind::Bga {
-                    layer: BgaLayer::Poor,
-                    resource_id,
-                },
-            ));
+        for (layer, events) in [
+            (BgaLayer::Base, &bga.bga_events),
+            (BgaLayer::Layer, &bga.layer_events),
+            (BgaLayer::Poor, &bga.poor_events),
+        ] {
+            for e in events {
+                let Some(&resource_id) = self.bga_ids.get(&e.id) else {
+                    continue;
+                };
+                self.events
+                    .push(Event::new(e.y, EventKind::Bga { layer, resource_id }));
+            }
         }
     }
 
@@ -369,7 +365,7 @@ impl BmsonConverter<'_> {
         let last_tick = self.events.iter().map(Event::tick).max().unwrap_or(0);
         self.events.extend(build_bar_lines(
             self.bmson.chart_data.lines.as_deref(),
-            self.resolution,
+            self.timing.resolution(),
             last_tick,
         ));
     }

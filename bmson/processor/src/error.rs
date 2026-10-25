@@ -22,4 +22,11 @@ pub enum BmsonProcessWarning {
         /// 原始的负值时长。
         original: f64,
     },
+
+    /// 规范外的扩展 `mode_hint` 回退为 beat 布局。
+    #[error("unknown mode hint \"{hint}\" fell back to beat layout")]
+    UnknownModeHint {
+        /// 原始的扩展模式提示字符串。
+        hint: String,
+    },
 }

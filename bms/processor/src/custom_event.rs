@@ -60,9 +60,11 @@ pub enum BmsCustomEvent {
     },
     /// 逐位置判定覆盖（通道 `A0` / `#EXRANK`）。
     ///
-    /// 覆盖此脉冲后的判定窗口（与 `#DEFEXRANK` 乘算生效）。
+    /// **语义未闭合**：当前直传通道值的 base36 数值，未查
+    /// `#EXRANKxx` 定义表，与 `#DEFEXRANK` 的乘算关系待判定系统
+    /// 整体设计后定稿；消费者在此之前不应解释本字段的语义。
     JudgeOverride {
-        /// 判定窗口倍率（`100` = NORMAL）。
+        /// base36 直传值（语义未闭合，见上）。
         rank: u64,
     },
     /// 玩家选项变更（通道 `A6` / `#CHANGEOPTION`）。

@@ -86,7 +86,6 @@ fn build_chart(n: usize) -> Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: RESOLUTION,
             timing,
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -188,7 +187,6 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: RESOLUTION,
             timing: TimingTrack::simple(120.0, RESOLUTION).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,

@@ -16,7 +16,7 @@
 //! # 时间模型
 //!
 //! 所有事件位置均为绝对 [`u64`] 脉冲（tick）。全局
-//! [`resolution`](ChartData::resolution) 定义每个四分音符的脉冲数
+//! [`TimingTrack::resolution`](TimingTrack::resolution) 定义每个四分音符的脉冲数
 //! （默认 240）。实际时间（wall-clock）通过
 //! [`TimingTrack::tick_to_duration`] 换算得到。
 //!
@@ -48,7 +48,6 @@
 //!     },
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
-//!         resolution: 240,
 //!         timing: TimingTrack::simple(120.0, 240).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
@@ -168,25 +167,6 @@ impl Eq for LifeDeltas {}
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ChartDataError {
-    /// `resolution` 为 0（必须为正）。
-    ZeroResolution,
-    /// 初始 BPM 无效（0、NaN 或无穷大；允许负值用于逆走谱面）。
-    InvalidBpm {
-        /// 无效的 BPM 值。
-        bpm: f64,
-    },
-    /// `resolution` 与计时轨内部的 resolution 不一致。
-    ///
-    /// [`ChartData::resolution`](crate::ChartData::resolution) 与
-    /// [`TimingTrack`] 内部的 resolution 是同一事实的两份拷贝，必须
-    /// 一致——否则脉冲换算与滚动/间距缓存各用各的分辨率，查询结果
-    /// 静默错位。
-    ResolutionMismatch {
-        /// `ChartData` 上声明的 resolution。
-        chart: u64,
-        /// 计时轨内部实际使用的 resolution。
-        timing: u64,
-    },
     /// 事件引用了越界的音频素材索引。
     DanglingAudioIndex {
         /// 越界的索引值。
@@ -209,14 +189,6 @@ pub enum ChartDataError {
 impl fmt::Display for ChartDataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroResolution => write!(f, "resolution must be positive, got 0"),
-            Self::InvalidBpm { bpm } => {
-                write!(f, "invalid initial BPM: {bpm} (must be non-zero finite)")
-            }
-            Self::ResolutionMismatch { chart, timing } => write!(
-                f,
-                "resolution mismatch: chart data {chart}, timing track {timing}"
-            ),
             Self::DanglingAudioIndex { index, len } => {
                 write!(f, "audio index {index} out of range (0..{len})")
             }
@@ -231,16 +203,13 @@ impl std::error::Error for ChartDataError {}
 
 /// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
 ///
-/// 不实现 [`Default`]：合法状态要求 `resolution > 0` 且
-/// [`timing`](TimingTrack) 的初始 BPM 为正，没有有意义的零值默认。
-/// 调用方必须显式提供这些值（各处理器均以字面量构造）。
+/// 不实现 [`Default`]：合法状态要求 [`timing`](TimingTrack) 的初始
+/// BPM 有效且 `resolution` 为正，没有有意义的零值默认。
+/// 调用方必须显式提供计时轨（各处理器均以字面量构造）。
+/// 节拍分辨率由 [`TimingTrack`] 单点持有，经
+/// [`TimingTrack::resolution`](TimingTrack::resolution) 查询。
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// 每个四分音符的脉冲数（节拍分辨率）。
-    ///
-    /// 必须与 [`TimingTrack`] 内部的 resolution 一致（[`validate`](Self::validate)
-    /// 检查该交叉不变量）。
-    pub resolution: u64,
     /// 用于脉冲 ↔ 秒换算的计时轨。
     pub timing: TimingTrack,
     /// 判定窗口倍率（`1.0` = 标准）。
@@ -283,32 +252,16 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// 验证谱面数据的关键不变量。
     ///
     /// 检查项：
-    /// - `resolution > 0`
-    /// - `resolution` 与 [`TimingTrack`] 内部的 resolution 一致
-    /// - `timing` 的初始 BPM 有效（委托 [`TimingTrack::validate`]，
-    ///   允许负 BPM 用于逆走谱面）
     /// - 事件引用完整性：`Note`/`Bgm` 事件的 `audio_index` 均落在
     ///   [`audio_assets`](Self::audio_assets) 范围内
+    ///
+    /// 计时轨合法性（初始 BPM 有效、resolution 为正）由
+    /// [`TimingTrack`] 构造函数保证，非法状态无法在构造后存在。
     ///
     /// # Errors
     ///
     /// 若任何检查失败，返回 [`ChartDataError`]。
     pub fn validate(&self) -> Result<(), ChartDataError> {
-        if self.resolution == 0 {
-            return Err(ChartDataError::ZeroResolution);
-        }
-        if self.resolution != self.timing.resolution() {
-            return Err(ChartDataError::ResolutionMismatch {
-                chart: self.resolution,
-                timing: self.timing.resolution(),
-            });
-        }
-        self.timing.validate().map_err(|e| match e {
-            TimingTrackError::InvalidBpm { bpm } => ChartDataError::InvalidBpm { bpm },
-            // unreachable in practice (TimingTrack::validate only returns InvalidBpm)
-            TimingTrackError::ZeroResolution => ChartDataError::ZeroResolution,
-        })?;
-
         let len = self.audio_assets.len();
         for event in &self.events {
             let referenced = match &event.kind {
@@ -334,7 +287,10 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// 确保事件按脉冲升序排列。
     ///
     /// [`Player`] 的二分查找（`partition_point`）依赖事件已排序。
-    /// 构造后调用一次以保证后续查询正确。
+    /// [`Player::new`](https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html#method.new)
+    /// 会自动调用本方法；不经
+    /// [`Player`](https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html)
+    /// 直接消费 `events` 的下游须自行调用一次。
     ///
     /// 排序键为 [`Event::sort_key`]：同脉冲内按优先级排序
     /// （Bar < Note/BGA/BGM < BPM < Stop < Scroll < Speed < Custom）。
@@ -366,21 +322,9 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     #[must_use]
     pub fn map_events<U: NoteExt>(
         self,
-        f: impl FnMut(Event<T, C>) -> Event<U, C>,
+        mut f: impl FnMut(Event<T, C>) -> Event<U, C>,
     ) -> ChartData<U, C> {
-        ChartData {
-            resolution: self.resolution,
-            timing: self.timing,
-            judge_multiplier: self.judge_multiplier,
-            life_multiplier: self.life_multiplier,
-            ln_type_hint: self.ln_type_hint,
-            ln_judge_hint: self.ln_judge_hint,
-            ln_life_hint: self.ln_life_hint,
-            judge_deltas: self.judge_deltas,
-            life_deltas: self.life_deltas,
-            events: self.events.into_iter().map(f).collect(),
-            audio_assets: self.audio_assets,
-        }
+        self.rebuild_events(|e| Some(f(e)))
     }
 
     /// 通过映射+过滤函数转换所有事件，可同时改变 `T` 和 `C` 两个泛型参数。
@@ -417,18 +361,41 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         self,
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
     ) -> ChartData<U, D> {
+        self.rebuild_events(f)
+    }
+
+    /// 按映射函数重建事件向量，其余字段原样保留。
+    ///
+    /// [`map_events`](Self::map_events) 与
+    /// [`filter_map_events`](Self::filter_map_events) 的共同底层——
+    /// 字段重列收敛在此一处，新增字段时只需同步本方法。
+    fn rebuild_events<U: NoteExt, D: CustomEvent>(
+        self,
+        f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
+    ) -> ChartData<U, D> {
+        let Self {
+            timing,
+            judge_multiplier,
+            life_multiplier,
+            ln_type_hint,
+            ln_judge_hint,
+            ln_life_hint,
+            judge_deltas,
+            life_deltas,
+            events,
+            audio_assets,
+        } = self;
         ChartData {
-            resolution: self.resolution,
-            timing: self.timing,
-            judge_multiplier: self.judge_multiplier,
-            life_multiplier: self.life_multiplier,
-            ln_type_hint: self.ln_type_hint,
-            ln_judge_hint: self.ln_judge_hint,
-            ln_life_hint: self.ln_life_hint,
-            judge_deltas: self.judge_deltas,
-            life_deltas: self.life_deltas,
-            events: self.events.into_iter().filter_map(f).collect(),
-            audio_assets: self.audio_assets,
+            timing,
+            judge_multiplier,
+            life_multiplier,
+            ln_type_hint,
+            ln_judge_hint,
+            ln_life_hint,
+            judge_deltas,
+            life_deltas,
+            events: events.into_iter().filter_map(f).collect(),
+            audio_assets,
         }
     }
 }

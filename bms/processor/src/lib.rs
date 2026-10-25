@@ -159,14 +159,10 @@ impl BmsProcessor {
         // BMS 引擎特定自定义事件（优先级 6）。
         conv.collect_custom_events(&bmp_map);
 
-        // 排序规则收敛于 Event::sort_key（同脉冲子序约定见其文档）。
-        conv.events.sort_by_key(BmsEvent::sort_key);
-
         let (song, chart_info) = conv.build_metadata(&bmp_map);
         let ln_type_hint = conv.ln_type_hint();
 
         let mut data = ChartData {
-            resolution: RESOLUTION,
             timing,
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -458,16 +454,18 @@ impl BmsConverter<'_> {
     }
 
     /// 构建 BPM 事件（用于统一时间线）。
-    /// 值为 0 的 BPM 变更被跳过并生成警告。
+    ///
+    /// 无效值（零、NaN、无穷大，判定谓词 [`BpmChange::is_valid`]）
+    /// 被跳过并产生警告，与计时轨构造的过滤语义一致。
     fn collect_bpm_events(&mut self) {
         for bc in &self.bms.messages.bpm_changes {
             let tick = self.table.position_to_tick(bc.position);
             let bpm = self.resolve_bpm(bc.value, tick);
-            if bpm == 0.0 {
-                self.warnings
-                    .push(ProcessWarning::ZeroBpmChangeIgnored { tick });
-            } else {
+            if BpmChange::is_valid(bpm) {
                 self.events.push(Event::bpm(tick, bpm));
+            } else {
+                self.warnings
+                    .push(ProcessWarning::InvalidBpmChangeIgnored { tick, bpm });
             }
         }
     }
@@ -692,11 +690,7 @@ impl BmsConverter<'_> {
             .filter_map(|bc| {
                 let tick = self.table.position_to_tick(bc.position);
                 let bpm = self.resolve_bpm(bc.value, tick);
-                if bpm == 0.0 {
-                    None
-                } else {
-                    Some(BpmChange { tick, bpm })
-                }
+                BpmChange::is_valid(bpm).then_some(BpmChange { tick, bpm })
             })
             .collect();
         // 去重必须在按 tick 排序之后：同通道的两个同值变更在向量中相邻

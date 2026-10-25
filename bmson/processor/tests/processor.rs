@@ -10,7 +10,7 @@ use bmson_def::{
     MineChannel, MineNote, ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
 };
 use bmson_processor::layout::{Beat, GenericLayout, Pms};
-use bmson_processor::{BmsonNoteExt, BmsonProcessor};
+use bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
 
@@ -54,9 +54,9 @@ fn make_simple_bmson() -> bmson_def::Bmson<'static> {
             ln_judge_hint: bmson_def::LnJudge::Normal,
             ln_life_hint: bmson_def::LnLife::Normal,
             init_bpm: 140.0,
+            resolution: 240,
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
-            resolution: 240,
             lines: None,
             bpm_events: vec![],
             stop_events: vec![],
@@ -287,6 +287,21 @@ fn process_generic_layout_n_keys() -> TestResult {
     assert_eq!(positions.len(), 5);
     assert!(positions.contains(&(NoteSide::P1, key(1))));
     assert!(positions.contains(&(NoteSide::P1, key(5))));
+    Ok(())
+}
+
+#[test]
+fn process_default_other_mode_hint_produces_warning() -> TestResult {
+    // 规范外的扩展提示回退 Beat 布局，且回退本身必须可观测。
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.mode_hint = ModeHint::Other("somewhere-new".to_owned());
+    let (_, warnings) = BmsonProcessor::process_default_with_warnings(&bmson)?;
+    assert_eq!(
+        warnings,
+        vec![BmsonProcessWarning::UnknownModeHint {
+            hint: "somewhere-new".to_owned()
+        }]
+    );
     Ok(())
 }
 
