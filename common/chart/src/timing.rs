@@ -135,18 +135,10 @@ pub struct StopEvent {
 /// 合并时间线的内部事件表示。
 #[derive(Clone, Copy, Debug)]
 enum TimingEvent {
-    /// BPM 变更 —— `is_stop = false` 确保同一脉冲上 BPM 排在 Stop 之前。
+    /// BPM 变更 —— 与停止同脉冲时排在 Stop 之前。
     Bpm(f64),
     /// 停止，时长以脉冲数表示。
     Stop(u64),
-}
-
-impl TimingEvent {
-    /// 当此事件为 [`TimingEvent::Stop`] 时返回 `true`。
-    #[expect(dead_code, reason = "保留用于基于排序的备用 merge 逻辑")]
-    const fn is_stop(self) -> bool {
-        matches!(self, Self::Stop(_))
-    }
 }
 
 /// 检查 BPM 值是否有效（有限且非零）。
