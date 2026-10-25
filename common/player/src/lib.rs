@@ -18,7 +18,6 @@
 //!     song: SongInfo::default(),
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
-//!         resolution: 240,
 //!         timing: TimingTrack::simple(120.0, 240).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
@@ -97,7 +96,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     pub fn new(mut chart: Chart<T, C>) -> Result<Self, ChartDataError> {
         chart.validate()?;
         chart.data.sort_events();
-        let resolution = chart.data.resolution;
+        let resolution = chart.data.timing.resolution();
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
         let speed_cache = SpeedCache::build(&chart.data.events);
         Ok(Self {

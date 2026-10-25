@@ -192,13 +192,11 @@ impl BmsonProcessor {
         let bmson_data = &bmson.chart_data;
 
         let timing = build_timing(bmson_data)?;
-        let resolution = bmson_data.resolution;
         let bga_ids = build_bga_id_map(&bmson.chart_info.bga);
         let mut conv = BmsonConverter {
             bmson,
             decode,
             timing: timing.clone(),
-            resolution,
             bga_ids: &bga_ids,
             audio_assets: Vec::new(),
             events: Vec::new(),
@@ -218,7 +216,6 @@ impl BmsonProcessor {
         let chart_info = build_chart_info(bmson);
 
         let mut data = ChartData {
-            resolution,
             timing,
             judge_multiplier: bmson_data.judge_multiplier,
             life_multiplier: bmson_data.life_multiplier,
@@ -272,8 +269,6 @@ struct BmsonConverter<'a> {
     decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
     /// 预计算的计时缓存。
     timing: TimingTrack,
-    /// 节拍分辨率。
-    resolution: u64,
     /// BMSON BGA 原始 id → 稠密资源下标映射。
     bga_ids: &'a BTreeMap<u64, u32>,
     /// 正在构建的音频素材向量。
@@ -369,7 +364,7 @@ impl BmsonConverter<'_> {
         let last_tick = self.events.iter().map(Event::tick).max().unwrap_or(0);
         self.events.extend(build_bar_lines(
             self.bmson.chart_data.lines.as_deref(),
-            self.resolution,
+            self.timing.resolution(),
             last_tick,
         ));
     }

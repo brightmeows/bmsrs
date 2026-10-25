@@ -34,7 +34,6 @@ fn make_test_chart() -> Chart {
         },
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: 240,
             timing: TimingTrack::new(
                 120.0,
                 vec![BpmChange {
@@ -428,29 +427,6 @@ fn visible_tick_range_at_midpoint_returns_symmetric_window() {
 }
 
 #[test]
-fn player_new_rejects_zero_resolution() {
-    let chart: Chart = Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: ChartData {
-            resolution: 0,
-            timing: TimingTrack::simple(120.0, 240).unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: vec![],
-            audio_assets: vec![],
-        },
-    };
-    let result = Player::new(chart);
-    assert!(result.is_err());
-}
-
-#[test]
 fn player_new_accepts_negative_bpm() {
     // 负 BPM（逆走谱面）应在全链路通过：TimingTrack → ChartData::validate → Player::new。
     // 若任何校验点仍用 <=0.0，此处 panic。
@@ -458,7 +434,6 @@ fn player_new_accepts_negative_bpm() {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: 240,
             timing: TimingTrack::simple(-120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -486,7 +461,6 @@ fn make_chart_with_bgm() -> Chart {
         },
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: 240,
             timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -544,7 +518,6 @@ fn make_chart_with_bga() -> Chart {
             ..Default::default()
         },
         data: ChartData {
-            resolution: 240,
             timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,

@@ -33,7 +33,6 @@ fn chart_construction_is_empty_by_default() {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: 240,
             timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -60,7 +59,6 @@ fn chart_construction() {
         },
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: 240,
             timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -110,7 +108,6 @@ fn chart_info_default() {
 fn chart_data_last_tick_empty() {
     // 空事件列表 → last_tick() 返回 0。
     let data = ChartData::<(), NoCustomEvent> {
-        resolution: 240,
         timing: TimingTrack::simple(120.0, 240).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
@@ -128,7 +125,6 @@ fn chart_data_last_tick_empty() {
 #[test]
 fn chart_data_last_tick_with_events() {
     let data: ChartData = ChartData {
-        resolution: 240,
         timing: TimingTrack::simple(120.0, 240).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
@@ -146,7 +142,6 @@ fn chart_data_last_tick_with_events() {
 #[test]
 fn chart_data_duration() {
     let data: ChartData = ChartData {
-        resolution: 240,
         timing: TimingTrack::simple(120.0, 240).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
@@ -167,7 +162,6 @@ fn chart_data_duration() {
 /// 构造一个合法的空 [`ChartData`]（resolution 一致、无事件）。
 fn valid_chart_data() -> ChartData {
     ChartData {
-        resolution: 240,
         timing: TimingTrack::simple(120.0, 240).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
@@ -179,21 +173,6 @@ fn valid_chart_data() -> ChartData {
         events: vec![],
         audio_assets: vec![],
     }
-}
-
-#[test]
-fn validate_rejects_resolution_mismatch() {
-    // resolution 双写：ChartData 与 TimingTrack 各存一份，必须一致。
-    let mut data = valid_chart_data();
-    data.timing = TimingTrack::simple(120.0, 480).unwrap();
-
-    assert_eq!(
-        data.validate(),
-        Err(ChartDataError::ResolutionMismatch {
-            chart: 240,
-            timing: 480,
-        })
-    );
 }
 
 #[test]
@@ -707,7 +686,6 @@ fn map_ext_applies_fn_to_note_variant() {
 
 fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
     ChartData {
-        resolution: 240,
         timing: TimingTrack::simple(120.0, 240).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,
@@ -740,14 +718,13 @@ fn filter_map_events_preserves_all_when_none_filtered() {
     let mapped: ChartData<(), NoCustomEvent> = data
         .filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))));
     assert_eq!(mapped.events.len(), 3);
-    assert_eq!(mapped.resolution, 240);
+    assert_eq!(mapped.timing.resolution(), 240);
     assert!((mapped.timing.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
 fn filter_map_events_drops_custom_events() {
     let data = ChartData {
-        resolution: 240,
         timing: TimingTrack::simple(120.0, 240).unwrap(),
         judge_multiplier: 1.0,
         life_multiplier: 1.0,

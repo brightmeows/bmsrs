@@ -16,7 +16,7 @@
 //! # 时间模型
 //!
 //! 所有事件位置均为绝对 [`u64`] 脉冲（tick）。全局
-//! [`resolution`](ChartData::resolution) 定义每个四分音符的脉冲数
+//! [`TimingTrack::resolution`](TimingTrack::resolution) 定义每个四分音符的脉冲数
 //! （默认 240）。实际时间（wall-clock）通过
 //! [`TimingTrack::tick_to_duration`] 换算得到。
 //!
@@ -48,7 +48,6 @@
 //!     },
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
-//!         resolution: 240,
 //!         timing: TimingTrack::simple(120.0, 240).unwrap(),
 //!         judge_multiplier: 1.0,
 //!         life_multiplier: 1.0,
@@ -168,25 +167,6 @@ impl Eq for LifeDeltas {}
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ChartDataError {
-    /// `resolution` 为 0（必须为正）。
-    ZeroResolution,
-    /// 初始 BPM 无效（0、NaN 或无穷大；允许负值用于逆走谱面）。
-    InvalidBpm {
-        /// 无效的 BPM 值。
-        bpm: f64,
-    },
-    /// `resolution` 与计时轨内部的 resolution 不一致。
-    ///
-    /// [`ChartData::resolution`](crate::ChartData::resolution) 与
-    /// [`TimingTrack`] 内部的 resolution 是同一事实的两份拷贝，必须
-    /// 一致——否则脉冲换算与滚动/间距缓存各用各的分辨率，查询结果
-    /// 静默错位。
-    ResolutionMismatch {
-        /// `ChartData` 上声明的 resolution。
-        chart: u64,
-        /// 计时轨内部实际使用的 resolution。
-        timing: u64,
-    },
     /// 事件引用了越界的音频素材索引。
     DanglingAudioIndex {
         /// 越界的索引值。
@@ -209,14 +189,6 @@ pub enum ChartDataError {
 impl fmt::Display for ChartDataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ZeroResolution => write!(f, "resolution must be positive, got 0"),
-            Self::InvalidBpm { bpm } => {
-                write!(f, "invalid initial BPM: {bpm} (must be non-zero finite)")
-            }
-            Self::ResolutionMismatch { chart, timing } => write!(
-                f,
-                "resolution mismatch: chart data {chart}, timing track {timing}"
-            ),
             Self::DanglingAudioIndex { index, len } => {
                 write!(f, "audio index {index} out of range (0..{len})")
             }
@@ -231,16 +203,13 @@ impl std::error::Error for ChartDataError {}
 
 /// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
 ///
-/// 不实现 [`Default`]：合法状态要求 `resolution > 0` 且
-/// [`timing`](TimingTrack) 的初始 BPM 为正，没有有意义的零值默认。
-/// 调用方必须显式提供这些值（各处理器均以字面量构造）。
+/// 不实现 [`Default`]：合法状态要求 [`timing`](TimingTrack) 的初始
+/// BPM 有效且 `resolution` 为正，没有有意义的零值默认。
+/// 调用方必须显式提供计时轨（各处理器均以字面量构造）。
+/// 节拍分辨率由 [`TimingTrack`] 单点持有，经
+/// [`TimingTrack::resolution`](TimingTrack::resolution) 查询。
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// 每个四分音符的脉冲数（节拍分辨率）。
-    ///
-    /// 必须与 [`TimingTrack`] 内部的 resolution 一致（[`validate`](Self::validate)
-    /// 检查该交叉不变量）。
-    pub resolution: u64,
     /// 用于脉冲 ↔ 秒换算的计时轨。
     pub timing: TimingTrack,
     /// 判定窗口倍率（`1.0` = 标准）。
@@ -283,32 +252,16 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// 验证谱面数据的关键不变量。
     ///
     /// 检查项：
-    /// - `resolution > 0`
-    /// - `resolution` 与 [`TimingTrack`] 内部的 resolution 一致
-    /// - `timing` 的初始 BPM 有效（委托 [`TimingTrack::validate`]，
-    ///   允许负 BPM 用于逆走谱面）
     /// - 事件引用完整性：`Note`/`Bgm` 事件的 `audio_index` 均落在
     ///   [`audio_assets`](Self::audio_assets) 范围内
+    ///
+    /// 计时轨合法性（初始 BPM 有效、resolution 为正）由
+    /// [`TimingTrack`] 构造函数保证，非法状态无法在构造后存在。
     ///
     /// # Errors
     ///
     /// 若任何检查失败，返回 [`ChartDataError`]。
     pub fn validate(&self) -> Result<(), ChartDataError> {
-        if self.resolution == 0 {
-            return Err(ChartDataError::ZeroResolution);
-        }
-        if self.resolution != self.timing.resolution() {
-            return Err(ChartDataError::ResolutionMismatch {
-                chart: self.resolution,
-                timing: self.timing.resolution(),
-            });
-        }
-        self.timing.validate().map_err(|e| match e {
-            TimingTrackError::InvalidBpm { bpm } => ChartDataError::InvalidBpm { bpm },
-            // unreachable in practice (TimingTrack::validate only returns InvalidBpm)
-            TimingTrackError::ZeroResolution => ChartDataError::ZeroResolution,
-        })?;
-
         let len = self.audio_assets.len();
         for event in &self.events {
             let referenced = match &event.kind {
@@ -418,7 +371,6 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
     ) -> ChartData<U, D> {
         let Self {
-            resolution,
             timing,
             judge_multiplier,
             life_multiplier,
@@ -431,7 +383,6 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
             audio_assets,
         } = self;
         ChartData {
-            resolution,
             timing,
             judge_multiplier,
             life_multiplier,

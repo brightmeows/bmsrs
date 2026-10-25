@@ -166,7 +166,6 @@ impl BmsProcessor {
         let ln_type_hint = conv.ln_type_hint();
 
         let mut data = ChartData {
-            resolution: RESOLUTION,
             timing,
             judge_multiplier: 1.0,
             life_multiplier: 1.0,

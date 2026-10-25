@@ -11,7 +11,6 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            resolution: 240,
             timing: TimingTrack::simple(120.0, 240).unwrap(),
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
