@@ -3,8 +3,8 @@
 use std::num::NonZeroU8;
 
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position};
-use bms_processor::BmsProcessor;
 use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
+use bms_processor::{BmsProcessor, ProcessWarning};
 use bms_tokenizer::{BpmIndex, LnObjIndex};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{EventKind, NoteKind};
@@ -161,6 +161,43 @@ fn process_negative_bpm_is_accepted() {
         chart.data.timing.tick_to_duration(240),
         std::time::Duration::from_millis(500)
     );
+}
+
+#[test]
+fn process_nan_bpm_change_never_enters_event_stream() {
+    // NaN 经 f64 解析可进入 Bms；与计时轨同一谓词过滤后不得进入统一
+    // 事件流（Event 的 Eq 契约要求 f64 字段不含 NaN）。
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(1, 0, 4),
+        value: BpmValue::Absolute(f64::NAN),
+    });
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let has_bpm_event = chart
+        .data
+        .events
+        .iter()
+        .any(|e| matches!(e.kind, EventKind::Bpm { .. }));
+    assert!(!has_bpm_event);
+}
+
+#[test]
+fn process_nan_bpm_change_produces_warning() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(1, 0, 4),
+        value: BpmValue::Absolute(f64::NAN),
+    });
+
+    let (_, warnings) = BmsProcessor::process_with_warnings::<Bme>(&bms).unwrap();
+    // NaN 不可 assert_eq，用 matches! 检查变体与值。
+    assert!(matches!(
+        warnings.as_slice(),
+        [ProcessWarning::InvalidBpmChangeIgnored { bpm, .. }] if bpm.is_nan()
+    ));
 }
 
 #[test]

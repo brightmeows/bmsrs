@@ -106,6 +106,18 @@ pub struct BpmChange {
     pub bpm: f64,
 }
 
+impl BpmChange {
+    /// 判断 BPM 值是否有效（有限且非零）。
+    ///
+    /// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在消费点被跳过，保持
+    /// 上一个有效 BPM 不变——与 beatoraja 行为一致。计时轨构造与两侧
+    /// processor 共用本谓词，保证计时轨与统一事件流的过滤语义一致。
+    #[must_use]
+    pub const fn is_valid(bpm: f64) -> bool {
+        bpm.is_finite() && bpm != 0.0
+    }
+}
+
 /// 停止（暂停）事件。
 ///
 /// 当回放到达 `tick` 时，滚动暂停 `duration` 个脉冲的时长（按当前 BPM
@@ -125,14 +137,6 @@ enum TimingEvent {
     Bpm(f64),
     /// 停止，时长以脉冲数表示。
     Stop(u64),
-}
-
-/// 检查 BPM 值是否有效（有限且非零）。
-///
-/// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在消费点被跳过，
-/// 保持上一个有效 BPM 不变——与 beatoraja 行为一致。
-const fn is_valid_bpm(bpm: f64) -> bool {
-    bpm.is_finite() && bpm != 0.0
 }
 
 /// 将秒数安全转换为 [`Duration`]，避免溢出 panic。
@@ -185,7 +189,7 @@ impl TimingTrack {
         let mut current_bpm = init_bpm;
 
         for bc in &bpm_changes {
-            if !is_valid_bpm(bc.bpm) {
+            if !BpmChange::is_valid(bc.bpm) {
                 continue;
             }
             if bc.tick > current_tick {
@@ -484,7 +488,7 @@ fn merge_inv(
         }
         match ev {
             TimingEvent::Bpm(b) => {
-                if !is_valid_bpm(b) {
+                if !BpmChange::is_valid(b) {
                     continue;
                 }
                 cur_bpm = b;

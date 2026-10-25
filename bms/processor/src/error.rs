@@ -38,11 +38,17 @@ pub enum ProcessWarning {
         tick: u64,
     },
 
-    /// 值为 0 的 BPM 变更被忽略。
-    #[error("zero BPM change at tick {tick} ignored")]
-    ZeroBpmChangeIgnored {
+    /// 值无效（零、NaN 或无穷大）的 BPM 变更被忽略。
+    ///
+    /// 过滤谓词与 [`TimingTrack`](bmsrs_chart::TimingTrack) 构造一致
+    /// （[`BpmChange::is_valid`](bmsrs_chart::BpmChange::is_valid)），
+    /// 无效值不进入计时轨，也不进入统一事件流。
+    #[error("invalid BPM change at tick {tick} ignored (value {bpm})")]
+    InvalidBpmChangeIgnored {
         /// 事件所在脉冲。
         tick: u64,
+        /// 被忽略的 BPM 值。
+        bpm: f64,
     },
 
     /// 负值 STOP 时长被钳位到 0。
