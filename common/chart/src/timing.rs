@@ -391,7 +391,11 @@ impl BpmLookup<'_> {
     /// 构造 `BpmLookup`。
     ///
     /// `bpm_changes` 必须按 `tick` 升序排列（由调用方保证；
-    /// [`BpmChange`] 本身无排序不变量）。
+    /// [`BpmChange`] 本身无排序不变量）。`init_bpm` **不做**有效性
+    /// 校验（与 [`TimingTrack::new`] 不同）：传入零/非有限值时
+    /// [`bpm_at_tick`](Self::bpm_at_tick) 会返回该无效值。调用方若
+    /// 依赖换算结果，须自行保证 `init_bpm` 有效；BMS 管道中
+    /// [`TimingTrack::new`] 在后续构造点完成最终校验。
     #[must_use]
     pub const fn new(init_bpm: f64, bpm_changes: &[BpmChange]) -> BpmLookup<'_> {
         BpmLookup {
