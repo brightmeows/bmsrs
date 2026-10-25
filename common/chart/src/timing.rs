@@ -357,8 +357,6 @@ impl PartialEq for TimingTrack {
 // PartialEq 满足 Eq 的反射性要求。
 impl Eq for TimingTrack {}
 
-// TimingCache —— 预计算计时索引（已弃用）
-
 /// 计时轨中 BPM 恒定的一段。
 #[derive(Clone, Debug)]
 struct BpmSegment {
@@ -385,61 +383,12 @@ struct InvSeg {
     bpm: f64,
 }
 
-/// [`TimingTrack`] 的委托包装（已弃用）。
-///
-/// 保留此类型仅为兼容旧调用方。所有方法直接委托给内部的
-/// [`TimingTrack`] 实例。
-///
-/// # 弃用
-///
-/// 直接使用 [`TimingTrack::tick_to_duration`] / [`TimingTrack::bpm_at_tick`] 代替。
-#[derive(Debug)]
-#[deprecated(note = "直接使用 TimingTrack 的 tick_to_duration / bpm_at_tick 代替")]
-pub struct TimingCache {
-    /// 内部的 [`TimingTrack`] 实例，所有方法委托至此。
-    timing: TimingTrack,
-}
-
-#[expect(deprecated, reason = "仍保留 TimingCache 供旧调用方使用")]
-impl TimingCache {
-    /// 由 [`TimingTrack`] 与节拍分辨率构造缓存。
-    ///
-    /// # 弃用
-    ///
-    /// 直接使用 [`TimingTrack`] 的方法代替。
-    #[must_use]
-    #[deprecated(note = "直接使用 TimingTrack 的 tick_to_duration / bpm_at_tick 代替")]
-    pub fn new(timing: &TimingTrack, _resolution: u64) -> Self {
-        Self {
-            timing: timing.clone(),
-        }
-    }
-
-    /// 将脉冲位置换算为实际时间 [`Duration`]。
-    #[must_use]
-    pub fn tick_to_duration(&self, tick: u64) -> Duration {
-        self.timing.tick_to_duration(tick)
-    }
-
-    /// 返回 `tick` 处生效的 BPM。
-    #[must_use]
-    pub fn bpm_at_tick(&self, tick: u64) -> f64 {
-        self.timing.bpm_at_tick(tick)
-    }
-
-    /// 将实际时间 [`Duration`] 换算为最接近的脉冲位置。
-    #[must_use]
-    pub fn duration_to_tick(&self, duration: Duration) -> u64 {
-        self.timing.duration_to_tick(duration)
-    }
-}
-
 /// 在给定脉冲处快速查询生效 BPM 的轻量查找器。
 ///
 /// 适用于需在构造 [`TimingTrack`] 之前查询 BPM 的场景（例如将 STP 毫秒
 /// 换算为脉冲），以及任何无须完整计时轨的一次性/低频查询。
 ///
-/// 与 [`TimingCache::bpm_at_tick`] 语义一致，但无需预建 `TimingCache`。
+/// 与 [`TimingTrack::bpm_at_tick`] 语义一致，但无须构造完整计时轨。
 #[derive(Clone, Debug)]
 pub struct BpmLookup<'a> {
     /// 脉冲 0 处的初始 BPM。
@@ -579,7 +528,6 @@ fn merge_inv(
 }
 
 #[cfg(test)]
-#[expect(deprecated, reason = "测试中仍使用 TimingCache 验证回归一致性")]
 mod tests {
     use super::*;
 
@@ -651,48 +599,6 @@ mod tests {
     }
 
     #[test]
-    fn matches_timing_track_constant_bpm() {
-        let timing = TimingTrack::simple(150.0, RES).unwrap();
-        let cache = TimingCache::new(&timing, RES);
-
-        for tick in [0u64, 100, 240, 480, 960, 1920] {
-            let expected = timing.tick_to_duration(tick);
-            let actual = cache.tick_to_duration(tick);
-            assert_eq!(actual, expected, "mismatch at tick {tick}");
-        }
-    }
-
-    #[test]
-    fn matches_timing_track_with_bpm_changes_and_stops() {
-        let timing = TimingTrack::new(
-            150.0,
-            vec![
-                BpmChange {
-                    tick: 480,
-                    bpm: 200.0,
-                },
-                BpmChange {
-                    tick: 1200,
-                    bpm: 100.0,
-                },
-            ],
-            vec![StopEvent {
-                tick: 960,
-                duration: 480,
-            }],
-            RES,
-        )
-        .unwrap();
-        let cache = TimingCache::new(&timing, RES);
-
-        for tick in [0u64, 100, 240, 479, 480, 959, 960, 961, 1200, 2400] {
-            let expected = timing.tick_to_duration(tick);
-            let actual = cache.tick_to_duration(tick);
-            assert_eq!(actual, expected, "mismatch at tick {tick}");
-        }
-    }
-
-    #[test]
     fn bpm_at_tick_returns_correct_bpm() {
         let timing = TimingTrack::new(
             120.0,
@@ -728,11 +634,8 @@ mod tests {
             RES,
         )
         .unwrap();
-        let cache = TimingCache::new(&timing, RES);
 
-        let expected = Duration::from_millis(1500);
-        assert_eq!(cache.tick_to_duration(480), expected);
-        assert_eq!(timing.tick_to_duration(480), expected);
+        assert_eq!(timing.tick_to_duration(480), Duration::from_millis(1500));
     }
 
     #[test]
@@ -747,11 +650,8 @@ mod tests {
             RES,
         )
         .unwrap();
-        let cache = TimingCache::new(&timing, RES);
 
-        let expected = Duration::from_secs(1);
-        assert_eq!(cache.tick_to_duration(480), expected);
-        assert_eq!(timing.tick_to_duration(480), expected);
+        assert_eq!(timing.tick_to_duration(480), Duration::from_secs(1));
     }
 
     #[test]
@@ -766,9 +666,8 @@ mod tests {
             RES,
         )
         .unwrap();
-        let cache = TimingCache::new(&timing, RES);
 
-        assert_eq!(cache.tick_to_duration(480), Duration::from_secs(1));
+        assert_eq!(timing.tick_to_duration(480), Duration::from_secs(1));
     }
 
     #[test]
@@ -783,9 +682,8 @@ mod tests {
             RES,
         )
         .unwrap();
-        let cache = TimingCache::new(&timing, RES);
 
-        assert_eq!(cache.tick_to_duration(480), Duration::from_secs(1));
+        assert_eq!(timing.tick_to_duration(480), Duration::from_secs(1));
     }
 
     #[test]
@@ -806,11 +704,8 @@ mod tests {
             RES,
         )
         .unwrap();
-        let cache = TimingCache::new(&timing, RES);
 
-        let expected = Duration::from_secs(2);
-        assert_eq!(cache.tick_to_duration(720), expected);
-        assert_eq!(timing.tick_to_duration(720), expected);
+        assert_eq!(timing.tick_to_duration(720), Duration::from_secs(2));
     }
 
     #[test]
@@ -825,13 +720,8 @@ mod tests {
             RES,
         )
         .unwrap();
-        let cache = TimingCache::new(&timing, RES);
 
-        let result = cache.tick_to_duration(1);
-        assert_eq!(result, Duration::MAX);
-
-        let result_track = timing.tick_to_duration(1);
-        assert_eq!(result_track, Duration::MAX);
+        assert_eq!(timing.tick_to_duration(1), Duration::MAX);
     }
 
     // 构造错误
@@ -896,99 +786,6 @@ mod tests {
     fn validate_returns_err_for_invalid_track() {
         let timing = TimingTrack::simple(0.0, RES);
         assert!(timing.is_err());
-    }
-
-    // 回归测试：新旧结果一致性
-
-    #[test]
-    fn regression_tick_to_duration_matches_cache_constant() {
-        let timing = TimingTrack::simple(150.0, RES).unwrap();
-        let cache = TimingCache::new(&timing, RES);
-
-        for tick in [0u64, 100, 240, 480, 960, 1920, 5000] {
-            assert_eq!(
-                timing.tick_to_duration(tick),
-                cache.tick_to_duration(tick),
-                "regression mismatch at tick {tick}",
-            );
-        }
-    }
-
-    #[test]
-    fn regression_tick_to_duration_matches_cache_with_changes() {
-        let timing = TimingTrack::new(
-            150.0,
-            vec![
-                BpmChange {
-                    tick: 480,
-                    bpm: 200.0,
-                },
-                BpmChange {
-                    tick: 1200,
-                    bpm: 100.0,
-                },
-            ],
-            vec![
-                StopEvent {
-                    tick: 960,
-                    duration: 480,
-                },
-                StopEvent {
-                    tick: 2400,
-                    duration: 960,
-                },
-            ],
-            RES,
-        )
-        .unwrap();
-        let cache = TimingCache::new(&timing, RES);
-
-        for tick in [0u64, 100, 240, 480, 960, 1920, 5000] {
-            assert_eq!(
-                timing.tick_to_duration(tick),
-                cache.tick_to_duration(tick),
-                "regression mismatch at tick {tick}",
-            );
-        }
-    }
-
-    #[test]
-    fn regression_duration_to_tick_matches_cache() {
-        let timing = TimingTrack::new(
-            150.0,
-            vec![
-                BpmChange {
-                    tick: 480,
-                    bpm: 200.0,
-                },
-                BpmChange {
-                    tick: 1200,
-                    bpm: 100.0,
-                },
-            ],
-            vec![
-                StopEvent {
-                    tick: 960,
-                    duration: 480,
-                },
-                StopEvent {
-                    tick: 2400,
-                    duration: 960,
-                },
-            ],
-            RES,
-        )
-        .unwrap();
-        let cache = TimingCache::new(&timing, RES);
-
-        for ms in (0..4000u64).step_by(50) {
-            let d = Duration::from_millis(ms);
-            assert_eq!(
-                timing.duration_to_tick(d),
-                cache.duration_to_tick(d),
-                "regression mismatch at {ms}ms",
-            );
-        }
     }
 
     #[test]

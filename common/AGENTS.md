@@ -27,8 +27,7 @@ flowchart LR
 | Tick | `u64` | 所有事件位置、停止时长、LN 时长 |
 | Time | `Duration` | `AudioAsset.start`、`Chart::duration()`、播放器公开 API |
 
-`TimingTrack`（O(n) 线性）与 `TimingCache`（O(log n) 二分）桥接两域，语义一致、结果等价。
-前者适合一次性构造，后者适合频繁换算（播放器实时查询、处理器批量切片）。两者同处 `bmsrs-chart`。
+`TimingTrack`（预计算段，查询 O(log n)）桥接两域；`BpmLookup` 服务构造 `TimingTrack` 前的轻量 BPM 查询。两者同处 `bmsrs-chart`。
 
 ## 设计原则
 

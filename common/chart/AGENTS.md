@@ -45,9 +45,8 @@ Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 |------|------|------|
 | [`BpmLookup`] | `new(init_bpm, &[BpmChange])` | 在构造 [`TimingTrack`] 前查询 BPM（例如 STP 毫秒→脉冲换算），无须完整计时轨 |
 | [`BpmLookup`] | `bpm_at_tick(tick) → f64` | 给定脉冲处生效的 BPM（二分查找） |
-| [`TimingCache`] | `bpm_at_tick(tick) → f64` | 语义等价，但需预建 `TimingCache` |
 
-`BpmLookup::bpm_at_tick` 与 `TimingCache::bpm_at_tick` 语义一致，前者无须预建 `TimingCache`。
+`BpmLookup::bpm_at_tick` 与 `TimingTrack::bpm_at_tick` 语义一致；前者无须构造完整计时轨，用于构造前的轻量查询。
 
 ## 非显而易见的规则
 
