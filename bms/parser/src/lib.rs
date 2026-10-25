@@ -84,51 +84,6 @@ impl Bms {
         bms
     }
 
-    /// 从原始 BMS 文本经过完整管道（分词 → 控制流展开 → 解析）构建
-    /// [`Bms`]，同时返回控制流阶段产生的警告。
-    ///
-    /// 等价于以下步骤的组合调用：
-    /// 1. 使用 [`Document`] 构建无损文档
-    /// 2. 按 `error_strategy` 抽取 token 并跳过错误
-    /// 3. 使用 [`FlowDoc::from_tokens`] 构建控制流树
-    /// 4. 使用 `rng` 选择分支
-    /// 5. 使用 [`Bms::from_flat_tokens`] 解析
-    ///
-    /// 分词阶段的逐行解析错误会被静默跳过；仅控制流结构错误
-    ///（如不匹配的 `#IF` / `#ENDRANDOM`）会作为错误返回。
-    ///
-    /// 返回 `(Bms, Vec<ControlFlowWarning>)`，warnings 携带控制流
-    /// 构建期间的非致命问题（如未闭合的 `#RANDOM` 块）。
-    ///
-    /// # Errors
-    ///
-    /// 当控制流结构不合法时返回
-    /// [`ControlFlowError`](bms_control_flow::ControlFlowError)。
-    ///
-    /// [`Document`]: bms_document::Document
-    /// [`FlowDoc::from_tokens`]: bms_control_flow::FlowDoc::from_tokens
-    pub fn from_text<R>(
-        text: &str,
-        rng: &mut R,
-        error_strategy: bms_document::ErrorStrategy,
-    ) -> Result<(Self, Vec<bms_control_flow::ControlFlowWarning>), bms_control_flow::ControlFlowError>
-    where
-        R: bms_control_flow::BranchRng,
-    {
-        use bms_control_flow::FlowDoc;
-        use bms_document::Document;
-
-        let document = Document::from_text(text);
-        let token_pairs = document
-            .token_results_with(error_strategy)
-            .filter_map(|(line, result)| result.ok().map(|token| (line, token)));
-
-        let doc = FlowDoc::from_tokens(token_pairs)?;
-        let warnings = doc.warnings().to_vec();
-        let (flat, _) = doc.select_branches(rng);
-        Ok((Self::from_flat_tokens(flat), warnings))
-    }
-
     // 头部分发 —— 纯路由到子模块的 apply() 方法
 
     /// 将头部命令路由到对应子模块的 `apply` 方法。

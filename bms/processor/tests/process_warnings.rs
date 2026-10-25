@@ -124,7 +124,7 @@ fn unparsable_bpm_value_produces_warning() {
 #00003:GG
 ";
     let (bms, _) =
-        Bms::from_text(text, &mut Fixed, bms_document::ErrorStrategy::CollectAll).unwrap();
+        bmsrs::bms::from_text(text, &mut Fixed, bms_document::ErrorStrategy::CollectAll).unwrap();
     let (_chart, warnings) = BmsProcessor::process_with_warnings::<Bme>(&bms).unwrap();
 
     assert!(warnings.iter().any(|w| matches!(
