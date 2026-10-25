@@ -105,3 +105,30 @@ fn process_still_returns_ok_with_warnings() {
     let result = BmsProcessor::process_with_warnings::<Bme>(&bms);
     assert!(result.is_ok());
 }
+
+#[test]
+fn unparsable_bpm_value_produces_warning() {
+    use bms_control_flow::BranchRng;
+
+    struct Fixed;
+
+    impl BranchRng for Fixed {
+        fn gen_range(&mut self, _max: u64) -> u64 {
+            1
+        }
+    }
+
+    // ch03 要求十六进制（01-FF），"GG" 不满足——修复前静默丢弃，无信号。
+    let text = "\
+#BPM 120
+#00003:GG
+";
+    let (bms, _) =
+        Bms::from_text(text, &mut Fixed, bms_document::ErrorStrategy::CollectAll).unwrap();
+    let (_chart, warnings) = BmsProcessor::process_with_warnings::<Bme>(&bms).unwrap();
+
+    assert!(warnings.iter().any(|w| matches!(
+        w,
+        ProcessWarning::UnparsableValue(bms_parser::ChannelValueWarning { measure: 0, .. })
+    )));
+}
