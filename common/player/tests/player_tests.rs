@@ -424,6 +424,30 @@ fn player_advance_with_stop() {
     assert_eq!(player.current_tick(), 336);
 }
 
+#[test]
+fn frame_wise_advance_crosses_stop() {
+    let mut chart = make_test_chart();
+    chart.data.timing = TimingTrack::new(
+        120.0,
+        vec![],
+        vec![StopEvent {
+            tick: 240,
+            duration: 240,
+        }],
+        240,
+    )
+    .unwrap();
+    let mut player = Player::new(chart).unwrap();
+
+    // 60fps 帧循环 3 秒：180 帧 × 1/60s。冻结段为 [0.5, 1.0)s，
+    // 脉冲应到达 (3.0 - 1.0)s × 480 ticks/s + 240 = 1200；
+    // 若以脉冲为状态、时间从脉冲反推，将永久卡在 240。
+    for _ in 0..180 {
+        player.advance(Duration::from_secs_f64(1.0 / 60.0));
+    }
+    assert!(player.current_tick() > 1000);
+}
+
 // visible_tick_range
 
 #[test]
