@@ -7,9 +7,9 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event,
-    EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind, NoteSide,
-    SongInfo, StopEvent, TimingTrack,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartDataError, ChartInfo,
+    Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind,
+    NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -160,6 +160,75 @@ fn chart_data_duration() {
     };
     // 960 ticks at 120 BPM with resolution 240 = 2 seconds
     assert_eq!(data.duration(), Duration::from_secs_f64(2.0));
+}
+
+// ChartData::validate
+
+/// 构造一个合法的空 [`ChartData`]（resolution 一致、无事件）。
+fn valid_chart_data() -> ChartData {
+    ChartData {
+        resolution: 240,
+        timing: TimingTrack::simple(120.0, 240).unwrap(),
+        judge_multiplier: 1.0,
+        life_multiplier: 1.0,
+        ln_type_hint: LnTypeHint::default(),
+        ln_judge_hint: LnJudgeHint::default(),
+        ln_life_hint: LnLifeHint::default(),
+        judge_deltas: None,
+        life_deltas: None,
+        events: vec![],
+        audio_assets: vec![],
+    }
+}
+
+#[test]
+fn validate_rejects_resolution_mismatch() {
+    // resolution 双写：ChartData 与 TimingTrack 各存一份，必须一致。
+    let mut data = valid_chart_data();
+    data.timing = TimingTrack::simple(120.0, 480).unwrap();
+
+    assert_eq!(
+        data.validate(),
+        Err(ChartDataError::ResolutionMismatch {
+            chart: 240,
+            timing: 480,
+        })
+    );
+}
+
+#[test]
+fn validate_rejects_dangling_audio_index() {
+    // Bgm 事件引用索引 3，素材表为空。
+    let mut data = valid_chart_data();
+    data.events = vec![Event::bgm(0, 3)];
+
+    assert_eq!(
+        data.validate(),
+        Err(ChartDataError::DanglingAudioIndex { index: 3, len: 0 })
+    );
+}
+
+#[test]
+fn validate_accepts_consistent_chart() {
+    // 音符引用索引 0，素材表恰有一项；resolution 一致。
+    let mut data = valid_chart_data();
+    data.audio_assets = vec![AudioAsset::from_path_buf(
+        std::path::PathBuf::from("a.wav"),
+        Duration::ZERO,
+        None,
+    )];
+    data.events = vec![Event::new(
+        0,
+        EventKind::Note {
+            side: NoteSide::P1,
+            lane: key(1),
+            kind: NoteKind::Normal,
+            audio_index: Some(0),
+            ext: (),
+        },
+    )];
+
+    assert_eq!(data.validate(), Ok(()));
 }
 
 // Event
