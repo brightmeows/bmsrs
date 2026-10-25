@@ -2,9 +2,52 @@
 //!
 //! 本 crate 聚合并重新导出各子 crate 的公共 API，
 //! 模块层级统一镜像工作区的目录结构。
+//! 整条管线的组装入口（[`bms::from_text`]）也在此——parser crate
+//! 保持只依赖 tokenizer + control-flow，不越层持有文档层。
 
 /// BMS 格式的解析与处理。
 pub mod bms {
+    /// 由原始 BMS 文本经过完整管道（分词 → 控制流展开 → 解析）构建
+    /// [`Bms`](bms_parser::Bms)，同时返回控制流阶段产生的警告。
+    ///
+    /// 等价于以下步骤的组合调用：
+    /// 1. 使用 [`Document`](document::Document) 构建无损文档
+    /// 2. 按 `error_strategy` 抽取 token 并跳过错误
+    /// 3. 使用 [`FlowDoc::from_tokens`](control_flow::FlowDoc::from_tokens)
+    ///    构建控制流树
+    /// 4. 使用 `rng` 选择分支
+    /// 5. 使用
+    ///    [`Bms::from_flat_tokens`](parser::Bms::from_flat_tokens) 解析
+    ///
+    /// 分词阶段的逐行解析错误按 `error_strategy` 处理；仅控制流结构
+    /// 错误（如不匹配的 `#IF` / `#ENDRANDOM`）会作为错误返回。
+    ///
+    /// # Errors
+    ///
+    /// 当控制流结构不合法时返回
+    /// [`ControlFlowError`](control_flow::ControlFlowError)。
+    pub fn from_text<R>(
+        text: &str,
+        rng: &mut R,
+        error_strategy: document::ErrorStrategy,
+    ) -> Result<
+        (parser::Bms, std::vec::Vec<control_flow::ControlFlowWarning>),
+        control_flow::ControlFlowError,
+    >
+    where
+        R: control_flow::BranchRng,
+    {
+        let document = document::Document::from_text(text);
+        let token_pairs = document
+            .token_results_with(error_strategy)
+            .filter_map(|(line, result)| result.ok().map(|token| (line, token)));
+
+        let doc = control_flow::FlowDoc::from_tokens(token_pairs)?;
+        let warnings = doc.warnings().to_vec();
+        let (flat, _) = doc.select_branches(rng);
+        Ok((parser::Bms::from_flat_tokens(flat), warnings))
+    }
+
     /// BMS 单行语法解析。
     pub mod tokenizer {
         pub use bms_tokenizer::*;

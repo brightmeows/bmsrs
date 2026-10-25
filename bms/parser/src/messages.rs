@@ -571,7 +571,7 @@ impl Messages {
     clippy::indexing_slicing,
     reason = "loop guard ensures access is within bounds"
 )]
-pub fn merge_channel(lines: &[String]) -> String {
+fn merge_channel(lines: &[String]) -> String {
     debug_assert!(!lines.is_empty(), "merge_channel called with empty lines");
 
     // 将每行解析为 2 字符值块。
@@ -656,7 +656,7 @@ fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<BmsIndex> {
     clippy::expect_used,
     reason = "two base62 chars are valid ASCII by the is_base62 guard"
 )]
-pub fn split_2char_values_lenient(values: &str) -> Vec<&str> {
+fn split_2char_values_lenient(values: &str) -> Vec<&str> {
     let bytes = values.as_bytes();
     let mut result = Vec::new();
     let mut i = 0;
@@ -1135,5 +1135,40 @@ mod tests {
         assert!(iter_nonzero_chunks("").next().is_none());
         assert!(iter_nonzero_chunks("00").next().is_none());
         assert!(iter_nonzero_chunks("0000").next().is_none());
+    }
+
+    #[test]
+    fn merge_channel_basic_example() {
+        // 来自 memo/03 的规格示例：
+        //   #00113:11111111   (4 个值)
+        //   #00113:0022332255224400  (8 个值)
+        //   #00113:0066        (2 个值)
+        //   结果：1122332266224400
+        let lines = vec![
+            "11111111".to_owned(),
+            "0022332255224400".to_owned(),
+            "0066".to_owned(),
+        ];
+        assert_eq!(merge_channel(&lines), "1122332266224400");
+    }
+
+    #[test]
+    fn merge_channel_single_line_passthrough() {
+        let lines = vec!["AABBCC".to_owned()];
+        assert_eq!(merge_channel(&lines), "AABBCC");
+    }
+
+    #[test]
+    fn merge_channel_00_preserves_earlier() {
+        // 当第 2 行在该位置为 "00" 时，第 1 行的非 00 值被保留。
+        let lines = vec!["11".to_owned(), "00".to_owned()];
+        assert_eq!(merge_channel(&lines), "11");
+    }
+
+    #[test]
+    fn merge_channel_later_overwrites_non_00() {
+        // 后续行的非 00 值覆盖先前的非 00 值。
+        let lines = vec!["11".to_owned(), "22".to_owned()];
+        assert_eq!(merge_channel(&lines), "22");
     }
 }

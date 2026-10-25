@@ -247,6 +247,7 @@ dependencies = [
  "bms-document",
  "bms-parser",
  "bms-tokenizer",
+ "bmsrs",
  "bmsrs-chart",
  "bmsrs-player",
  "thiserror 2.0.21",
