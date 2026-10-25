@@ -1331,3 +1331,59 @@ pub fn lint(file: &Path, out: &mut Output) -> Result<(), BmsEditError> {
         Ok(())
     })
 }
+
+/// `timing scroll-add` 命令。
+///
+/// bmson 的滚动速度是内联事件（`y` + `rate`），无需 BMS 侧的定义表
+/// 分配；`rate` 支持负值（反向滚动）。
+///
+/// # Errors
+///
+/// 位置越界或写回验证失败时返回 [`BmsEditError`]。
+pub fn timing_scroll_add(
+    file: &Path,
+    at: &str,
+    rate: f64,
+    out: &mut Output,
+) -> Result<(), BmsEditError> {
+    let spot = spot_of(at)?;
+    with_bmson(file, &[], |bmson, _| {
+        let y = spot_to_y(bmson, spot.measure, spot.pos)?;
+        bmson.scroll_events.push(bmson_def::ScrollEvent { y, rate });
+        bmson.scroll_events.sort_by_key(|event| event.y);
+        Ok(())
+    })?;
+    out.result(
+        format!(
+            "scroll {rate} inserted at #{:03} {}/{}",
+            spot.measure, spot.pos.0, spot.pos.1
+        ),
+        &serde_json::json!({ "at": at, "rate": rate }),
+        &[],
+    );
+    Ok(())
+}
+
+/// `timing scroll-remove` 命令：移除指定位置的全部滚动速度事件。
+///
+/// # Errors
+///
+/// 位置越界或该位置无事件时返回 [`BmsEditError`]。
+pub fn timing_scroll_remove(file: &Path, at: &str, out: &mut Output) -> Result<(), BmsEditError> {
+    let spot = spot_of(at)?;
+    with_bmson(file, &[], |bmson, _| {
+        let y = spot_to_y(bmson, spot.measure, spot.pos)?;
+        let before = bmson.scroll_events.len();
+        bmson.scroll_events.retain(|event| event.y != y);
+        if bmson.scroll_events.len() == before {
+            return Err(BmsEditError::Usage(format!("no scroll event at `{at}`")));
+        }
+        Ok(())
+    })?;
+    out.result(
+        format!("scroll removed at `{at}`"),
+        &serde_json::json!({ "removed": true }),
+        &[],
+    );
+    Ok(())
+}

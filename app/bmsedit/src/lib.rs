@@ -142,14 +142,18 @@ fn dispatch_bmson(args: &BmsEdit, out: &mut Output) -> Result<(), BmsEditError> 
             action: TimingAction::StopRemove { at, .. },
         } => exec_bmson::timing_stop_remove(file, at, out),
         crate::cli::Command::Timing {
+            file,
+            action: TimingAction::ScrollAdd { at, ratio, .. },
+        } => exec_bmson::timing_scroll_add(file, at, *ratio, out),
+        crate::cli::Command::Timing {
+            file,
+            action: TimingAction::ScrollRemove { at, .. },
+        } => exec_bmson::timing_scroll_remove(file, at, out),
+        crate::cli::Command::Timing {
             action: TimingAction::Length { .. },
             ..
-        }
-        | crate::cli::Command::Timing {
-            action: TimingAction::ScrollAdd { .. },
-            ..
         } => Err(BmsEditError::Unsupported(
-            "bmson timing: measure length and scroll are not mapped yet".to_owned(),
+            "bmson has no measure-length concept; measure bounds come from `lines`".to_owned(),
         )),
         crate::cli::Command::Defs { .. } => Err(exec_bmson::defs_unsupported()),
         crate::cli::Command::Measure {
@@ -289,6 +293,10 @@ fn dispatch_bms(args: &BmsEdit, out: &mut Output) -> Result<(), BmsEditError> {
             file,
             action: TimingAction::ScrollAdd { at, ratio, .. },
         } => exec_bms::timing_scroll_add(file, args.seed, at, *ratio, out),
+        crate::cli::Command::Timing {
+            file,
+            action: TimingAction::ScrollRemove { at, .. },
+        } => exec_bms::timing_scroll_remove(file, args.seed, at, out),
         crate::cli::Command::Defs {
             file,
             action: DefsAction::List { kind, .. },

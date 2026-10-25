@@ -217,8 +217,14 @@ pub enum TimingAction {
     ScrollAdd {
         /// 位置 `MEASURE:POS`。
         at: String,
-        /// 滚动倍率。
+        /// 滚动倍率（支持负值反向滚动）。
+        #[arg(allow_hyphen_values = true)]
         ratio: f64,
+    },
+    /// 移除指定位置的 SCROLL 倍率变更。
+    ScrollRemove {
+        /// 位置 `MEASURE:POS`。
+        at: String,
     },
 }
 

@@ -1835,3 +1835,32 @@ pub fn lint(file: &Path, seed: u64, out: &mut Output) -> Result<(), BmsEditError
     out.result(human, &findings, &doc.warnings);
     Ok(())
 }
+
+/// `timing scroll-remove` 命令：移除指定位置的 SCROLL 倍率变更。
+///
+/// # Errors
+///
+/// 该位置无 SCROLL 事件或行编辑失败时返回 [`BmsEditError`]。
+pub fn timing_scroll_remove(
+    file: &Path,
+    seed: u64,
+    at: &str,
+    out: &mut Output,
+) -> Result<(), BmsEditError> {
+    let spot = spot_of(at)?;
+    let mut doc = load(file, seed)?;
+    let mut removed = false;
+    edit_group(&mut doc, spot.measure, "SC", |map| {
+        removed = map.remove(&spot.pos).is_some();
+    })?;
+    if !removed {
+        return Err(BmsEditError::Usage(format!("no scroll event at `{at}`")));
+    }
+    doc.commit(file, |_| Ok(()))?;
+    out.result(
+        format!("scroll removed at `{at}`"),
+        &serde_json::json!({ "removed": true }),
+        &doc.warnings,
+    );
+    Ok(())
+}

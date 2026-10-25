@@ -27,7 +27,7 @@
 | `info <FILE>` | 谱面信息与统计 |
 | `header <FILE> get [KEY]` / `set KEY=VALUE...` | 头部元数据 |
 | `notes <FILE> list/add/remove/move/copy` | 音符编辑 |
-| `timing <FILE> list/bpm/length/stop-add/stop-remove/scroll-add` | 时序编辑 |
+| `timing <FILE> list/bpm/length/stop-add/stop-remove/scroll-add/scroll-remove` | 时序编辑 |
 | `defs <FILE> list/rename/dedup/compact` | WAV/BMP 定义表（仅 BMS） |
 | `measure <FILE> insert/remove/clone-content` | 小节结构 |
 | `transform <FILE> mirror/sparsify` | 批量变换 |

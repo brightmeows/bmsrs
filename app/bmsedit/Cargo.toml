@@ -35,6 +35,7 @@ bms-document.workspace = true
 bms-parser.workspace = true
 bms-control-flow.workspace = true
 bms-tokenizer.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true
