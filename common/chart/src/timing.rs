@@ -53,7 +53,7 @@ impl TimingTrackError {
 /// （BMSON 脉冲、BMS 小节）换算为脉冲。
 ///
 /// 内部使用预计算的 BPM 段与停止累积和，所有查询均为 O(log n)。
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TimingTrack {
     /// 脉冲 0 处的初始 BPM。
     pub(crate) init_bpm: f64,
@@ -331,20 +331,6 @@ impl TimingTrack {
     #[must_use]
     pub fn bpm_at_tick(&self, tick: u64) -> f64 {
         segment_bpm_at_tick(&self.bpm_segments, tick)
-    }
-}
-
-impl Clone for TimingTrack {
-    fn clone(&self) -> Self {
-        Self {
-            init_bpm: self.init_bpm,
-            resolution: self.resolution,
-            bpm_changes: self.bpm_changes.clone(),
-            stops: self.stops.clone(),
-            bpm_segments: self.bpm_segments.clone(),
-            stop_cumsum: self.stop_cumsum.clone(),
-            inv: self.inv.clone(),
-        }
     }
 }
 
