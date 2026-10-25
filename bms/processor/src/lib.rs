@@ -159,9 +159,6 @@ impl BmsProcessor {
         // BMS 引擎特定自定义事件（优先级 6）。
         conv.collect_custom_events(&bmp_map);
 
-        // 排序规则收敛于 Event::sort_key（同脉冲子序约定见其文档）。
-        conv.events.sort_by_key(BmsEvent::sort_key);
-
         let (song, chart_info) = conv.build_metadata(&bmp_map);
         let ln_type_hint = conv.ln_type_hint();
 

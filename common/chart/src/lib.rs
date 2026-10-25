@@ -287,7 +287,10 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// 确保事件按脉冲升序排列。
     ///
     /// [`Player`] 的二分查找（`partition_point`）依赖事件已排序。
-    /// 构造后调用一次以保证后续查询正确。
+    /// [`Player::new`](https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html#method.new)
+    /// 会自动调用本方法；不经
+    /// [`Player`](https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html)
+    /// 直接消费 `events` 的下游须自行调用一次。
     ///
     /// 排序键为 [`Event::sort_key`]：同脉冲内按优先级排序
     /// （Bar < Note/BGA/BGM < BPM < Stop < Scroll < Speed < Custom）。
