@@ -665,7 +665,9 @@ impl BmsConverter<'_> {
 
     /// 为计时轨构建 BPM 变更事件。
     ///
-    /// 相邻同值 BPM 变更会被去重（首个保留）。
+    /// 先按 `tick` 排序再在有序序列上去重：相邻同值变更保留首个。
+    /// 顺序不能反——`messages.bpm_changes` 按（小节，通道）分块累积而非
+    /// 按 tick 有序，排序前去重会合并向量相邻但时间不相邻的同值变更。
     fn build_bpm_changes(&mut self) -> Vec<BpmChange> {
         let mut changes: Vec<BpmChange> = self
             .bms
@@ -682,6 +684,10 @@ impl BmsConverter<'_> {
                 }
             })
             .collect();
+        // 去重必须在按 tick 排序之后：同通道的两个同值变更在向量中相邻
+        // （通道内分块），若中间夹着另一通道的变更，排序前去重会把它们
+        // 错误合并。
+        changes.sort_by_key(|c| c.tick);
         changes.dedup_by(|a, b| (a.bpm - b.bpm).abs() < f64::EPSILON);
         changes
     }

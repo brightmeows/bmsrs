@@ -358,6 +358,34 @@ fn process_bpm_change_reference_resolved() {
 }
 
 #[test]
+fn process_bpm_changes_dedup_preserves_mid_change() {
+    // 回归：去重曾在按 tick 排序前执行。同通道的 1/4 与 3/4 同值变更在
+    // 向量中相邻被合并，夹在中间的 1/2 引用变更后 BPM 回不到 120。
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(60.0);
+    let bpm_id: BpmIndex = "01".parse().unwrap();
+    bms.timing.bpm_defs.insert(bpm_id, 240.0);
+    // 模拟 parser 产出顺序：小节内先 ch03（1/4、3/4），后 ch08（1/2）。
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(0, 1, 4),
+        value: BpmValue::Absolute(120.0),
+    });
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(0, 3, 4),
+        value: BpmValue::Absolute(120.0),
+    });
+    bms.messages.bpm_changes.push(BpmChange {
+        position: Position::new(0, 1, 2),
+        value: BpmValue::Reference(bpm_id),
+    });
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    // 小节 0 的 3/4 处（tick 720）应回到 BPM 120。
+    assert!((chart.data.timing.bpm_at_tick(720) - 120.0).abs() < 1e-9);
+}
+
+#[test]
 fn process_bar_lines_generated() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
