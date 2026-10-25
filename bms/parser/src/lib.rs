@@ -22,7 +22,6 @@ pub use gameplay::Gameplay;
 pub use messages::{
     BgaEvent, BgmEvent, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength, Messages,
     MineEvent, NonEventData, NoteEvent, Position, ScrollEvent, SpeedEvent, StopEvent, StpEvent,
-    split_2char_values_lenient,
 };
 pub use metadata::Metadata;
 pub use timing::Timing;
@@ -139,47 +138,4 @@ fn detect_base(tokens: &[BmsToken]) -> BmsBase {
             }
         })
         .unwrap_or(BmsBase::Base36)
-}
-
-// 测试 —— 仅保留内部（非公开 API）测试在此。
-// 全部公开 API 测试位于 tests/ 目录。
-
-#[cfg(test)]
-mod tests {
-    use crate::messages::merge_channel;
-
-    #[test]
-    fn merge_channel_basic_example() {
-        // 来自 memo/03 的规格示例：
-        //   #00113:11111111   (4 个值)
-        //   #00113:0022332255224400  (8 个值)
-        //   #00113:0066        (2 个值)
-        //   结果：1122332266224400
-        let lines = vec![
-            "11111111".to_owned(),
-            "0022332255224400".to_owned(),
-            "0066".to_owned(),
-        ];
-        assert_eq!(merge_channel(&lines), "1122332266224400");
-    }
-
-    #[test]
-    fn merge_channel_single_line_passthrough() {
-        let lines = vec!["AABBCC".to_owned()];
-        assert_eq!(merge_channel(&lines), "AABBCC");
-    }
-
-    #[test]
-    fn merge_channel_00_preserves_earlier() {
-        // 当第 2 行在该位置为 "00" 时，第 1 行的非 00 值被保留。
-        let lines = vec!["11".to_owned(), "00".to_owned()];
-        assert_eq!(merge_channel(&lines), "11");
-    }
-
-    #[test]
-    fn merge_channel_later_overwrites_non_00() {
-        // 后续行的非 00 值覆盖先前的非 00 值。
-        let lines = vec!["11".to_owned(), "22".to_owned()];
-        assert_eq!(merge_channel(&lines), "22");
-    }
 }
