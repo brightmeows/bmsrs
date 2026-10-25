@@ -175,6 +175,25 @@ pub enum ChartDataError {
         /// 无效的 BPM 值。
         bpm: f64,
     },
+    /// `resolution` 与计时轨内部的 resolution 不一致。
+    ///
+    /// [`ChartData::resolution`](crate::ChartData::resolution) 与
+    /// [`TimingTrack`] 内部的 resolution 是同一事实的两份拷贝，必须
+    /// 一致——否则脉冲换算与滚动/间距缓存各用各的分辨率，查询结果
+    /// 静默错位。
+    ResolutionMismatch {
+        /// `ChartData` 上声明的 resolution。
+        chart: u64,
+        /// 计时轨内部实际使用的 resolution。
+        timing: u64,
+    },
+    /// 事件引用了越界的音频素材索引。
+    DanglingAudioIndex {
+        /// 越界的索引值。
+        index: u32,
+        /// 音频素材表长度。
+        len: usize,
+    },
 }
 
 impl fmt::Display for ChartDataError {
@@ -183,6 +202,13 @@ impl fmt::Display for ChartDataError {
             Self::ZeroResolution => write!(f, "resolution must be positive, got 0"),
             Self::InvalidBpm { bpm } => {
                 write!(f, "invalid initial BPM: {bpm} (must be non-zero finite)")
+            }
+            Self::ResolutionMismatch { chart, timing } => write!(
+                f,
+                "resolution mismatch: chart data {chart}, timing track {timing}"
+            ),
+            Self::DanglingAudioIndex { index, len } => {
+                write!(f, "audio index {index} out of range (0..{len})")
             }
         }
     }
@@ -198,6 +224,9 @@ impl std::error::Error for ChartDataError {}
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// 每个四分音符的脉冲数（节拍分辨率）。
+    ///
+    /// 必须与 [`TimingTrack`] 内部的 resolution 一致（[`validate`](Self::validate)
+    /// 检查该交叉不变量）。
     pub resolution: u64,
     /// 用于脉冲 ↔ 秒换算的计时轨。
     pub timing: TimingTrack,
@@ -242,8 +271,11 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// 检查项：
     /// - `resolution > 0`
+    /// - `resolution` 与 [`TimingTrack`] 内部的 resolution 一致
     /// - `timing` 的初始 BPM 有效（委托 [`TimingTrack::validate`]，
     ///   允许负 BPM 用于逆走谱面）
+    /// - 事件引用完整性：`Note`/`Bgm` 事件的 `audio_index` 均落在
+    ///   [`audio_assets`](Self::audio_assets) 范围内
     ///
     /// # Errors
     ///
@@ -252,11 +284,38 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         if self.resolution == 0 {
             return Err(ChartDataError::ZeroResolution);
         }
+        if self.resolution != self.timing.resolution() {
+            return Err(ChartDataError::ResolutionMismatch {
+                chart: self.resolution,
+                timing: self.timing.resolution(),
+            });
+        }
         self.timing.validate().map_err(|e| match e {
             TimingTrackError::InvalidBpm { bpm } => ChartDataError::InvalidBpm { bpm },
             // unreachable in practice (TimingTrack::validate only returns InvalidBpm)
             TimingTrackError::ZeroResolution => ChartDataError::ZeroResolution,
-        })
+        })?;
+
+        let len = self.audio_assets.len();
+        for event in &self.events {
+            let referenced = match &event.kind {
+                EventKind::Note {
+                    audio_index: Some(i),
+                    ..
+                } => Some(*i),
+                EventKind::Bgm { audio_index } => Some(*audio_index),
+                _ => None,
+            };
+            if let Some(audio_index) = referenced
+                && audio_index as usize >= len
+            {
+                return Err(ChartDataError::DanglingAudioIndex {
+                    index: audio_index,
+                    len,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// 确保事件按脉冲升序排列。

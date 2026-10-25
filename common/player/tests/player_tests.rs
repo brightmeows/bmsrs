@@ -2,12 +2,13 @@
 #![expect(clippy::unwrap_used, reason = "test code")]
 
 use std::num::NonZeroU8;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane,
-    LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
-    TimingTrackError,
+    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, EventKind,
+    Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent,
+    TimingTrack, TimingTrackError,
 };
 use bmsrs_player::Player;
 
@@ -67,7 +68,12 @@ fn make_test_chart() -> Chart {
             ],
             judge_deltas: None,
             life_deltas: None,
-            audio_assets: vec![],
+            // validate 检查音频索引完整性：BGM 事件引用索引 0，素材表须非空。
+            audio_assets: vec![AudioAsset::from_path_buf(
+                PathBuf::from("test.wav"),
+                Duration::ZERO,
+                None,
+            )],
         },
     }
 }
@@ -495,7 +501,11 @@ fn make_chart_with_bgm() -> Chart {
                 Event::bgm(360, 2),
                 Event::bar(960),
             ],
-            audio_assets: vec![],
+            // validate 检查音频索引完整性：三条 BGM 引用索引 0-2，素材表须覆盖。
+            audio_assets: ["a.wav", "b.wav", "c.wav"]
+                .iter()
+                .map(|&name| AudioAsset::from_path_buf(PathBuf::from(name), Duration::ZERO, None))
+                .collect(),
         },
     }
 }
