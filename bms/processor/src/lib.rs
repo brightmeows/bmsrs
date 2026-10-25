@@ -45,7 +45,7 @@ use bms_tokenizer::{
 use bmsrs_chart::{
     AudioAsset, BgaResource, BpmChange, BpmLookup, Chart, ChartData, ChartInfo, CropRect, Damage,
     Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent,
-    TimingTrack, VideoAsset,
+    TimingTrack, TimingTrackError, VideoAsset,
 };
 use thiserror::Error;
 
@@ -60,9 +60,12 @@ use crate::position::MeasureTable;
 /// BMS 处理期间可能发生的错误。
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// 初始 BPM 无效（零、NaN 或无穷大；允许负值用于逆走谱面）。
-    #[error("init_bpm must be non-zero finite, got {0}")]
-    InvalidBpm(f64),
+    /// 计时轨构造失败（初始 BPM 无效或 resolution 为零）。
+    ///
+    /// 透传 [`TimingTrackError`]，不再在边界上降维翻译——此前
+    /// `ZeroResolution` 被译成 `InvalidBpm(0.0)`，报误导性错误。
+    #[error(transparent)]
+    Timing(#[from] TimingTrackError),
 }
 
 /// BMS 处理器产出的统一事件类型。
@@ -85,7 +88,8 @@ impl BmsProcessor {
     ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
+    /// [`ProcessError::Timing`]。
     pub fn process_with_warnings<L>(
         bms: &Bms,
     ) -> Result<(Chart<(), BmsCustomEvent>, Vec<ProcessWarning>), ProcessError>
@@ -111,8 +115,7 @@ impl BmsProcessor {
         stops.extend(conv.build_stops_from_stp(&bpm_lookup));
         stops.sort_by_key(|s| s.tick);
 
-        let timing = TimingTrack::new(init_bpm, bpm_changes, stops, RESOLUTION)
-            .map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
+        let timing = TimingTrack::new(init_bpm, bpm_changes, stops, RESOLUTION)?;
 
         let bmp_map = conv.build_bmp_map();
 
@@ -121,9 +124,9 @@ impl BmsProcessor {
         let unpaired_starts = ln_result.unpaired_starts;
 
         // 收集未配对长音警告。
-        for &(player, lane, _) in &unpaired_starts {
+        for &(player, lane, tick) in &unpaired_starts {
             conv.warnings
-                .push(ProcessWarning::UnterminatedLongNote { player, lane });
+                .push(ProcessWarning::UnterminatedLongNote { player, lane, tick });
         }
 
         // 小节线优先（优先级 0）。
@@ -177,13 +180,24 @@ impl BmsProcessor {
         };
         data.sort_events();
 
+        // 警告聚合：parser 层的值解析警告在前（按文件位置），processor 层
+        // 的引用缺失/钳位类在后。在 build_metadata 的借用结束后取走。
+        let mut warnings: Vec<ProcessWarning> = bms
+            .messages
+            .warnings
+            .iter()
+            .cloned()
+            .map(ProcessWarning::UnparsableValue)
+            .collect();
+        warnings.extend(conv.warnings);
+
         Ok((
             Chart {
                 song,
                 chart: chart_info,
                 data,
             },
-            conv.warnings,
+            warnings,
         ))
     }
 
@@ -194,7 +208,8 @@ impl BmsProcessor {
     ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
+    /// [`ProcessError::Timing`]。
     pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
     where
         L: BmsLayout,
@@ -208,7 +223,8 @@ impl BmsProcessor {
     ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
+    /// [`ProcessError::Timing`]。
     pub fn process_pms(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
         match PmsLayout::detect(bms) {
             PmsLayout::Standard => Self::process::<Pms>(bms),
@@ -227,7 +243,8 @@ impl BmsProcessor {
     ///
     /// # Errors
     ///
-    /// 若初始 BPM 缺失或为零/非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
+    /// [`ProcessError::Timing`]。
     pub fn process_default(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
         Self::process::<Bme>(bms)
     }
@@ -312,7 +329,7 @@ impl BmsConverter<'_> {
                 }
             };
 
-        let mut check_wav = |wav_id: &WavIndex| -> Option<u32> {
+        let mut check_wav = |wav_id: &WavIndex, player: u8, lane: u8, tick: u64| -> Option<u32> {
             let audio = wav_map.get(wav_id).copied();
             // `to_index()` 返回 `None` 时静默跳过警告：非可分解的 WAV 键
             // （如 "ZZ" LNOBJ 标记）不属于 WAV 表定义的范围，不产生
@@ -320,8 +337,12 @@ impl BmsConverter<'_> {
             if audio.is_none()
                 && let Some(key) = wav_id.0.to_index()
             {
-                self.warnings
-                    .push(ProcessWarning::MissingWavDefinition { key });
+                self.warnings.push(ProcessWarning::MissingWavDefinition {
+                    key,
+                    player,
+                    lane,
+                    tick,
+                });
             }
             audio
         };
@@ -329,41 +350,34 @@ impl BmsConverter<'_> {
         // 构建 LN 区间表：(player, lane) → Vec<(start_tick, end_tick)>。
         let ln_ranges = build_ln_ranges(paired_lns);
 
-        // 可见音符（跳过已消耗的 LNOBJ 配对与 LN 区间内的音符）。
+        // 可玩音符（跳过已消耗的 LNOBJ 配对；可见音符另受 LN 区间抑制）。
         for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
             if consumed.contains(&i) {
                 continue;
             }
-            if ne.key_type == KeyType::Visible {
-                let tick = self.table.position_to_tick(ne.position);
-                if is_note_suppressed(ne.player, ne.lane, tick, &ln_ranges, unpaired_starts) {
-                    continue;
+            let tick = self.table.position_to_tick(ne.position);
+            match ne.key_type {
+                KeyType::Visible => {
+                    if is_note_suppressed(ne.player, ne.lane, tick, &ln_ranges, unpaired_starts) {
+                        continue;
+                    }
+                    push_note(
+                        tick,
+                        ne.player,
+                        ne.lane,
+                        NoteKind::Normal,
+                        check_wav(&ne.wav_id, ne.player, ne.lane, tick),
+                        &mut self.events,
+                    );
                 }
-                push_note(
+                KeyType::Invisible => push_note(
                     tick,
                     ne.player,
                     ne.lane,
-                    NoteKind::Normal,
-                    check_wav(&ne.wav_id),
-                    &mut self.events,
-                );
-            }
-        }
-
-        // 不可见音符（按键音，跳过已消耗的 LNOBJ 配对）。
-        for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
-            if consumed.contains(&i) {
-                continue;
-            }
-            if ne.key_type == KeyType::Invisible {
-                push_note(
-                    self.table.position_to_tick(ne.position),
-                    ne.player,
-                    ne.lane,
                     NoteKind::Invisible,
-                    check_wav(&ne.wav_id),
+                    check_wav(&ne.wav_id, ne.player, ne.lane, tick),
                     &mut self.events,
-                );
+                ),
             }
         }
 
@@ -371,12 +385,13 @@ impl BmsConverter<'_> {
         // 不静默丢弃，作为普通可见音符保留数据。
         if self.bms.gameplay.ln_obj.is_some() {
             for lne in &self.bms.messages.long_note_events {
+                let tick = self.table.position_to_tick(lne.position);
                 push_note(
-                    self.table.position_to_tick(lne.position),
+                    tick,
                     lne.player,
                     lne.lane,
                     NoteKind::Normal,
-                    check_wav(&lne.wav_id),
+                    check_wav(&lne.wav_id, lne.player, lne.lane, tick),
                     &mut self.events,
                 );
             }
@@ -391,7 +406,7 @@ impl BmsConverter<'_> {
                 NoteKind::Long {
                     duration: ln.duration,
                 },
-                check_wav(&ln.wav_id),
+                check_wav(&ln.wav_id, ln.player, ln.lane, ln.tick),
                 &mut self.events,
             );
         }
@@ -447,7 +462,7 @@ impl BmsConverter<'_> {
     fn collect_bpm_events(&mut self) {
         for bc in &self.bms.messages.bpm_changes {
             let tick = self.table.position_to_tick(bc.position);
-            let bpm = self.resolve_bpm(bc.value);
+            let bpm = self.resolve_bpm(bc.value, tick);
             if bpm == 0.0 {
                 self.warnings
                     .push(ProcessWarning::ZeroBpmChangeIgnored { tick });
@@ -676,7 +691,7 @@ impl BmsConverter<'_> {
             .iter()
             .filter_map(|bc| {
                 let tick = self.table.position_to_tick(bc.position);
-                let bpm = self.resolve_bpm(bc.value);
+                let bpm = self.resolve_bpm(bc.value, tick);
                 if bpm == 0.0 {
                     None
                 } else {
@@ -775,7 +790,7 @@ impl BmsConverter<'_> {
     }
 
     /// 将 [`BpmValue`] 解析为具体 BPM 值，对引用值使用 BPM 定义表。
-    fn resolve_bpm(&mut self, value: BpmValue) -> f64 {
+    fn resolve_bpm(&mut self, value: BpmValue, tick: u64) -> f64 {
         match value {
             BpmValue::Absolute(bpm) => bpm,
             BpmValue::Reference(id) => {
@@ -784,7 +799,7 @@ impl BmsConverter<'_> {
                 } else {
                     if let Some(key) = id.to_index() {
                         self.warnings
-                            .push(ProcessWarning::MissingBpmDefinition { key });
+                            .push(ProcessWarning::MissingBpmDefinition { key, tick });
                     }
                     120.0
                 }
@@ -810,7 +825,7 @@ impl BmsConverter<'_> {
                     if duration < 0.0 {
                         self.warnings.push(ProcessWarning::StopDurationClipped {
                             tick,
-                            computed_duration: duration,
+                            original: duration,
                         });
                     }
                     Some(StopEvent {
@@ -820,7 +835,7 @@ impl BmsConverter<'_> {
                 } else {
                     if let Some(key) = se.stop_id.to_index() {
                         self.warnings
-                            .push(ProcessWarning::MissingStopDefinition { key });
+                            .push(ProcessWarning::MissingStopDefinition { key, tick });
                     }
                     None
                 }

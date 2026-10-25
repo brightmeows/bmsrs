@@ -236,6 +236,7 @@ dependencies = [
  "bms-document",
  "bms-tokenizer",
  "bmsrs-chart",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

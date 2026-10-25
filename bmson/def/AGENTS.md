@@ -37,4 +37,5 @@ cargo run --example bmson_parser -p bmson-def
 | 规则 | 说明 |
 |------|------|
 | v2 的独立 mod 结构 | 与 v0/v1 不同，v2 是目录而非单个文件 |
+| `resolution: 0` 拒绝 | 比规范严格：bmson 规范要求 0 回退 240，本实现拒绝整个文件（`deserialize_resolution_nonzero`）——制谱工具缺陷不作无声重写；v0/v1 升版路径的 0 值由下游 `TimingTrack` 构造拒绝且错误标号正确 |
 | 版本间转换通过 `From` | `Bmson::from(v0_bmson)` 统一升版到 v2 schema |

@@ -604,20 +604,28 @@ pub const fn default_resolution() -> u64 {
     240
 }
 
-/// 反序列化 `u64` 分辨率字段，将 `0` 替换为默认值 `240`。
+/// 反序列化 `u64` 分辨率字段，拒绝 `0`。
 ///
-/// 根据 bmson 规范，分辨率为 `0`、`null` 或 `undefined` 时必须视为 `240`。
-/// 此辅助函数处理 `0` 的情况；`null`/`undefined` 由 `#[serde(default)]` 处理。
+/// bmson 规范要求 `0`、`null`、`undefined` 时回退默认 `240`；本实现
+/// **比规范更严格**——`0` 视为制谱工具缺陷，拒绝整个文件而不是无声
+/// 重写。`null`/`undefined` 仍由 `#[serde(default)]` 走
+/// [`default_resolution`](crate::default_resolution)。
 ///
 /// # Errors
 ///
-/// 如果 JSON 值不是合法的无符号整数，则返回错误。
+/// 如果 JSON 值不是合法的无符号整数，或值为 `0`，则返回错误。
 #[inline]
 pub fn deserialize_resolution_nonzero<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<u64, D::Error> {
     let v = u64::deserialize(deserializer)?;
-    if v == 0 { Ok(240) } else { Ok(v) }
+    if v == 0 {
+        Err(de::Error::custom(
+            "resolution must be > 0 (omit the field for the default 240)",
+        ))
+    } else {
+        Ok(v)
+    }
 }
 
 /// 将 JSON 字符串反序列化为借用的 `&Path`。

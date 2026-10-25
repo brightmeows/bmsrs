@@ -302,8 +302,8 @@ fn default_resolution_is_240() {
 }
 
 #[test]
-fn resolution_zero_becomes_default() {
+fn resolution_zero_is_rejected() {
     let json = r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},"chart_info":{"subtitle":"","subartists":[],"chart_name":"","level":1,"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}},"chart_data":{"init_bpm":120.0,"lines":null,"bpm_events":[],"stop_events":[],"sound_channels":[],"resolution":0}}"#;
-    let bmson: Bmson = serde_json::from_str(json).unwrap();
-    assert_eq!(bmson.chart_data.resolution, 240);
+    let bmson: Result<Bmson, _> = serde_json::from_str(json);
+    assert!(bmson.is_err());
 }

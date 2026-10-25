@@ -17,6 +17,7 @@ bms-tokenizer.workspace = true
 bms-control-flow.workspace = true
 bms-document.workspace = true
 bmsrs-chart.workspace = true
+thiserror.workspace = true
 
 [lib]
 

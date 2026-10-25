@@ -13,6 +13,7 @@ mod messages;
 mod metadata;
 mod timing;
 mod visual;
+mod warnings;
 
 // 重新导出子模块的全部公开类型。
 pub use audio::{Audio, OwnedExWavParams};
@@ -26,6 +27,7 @@ pub use messages::{
 pub use metadata::Metadata;
 pub use timing::Timing;
 pub use visual::{OwnedExBmpParams, OwnedSwBgaParams, Visual};
+pub use warnings::ChannelValueWarning;
 
 // Bms —— 根文档模型
 

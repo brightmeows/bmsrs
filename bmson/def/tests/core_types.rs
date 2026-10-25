@@ -32,9 +32,9 @@ fn note_x_numeric() {
 }
 
 #[test]
-fn resolution_zero_becomes_default() {
-    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 0}"#).unwrap();
-    assert_eq!(cd.resolution, 240);
+fn resolution_zero_is_rejected() {
+    let cd: Result<ChartData, _> = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 0}"#);
+    assert!(cd.is_err());
 
     let cd_480: ChartData =
         serde_json::from_str(r#"{"init_bpm": 120, "resolution": 480}"#).unwrap();

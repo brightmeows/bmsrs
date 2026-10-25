@@ -68,9 +68,12 @@ impl NoteExt for BmsonNoteExt {}
 /// BMSON 处理过程中可能出现的错误。
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// `init_bpm` 必须为非零有限值。
-    #[error("init_bpm must be non-zero finite, got {0}")]
-    InvalidBpm(f64),
+    /// 计时轨构造失败（初始 BPM 无效或 resolution 为零）。
+    ///
+    /// 透传 [`TimingTrackError`]，不再在边界上降维翻译——此前
+    /// `ZeroResolution` 被译成 `InvalidBpm(0.0)`，报误导性错误。
+    #[error(transparent)]
+    Timing(#[from] TimingTrackError),
     /// `generic-nkeys` 模式的按键数必须为正且在 `u16` 范围内。
     #[error("generic-nkeys key count must be in 1..=65535, got {0}")]
     InvalidKeyCount(u64),
@@ -87,7 +90,8 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
+    /// [`ProcessError::Timing`]。
     pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<BmsonNoteExt>, ProcessError>
     where
         L: BmsonLayout,
@@ -99,7 +103,8 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
+    /// [`ProcessError::Timing`]。
     pub fn process_with_warnings<L>(
         bmson: &bmson_def::Bmson<'_>,
     ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError>
@@ -116,7 +121,8 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
+    /// [`ProcessError::Timing`]。
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
         keys: u16,
@@ -129,7 +135,8 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
+    /// [`ProcessError::Timing`]。
     pub fn process_nkeys_with_warnings(
         bmson: &bmson_def::Bmson<'_>,
         keys: u16,
@@ -146,7 +153,8 @@ impl BmsonProcessor {
     ///
     /// # Errors
     ///
-    /// - 若 `init_bpm` 为零或非有限值，返回 [`ProcessError::InvalidBpm`]。
+    /// - 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
+    ///   [`ProcessError::Timing`]。
     /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 `u16` 范围，
     ///   返回 [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
     ///   被静默丢弃）。
@@ -183,7 +191,7 @@ impl BmsonProcessor {
     ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
         let bmson_data = &bmson.chart_data;
 
-        let timing = build_timing(bmson_data).map_err(|e| ProcessError::InvalidBpm(e.bpm()))?;
+        let timing = build_timing(bmson_data)?;
         let resolution = bmson_data.resolution;
         let mut conv = BmsonConverter {
             bmson,

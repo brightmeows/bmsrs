@@ -23,6 +23,7 @@ processor 承担**信息损失型转换**——合并优先级（`#BGA`/`#BMP`�
 | 视频资源 | `#VIDEOFILE`/`#MOVIE` | `ChartInfo.video` | `#VIDEOFILE` 循环优先于 `#MOVIE` 单次；附 `#VIDEOf/s`/`#VIDEOCOLORS`/`#VIDEODLY` |
 | 视频 SEEK | `#SEEK` 定义 + ch 05 | `BmsCustomEvent::VideoSeek` | 查 `seek_defs` 取毫秒（非 base36 原值）；未定义 id 跳过 |
 | `non_event_data` 自定义事件 | `NonEventData.values` | `BmsCustomEvent` | 所有 2-char 索引已在 parser 层归一化，查表直接命中，无需再次 `normalize(base)` |
+| 值解析警告 | `Messages.warnings` | `ProcessWarning::UnparsableValue` | 透传 parser 层 `ChannelValueWarning`（measure/channel/value）；引用缺失类由 `Missing*` 变体承载 |
 
 ## 长音模式（自动检测）
 
