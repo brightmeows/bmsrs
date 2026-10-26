@@ -284,18 +284,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bmsedit"
-version = "0.1.0"
-dependencies = [
- "bmsrs",
- "clap",
- "rand",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "bmson-def"
 version = "0.1.0"
 dependencies = [
