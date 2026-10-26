@@ -8,7 +8,6 @@ members = [
     "bms/parser",
     "bms/processor",
     "bms/writer",
-    "app/bmsedit",
     "bmson/def",
     "bmson/processor",
     "common/chart",
@@ -99,8 +98,6 @@ bmsrs-chart = { path = "common/chart" }
 bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }
 bms-writer = { path = "bms/writer" }
-bmsedit = { path = "app/bmsedit" }
-bmsrs = { path = "." }
 bmsrs-player = { path = "common/player" }
 
 [workspace.lints.rust]
