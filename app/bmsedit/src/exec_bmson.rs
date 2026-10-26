@@ -1,6 +1,6 @@
 //! bmson 后端命令执行。
 //!
-//! bmson 是 JSON 格式：编辑落在 `bmson_def::Bmson`（v2 root schema）
+//! bmson 是 JSON 格式：编辑落在 `bmsrs::bmson::def::Bmson`（v2 root schema）
 //! 的结构体字段上，写回经 serde 全量序列化；v0/v1 文件升版为 v2。
 //!
 //! # 借用模型
@@ -13,8 +13,8 @@
 
 use std::path::Path;
 
-use bmson_def::SoundChannel;
-use bmson_def::{Bmson, NoteEvent};
+use bmsrs::bmson::def::SoundChannel;
+use bmsrs::bmson::def::{Bmson, NoteEvent};
 use serde::Serialize;
 
 use crate::cli::{self, Spot};
@@ -26,17 +26,17 @@ use crate::output::Output;
 fn parse(bytes: &[u8]) -> Result<Bmson<'_>, BmsEditError> {
     let json = std::str::from_utf8(bytes)
         .map_err(|err| BmsEditError::Parse(format!("not UTF-8: {err}")))?;
-    match bmson_def::DetectedVersion::detect(json) {
-        Ok(bmson_def::DetectedVersion::V2) => {
+    match bmsrs::bmson::def::DetectedVersion::detect(json) {
+        Ok(bmsrs::bmson::def::DetectedVersion::V2) => {
             serde_json::from_str(json).map_err(|err| BmsEditError::Parse(err.to_string()))
         }
-        Ok(bmson_def::DetectedVersion::V1) => {
-            let v1: bmson_def::v1::Bmson<'_> =
+        Ok(bmsrs::bmson::def::DetectedVersion::V1) => {
+            let v1: bmsrs::bmson::def::v1::Bmson<'_> =
                 serde_json::from_str(json).map_err(|err| BmsEditError::Parse(err.to_string()))?;
             Ok(Bmson::from(v1))
         }
-        Ok(bmson_def::DetectedVersion::V0) => {
-            let v0: bmson_def::v0::Bmson<'_> =
+        Ok(bmsrs::bmson::def::DetectedVersion::V0) => {
+            let v0: bmsrs::bmson::def::v0::Bmson<'_> =
                 serde_json::from_str(json).map_err(|err| BmsEditError::Parse(err.to_string()))?;
             let v2 = Bmson::try_from(v0).map_err(|err| BmsEditError::Parse(err.to_string()))?;
             Ok(v2)
@@ -217,7 +217,7 @@ mod xmap {
     use crate::lane_map::LaneRef;
 
     /// lane → bmson `x`。
-    pub fn to_x(bmson: &bmson_def::Bmson<'_>, lane: LaneRef) -> Result<u64, BmsEditError> {
+    pub fn to_x(bmson: &bmsrs::bmson::def::Bmson<'_>, lane: LaneRef) -> Result<u64, BmsEditError> {
         let is_popn = is_popn_hint(bmson);
         let mapped = if is_popn {
             match lane {
@@ -236,7 +236,7 @@ mod xmap {
     }
 
     /// bmson `x` → lane。
-    pub fn from_x(bmson: &bmson_def::Bmson<'_>, x: u64) -> Option<LaneRef> {
+    pub fn from_x(bmson: &bmsrs::bmson::def::Bmson<'_>, x: u64) -> Option<LaneRef> {
         if is_popn_hint(bmson) {
             LaneRef::from_bmson_popn_x(x)
         } else {
@@ -245,10 +245,10 @@ mod xmap {
     }
 
     /// 是否为 popn 系模式提示。
-    pub const fn is_popn_hint(bmson: &bmson_def::Bmson<'_>) -> bool {
+    pub const fn is_popn_hint(bmson: &bmsrs::bmson::def::Bmson<'_>) -> bool {
         matches!(
             bmson.chart_data.mode_hint,
-            bmson_def::ModeHint::Popn5k | bmson_def::ModeHint::Popn9k
+            bmsrs::bmson::def::ModeHint::Popn5k | bmsrs::bmson::def::ModeHint::Popn9k
         )
     }
 
@@ -926,7 +926,7 @@ pub fn timing_bpm(file: &Path, bpm: f64, out: &mut Output) -> Result<(), BmsEdit
             event.bpm = bpm;
         } else {
             let mut events = std::mem::take(&mut bmson.chart_data.bpm_events);
-            events.insert(0, bmson_def::BpmEvent { y: 0, bpm });
+            events.insert(0, bmsrs::bmson::def::BpmEvent { y: 0, bpm });
             bmson.chart_data.bpm_events = events;
         }
         Ok(())
@@ -953,10 +953,13 @@ pub fn timing_stop_add(
     let spot = spot_of(at)?;
     with_bmson(file, &[], |bmson, _| {
         let y = spot_to_y(bmson, spot.measure, spot.pos)?;
-        bmson.chart_data.stop_events.push(bmson_def::StopEvent {
-            y,
-            duration: duration_pulse,
-        });
+        bmson
+            .chart_data
+            .stop_events
+            .push(bmsrs::bmson::def::StopEvent {
+                y,
+                duration: duration_pulse,
+            });
         Ok(())
     })?;
     out.result(
@@ -1305,7 +1308,7 @@ pub fn lint(file: &Path, out: &mut Output) -> Result<(), BmsEditError> {
         // beat 模式的 x 越界。
         if !matches!(
             bmson.chart_data.mode_hint,
-            bmson_def::ModeHint::Popn5k | bmson_def::ModeHint::Popn9k
+            bmsrs::bmson::def::ModeHint::Popn5k | bmsrs::bmson::def::ModeHint::Popn9k
         ) {
             for channel in &bmson.chart_data.sound_channels {
                 for note in &channel.note_events {
@@ -1349,7 +1352,9 @@ pub fn timing_scroll_add(
     let spot = spot_of(at)?;
     with_bmson(file, &[], |bmson, _| {
         let y = spot_to_y(bmson, spot.measure, spot.pos)?;
-        bmson.scroll_events.push(bmson_def::ScrollEvent { y, rate });
+        bmson
+            .scroll_events
+            .push(bmsrs::bmson::def::ScrollEvent { y, rate });
         bmson.scroll_events.sort_by_key(|event| event.y);
         Ok(())
     })?;

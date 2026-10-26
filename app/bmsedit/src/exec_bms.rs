@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::str::FromStr as _;
 
-use bms_parser::Bms;
-use bms_tokenizer::BmsChannel;
+use bmsrs::bms::parser::Bms;
+use bmsrs::bms::tokenizer::BmsChannel;
 use serde::Serialize;
 
 use crate::cli::{self, Spot};
@@ -224,7 +224,7 @@ pub fn header_get(
     let doc = load(file, seed)?;
     let mut pairs: Vec<(String, String)> = Vec::new();
     for line in doc.document.lines() {
-        if let bms_document::LineKind::Header(header) = line.kind() {
+        if let bmsrs::bms::document::LineKind::Header(header) = line.kind() {
             let (name, value) = header_name_value(header);
             pairs.push((name.trim_start_matches(['#', '%']).to_owned(), value));
         }
@@ -382,7 +382,7 @@ pub fn notes_list(
 /// 追加一条音符输出（lane 还原失败时跳过）。
 fn push_note_out(
     notes: &mut Vec<NoteOut>,
-    position: bms_parser::Position,
+    position: bmsrs::bms::parser::Position,
     player: u8,
     lane_byte: u8,
     def: &str,
@@ -513,11 +513,13 @@ fn normalize_def(def: &str) -> String {
 fn parse_note_channel(channel: &str) -> BmsChannel {
     lane_map::parse_channel(channel)
         .or_else(|| {
-            bms_tokenizer::ChannelIndex::from_str(channel)
+            bmsrs::bms::tokenizer::ChannelIndex::from_str(channel)
                 .ok()
                 .map(BmsChannel::Unknown)
         })
-        .unwrap_or_else(|| BmsChannel::Unknown(bms_tokenizer::ChannelIndex::from_valid(*b"ZZ")))
+        .unwrap_or_else(|| {
+            BmsChannel::Unknown(bmsrs::bms::tokenizer::ChannelIndex::from_valid(*b"ZZ"))
+        })
 }
 
 /// 验证某通道组某分数位置持有指定值。
@@ -1194,14 +1196,14 @@ fn check_kind(kind: &str) -> Result<(), BmsEditError> {
 }
 
 /// 构造 WAV 定义索引。
-fn wav_index(id: &str) -> Result<bms_tokenizer::WavIndex, BmsEditError> {
-    bms_tokenizer::WavIndex::from_str(id)
+fn wav_index(id: &str) -> Result<bmsrs::bms::tokenizer::WavIndex, BmsEditError> {
+    bmsrs::bms::tokenizer::WavIndex::from_str(id)
         .map_err(|_err| BmsEditError::Usage(format!("invalid def id `{id}`")))
 }
 
 /// 构造 BMP 定义索引。
-fn bmp_index(id: &str) -> Result<bms_tokenizer::BmpIndex, BmsEditError> {
-    bms_tokenizer::BmpIndex::from_str(id)
+fn bmp_index(id: &str) -> Result<bmsrs::bms::tokenizer::BmpIndex, BmsEditError> {
+    bmsrs::bms::tokenizer::BmpIndex::from_str(id)
         .map_err(|_err| BmsEditError::Usage(format!("invalid def id `{id}`")))
 }
 
@@ -1212,7 +1214,7 @@ fn replace_value_everywhere(doc: &mut BmsDoc, from: &str, to: &str) -> Result<()
         let Some(line) = doc.document.lines().get(index) else {
             continue;
         };
-        let bms_document::LineKind::Message(msg) = line.kind() else {
+        let bmsrs::bms::document::LineKind::Message(msg) = line.kind() else {
             continue;
         };
         let body = msg.body.clone();
@@ -1398,7 +1400,7 @@ fn defs_compact_via_rewrite(
             bms.visual.bmp_files.insert(bmp_index(&new_id)?, name);
         }
     }
-    let text = bms_writer::BmsWriter::write(&bms);
+    let text = bmsrs::bms::writer::BmsWriter::write(&bms);
     let rebuilt = BmsDoc::from_bytes(text.clone().into_bytes(), seed)?;
     let before_count = if kind == "wav" {
         doc.bms.audio.wav_files.len()
@@ -1454,9 +1456,9 @@ pub fn measure_insert(
     let doc = load(file, seed)?;
     let mut bms = doc.bms;
     shift_measures(&mut bms, at, i32::from(count));
-    let text = bms_writer::BmsWriter::write(&bms);
+    let text = bmsrs::bms::writer::BmsWriter::write(&bms);
     let rebuilt = BmsDoc::from_bytes(text.into_bytes(), seed)?;
-    let out_text = bms_writer::BmsWriter::write(&rebuilt.bms);
+    let out_text = bmsrs::bms::writer::BmsWriter::write(&rebuilt.bms);
     atomic_write_text(file, &out_text)?;
     out.result(
         format!("inserted {count} measure(s) before {at}"),
@@ -1494,9 +1496,9 @@ pub fn measure_remove(
         bms.messages.raw.remove(&key);
     }
     shift_measures(&mut bms, at.saturating_add(count), -i32::from(count));
-    let text = bms_writer::BmsWriter::write(&bms);
+    let text = bmsrs::bms::writer::BmsWriter::write(&bms);
     let rebuilt = BmsDoc::from_bytes(text.into_bytes(), seed)?;
-    let out_text = bms_writer::BmsWriter::write(&rebuilt.bms);
+    let out_text = bmsrs::bms::writer::BmsWriter::write(&rebuilt.bms);
     atomic_write_text(file, &out_text)?;
     out.result(
         format!("removed {count} measure(s) from {at}"),
@@ -1585,7 +1587,7 @@ fn shift_measures(bms: &mut Bms, from: u16, delta: i32) {
                 reason = "measure numbers are within u16 range after clamping"
             )]
             let new_measure = (i32::from(measure) + delta).max(0) as u16;
-            event.position = bms_parser::Position::new(
+            event.position = bmsrs::bms::parser::Position::new(
                 new_measure,
                 event.position.numer(),
                 event.position.denom(),
@@ -1643,9 +1645,9 @@ pub fn transform_mirror(file: &Path, seed: u64, out: &mut Output) -> Result<(), 
     for (a, b) in &swaps {
         swap_channels(&mut bms, *a, *b);
     }
-    let text = bms_writer::BmsWriter::write(&bms);
+    let text = bmsrs::bms::writer::BmsWriter::write(&bms);
     let rebuilt = BmsDoc::from_bytes(text.into_bytes(), seed)?;
-    let out_text = bms_writer::BmsWriter::write(&rebuilt.bms);
+    let out_text = bmsrs::bms::writer::BmsWriter::write(&rebuilt.bms);
     atomic_write_text(file, &out_text)?;
     out.result(
         format!(
@@ -1713,7 +1715,7 @@ pub fn transform_sparsify(
             continue;
         };
         let msg = match line.kind() {
-            bms_document::LineKind::Message(msg) => msg.clone(),
+            bmsrs::bms::document::LineKind::Message(msg) => msg.clone(),
             _ => continue,
         };
         // 仅处理可玩音符通道；BGM 与控制通道保留。
@@ -1765,9 +1767,10 @@ pub fn transform_sparsify(
 /// 文件读取、解析或编辑验证失败时返回 [`BmsEditError`]。
 pub fn validate(file: &Path, seed: u64, out: &mut Output) -> Result<(), BmsEditError> {
     let doc = load(file, seed)?;
-    let (chart, process_warnings) =
-        bms_processor::BmsProcessor::process_with_warnings::<bms_processor::layout::Bme>(&doc.bms)
-            .map_err(|err| BmsEditError::Parse(format!("process: {err}")))?;
+    let (chart, process_warnings) = bmsrs::bms::processor::BmsProcessor::process_with_warnings::<
+        bmsrs::bms::processor::layout::Bme,
+    >(&doc.bms)
+    .map_err(|err| BmsEditError::Parse(format!("process: {err}")))?;
     let warnings: Vec<String> = process_warnings.iter().map(ToString::to_string).collect();
     match chart.validate() {
         Ok(()) => {

@@ -7,10 +7,10 @@
 
 use std::path::{Path, PathBuf};
 
-use bms_control_flow::FlowDoc;
-use bms_document::{Document, DocumentOptions, ErrorStrategy};
-use bms_parser::Bms;
-use bms_tokenizer::{BmsHeader, BmsMessage, BmsToken};
+use bmsrs::bms::control_flow::FlowDoc;
+use bmsrs::bms::document::{Document, DocumentOptions, ErrorStrategy};
+use bmsrs::bms::parser::Bms;
+use bmsrs::bms::tokenizer::{BmsHeader, BmsMessage, BmsToken};
 
 /// 提取头部命令名与值（总枚举分发到子枚举的 derive 格式化）。
 #[must_use]
@@ -131,7 +131,7 @@ impl BmsDoc {
             .iter()
             .enumerate()
             .filter_map(|(index, line)| match line.kind() {
-                bms_document::LineKind::Message(msg) => Some((index, msg)),
+                bmsrs::bms::document::LineKind::Message(msg) => Some((index, msg)),
                 _ => None,
             })
             .filter(|(_, msg)| msg.track() == measure && msg.channel().as_str() == target)
@@ -154,7 +154,7 @@ impl BmsDoc {
         resolution: usize,
         slots: &[(usize, String)],
     ) -> Result<(), BmsEditError> {
-        let body = bms_tokenizer::BmsMessage::encode_body((0..resolution).map(|i| {
+        let body = bmsrs::bms::tokenizer::BmsMessage::encode_body((0..resolution).map(|i| {
             slots
                 .iter()
                 .find(|(slot, _)| *slot == i)
@@ -217,7 +217,7 @@ impl BmsDoc {
         let target = command.to_ascii_uppercase();
         let mut header_line = None;
         for (index, line) in self.document.lines().iter().enumerate() {
-            if let bms_document::LineKind::Header(header) = line.kind() {
+            if let bmsrs::bms::document::LineKind::Header(header) = line.kind() {
                 let (header_command, _) = header_name_value(header);
                 let normalized = header_command
                     .trim_start_matches(['#', '%'])
@@ -256,7 +256,7 @@ impl BmsDoc {
         let target = command.to_ascii_uppercase();
         let mut found = None;
         for (index, line) in self.document.lines().iter().enumerate() {
-            if let bms_document::LineKind::Header(header) = line.kind() {
+            if let bmsrs::bms::document::LineKind::Header(header) = line.kind() {
                 let (header_command, _) = header_name_value(header);
                 let normalized = header_command
                     .trim_start_matches(['#', '%'])
@@ -287,7 +287,7 @@ impl BmsDoc {
         let mut position = self.document.lines().len();
         let mut anchored = false;
         for (index, line) in self.document.lines().iter().enumerate() {
-            let bms_document::LineKind::Message(msg) = line.kind() else {
+            let bmsrs::bms::document::LineKind::Message(msg) = line.kind() else {
                 continue;
             };
             let msg_channel = msg.channel().as_str().to_string();
@@ -437,7 +437,7 @@ fn line_text(measure: u16, channel: &str, body: &str) -> String {
 fn flow_warnings(document: &Document) -> Vec<String> {
     let mut warnings = Vec::new();
     for (line, token) in document.tokens() {
-        if let BmsToken::Header(bms_tokenizer::BmsHeader::ControlFlow(_)) = token {
+        if let BmsToken::Header(bmsrs::bms::tokenizer::BmsHeader::ControlFlow(_)) = token {
             warnings.push(format!(
                 "line {line}: branch structure (#RANDOM/#SWITCH) present; \
                  editing operates on the selected branch only"

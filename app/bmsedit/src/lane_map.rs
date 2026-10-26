@@ -4,7 +4,7 @@
 //! BMS 侧映射为 `(player, lane byte)` 通道形状，bmson 侧映射为
 //! `x` 玩家通道编号。映射表与 `bms-processor` 的布局族保持一致。
 
-use bms_tokenizer::BmsChannel;
+use bmsrs::bms::tokenizer::BmsChannel;
 
 /// 统一逻辑 lane。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -114,5 +114,5 @@ pub fn infer_keys(lanes: impl IntoIterator<Item = LaneRef>) -> u8 {
 /// 解析用户输入的通道号字符串为 [`BmsChannel`]。
 #[must_use]
 pub fn parse_channel(s: &str) -> Option<BmsChannel> {
-    bms_tokenizer::BmsChannel::from_raw(s)
+    bmsrs::bms::tokenizer::BmsChannel::from_raw(s)
 }
