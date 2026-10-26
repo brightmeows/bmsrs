@@ -7,6 +7,8 @@ members = [
     "bms/control-flow",
     "bms/parser",
     "bms/processor",
+    "bms/writer",
+    "app/bmsedit",
     "bmson/def",
     "bmson/processor",
     "common/chart",
@@ -32,6 +34,7 @@ workspace = true
 
 [dependencies]
 bms-tokenizer.workspace = true
+bms-writer.workspace = true
 bms-document.workspace = true
 bms-control-flow.workspace = true
 bms-parser.workspace = true
@@ -72,7 +75,7 @@ quote = "1"
 proc-macro2 = "1"
 chumsky = { version = "0.13", features = ["serde"] }
 serde_json = "1"
-rand = { version = "0.10", default-features = false, features = ["std"] }
+rand = { version = "0.10", default-features = false, features = ["std", "std_rng"] }
 derive_more = { version = "2", default-features = false, features = ["from", "display", "deref", "from_str", "is_variant", "try_unwrap"] }
 itertools = "0.15"
 serde_with = "3"
@@ -95,6 +98,9 @@ bms-tokenizer-derive = { path = "bms/tokenizer-derive" }
 bmsrs-chart = { path = "common/chart" }
 bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }
+bms-writer = { path = "bms/writer" }
+bmsedit = { path = "app/bmsedit" }
+bmsrs = { path = "." }
 bmsrs-player = { path = "common/player" }
 
 [workspace.lints.rust]
