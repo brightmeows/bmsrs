@@ -16,6 +16,7 @@ flowchart LR
     Tok --> CF[bms-control-flow]
     CF --> Par[bms-parser]
     Par --> BProc[bms-processor]
+    Par --> Writer[bms-writer]
 
     BMSON[".bmson file"] --> BDef[bmson-def]
     BDef --> BMProc[bmson-processor]
@@ -35,11 +36,12 @@ flowchart LR
 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` |
 | `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` |
 | `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
+| `bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
 | `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
 | `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
-| `bmsrs` | 公共 re-export facade | `pub use` 聚合 | 是 |
+| `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
 
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 
