@@ -2,7 +2,8 @@
 
 ## 定位
 
-格式无关的谱面数据模型——格式处理器与播放器之间的中央 IR。
+格式无关的谱面数据模型——格式处理器（`bms-processor`、`bmson-processor`、
+`osu-processor`）与播放器之间的中央 IR。
 
 **零外部依赖。** 纯 `std`，无 `serde`、`thiserror`、`serde_json`。
 
@@ -22,7 +23,7 @@
 | 参数 | 默认值 | 用途 |
 |------|--------|------|
 | `T: NoteExt` | `()` | 每音符扩展数据（音量、pan、LN 模式等）|
-| `C: CustomEvent` | `NoCustomEvent` | 格式特有自定义事件类型 |
+| `C: CustomEvent` | `NoCustomEvent` | 格式特有自定义事件类型（如 `BmsCustomEvent`、`OsuCustomEvent`）|
 
 ## 事件优先级
 

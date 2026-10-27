@@ -158,3 +158,8 @@ pub mod chart {
 pub mod player {
     pub use bmsrs_player::*;
 }
+
+/// osu!mania 谱面的解析与转换。
+pub mod osu {
+    pub use osu_processor::*;
+}

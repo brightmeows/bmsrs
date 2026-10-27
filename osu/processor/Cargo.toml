@@ -1,0 +1,26 @@
+[package]
+name = "osu-processor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[dependencies]
+bmsrs-chart.workspace = true
+rosu-map.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+bmsrs-player.workspace = true
+
+[lib]
+
+[lints]
+workspace = true
