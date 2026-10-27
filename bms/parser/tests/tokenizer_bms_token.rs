@@ -3,7 +3,7 @@
 //! 每个测试验证 `try_match_header` → `format_header` → 再次解析
 //! 是恒等的（或至少是一致的）。
 
-use bms_tokenizer::{
+use bms_parser::{
     BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ChangeOptionIndex,
     DifficultyLevel, LnMode, LnType, PlayerMode, Rank, TextIndex, WavCmdKind, WavCmdParams,

@@ -49,9 +49,9 @@
 //!                    track=0, channel="SC"
 //! ```
 
-use crate::channel::{BmsChannel, classify_channel};
-use crate::index::{ChannelIndex, is_base62};
-use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
+use crate::tokenizer::channel::{BmsChannel, classify_channel};
+use crate::tokenizer::index::{ChannelIndex, is_base62};
+use crate::tokenizer::{BmsToken, BmsTokenizeError, BmsTryFromError};
 
 /// BMS 文件中的通道数据行（`#ADDR:body`）。
 ///
@@ -89,7 +89,7 @@ impl BmsMessage {
     /// 由部件构造一条消息行。
     ///
     /// 行级编辑器在重打包通道数据时用此方法重建
-    /// [`BmsMessage`]，与 [`parse_message_line`](crate::parse_message_line)
+    /// [`BmsMessage`]，与 [`parse_message_line`](crate::tokenizer::parse_message_line)
     /// 构成解包/打包的互逆面。
     ///
     /// `channel` 须为 1–2 字符的 Base62 标识符；小写输入在

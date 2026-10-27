@@ -7,7 +7,7 @@ members = [
     "bms/syntax",
     "bms/analysis",
     "app/bms-lsp",
-    "bms/tokenizer-derive",
+    "bms/parser-derive",
     "bms/control-flow",
     "bms/parser",
     "bms/processor",
@@ -36,13 +36,10 @@ readme.workspace = true
 workspace = true
 
 [dependencies]
-bms-tokenizer.workspace = true
 bms-writer.workspace = true
-bms-document.workspace = true
 bms-source.workspace = true
 bms-syntax.workspace = true
 bms-analysis.workspace = true
-bms-control-flow.workspace = true
 bms-parser.workspace = true
 bms-processor.workspace = true
 bmson-def.workspace = true
@@ -106,7 +103,7 @@ bms-syntax = { path = "bms/syntax" }
 bms-analysis = { path = "bms/analysis" }
 bms-control-flow = { path = "bms/control-flow" }
 bms-parser = { path = "bms/parser" }
-bms-tokenizer-derive = { path = "bms/tokenizer-derive" }
+bms-parser-derive = { path = "bms/parser-derive" }
 bmsrs-chart = { path = "common/chart" }
 bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }

@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{BmsHeaderMetadata, TextIndex};
+use crate::tokenizer::{BmsHeaderMetadata, TextIndex};
 
 /// 乐曲 / 谱面识别元数据。
 ///

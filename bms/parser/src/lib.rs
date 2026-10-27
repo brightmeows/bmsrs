@@ -4,8 +4,6 @@
 //! 命令）转换为结构化的 [`Bms`] 对象，包含带类型的元数据、资源定义、
 //! 计时与通道消息。
 
-use bms_tokenizer::{BmsBase, BmsHeader, BmsHeaderGameplay, BmsHeaderTiming, BmsMessage, BmsToken};
-
 mod audio;
 mod cst;
 mod display;
@@ -13,6 +11,7 @@ mod gameplay;
 mod messages;
 mod metadata;
 mod timing;
+mod tokenizer;
 mod visual;
 mod warnings;
 
@@ -27,6 +26,7 @@ pub use messages::{
 };
 pub use metadata::Metadata;
 pub use timing::Timing;
+pub use tokenizer::*;
 pub use visual::{OwnedExBmpParams, OwnedSwBgaParams, Visual};
 pub use warnings::ChannelValueWarning;
 

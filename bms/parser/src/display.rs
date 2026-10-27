@@ -2,7 +2,7 @@
 //!
 //! 对应分词器的 [`BmsHeaderDisplay`]。
 
-use bms_tokenizer::{BmsHeaderDisplay, DifficultyLevel};
+use crate::tokenizer::{BmsHeaderDisplay, DifficultyLevel};
 
 /// 显示资源与难度标记。
 ///

@@ -3,7 +3,7 @@ name = "bms-tokenizer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description.workspace = true
+description = "兼容层：重新导出 bms-parser 的单行语法类型"
 repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -11,17 +11,10 @@ keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
 readme.workspace = true
+publish = false
 
 [dependencies]
-thiserror.workspace = true
-derive_more.workspace = true
-itertools.workspace = true
-bms-tokenizer-derive.workspace = true
-
-[dev-dependencies]
-insta.workspace = true
-
-[lib]
+bms-parser.workspace = true
 
 [lints]
 workspace = true

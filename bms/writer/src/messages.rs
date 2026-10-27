@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
+use bms_parser::BmsChannel;
 use bms_parser::Messages;
-use bms_tokenizer::BmsChannel;
 
 /// 序列化全部通道行。
 ///
@@ -54,7 +54,7 @@ fn merge_bodies(bodies: &[String]) -> Option<String> {
         return None;
     }
     let len = slots.keys().next_back().copied()? + 1;
-    Some(bms_tokenizer::BmsMessage::encode_body(
+    Some(bms_parser::BmsMessage::encode_body(
         (0..len).map(|i| slots.get(&i).map_or("00", String::as_str)),
     ))
 }

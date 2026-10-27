@@ -2,7 +2,9 @@
 
 ## 定位
 
-BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模型。
+BMS 语义层：rowan CST → 结构化 `Bms` 模型；同时持有类型化单行语法
+（`BmsHeader` / `BmsMessage` / 索引类型）与 `bms-parser-derive`。
+控制流分支选择由 `bms-syntax::SourceFile::select_lines` 完成。
 
 ## 设计哲学
 
@@ -11,7 +13,7 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 | 不做什么 | 理由 |
 |----------|------|
 | 值解释（路径、URL、邮箱） | 字符串原样保留 |
-| 控制流展开 | 由 `bms-control-flow` 处理 |
+| 控制流展开 | 由 `bms-syntax` 的 `select_lines` 处理 |
 | 派生值计算 | 归 processor（如伤害 = base36/2、引用→绝对值） |
 | 引用-定义配对解析 | `Bms` 保真存引用形态（如 `BpmValue::Reference`）；查表归 processor |
 
@@ -27,7 +29,8 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 | 1. 收集 | `concat_raw` | 追加 body 字符串到 `(measure, channel)` |
 | 2. 最终化 | `finalize(base)` | 解析事件，position-merge，归一化索引 |
 
-`Bms::from_flat_tokens` 自动调用 `finalize`；手动构造时须显式调用。
+`Bms::from_cst` 选择分支后调用 `from_flat_tokens`；后者自动调用 `finalize`。
+手动构造时须显式调用。
 `finalize` 可重复调用（先 clear），但建议只调用一次。
 
 ## Header 分发
@@ -35,7 +38,7 @@ BMS 语义分析：flat token 流（无控制流命令）→ 结构化 `Bms` 模
 | 状态 | 变体 | 存储策略 |
 |------|------|----------|
 | 存储 | Metadata, Gameplay, Timing, Display, Audio, Visual, `Fallback` | Option(最后胜出) / BTreeMap(按 ID) |
-| 跳过 | ControlFlow | 由 `bms-control-flow` 处理 |
+| 跳过 | ControlFlow | 由 `bms-syntax::select_lines` 处理 |
 
 ### 消息通道处理策略
 

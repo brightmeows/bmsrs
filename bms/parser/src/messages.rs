@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{
+use crate::tokenizer::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ChannelIndex, ScrollIndex, SpeedIndex,
     StopIndex, WavIndex, base36_digit_value,
 };
@@ -129,7 +129,7 @@ pub struct NoteEvent {
 /// 扩展通道（`5A`–`5Z` 等，pomu2 系）解码出 `lane` 10–35。
 ///
 /// 长音类型（LN / CN / HCN）由谱面级的
-/// [`LnType`](bms_tokenizer::LnType) 与 [`LnMode`](bms_tokenizer::LnMode)
+/// [`LnType`](crate::tokenizer::LnType) 与 [`LnMode`](crate::tokenizer::LnMode)
 /// 头部命令决定，而非按事件存储。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongNoteEvent {
@@ -361,7 +361,7 @@ impl Messages {
     /// 保留文件顺序。在接收全部消息后调用
     /// [`finalize`](Self::finalize)；它将按位置合并非 BGM 通道，然后
     /// 解析事件。
-    pub fn concat_raw(&mut self, msg: &bms_tokenizer::BmsMessage) {
+    pub fn concat_raw(&mut self, msg: &crate::tokenizer::BmsMessage) {
         self.raw
             .entry(msg.track())
             .or_default()
@@ -1014,7 +1014,7 @@ impl Messages {
     /// 第一字符决定玩家侧与音符种类（可见 / 不可见 / 长音 / 地雷）。
     ///
     /// `lane == 0`（预留通道 `"10"`/`"20"`/...）被过滤——虽然
-    /// [`classify_channel`](bms_tokenizer::classify_channel) 已将这些归为
+    /// [`classify_channel`](crate::tokenizer::classify_channel) 已将这些归为
     /// `Unknown`，此处再次过滤作为防御。
     ///
     /// 地雷通道 `D1`–`D9` / `E1`–`E9` 仅 lane 1–9 有效——扩展范围

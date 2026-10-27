@@ -3,9 +3,8 @@
 //! 这些测试仅通过公开 API 消费 `Messages` 结构体，使用
 //! `concat_raw` + `finalize`。
 
-use bms_document::Document;
 use bms_parser::*;
-use bms_tokenizer::{BmsBase, BmsChannel, BmsToken, BpmIndex, WavIndex};
+use bms_parser::{BmsBase, BmsChannel, BpmIndex, WavIndex};
 use bmsrs_chart::BgaLayer;
 
 /// 辅助函数：通过 Messages 解析单条标准消息行（`#xxxYY:body`），使用 Base36。
@@ -16,10 +15,8 @@ fn parse_one(line: &str) -> Messages {
 /// 辅助函数：通过 Messages 解析单条标准消息行，并指定进制。
 fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
     let mut msgs = Messages::default();
-    for token in Document::from_text(line).tokens().map(|(_, token)| token) {
-        if let BmsToken::Message(msg) = &token {
-            msgs.concat_raw(msg);
-        }
+    if let Ok(Some(msg)) = parse_message_line(line) {
+        msgs.concat_raw(&msg);
     }
     msgs.finalize(base);
     msgs

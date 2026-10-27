@@ -210,8 +210,8 @@ dependencies = [
 name = "bms-analysis"
 version = "0.1.0"
 dependencies = [
+ "bms-parser",
  "bms-syntax",
- "bms-tokenizer",
 ]
 
 [[package]]
@@ -252,12 +252,21 @@ dependencies = [
 name = "bms-parser"
 version = "0.1.0"
 dependencies = [
- "bms-control-flow",
- "bms-document",
+ "bms-parser-derive",
  "bms-syntax",
- "bms-tokenizer",
  "bmsrs-chart",
+ "derive_more",
+ "itertools 0.15.0",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bms-parser-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -267,7 +276,6 @@ dependencies = [
  "bms-control-flow",
  "bms-document",
  "bms-parser",
- "bms-tokenizer",
  "bmsrs",
  "bmsrs-chart",
  "bmsrs-player",
@@ -298,20 +306,7 @@ dependencies = [
 name = "bms-tokenizer"
 version = "0.1.0"
 dependencies = [
- "bms-tokenizer-derive",
- "derive_more",
- "insta",
- "itertools 0.15.0",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "bms-tokenizer-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.9",
+ "bms-parser",
 ]
 
 [[package]]
@@ -321,7 +316,6 @@ dependencies = [
  "bms-control-flow",
  "bms-document",
  "bms-parser",
- "bms-tokenizer",
 ]
 
 [[package]]
@@ -351,13 +345,10 @@ name = "bmsrs"
 version = "0.1.0"
 dependencies = [
  "bms-analysis",
- "bms-control-flow",
- "bms-document",
  "bms-parser",
  "bms-processor",
  "bms-source",
  "bms-syntax",
- "bms-tokenizer",
  "bms-writer",
  "bmson-def",
  "bmson-processor",

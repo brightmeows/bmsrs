@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use crate::index::ChannelIndex;
+use crate::tokenizer::index::ChannelIndex;
 
 /// 已分类的 BMS 通道标识符。
 ///
@@ -265,7 +265,7 @@ impl BmsChannel {
     /// [`BmsChannel::Bgm`] → `Some(0x01)`）。非十六进制通道
     /// （[`Scroll`](Self::Scroll)、[`Speed`](Self::Speed)）返回 `None`。
     /// [`Note`](Self::Note) 与 [`Unknown`](Self::Unknown) 委托给
-    /// 内部的 [`crate::index::BmsIndex::as_u8_hex`]。
+    /// 内部的 [`crate::tokenizer::index::BmsIndex::as_u8_hex`]。
     #[must_use]
     pub fn as_u8_hex(&self) -> Option<u8> {
         match self {

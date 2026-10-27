@@ -3,8 +3,8 @@
 
 use std::fmt;
 
-use crate::index::WavIndex;
-use crate::{BmsTokenAttr, BmsValue};
+use crate::tokenizer::index::WavIndex;
+use crate::tokenizer::{BmsTokenAttr, BmsValue};
 
 /// `#EXWAV{id}` 的扩展音频效果参数（nanasi 扩展）。
 ///
@@ -185,7 +185,7 @@ impl std::str::FromStr for WavCmdKind {
 /// `01` = 音量、`02` = 时长。仅 `MacBeat` 处理这些；
 /// Sonorous 解析但忽略。
 ///
-/// 解析失败时回退到 [`BmsHeaderFallback`](crate::BmsHeaderFallback)。
+/// 解析失败时回退到 [`BmsHeaderFallback`](crate::tokenizer::BmsHeaderFallback)。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WavCmdParams {
     /// 命令种类。
@@ -277,7 +277,7 @@ pub enum BmsHeaderResDefAudio {
     /// `01` = 音量、`02` = 时长。仅 `MacBeat` 处理这些；
     /// Sonorous 解析但忽略。
     ///
-    /// 解析失败时回退到 [`BmsHeaderFallback`](crate::BmsHeaderFallback)。
+    /// 解析失败时回退到 [`BmsHeaderFallback`](crate::tokenizer::BmsHeaderFallback)。
     #[bms_token("#WAVCMD {params}")]
     #[bms_fallback]
     WavCmd {

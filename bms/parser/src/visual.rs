@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{
+use crate::tokenizer::{
     ArgbParams, AtBgaParams, BgaParams, BmpIndex, BmsBase, BmsHeaderResDefVisual, ExBmpParams,
     PoorBgaMode, SeekIndex, SwBgaParams,
 };

@@ -1,5 +1,8 @@
 # bms-document
 
+
+> 迁移兼容层：公开 API 已由 `bms-source` / `bms-syntax` / `bms-parser` 取代；本 crate `publish = false`，仅保留测试用途。
+
 ## 定位
 
 BMS 无损文档层：原始字节 → 行 → 编辑 → 写回。谱面编辑器只与这一层对话。

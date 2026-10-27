@@ -13,15 +13,15 @@ rust-version.workspace = true
 readme.workspace = true
 
 [dependencies]
-bms-tokenizer.workspace = true
-bms-control-flow.workspace = true
 bms-syntax.workspace = true
 bmsrs-chart.workspace = true
+bms-parser-derive.workspace = true
+derive_more.workspace = true
+itertools.workspace = true
 thiserror.workspace = true
 
 # 整管线入口 from_text 已移至 facade；测试夹具经 dev-dependency 使用文档层。
 [dev-dependencies]
-bms-document.workspace = true
 
 [lib]
 

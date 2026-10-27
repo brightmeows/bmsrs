@@ -3,8 +3,8 @@
 
 use std::fmt;
 
-use bms_tokenizer::*;
-use bms_tokenizer_derive::BmsTokenAttr;
+use bms_parser::*;
+use bms_parser_derive::BmsTokenAttr;
 
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 enum SimpleHeaders<'a> {

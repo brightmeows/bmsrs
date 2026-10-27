@@ -3,9 +3,9 @@
 
 use std::fmt;
 
-use crate::BmsTokenAttr;
-use crate::BmsValue;
-use crate::index::{BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
+use crate::tokenizer::BmsTokenAttr;
+use crate::tokenizer::BmsValue;
+use crate::tokenizer::index::{BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
 
 /// `#STP` 的参数——bemaniaDX 式停止（绝对时间，毫秒）。
 ///

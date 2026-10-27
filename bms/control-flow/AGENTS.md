@@ -1,5 +1,8 @@
 # bms-control-flow
 
+
+> 迁移兼容层：公开 API 已由 `bms-source` / `bms-syntax` / `bms-parser` 取代；本 crate `publish = false`，仅保留测试用途。
+
 ## 定位
 
 `#RANDOM`/`#SWITCH` 分支选择与 roundtrip。

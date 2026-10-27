@@ -74,7 +74,7 @@ fn normal_chart_produces_no_warnings() {
 fn missing_bpm_definition_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    let bpm_id: bms_tokenizer::BpmIndex = "ZZ".parse().unwrap();
+    let bpm_id: bms_parser::BpmIndex = "ZZ".parse().unwrap();
     // 引用未定义的 BPM 键
     bms.messages.bpm_changes.push(BpmChange {
         position: Position::new(1, 0, 8),
@@ -108,23 +108,13 @@ fn process_still_returns_ok_with_warnings() {
 
 #[test]
 fn unparsable_bpm_value_produces_warning() {
-    use bms_control_flow::BranchRng;
-
-    struct Fixed;
-
-    impl BranchRng for Fixed {
-        fn gen_range(&mut self, _max: u64) -> u64 {
-            1
-        }
-    }
-
     // ch03 要求十六进制（01-FF），"GG" 不满足——修复前静默丢弃，无信号。
     let text = "\
 #BPM 120
 #00003:GG
 ";
     let (bms, _) =
-        bmsrs::bms::from_text(text, &mut Fixed, bms_document::ErrorStrategy::CollectAll).unwrap();
+        bmsrs::bms::from_text(text, |_| 1, bmsrs::bms::ErrorStrategy::CollectAll).unwrap();
     let (_chart, warnings) = BmsProcessor::process_with_warnings::<Bme>(&bms).unwrap();
 
     assert!(warnings.iter().any(|w| matches!(

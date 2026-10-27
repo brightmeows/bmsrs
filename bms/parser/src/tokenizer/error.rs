@@ -129,7 +129,7 @@ impl fmt::Display for ParseBmsValueError {
 
 /// token 类型间 `TryFrom` 转换的错误类型。
 ///
-/// 当从 [`BmsToken`](crate::BmsToken) 或 `(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)` 元组
+/// 当从 [`BmsToken`](crate::tokenizer::BmsToken) 或 `(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)` 元组
 /// 中提取头部或消息时使用。
 ///
 /// **注意**：子枚举提取（如 `BmsHeader::try_unwrap_gameplay`）不再通过此类型报告错误，

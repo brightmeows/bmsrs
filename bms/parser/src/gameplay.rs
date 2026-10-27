@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_tokenizer::{
+use crate::tokenizer::{
     BmsBase, BmsHeaderGameplay, ChangeOptionIndex, ExRankIndex, LnMode, LnObjIndex, LnType,
     PlayerMode, Rank,
 };

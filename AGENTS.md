@@ -11,12 +11,13 @@ BMS（Be-Music Script）/ BMSON 谱面格式解析、转换与模拟播放的 Ru
 
 ```mermaid
 flowchart LR
-    BMS[".bms file"] --> Doc[bms-document]
-    Doc -->|逐行| Tok[bms-tokenizer]
-    Tok --> CF[bms-control-flow]
-    CF --> Par[bms-parser]
+    BMS[".bms file"] --> Src[bms-source]
+    Src -->|解码文本| Syn[bms-syntax]
+    Syn -->|CST| Par[bms-parser]
     Par --> BProc[bms-processor]
     Par --> Writer[bms-writer]
+    Syn --> Analysis[bms-analysis]
+    Analysis --> LSP[app/bms-lsp]
 
     BMSON[".bmson file"] --> BDef[bmson-def]
     BDef --> BMProc[bmson-processor]
@@ -30,25 +31,22 @@ flowchart LR
 
 | Crate | 定位 | 输入 → 输出 |
 |-------|------|-------------|
-| `bms-document` | BMS 无损文档层：字节保真、行级编辑与编码处理 | `Vec<u8>` → `Document` |
 | `bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
 | `bms-syntax` | BMS 语法层：rowan CST、词法、容错解析与控制流查询 | `&str` → `SourceFile` |
-| `bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
-| `bms-lsp` | BMS language server（stdio，`publish = false`） | LSP 消息 |
-| `bms-tokenizer` | BMS 单行语法：一行文本 → 结构化 token | `&str`（单行）→ `BmsToken` |
-| `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
-| `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` |
-| `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` |
+| `bms-parser` | BMS 语义层：类型化 header/message 与 `Bms` 模型 | CST → `Bms` |
+| `bms-parser-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
 | `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
 | `bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
+| `bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
+| `bms-lsp` | BMS language server（stdio，`publish = false`） | LSP 消息 |
 | `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
 | `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
 | `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
 
-> 迁移中：`bms-source` 将取代 `bms-document`；`bms-syntax` 将合并
-> `bms-tokenizer` 与 `bms-control-flow`。旧条目在迁移完成前保留。
+`bms-document`、`bms-control-flow`、`bms-tokenizer` 仅为测试/迁移兼容层，
+`publish = false`，不再进入 facade 公开 API。
 
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 

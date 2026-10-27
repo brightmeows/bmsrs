@@ -4,9 +4,9 @@
 
 use std::fmt;
 
-use crate::header::display::PoorBgaMode;
-use crate::index::{BmpIndex, SeekIndex};
-use crate::{BmsTokenAttr, BmsValue};
+use crate::tokenizer::header::display::PoorBgaMode;
+use crate::tokenizer::index::{BmpIndex, SeekIndex};
+use crate::tokenizer::{BmsTokenAttr, BmsValue};
 
 /// `#BGA{id}` 的参数——图片裁剪与放置定义。
 ///

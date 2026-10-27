@@ -3,9 +3,9 @@
 use std::num::NonZeroU8;
 
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position};
+use bms_parser::{BpmIndex, LnObjIndex};
 use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
 use bms_processor::{BmsProcessor, ProcessWarning};
-use bms_tokenizer::{BpmIndex, LnObjIndex};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{EventKind, NoteKind};
 

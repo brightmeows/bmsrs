@@ -4,12 +4,12 @@
 //! 复用 derive 生成的 `format_header` 完成命令名与值的格式化，
 //! 保证与解析路径使用同一套格式模板。
 
-use bms_parser::{Bms, OwnedExWavParams, OwnedSwBgaParams};
-use bms_tokenizer::{
+use bms_parser::{
     ArgbParams, AtBgaParams, BgaParams, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ExBmpParams, ExWavParams,
     SwBgaParams, WavCmdParams,
 };
+use bms_parser::{Bms, OwnedExWavParams, OwnedSwBgaParams};
 
 /// 序列化全部头部命令行。
 ///

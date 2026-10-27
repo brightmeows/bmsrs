@@ -6,7 +6,7 @@
 use bms_control_flow::BranchRng;
 use bms_document::{Document, ErrorStrategy};
 use bms_parser::Bms;
-use bms_tokenizer::parse_message_line;
+use bms_parser::parse_message_line;
 
 use bms_writer::BmsWriter;
 
@@ -103,6 +103,6 @@ fn encode_body_roundtrips_via_parse() {
         .expect("is message");
     assert_eq!(
         line.body,
-        bms_tokenizer::BmsMessage::encode_body(["01", "02", "03"])
+        bms_parser::BmsMessage::encode_body(["01", "02", "03"])
     );
 }

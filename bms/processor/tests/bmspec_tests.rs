@@ -678,10 +678,10 @@ fn bmspec_1_08_wav_references() {
     .collect();
     let bms = Bms::from_flat_tokens(tokens);
 
-    let wav01: bms_tokenizer::WavIndex = "01".parse().unwrap();
-    let wav_zz: bms_tokenizer::WavIndex = "ZZ".parse().unwrap();
-    let wav_aa: bms_tokenizer::WavIndex = "AA".parse().unwrap();
-    let wav02: bms_tokenizer::WavIndex = "02".parse().unwrap();
+    let wav01: bms_parser::WavIndex = "01".parse().unwrap();
+    let wav_zz: bms_parser::WavIndex = "ZZ".parse().unwrap();
+    let wav_aa: bms_parser::WavIndex = "AA".parse().unwrap();
+    let wav02: bms_parser::WavIndex = "02".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav01).map(String::as_str),

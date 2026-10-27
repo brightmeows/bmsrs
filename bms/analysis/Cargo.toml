@@ -14,7 +14,7 @@ readme.workspace = true
 
 [dependencies]
 bms-syntax.workspace = true
-bms-tokenizer.workspace = true
+bms-parser.workspace = true
 
 [lints]
 workspace = true

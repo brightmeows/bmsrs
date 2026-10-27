@@ -1,6 +1,6 @@
 //! [`BmsIndex`] 与索引 newtype 的集成测试。
 
-use bms_tokenizer::*;
+use bms_parser::*;
 
 // BmsIndex 测试
 

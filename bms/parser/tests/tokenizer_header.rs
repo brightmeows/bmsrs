@@ -1,6 +1,6 @@
 //! 通过 [`parse_header_line`] 解析 [`BmsHeader`] 的集成测试。
 
-use bms_tokenizer::{
+use bms_parser::{
     BmpIndex, BmsBase, BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback,
     BmsHeaderGameplay, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
     BmsHeaderTiming, BpmIndex, ChangeOptionIndex, DifficultyLevel, ExRankIndex, LnMode, LnObjIndex,
@@ -10,7 +10,7 @@ use bms_tokenizer::{
 
 #[test]
 fn parse_title() {
-    let result = bms_tokenizer::parse_header_line("#TITLE My Song", &['#', '%'])
+    let result = bms_parser::parse_header_line("#TITLE My Song", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -21,7 +21,7 @@ fn parse_title() {
 
 #[test]
 fn parse_title_empty() {
-    let result = bms_tokenizer::parse_header_line("#TITLE", &['#', '%'])
+    let result = bms_parser::parse_header_line("#TITLE", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -32,7 +32,7 @@ fn parse_title_empty() {
 
 #[test]
 fn parse_subtitle() {
-    let result = bms_tokenizer::parse_header_line("#SUBTITLE (short ver.)", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SUBTITLE (short ver.)", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -43,7 +43,7 @@ fn parse_subtitle() {
 
 #[test]
 fn parse_artist() {
-    let result = bms_tokenizer::parse_header_line("#ARTIST composer", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ARTIST composer", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -54,7 +54,7 @@ fn parse_artist() {
 
 #[test]
 fn parse_subartist() {
-    let result = bms_tokenizer::parse_header_line("#SUBARTIST co-writer", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SUBARTIST co-writer", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -65,7 +65,7 @@ fn parse_subartist() {
 
 #[test]
 fn parse_genre() {
-    let result = bms_tokenizer::parse_header_line("#GENRE Piano", &['#', '%'])
+    let result = bms_parser::parse_header_line("#GENRE Piano", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -76,7 +76,7 @@ fn parse_genre() {
 
 #[test]
 fn parse_maker() {
-    let result = bms_tokenizer::parse_header_line("#MAKER chart-creator", &['#', '%'])
+    let result = bms_parser::parse_header_line("#MAKER chart-creator", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -87,7 +87,7 @@ fn parse_maker() {
 
 #[test]
 fn parse_comment() {
-    let result = bms_tokenizer::parse_header_line("#COMMENT hello", &['#', '%'])
+    let result = bms_parser::parse_header_line("#COMMENT hello", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -98,7 +98,7 @@ fn parse_comment() {
 
 #[test]
 fn parse_text() {
-    let result = bms_tokenizer::parse_header_line("#TEXT01 in-game text", &['#', '%'])
+    let result = bms_parser::parse_header_line("#TEXT01 in-game text", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -112,7 +112,7 @@ fn parse_text() {
 
 #[test]
 fn parse_text_with_quotes() {
-    let result = bms_tokenizer::parse_header_line("#TEXT00 \"MISS!!\"", &['#', '%'])
+    let result = bms_parser::parse_header_line("#TEXT00 \"MISS!!\"", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -126,7 +126,7 @@ fn parse_text_with_quotes() {
 
 #[test]
 fn parse_song_as_text() {
-    let result = bms_tokenizer::parse_header_line("#SONG01 some text", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SONG01 some text", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -140,7 +140,7 @@ fn parse_song_as_text() {
 
 #[test]
 fn parse_charset() {
-    let result = bms_tokenizer::parse_header_line("#CHARSET UTF-8", &['#', '%'])
+    let result = bms_parser::parse_header_line("#CHARSET UTF-8", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -151,7 +151,7 @@ fn parse_charset() {
 
 #[test]
 fn parse_url() {
-    let result = bms_tokenizer::parse_header_line("%URL https://example.com", &['#', '%'])
+    let result = bms_parser::parse_header_line("%URL https://example.com", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -162,7 +162,7 @@ fn parse_url() {
 
 #[test]
 fn parse_email() {
-    let result = bms_tokenizer::parse_header_line("%EMAIL user@example.com", &['#', '%'])
+    let result = bms_parser::parse_header_line("%EMAIL user@example.com", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -173,7 +173,7 @@ fn parse_email() {
 
 #[test]
 fn parse_player() {
-    let result = bms_tokenizer::parse_header_line("#PLAYER 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#PLAYER 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -184,7 +184,7 @@ fn parse_player() {
 
 #[test]
 fn parse_rank() {
-    let result = bms_tokenizer::parse_header_line("#RANK 2", &['#', '%'])
+    let result = bms_parser::parse_header_line("#RANK 2", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -195,7 +195,7 @@ fn parse_rank() {
 
 #[test]
 fn parse_defexrank() {
-    let result = bms_tokenizer::parse_header_line("#DEFEXRANK 3", &['#', '%'])
+    let result = bms_parser::parse_header_line("#DEFEXRANK 3", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -206,7 +206,7 @@ fn parse_defexrank() {
 
 #[test]
 fn parse_total() {
-    let result = bms_tokenizer::parse_header_line("#TOTAL 300", &['#', '%'])
+    let result = bms_parser::parse_header_line("#TOTAL 300", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::Total(300.0)));
@@ -214,7 +214,7 @@ fn parse_total() {
 
 #[test]
 fn parse_volwav() {
-    let result = bms_tokenizer::parse_header_line("#VOLWAV 100", &['#', '%'])
+    let result = bms_parser::parse_header_line("#VOLWAV 100", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -225,7 +225,7 @@ fn parse_volwav() {
 
 #[test]
 fn parse_lntype() {
-    let result = bms_tokenizer::parse_header_line("#LNTYPE 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#LNTYPE 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -236,7 +236,7 @@ fn parse_lntype() {
 
 #[test]
 fn parse_lnobj() {
-    let result = bms_tokenizer::parse_header_line("#LNOBJ 01", &['#', '%'])
+    let result = bms_parser::parse_header_line("#LNOBJ 01", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -249,7 +249,7 @@ fn parse_lnobj() {
 
 #[test]
 fn parse_lnmode() {
-    let result = bms_tokenizer::parse_header_line("#LNMODE 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#LNMODE 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -260,7 +260,7 @@ fn parse_lnmode() {
 
 #[test]
 fn parse_oct() {
-    let result = bms_tokenizer::parse_header_line("#OCT 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#OCT 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
@@ -268,7 +268,7 @@ fn parse_oct() {
 
 #[test]
 fn parse_fp() {
-    let result = bms_tokenizer::parse_header_line("#FP 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#FP 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
@@ -276,7 +276,7 @@ fn parse_fp() {
 
 #[test]
 fn parse_octfp() {
-    let result = bms_tokenizer::parse_header_line("#OCT/FP 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#OCT/FP 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::Gameplay(BmsHeaderGameplay::OctFp));
@@ -284,7 +284,7 @@ fn parse_octfp() {
 
 #[test]
 fn parse_option() {
-    let result = bms_tokenizer::parse_header_line("#OPTION -R", &['#', '%'])
+    let result = bms_parser::parse_header_line("#OPTION -R", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -295,10 +295,9 @@ fn parse_option() {
 
 #[test]
 fn parse_changeoption() {
-    let result =
-        bms_tokenizer::parse_header_line("#CHANGEOPTION01 774:HIDDEN_STEALTH", &['#', '%'])
-            .unwrap()
-            .unwrap();
+    let result = bms_parser::parse_header_line("#CHANGEOPTION01 774:HIDDEN_STEALTH", &['#', '%'])
+        .unwrap()
+        .unwrap();
     assert_eq!(
         result,
         BmsHeader::Gameplay(BmsHeaderGameplay::ChangeOption {
@@ -310,7 +309,7 @@ fn parse_changeoption() {
 
 #[test]
 fn parse_stagefile() {
-    let result = bms_tokenizer::parse_header_line("#STAGEFILE stage.png", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STAGEFILE stage.png", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -321,7 +320,7 @@ fn parse_stagefile() {
 
 #[test]
 fn parse_banner() {
-    let result = bms_tokenizer::parse_header_line("#BANNER banner.bmp", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BANNER banner.bmp", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -332,7 +331,7 @@ fn parse_banner() {
 
 #[test]
 fn parse_backbmp() {
-    let result = bms_tokenizer::parse_header_line("#BACKBMP bg.png", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BACKBMP bg.png", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -343,7 +342,7 @@ fn parse_backbmp() {
 
 #[test]
 fn parse_charfile() {
-    let result = bms_tokenizer::parse_header_line("#CHARFILE char.bmp", &['#', '%'])
+    let result = bms_parser::parse_header_line("#CHARFILE char.bmp", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -354,7 +353,7 @@ fn parse_charfile() {
 
 #[test]
 fn parse_playlevel() {
-    let result = bms_tokenizer::parse_header_line("#PLAYLEVEL 12", &['#', '%'])
+    let result = bms_parser::parse_header_line("#PLAYLEVEL 12", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -365,7 +364,7 @@ fn parse_playlevel() {
 
 #[test]
 fn parse_difficulty() {
-    let result = bms_tokenizer::parse_header_line("#DIFFICULTY 3", &['#', '%'])
+    let result = bms_parser::parse_header_line("#DIFFICULTY 3", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -378,7 +377,7 @@ fn parse_difficulty() {
 
 #[test]
 fn parse_preview() {
-    let result = bms_tokenizer::parse_header_line("#PREVIEW preview.ogg", &['#', '%'])
+    let result = bms_parser::parse_header_line("#PREVIEW preview.ogg", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -389,7 +388,7 @@ fn parse_preview() {
 
 #[test]
 fn parse_bpm_global() {
-    let result = bms_tokenizer::parse_header_line("#BPM 180", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BPM 180", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::Bpm(180.0)));
@@ -397,7 +396,7 @@ fn parse_bpm_global() {
 
 #[test]
 fn parse_bpm_global_float() {
-    let result = bms_tokenizer::parse_header_line("#BPM 180.0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BPM 180.0", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::Bpm(180.0)));
@@ -405,7 +404,7 @@ fn parse_bpm_global_float() {
 
 #[test]
 fn parse_basebpm() {
-    let result = bms_tokenizer::parse_header_line("#BASEBPM 180", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BASEBPM 180", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::Timing(BmsHeaderTiming::BaseBpm(180.0)));
@@ -413,7 +412,7 @@ fn parse_basebpm() {
 
 #[test]
 fn parse_wavcmd() {
-    let result = bms_tokenizer::parse_header_line("#WAVCMD 01 05 100", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAVCMD 01 05 100", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -430,7 +429,7 @@ fn parse_wavcmd() {
 
 #[test]
 fn parse_cdda() {
-    let result = bms_tokenizer::parse_header_line("#CDDA track01.bin", &['#', '%'])
+    let result = bms_parser::parse_header_line("#CDDA track01.bin", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -441,7 +440,7 @@ fn parse_cdda() {
 
 #[test]
 fn parse_midifile() {
-    let result = bms_tokenizer::parse_header_line("#MIDIFILE song.mid", &['#', '%'])
+    let result = bms_parser::parse_header_line("#MIDIFILE song.mid", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -452,7 +451,7 @@ fn parse_midifile() {
 
 #[test]
 fn parse_path_wav() {
-    let result = bms_tokenizer::parse_header_line("#PATH_WAV ./sounds/", &['#', '%'])
+    let result = bms_parser::parse_header_line("#PATH_WAV ./sounds/", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -463,7 +462,7 @@ fn parse_path_wav() {
 
 #[test]
 fn parse_poorbga() {
-    let result = bms_tokenizer::parse_header_line("#POORBGA 0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#POORBGA 0", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -474,7 +473,7 @@ fn parse_poorbga() {
 
 #[test]
 fn parse_poorbga_overlay() {
-    let result = bms_tokenizer::parse_header_line("#POORBGA 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#POORBGA 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -485,7 +484,7 @@ fn parse_poorbga_overlay() {
 
 #[test]
 fn parse_poorbga_hidden() {
-    let result = bms_tokenizer::parse_header_line("#POORBGA 2", &['#', '%'])
+    let result = bms_parser::parse_header_line("#POORBGA 2", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -496,7 +495,7 @@ fn parse_poorbga_hidden() {
 
 #[test]
 fn parse_poorbga_invalid_fallback() {
-    let result = bms_tokenizer::parse_header_line("#POORBGA 3", &['#', '%'])
+    let result = bms_parser::parse_header_line("#POORBGA 3", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
@@ -504,7 +503,7 @@ fn parse_poorbga_invalid_fallback() {
 
 #[test]
 fn parse_videofile() {
-    let result = bms_tokenizer::parse_header_line("#VIDEOFILE bg.avi", &['#', '%'])
+    let result = bms_parser::parse_header_line("#VIDEOFILE bg.avi", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -515,7 +514,7 @@ fn parse_videofile() {
 
 #[test]
 fn parse_movie() {
-    let result = bms_tokenizer::parse_header_line("#MOVIE intro.mpg", &['#', '%'])
+    let result = bms_parser::parse_header_line("#MOVIE intro.mpg", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -526,7 +525,7 @@ fn parse_movie() {
 
 #[test]
 fn parse_extchr() {
-    let result = bms_tokenizer::parse_header_line("#ExtChr extra", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ExtChr extra", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -537,7 +536,7 @@ fn parse_extchr() {
 
 #[test]
 fn parse_random() {
-    let result = bms_tokenizer::parse_header_line("#RANDOM 10", &['#', '%'])
+    let result = bms_parser::parse_header_line("#RANDOM 10", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -548,7 +547,7 @@ fn parse_random() {
 
 #[test]
 fn parse_setrandom() {
-    let result = bms_tokenizer::parse_header_line("#SETRANDOM 5", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SETRANDOM 5", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -559,7 +558,7 @@ fn parse_setrandom() {
 
 #[test]
 fn parse_if() {
-    let result = bms_tokenizer::parse_header_line("#IF 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#IF 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::If(1)));
@@ -567,7 +566,7 @@ fn parse_if() {
 
 #[test]
 fn parse_elseif() {
-    let result = bms_tokenizer::parse_header_line("#ELSEIF 0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ELSEIF 0", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -578,7 +577,7 @@ fn parse_elseif() {
 
 #[test]
 fn parse_else() {
-    let result = bms_tokenizer::parse_header_line("#ELSE", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ELSE", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::Else));
@@ -586,7 +585,7 @@ fn parse_else() {
 
 #[test]
 fn parse_endif() {
-    let result = bms_tokenizer::parse_header_line("#ENDIF", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ENDIF", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::EndIf));
@@ -594,7 +593,7 @@ fn parse_endif() {
 
 #[test]
 fn parse_endrandom() {
-    let result = bms_tokenizer::parse_header_line("#ENDRANDOM", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ENDRANDOM", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -605,7 +604,7 @@ fn parse_endrandom() {
 
 #[test]
 fn parse_switch() {
-    let result = bms_tokenizer::parse_header_line("#SWITCH 3", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SWITCH 3", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -616,7 +615,7 @@ fn parse_switch() {
 
 #[test]
 fn parse_setswitch() {
-    let result = bms_tokenizer::parse_header_line("#SETSWITCH 2", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SETSWITCH 2", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -627,7 +626,7 @@ fn parse_setswitch() {
 
 #[test]
 fn parse_case() {
-    let result = bms_tokenizer::parse_header_line("#CASE 1", &['#', '%'])
+    let result = bms_parser::parse_header_line("#CASE 1", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -638,7 +637,7 @@ fn parse_case() {
 
 #[test]
 fn parse_skip() {
-    let result = bms_tokenizer::parse_header_line("#SKIP", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SKIP", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::Skip));
@@ -646,7 +645,7 @@ fn parse_skip() {
 
 #[test]
 fn parse_def() {
-    let result = bms_tokenizer::parse_header_line("#DEF", &['#', '%'])
+    let result = bms_parser::parse_header_line("#DEF", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(result, BmsHeader::ControlFlow(BmsHeaderControlFlow::Def));
@@ -654,7 +653,7 @@ fn parse_def() {
 
 #[test]
 fn parse_endsw() {
-    let result = bms_tokenizer::parse_header_line("#ENDSW", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ENDSW", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -665,7 +664,7 @@ fn parse_endsw() {
 
 #[test]
 fn parse_endswitch_alias() {
-    let result = bms_tokenizer::parse_header_line("#ENDSWITCH", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ENDSWITCH", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -676,7 +675,7 @@ fn parse_endswitch_alias() {
 
 #[test]
 fn parse_wav_indexed() {
-    let result = bms_tokenizer::parse_header_line("#WAV01 kick.wav", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAV01 kick.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -690,7 +689,7 @@ fn parse_wav_indexed() {
 
 #[test]
 fn parse_wav_36ary_index() {
-    let result = bms_tokenizer::parse_header_line("#WAV2A snare.wav", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAV2A snare.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -704,7 +703,7 @@ fn parse_wav_36ary_index() {
 
 #[test]
 fn parse_exwav_indexed() {
-    let result = bms_tokenizer::parse_header_line("#EXWAV01 extra.ogg", &['#', '%'])
+    let result = bms_parser::parse_header_line("#EXWAV01 extra.ogg", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
@@ -720,10 +719,9 @@ fn parse_exwav_indexed() {
 
 #[test]
 fn parse_exwav_with_flags() {
-    let result =
-        bms_tokenizer::parse_header_line("#EXWAV01 pvf -100 -50 440 sound.wav", &['#', '%'])
-            .unwrap()
-            .unwrap();
+    let result = bms_parser::parse_header_line("#EXWAV01 pvf -100 -50 440 sound.wav", &['#', '%'])
+        .unwrap()
+        .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { id, params }) = result {
         assert_eq!(id.as_str(), "01");
         assert_eq!(params.pan, Some(-100));
@@ -737,7 +735,7 @@ fn parse_exwav_with_flags() {
 
 #[test]
 fn parse_bmp_indexed() {
-    let result = bms_tokenizer::parse_header_line("#BMP01 bg.bmp", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BMP01 bg.bmp", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -751,7 +749,7 @@ fn parse_bmp_indexed() {
 
 #[test]
 fn parse_exbmp_indexed() {
-    let result = bms_tokenizer::parse_header_line("#EXBMP01 255,0,128,64 overlay.png", &['#', '%'])
+    let result = bms_parser::parse_header_line("#EXBMP01 255,0,128,64 overlay.png", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::ExBmp { id, params }) = result {
@@ -768,7 +766,7 @@ fn parse_exbmp_indexed() {
 
 #[test]
 fn parse_bga_single_digit_coordinates_succeeds() {
-    let result = bms_tokenizer::parse_header_line("#BGA01 1 0 0 9 8 1 2", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BGA01 1 0 0 9 8 1 2", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
@@ -782,7 +780,7 @@ fn parse_bga_single_digit_coordinates_succeeds() {
 
 #[test]
 fn parse_bga_negative_coordinates_succeeds() {
-    let result = bms_tokenizer::parse_header_line("#BGA01 02 -10 -20 100 200 5 15", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BGA01 02 -10 -20 100 200 5 15", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
@@ -795,7 +793,7 @@ fn parse_bga_negative_coordinates_succeeds() {
 
 #[test]
 fn parse_bga_zero_width_succeeds() {
-    let result = bms_tokenizer::parse_header_line("#BGA01 02 50 50 50 100 0 0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BGA01 02 50 50 50 100 0 0", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
@@ -810,7 +808,7 @@ fn parse_bga_zero_width_succeeds() {
 
 #[test]
 fn parse_bga_large_coordinates_succeeds() {
-    let result = bms_tokenizer::parse_header_line("#BGA01 02 0 0 4095 8191 999 -999", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BGA01 02 0 0 4095 8191 999 -999", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { params, .. }) = result {
@@ -825,7 +823,7 @@ fn parse_bga_large_coordinates_succeeds() {
 
 #[test]
 fn parse_bga_indexed() {
-    let result = bms_tokenizer::parse_header_line("#BGA01 02 0 0 100 100 10 20", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BGA01 02 0 0 100 100 10 20", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Bga { id, params }) = result {
@@ -844,7 +842,7 @@ fn parse_bga_indexed() {
 
 #[test]
 fn parse_at_bga_zero_width_height_succeeds() {
-    let result = bms_tokenizer::parse_header_line("#@BGA01 03 5 10 0 0 0 0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#@BGA01 03 5 10 0 0 0 0", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { params, .. }) = result {
@@ -859,7 +857,7 @@ fn parse_at_bga_zero_width_height_succeeds() {
 
 #[test]
 fn parse_at_bga_negative_dx_dy_succeeds() {
-    let result = bms_tokenizer::parse_header_line("#@BGA01 03 5 10 200 150 -5 -10", &['#', '%'])
+    let result = bms_parser::parse_header_line("#@BGA01 03 5 10 200 150 -5 -10", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { params, .. }) = result {
@@ -872,7 +870,7 @@ fn parse_at_bga_negative_dx_dy_succeeds() {
 
 #[test]
 fn parse_at_bga_large_dimensions() {
-    let result = bms_tokenizer::parse_header_line("#@BGA01 03 5 10 4095 8191 0 0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#@BGA01 03 5 10 4095 8191 0 0", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { params, .. }) = result {
@@ -887,7 +885,7 @@ fn parse_at_bga_large_dimensions() {
 
 #[test]
 fn parse_at_bga_indexed() {
-    let result = bms_tokenizer::parse_header_line("#@BGA01 03 5 10 200 150 0 0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#@BGA01 03 5 10 200 150 0 0", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::AtBga { id, params }) = result {
@@ -905,7 +903,7 @@ fn parse_at_bga_indexed() {
 #[test]
 fn parse_swbga_indexed() {
     let result =
-        bms_tokenizer::parse_header_line("#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp", &['#', '%'])
+        bms_parser::parse_header_line("#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp", &['#', '%'])
             .unwrap()
             .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::SwBga { id, params }) = result {
@@ -926,7 +924,7 @@ fn parse_swbga_indexed() {
 
 #[test]
 fn parse_argb_indexed() {
-    let result = bms_tokenizer::parse_header_line("#ARGB01 128,255,0,64", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ARGB01 128,255,0,64", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefVisual(BmsHeaderResDefVisual::Argb { id, params }) = result {
@@ -942,7 +940,7 @@ fn parse_argb_indexed() {
 
 #[test]
 fn parse_bga_invalid_fallback() {
-    let result = bms_tokenizer::parse_header_line("#BGA01 bad", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BGA01 bad", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
@@ -950,7 +948,7 @@ fn parse_bga_invalid_fallback() {
 
 #[test]
 fn parse_argb_invalid_fallback() {
-    let result = bms_tokenizer::parse_header_line("#ARGB01 bad", &['#', '%'])
+    let result = bms_parser::parse_header_line("#ARGB01 bad", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
@@ -958,7 +956,7 @@ fn parse_argb_invalid_fallback() {
 
 #[test]
 fn parse_seek_indexed() {
-    let result = bms_tokenizer::parse_header_line("#SEEK01 1.5", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SEEK01 1.5", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -972,7 +970,7 @@ fn parse_seek_indexed() {
 
 #[test]
 fn parse_bpm_def_indexed() {
-    let result = bms_tokenizer::parse_header_line("#BPM01 180.0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BPM01 180.0", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -986,7 +984,7 @@ fn parse_bpm_def_indexed() {
 
 #[test]
 fn parse_stop_indexed() {
-    let result = bms_tokenizer::parse_header_line("#STOP01 192", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STOP01 192", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1000,7 +998,7 @@ fn parse_stop_indexed() {
 
 #[test]
 fn parse_scroll_indexed() {
-    let result = bms_tokenizer::parse_header_line("#SCROLL01 1.5", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SCROLL01 1.5", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1014,7 +1012,7 @@ fn parse_scroll_indexed() {
 
 #[test]
 fn parse_speed_indexed() {
-    let result = bms_tokenizer::parse_header_line("#SPEED01 2.0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#SPEED01 2.0", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1028,7 +1026,7 @@ fn parse_speed_indexed() {
 
 #[test]
 fn parse_exrank_indexed() {
-    let result = bms_tokenizer::parse_header_line("#EXRANK01 5", &['#', '%'])
+    let result = bms_parser::parse_header_line("#EXRANK01 5", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1042,7 +1040,7 @@ fn parse_exrank_indexed() {
 
 #[test]
 fn wavcmd_not_confused_as_wav_indexed() {
-    let result = bms_tokenizer::parse_header_line("#WAVCMD 00 01 100", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAVCMD 00 01 100", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1059,7 +1057,7 @@ fn wavcmd_not_confused_as_wav_indexed() {
 
 #[test]
 fn parse_unknown_header() {
-    let result = bms_tokenizer::parse_header_line("#MYEXT abc123", &['#', '%'])
+    let result = bms_parser::parse_header_line("#MYEXT abc123", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1073,7 +1071,7 @@ fn parse_unknown_header() {
 
 #[test]
 fn parse_unknown_percent_header() {
-    let result = bms_tokenizer::parse_header_line("%CUSTOM x", &['#', '%'])
+    let result = bms_parser::parse_header_line("%CUSTOM x", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1088,7 +1086,7 @@ fn parse_unknown_percent_header() {
 #[test]
 fn empty_line_returns_none() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("", &['#', '%']).unwrap(),
         None
     );
 }
@@ -1096,7 +1094,7 @@ fn empty_line_returns_none() {
 #[test]
 fn whitespace_only_returns_none() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("   ", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("   ", &['#', '%']).unwrap(),
         None
     );
 }
@@ -1104,7 +1102,7 @@ fn whitespace_only_returns_none() {
 #[test]
 fn comment_line_returns_none() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("// comment", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("// comment", &['#', '%']).unwrap(),
         None
     );
 }
@@ -1112,7 +1110,7 @@ fn comment_line_returns_none() {
 #[test]
 fn just_hash_returns_none() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("#", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("#", &['#', '%']).unwrap(),
         None
     );
 }
@@ -1120,14 +1118,14 @@ fn just_hash_returns_none() {
 #[test]
 fn just_percent_returns_none() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("%", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("%", &['#', '%']).unwrap(),
         None
     );
 }
 
 #[test]
 fn case_insensitive_title() {
-    let result = bms_tokenizer::parse_header_line("#title lowercase", &['#', '%'])
+    let result = bms_parser::parse_header_line("#title lowercase", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1138,7 +1136,7 @@ fn case_insensitive_title() {
 
 #[test]
 fn case_insensitive_wav() {
-    let result = bms_tokenizer::parse_header_line("#wav01 sound.wav", &['#', '%'])
+    let result = bms_parser::parse_header_line("#wav01 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1152,7 +1150,7 @@ fn case_insensitive_wav() {
 
 #[test]
 fn value_with_multiple_spaces() {
-    let result = bms_tokenizer::parse_header_line("#TITLE   My   Song", &['#', '%'])
+    let result = bms_parser::parse_header_line("#TITLE   My   Song", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1164,7 +1162,7 @@ fn value_with_multiple_spaces() {
 #[test]
 fn non_header_line() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("just some text", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("just some text", &['#', '%']).unwrap(),
         None
     );
 }
@@ -1172,7 +1170,7 @@ fn non_header_line() {
 #[test]
 fn channel_line_not_confused() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("#00111:1122", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("#00111:1122", &['#', '%']).unwrap(),
         None
     );
 }
@@ -1180,39 +1178,39 @@ fn channel_line_not_confused() {
 #[test]
 fn hash_comment_line() {
     assert_eq!(
-        bms_tokenizer::parse_header_line("## just a comment", &['#', '%']).unwrap(),
+        bms_parser::parse_header_line("## just a comment", &['#', '%']).unwrap(),
         None
     );
 }
 
 #[test]
 fn invalid_player_returns_error() {
-    assert!(bms_tokenizer::parse_header_line("#PLAYER xyz", &['#', '%']).is_err());
+    assert!(bms_parser::parse_header_line("#PLAYER xyz", &['#', '%']).is_err());
 }
 
 #[test]
 fn invalid_difficulty_returns_error() {
-    assert!(bms_tokenizer::parse_header_line("#DIFFICULTY 0", &['#', '%']).is_err());
+    assert!(bms_parser::parse_header_line("#DIFFICULTY 0", &['#', '%']).is_err());
 }
 
 #[test]
 fn invalid_rank_returns_error() {
-    assert!(bms_tokenizer::parse_header_line("#RANK abc", &['#', '%']).is_err());
+    assert!(bms_parser::parse_header_line("#RANK abc", &['#', '%']).is_err());
 }
 
 #[test]
 fn invalid_wav_index_returns_error() {
-    assert!(bms_tokenizer::parse_header_line("#WAV!! file.wav", &['#', '%']).is_err());
+    assert!(bms_parser::parse_header_line("#WAV!! file.wav", &['#', '%']).is_err());
 }
 
 #[test]
 fn invalid_bpm_returns_error() {
-    assert!(bms_tokenizer::parse_header_line("#BPM notanumber", &['#', '%']).is_err());
+    assert!(bms_parser::parse_header_line("#BPM notanumber", &['#', '%']).is_err());
 }
 
 #[test]
 fn parse_exbpm_indexed() {
-    let result = bms_tokenizer::parse_header_line("#EXBPM01 180.0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#EXBPM01 180.0", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1226,7 +1224,7 @@ fn parse_exbpm_indexed() {
 
 #[test]
 fn parse_stp_with_position() {
-    let result = bms_tokenizer::parse_header_line("#STP 001.128 500", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STP 001.128 500", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1243,7 +1241,7 @@ fn parse_stp_with_position() {
 
 #[test]
 fn parse_stp_without_position() {
-    let result = bms_tokenizer::parse_header_line("#STP 001 500.5", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STP 001 500.5", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1260,7 +1258,7 @@ fn parse_stp_without_position() {
 
 #[test]
 fn parse_stp_invalid_fallback() {
-    let result = bms_tokenizer::parse_header_line("#STP invalid", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STP invalid", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
@@ -1268,7 +1266,7 @@ fn parse_stp_invalid_fallback() {
 
 #[test]
 fn parse_stp_measure_999_accepted() {
-    let result = bms_tokenizer::parse_header_line("#STP 999 500", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STP 999 500", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1285,7 +1283,7 @@ fn parse_stp_measure_999_accepted() {
 
 #[test]
 fn parse_stp_measure_over_999_fallback() {
-    let result = bms_tokenizer::parse_header_line("#STP 1000 500", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STP 1000 500", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
@@ -1293,7 +1291,7 @@ fn parse_stp_measure_over_999_fallback() {
 
 #[test]
 fn parse_stp_measure_0_accepted() {
-    let result = bms_tokenizer::parse_header_line("#STP 000 500", &['#', '%'])
+    let result = bms_parser::parse_header_line("#STP 000 500", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1310,7 +1308,7 @@ fn parse_stp_measure_0_accepted() {
 
 #[test]
 fn parse_genre_alias() {
-    let result = bms_tokenizer::parse_header_line("#GENLE Pop", &['#', '%'])
+    let result = bms_parser::parse_header_line("#GENLE Pop", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1321,7 +1319,7 @@ fn parse_genre_alias() {
 
 #[test]
 fn parse_random_alias() {
-    let result = bms_tokenizer::parse_header_line("#RONDAM 5", &['#', '%'])
+    let result = bms_parser::parse_header_line("#RONDAM 5", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1332,7 +1330,7 @@ fn parse_random_alias() {
 
 #[test]
 fn parse_base_16() {
-    let result = bms_tokenizer::parse_header_line("#BASE 16", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BASE 16", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1343,7 +1341,7 @@ fn parse_base_16() {
 
 #[test]
 fn parse_base_36() {
-    let result = bms_tokenizer::parse_header_line("#BASE 36", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BASE 36", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1354,7 +1352,7 @@ fn parse_base_36() {
 
 #[test]
 fn parse_base_62() {
-    let result = bms_tokenizer::parse_header_line("#BASE 62", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BASE 62", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1365,7 +1363,7 @@ fn parse_base_62() {
 
 #[test]
 fn parse_base_unknown_fallback() {
-    let result = bms_tokenizer::parse_header_line("#BASE 99", &['#', '%'])
+    let result = bms_parser::parse_header_line("#BASE 99", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
@@ -1375,7 +1373,7 @@ fn parse_base_unknown_fallback() {
 
 #[test]
 fn parse_exwav_pan_at_bounds() {
-    let r = bms_tokenizer::parse_header_line("#EXWAV01 p 10000 sound.wav", &['#', '%'])
+    let r = bms_parser::parse_header_line("#EXWAV01 p 10000 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
@@ -1384,7 +1382,7 @@ fn parse_exwav_pan_at_bounds() {
         panic!("expected ExWav variant");
     }
 
-    let r2 = bms_tokenizer::parse_header_line("#EXWAV01 p -10000 sound.wav", &['#', '%'])
+    let r2 = bms_parser::parse_header_line("#EXWAV01 p -10000 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r2 {
@@ -1396,12 +1394,12 @@ fn parse_exwav_pan_at_bounds() {
 
 #[test]
 fn parse_exwav_pan_out_of_range_fallback() {
-    let r = bms_tokenizer::parse_header_line("#EXWAV01 p 10001 sound.wav", &['#', '%'])
+    let r = bms_parser::parse_header_line("#EXWAV01 p 10001 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(r, BmsHeader::Fallback(_)));
 
-    let r2 = bms_tokenizer::parse_header_line("#EXWAV01 p -10001 sound.wav", &['#', '%'])
+    let r2 = bms_parser::parse_header_line("#EXWAV01 p -10001 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(r2, BmsHeader::Fallback(_)));
@@ -1409,7 +1407,7 @@ fn parse_exwav_pan_out_of_range_fallback() {
 
 #[test]
 fn parse_exwav_volume_at_bounds() {
-    let r = bms_tokenizer::parse_header_line("#EXWAV01 v 0 sound.wav", &['#', '%'])
+    let r = bms_parser::parse_header_line("#EXWAV01 v 0 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
@@ -1418,7 +1416,7 @@ fn parse_exwav_volume_at_bounds() {
         panic!("expected ExWav variant");
     }
 
-    let r2 = bms_tokenizer::parse_header_line("#EXWAV01 v -10000 sound.wav", &['#', '%'])
+    let r2 = bms_parser::parse_header_line("#EXWAV01 v -10000 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r2 {
@@ -1429,14 +1427,14 @@ fn parse_exwav_volume_at_bounds() {
 }
 #[test]
 fn parse_exwav_volume_positive_fallback() {
-    let r = bms_tokenizer::parse_header_line("#EXWAV01 v 1 sound.wav", &['#', '%'])
+    let r = bms_parser::parse_header_line("#EXWAV01 v 1 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(r, BmsHeader::Fallback(_)));
 }
 #[test]
 fn parse_exwav_frequency_at_bounds() {
-    let r = bms_tokenizer::parse_header_line("#EXWAV01 f 100 sound.wav", &['#', '%'])
+    let r = bms_parser::parse_header_line("#EXWAV01 f 100 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
@@ -1445,7 +1443,7 @@ fn parse_exwav_frequency_at_bounds() {
         panic!("expected ExWav variant");
     }
 
-    let r2 = bms_tokenizer::parse_header_line("#EXWAV01 f 100000 sound.wav", &['#', '%'])
+    let r2 = bms_parser::parse_header_line("#EXWAV01 f 100000 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r2 {
@@ -1456,19 +1454,19 @@ fn parse_exwav_frequency_at_bounds() {
 }
 #[test]
 fn parse_exwav_frequency_out_of_range_fallback() {
-    let r = bms_tokenizer::parse_header_line("#EXWAV01 f 99 sound.wav", &['#', '%'])
+    let r = bms_parser::parse_header_line("#EXWAV01 f 99 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(r, BmsHeader::Fallback(_)));
 
-    let r2 = bms_tokenizer::parse_header_line("#EXWAV01 f 100001 sound.wav", &['#', '%'])
+    let r2 = bms_parser::parse_header_line("#EXWAV01 f 100001 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(r2, BmsHeader::Fallback(_)));
 }
 #[test]
 fn parse_exwav_multi_flag_pan_out_of_range_fallback() {
-    let r = bms_tokenizer::parse_header_line("#EXWAV01 pf 10000 440 sound.wav", &['#', '%'])
+    let r = bms_parser::parse_header_line("#EXWAV01 pf 10000 440 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     if let BmsHeader::ResDefAudio(BmsHeaderResDefAudio::ExWav { params, .. }) = r {
@@ -1479,7 +1477,7 @@ fn parse_exwav_multi_flag_pan_out_of_range_fallback() {
     }
 
     // pan 越界导致整个 EXWAV 回退
-    let r2 = bms_tokenizer::parse_header_line("#EXWAV01 pf 10001 440 sound.wav", &['#', '%'])
+    let r2 = bms_parser::parse_header_line("#EXWAV01 pf 10001 440 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(r2, BmsHeader::Fallback(_)));
@@ -1489,7 +1487,7 @@ fn parse_exwav_multi_flag_pan_out_of_range_fallback() {
 
 #[test]
 fn parse_wavcmd_pitch_0_accepted() {
-    let result = bms_tokenizer::parse_header_line("#WAVCMD 00 01 0", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAVCMD 00 01 0", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1506,7 +1504,7 @@ fn parse_wavcmd_pitch_0_accepted() {
 
 #[test]
 fn parse_wavcmd_pitch_127_accepted() {
-    let result = bms_tokenizer::parse_header_line("#WAVCMD 00 01 127", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAVCMD 00 01 127", &['#', '%'])
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1523,7 +1521,7 @@ fn parse_wavcmd_pitch_127_accepted() {
 
 #[test]
 fn parse_wavcmd_pitch_128_fallback() {
-    let result = bms_tokenizer::parse_header_line("#WAVCMD 00 01 128", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAVCMD 00 01 128", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(result, BmsHeader::Fallback(_)));
@@ -1532,7 +1530,7 @@ fn parse_wavcmd_pitch_128_fallback() {
 #[test]
 fn parse_wavcmd_pitch_0_boundary_still_allows_volume_over_100() {
     // 音量命令（01）不受 pitch 范围限制
-    let result = bms_tokenizer::parse_header_line("#WAVCMD 01 01 200", &['#', '%'])
+    let result = bms_parser::parse_header_line("#WAVCMD 01 01 200", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(

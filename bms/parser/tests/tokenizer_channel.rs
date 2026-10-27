@@ -3,7 +3,7 @@
 //! 这些测试仅通过公共 API 消费 crate，与
 //! 外部消费方的使用方式完全一致。
 
-use bms_tokenizer::{BmsChannel, ChannelIndex};
+use bms_parser::{BmsChannel, ChannelIndex};
 
 // 辅助函数
 
