@@ -323,6 +323,7 @@ dependencies = [
  "encoding_rs",
  "kira",
  "macroquad",
+ "osu-processor",
  "rayon",
  "serde_json",
  "thiserror 2.0.21",
@@ -1652,6 +1653,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
+name = "osu-processor"
+version = "0.1.0"
+dependencies = [
+ "bmsrs-chart",
+ "bmsrs-player",
+ "rosu-map",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "page_size"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1926,6 +1937,12 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+
+[[package]]
+name = "rosu-map"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b92ea634d8b3eaa4d7fba7bd12045dda1a50ce81401c96af0d9c851b0737544"
 
 [[package]]
 name = "rtrb"

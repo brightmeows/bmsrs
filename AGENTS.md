@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-BMS（Be-Music Script）/ BMSON 谱面格式解析、转换与模拟播放的 Rust 工作空间。
+BMS（Be-Music Script）/ BMSON / osu!mania 谱面格式解析、转换与模拟播放的 Rust 工作空间。
 输出统一的 `Chart<T>` 中间表示，供渲染层/播放器消费。
 
 > **⚠️ 预发布状态**：当前 `0.1.0` 版本尚未发布，仍在积极开发中。所有公开接口可随时变动，无需遵循 semver 兼容性。若涉及跨 crate 的架构性变更或 breaking API 修改，向用户确认即可。
@@ -21,8 +21,11 @@ flowchart LR
     BMSON[".bmson file"] --> BDef[bmson-def]
     BDef --> BMProc[bmson-processor]
 
+    OSU[".osu file"] --> OProc[osu-processor]
+
     BProc --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
     BMProc --> Chart
+    OProc --> Chart
     Chart --> Player[bmsrs-player]
 ```
 
@@ -39,6 +42,7 @@ flowchart LR
 | `bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
 | `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
 | `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
+| `osu-processor` | osu!mania 转换器：`rosu-map::Beatmap` → `Chart` | `Beatmap` → `Chart<OsuNoteExt, OsuCustomEvent>` |
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
 | `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
@@ -72,6 +76,7 @@ Hook 配置于 `.pre-commit-config.yaml`：
 
 ```bash
 cargo test --workspace --quiet        # 全工作区测试
+cargo test -p osu-processor           # osu!mania 处理器测试
 cargo bench -p bmsrs-player          # 热路径性能基准
 cargo deny check                       # 依赖审计（CI）
 ```

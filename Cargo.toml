@@ -12,6 +12,7 @@ members = [
     "bmson/processor",
     "common/chart",
     "common/player",
+    "osu/processor",
 ]
 
 [package]
@@ -42,6 +43,7 @@ bmson-def.workspace = true
 bmson-processor.workspace = true
 bmsrs-chart.workspace = true
 bmsrs-player.workspace = true
+osu-processor.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
@@ -56,7 +58,7 @@ serde_json.workspace = true
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
-description = "BMS/BMSON format parsing, processing and playback toolkit"
+description = "BMS/BMSON/osu!mania format parsing, processing and playback toolkit"
 repository = "https://github.com/brightmeows/bmsrs"
 authors = ["白喵斯 <brightmeows@163.com>"]
 homepage = "https://github.com/brightmeows/bmsrs"
@@ -78,6 +80,7 @@ rand = { version = "0.10", default-features = false, features = ["std", "std_rng
 derive_more = { version = "2", default-features = false, features = ["from", "display", "deref", "from_str", "is_variant", "try_unwrap"] }
 itertools = "0.15"
 serde_with = "3"
+rosu-map = "0.2.1"
 macroquad = "0.4"
 kira = { version = "0.12", features = ["cpal"] }
 clap = { version = "4", features = ["derive"] }
@@ -99,6 +102,7 @@ bmson-processor = { path = "bmson/processor" }
 bms-processor = { path = "bms/processor" }
 bms-writer = { path = "bms/writer" }
 bmsrs-player = { path = "common/player" }
+osu-processor = { path = "osu/processor" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
