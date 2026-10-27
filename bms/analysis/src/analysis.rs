@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use bms_parser::{BmsChannel, parse_header_line, parse_message_line};
 use bms_syntax::{Line, LineKind, Parse, SourceFile};
+use bms_values::{BmsChannel, parse_header_line, parse_message_line};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};

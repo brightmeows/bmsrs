@@ -11,12 +11,12 @@ mod gameplay;
 mod messages;
 mod metadata;
 mod timing;
-mod tokenizer;
 mod visual;
 mod warnings;
 
 // 重新导出子模块的全部公开类型。
 pub use audio::{Audio, OwnedExWavParams};
+pub use bms_values::*;
 pub use cst::{CstParse, CstWarning};
 pub use display::Display;
 pub use gameplay::Gameplay;
@@ -26,7 +26,6 @@ pub use messages::{
 };
 pub use metadata::Metadata;
 pub use timing::Timing;
-pub use tokenizer::*;
 pub use visual::{OwnedExBmpParams, OwnedSwBgaParams, Visual};
 pub use warnings::ChannelValueWarning;
 

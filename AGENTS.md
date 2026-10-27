@@ -33,8 +33,9 @@ flowchart LR
 |-------|------|-------------|
 | `bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
 | `bms-syntax` | BMS 语法层：rowan CST、词法、容错解析与控制流查询 | `&str` → `SourceFile` |
-| `bms-parser` | BMS 语义层：类型化 header/message 与 `Bms` 模型 | CST → `Bms` |
-| `bms-parser-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
+| `bms-values` | BMS 单行语法与类型化值：header/message、索引与解析 | `&str`（单行）→ 类型化值 |
+| `bms-parser` | BMS 语义层：CST → `Bms` 模型 | CST → `Bms` |
+| `bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
 | `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
 | `bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
 | `bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |

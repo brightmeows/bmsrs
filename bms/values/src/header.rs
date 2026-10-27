@@ -18,8 +18,8 @@ pub use res_def_visual::{
 };
 pub use timing::{BmsHeaderTiming, StpParams};
 
-use crate::tokenizer::BmsTokenAttr;
-use crate::tokenizer::BmsTokenizeError;
+use crate::BmsTokenAttr;
+use crate::BmsTokenizeError;
 
 /// BMS 文件中的头部命令，按语义域分类。
 ///

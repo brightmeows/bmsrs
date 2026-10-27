@@ -2,8 +2,8 @@
 //! `#SUBARTIST`、`#GENRE`、`#MAKER`、`#COMMENT`、`#TEXT`/`#SONG`、
 //! `#CHARSET`、`%URL`、`%EMAIL`。
 
-use crate::tokenizer::BmsTokenAttr;
-use crate::tokenizer::index::TextIndex;
+use crate::BmsTokenAttr;
+use crate::index::TextIndex;
 
 /// 乐曲/谱面元数据头部。
 ///

@@ -30,7 +30,7 @@ use std::str::FromStr;
 use derive_more::Display;
 use thiserror::Error;
 
-use crate::tokenizer::{BmsIndexNewtype, BmsTokenAttr, IntoTokensError};
+use crate::{BmsIndexNewtype, BmsTokenAttr, IntoTokensError};
 
 // 字符集校验辅助函数
 
@@ -323,12 +323,8 @@ pub struct BmsIndexError {
 
 impl IntoTokensError for BmsIndexError {
     #[inline]
-    fn into_error(
-        self,
-        _context: &'static str,
-        value: String,
-    ) -> crate::tokenizer::BmsTokenizeError {
-        crate::tokenizer::BmsTokenizeError::InvalidInteger { value }
+    fn into_error(self, _context: &'static str, value: String) -> crate::BmsTokenizeError {
+        crate::BmsTokenizeError::InvalidInteger { value }
     }
 }
 
@@ -389,7 +385,7 @@ pub struct ChangeOptionIndex(pub BmsIndex);
 
 /// 消息正文值中 2 字符对象 ID 的索引。
 ///
-/// 这是 [`BmsMessage`](crate::tokenizer::BmsMessage) 正文字符串中以宽松方式
+/// 这是 [`BmsMessage`](crate::BmsMessage) 正文字符串中以宽松方式
 /// 解析的对象索引——每对连续的有效 Base62 字符构成一个对象 ID。
 #[derive(BmsIndexNewtype)]
 pub struct ObjectIndex(pub BmsIndex);

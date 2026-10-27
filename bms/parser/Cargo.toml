@@ -14,14 +14,9 @@ readme.workspace = true
 
 [dependencies]
 bms-syntax.workspace = true
+bms-values.workspace = true
 bmsrs-chart.workspace = true
-bms-parser-derive.workspace = true
-derive_more.workspace = true
-itertools.workspace = true
 thiserror.workspace = true
-
-# 整管线入口 from_text 已移至 facade；测试夹具经 dev-dependency 使用文档层。
-[dev-dependencies]
 
 [lib]
 

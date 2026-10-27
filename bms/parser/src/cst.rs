@@ -1,7 +1,7 @@
 //! 从 rowan CST 构建 `Bms`。
 
-use crate::tokenizer::{BmsToken, BmsTokenizeError, parse_header_line, parse_message_line};
 use bms_syntax::{BranchSelection, LineKind, SourceFile, TextRange};
+use bms_values::{BmsToken, BmsTokenizeError, parse_header_line, parse_message_line};
 
 use crate::Bms;
 

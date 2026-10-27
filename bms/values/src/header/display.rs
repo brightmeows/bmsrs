@@ -8,8 +8,8 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-use crate::tokenizer::BmsTokenAttr;
-use crate::tokenizer::IntoTokensError;
+use crate::BmsTokenAttr;
+use crate::IntoTokensError;
 
 /// `#DIFFICULTY`（值 1–5）指定的难度分类。
 ///
@@ -44,12 +44,8 @@ impl DifficultyLevel {
 pub struct ParseDifficultyError(pub String);
 
 impl IntoTokensError for ParseDifficultyError {
-    fn into_error(
-        self,
-        context: &'static str,
-        value: String,
-    ) -> crate::tokenizer::BmsTokenizeError {
-        crate::tokenizer::BmsTokenizeError::OutOfRange {
+    fn into_error(self, context: &'static str, value: String) -> crate::BmsTokenizeError {
+        crate::BmsTokenizeError::OutOfRange {
             context,
             value,
             expected: "1-5",

@@ -23,7 +23,7 @@ mod header;
 mod index;
 mod message;
 
-pub use bms_parser_derive::{BmsIndexNewtype, BmsTokenAttr};
+pub use bms_values_derive::{BmsIndexNewtype, BmsTokenAttr};
 pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::parse_header_line;

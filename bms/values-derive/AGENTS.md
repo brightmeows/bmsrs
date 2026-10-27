@@ -1,4 +1,4 @@
-# bms-parser-derive
+# bms-values-derive
 
 ## 定位
 
@@ -61,8 +61,8 @@ macro 将每个 `FromStr::Err` 通过 `IntoTokensError` 转换为 `BmsTokenizeEr
 ## 测试
 
 ```bash
-# 通过 bms-parser 的 roundtrip 测试间接测试
-cargo test -p bms-parser
+# 通过 bms-values 的 roundtrip 测试间接测试
+cargo test -p bms-values
 # 多态测试
 ```
 

@@ -4,7 +4,7 @@
 //! 分词器原样保留所有分支；选择保留哪个分支是
 //! 后续管道阶段（解析器/处理器）的职责。
 
-use crate::tokenizer::BmsTokenAttr;
+use crate::BmsTokenAttr;
 
 /// 用于随机谱面分支的控制流头部。
 ///

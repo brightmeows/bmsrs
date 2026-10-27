@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::tokenizer::{BmsBase, BmsHeaderTiming, BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
+use bms_values::{BmsBase, BmsHeaderTiming, BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
 
 /// 计时定义与全局标量。
 ///

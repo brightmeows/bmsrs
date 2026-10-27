@@ -1,6 +1,6 @@
 //! 通道值解析警告。
 
-use crate::tokenizer::BmsChannel;
+use bms_values::BmsChannel;
 
 /// 通道值无法解析为该通道要求的类型。
 ///

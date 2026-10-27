@@ -210,8 +210,8 @@ dependencies = [
 name = "bms-analysis"
 version = "0.1.0"
 dependencies = [
- "bms-parser",
  "bms-syntax",
+ "bms-values",
 ]
 
 [[package]]
@@ -230,21 +230,10 @@ dependencies = [
 name = "bms-parser"
 version = "0.1.0"
 dependencies = [
- "bms-parser-derive",
  "bms-syntax",
+ "bms-values",
  "bmsrs-chart",
- "derive_more",
- "itertools 0.15.0",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "bms-parser-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.9",
 ]
 
 [[package]]
@@ -277,6 +266,24 @@ dependencies = [
  "proptest",
  "rowan",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bms-values"
+version = "0.1.0"
+dependencies = [
+ "bms-values-derive",
+ "derive_more",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bms-values-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -318,6 +325,7 @@ dependencies = [
  "bms-processor",
  "bms-source",
  "bms-syntax",
+ "bms-values",
  "bms-writer",
  "bmson-def",
  "bmson-processor",
@@ -673,7 +681,7 @@ dependencies = [
  "ciborium",
  "clap",
  "criterion-plot",
- "itertools 0.13.0",
+ "itertools",
  "num-traits",
  "oorandom",
  "page_size",
@@ -693,7 +701,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8d80a2f4f5b554395e47b5d8305bc3d27813bacb73493eb1001e8f76dae29ea"
 dependencies = [
  "cast",
- "itertools 0.13.0",
+ "itertools",
 ]
 
 [[package]]
@@ -1185,15 +1193,6 @@ name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
 dependencies = [
  "either",
 ]

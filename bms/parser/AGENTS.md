@@ -2,9 +2,9 @@
 
 ## 定位
 
-BMS 语义层：rowan CST → 结构化 `Bms` 模型；同时持有类型化单行语法
-（`BmsHeader` / `BmsMessage` / 索引类型）与 `bms-parser-derive`。
-控制流分支选择由 `bms-syntax::SourceFile::select_lines` 完成。
+BMS 语义层：rowan CST → 结构化 `Bms` 模型。类型化单行语法
+（`BmsHeader` / `BmsMessage` / 索引类型）在 `bms-values`；控制流分支选择
+由 `bms-syntax::SourceFile::select_lines` 完成。
 
 ## 设计哲学
 

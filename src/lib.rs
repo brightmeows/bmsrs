@@ -121,6 +121,11 @@ pub mod bms {
         pub use bms_parser::*;
     }
 
+    /// 单行语法与类型化值——header/message、索引与解析。
+    pub mod values {
+        pub use bms_values::*;
+    }
+
     /// 分析层——诊断、符号索引与编辑器数据。
     pub mod analysis {
         pub use bms_analysis::*;

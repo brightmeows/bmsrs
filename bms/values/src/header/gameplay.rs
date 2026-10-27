@@ -8,8 +8,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::tokenizer::BmsTokenAttr;
-use crate::tokenizer::index::{BmsBase, ChangeOptionIndex, ExRankIndex, LnObjIndex};
+use crate::BmsTokenAttr;
+use crate::index::{BmsBase, ChangeOptionIndex, ExRankIndex, LnObjIndex};
 
 /// `#PLAYER` 指定的游玩模式。
 ///
@@ -169,7 +169,7 @@ impl fmt::Display for Rank {
     }
 }
 
-// BmsBase 定义于 crate::tokenizer::index::BmsBase（与前
+// BmsBase 定义于 crate::index::BmsBase（与前
 // BmsBaseMode 相同）。此处通过 import 使用；derive BmsTokenAttr 确保
 // `#BASE 16`、`#BASE 36`、`#BASE 62` 正确解析。
 
