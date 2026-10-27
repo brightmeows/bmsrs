@@ -23,6 +23,8 @@ BMS 语言服务器：通用 stdio，先服务 Pi/Neovim。依赖 `bms-analysis`
 - 全量同步（`TextDocumentSyncKind::FULL`）；每次 didChange 重新分析。
 - `LineIndex` 负责 UTF-8 字节偏移 ↔ LSP UTF-16 位置。
 - 文本以客户端发送的 Unicode 为准；编码检测在 `bms-source`，不进入 LSP 热路径。
+- 高亮主路径是 semantic tokens；`syntaxes/bms.tmLanguage.json` 与
+  `syntax/bms.vim` 是客户端 fallback，不参与 Rust 构建。
 
 ## 测试
 
