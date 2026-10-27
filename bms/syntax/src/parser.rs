@@ -325,7 +325,7 @@ fn parse_random_inner<'a>(
                 );
             }
             index = index.saturating_add(1);
-        } else if is_command(line, "ENDIF") {
+        } else if is_command(line, "ENDIF") || is_command(line, "IFEND") {
             if let Some(mut chain) = current_chain.take() {
                 if let Some(branch) = current_branch.take() {
                     chain.branches.push(branch);
@@ -648,7 +648,7 @@ fn text_size(offset: usize) -> TextSize {
 
 /// 是否是 `#RANDOM` / `#SETRANDOM`。
 fn is_random_open(line: &LineData<'_>) -> bool {
-    is_command(line, "RANDOM") || is_command(line, "SETRANDOM")
+    is_command(line, "RANDOM") || is_command(line, "SETRANDOM") || is_command(line, "RONDAM")
 }
 
 /// 是否是 `#ENDRANDOM`。
@@ -663,7 +663,7 @@ fn is_switch_open(line: &LineData<'_>) -> bool {
 
 /// 是否是 `#ENDSW`。
 fn is_end_switch(line: &LineData<'_>) -> bool {
-    is_command(line, "ENDSW")
+    is_command(line, "ENDSW") || is_command(line, "ENDSWITCH")
 }
 
 /// 是否是任意控制流指令。
@@ -671,10 +671,12 @@ fn is_control_directive(line: &LineData<'_>) -> bool {
     [
         "RANDOM",
         "SETRANDOM",
+        "RONDAM",
         "IF",
         "ELSEIF",
         "ELSE",
         "ENDIF",
+        "IFEND",
         "ENDRANDOM",
         "SWITCH",
         "SETSWITCH",
@@ -682,6 +684,7 @@ fn is_control_directive(line: &LineData<'_>) -> bool {
         "SKIP",
         "DEF",
         "ENDSW",
+        "ENDSWITCH",
     ]
     .iter()
     .any(|command| is_command(line, command))
