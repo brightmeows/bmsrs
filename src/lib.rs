@@ -122,6 +122,11 @@ pub mod bms {
         pub use bms_syntax::*;
     }
 
+    /// 分析层——诊断、符号索引与 LSP 数据。
+    pub mod analysis {
+        pub use bms_analysis::*;
+    }
+
     /// 控制流树构建、分支选择与往返转换。
     pub mod control_flow {
         pub use bms_control_flow::*;

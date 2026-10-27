@@ -33,6 +33,7 @@ flowchart LR
 | `bms-document` | BMS 无损文档层：字节保真、行级编辑与编码处理 | `Vec<u8>` → `Document` |
 | `bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
 | `bms-syntax` | BMS 语法层：rowan CST、词法、容错解析与控制流查询 | `&str` → `SourceFile` |
+| `bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
 | `bms-tokenizer` | BMS 单行语法：一行文本 → 结构化 token | `&str`（单行）→ `BmsToken` |
 | `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` |

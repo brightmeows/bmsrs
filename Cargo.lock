@@ -207,6 +207,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bms-analysis"
+version = "0.1.0"
+dependencies = [
+ "bms-syntax",
+ "bms-tokenizer",
+]
+
+[[package]]
 name = "bms-control-flow"
 version = "0.1.0"
 dependencies = [
@@ -330,6 +338,7 @@ dependencies = [
 name = "bmsrs"
 version = "0.1.0"
 dependencies = [
+ "bms-analysis",
  "bms-control-flow",
  "bms-document",
  "bms-parser",
