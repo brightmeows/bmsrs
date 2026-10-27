@@ -14,7 +14,7 @@
 //! 会使解析失败时返回 `Ok(None)`（穿透到 `BmsHeaderFallback`）而非 `Err`。
 //!
 //! 生成的代码会引用 `crate::BmsValue` 与 `crate::BmsTokenizeError`，
-//! 因此消费方必须在 crate 根下提供这些类型（bms-tokenizer 会从其
+//! 因此消费方必须在 crate 根下提供这些类型（bms-parser 会从其
 //! `lib.rs` 中重新导出这些类型）。
 
 mod codegen;

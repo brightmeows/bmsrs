@@ -1,14 +1,11 @@
 [workspace]
 resolver = "3"
 members = [
-    "bms/tokenizer",
-    "bms/document",
     "bms/source",
     "bms/syntax",
     "bms/analysis",
     "app/bms-lsp",
     "bms/parser-derive",
-    "bms/control-flow",
     "bms/parser",
     "bms/processor",
     "bms/writer",
@@ -96,12 +93,9 @@ lsp-types = "0.97"
 
 # Local (path)
 bmson-def = { path = "bmson/def" }
-bms-tokenizer = { path = "bms/tokenizer" }
-bms-document = { path = "bms/document" }
 bms-source = { path = "bms/source" }
 bms-syntax = { path = "bms/syntax" }
 bms-analysis = { path = "bms/analysis" }
-bms-control-flow = { path = "bms/control-flow" }
 bms-parser = { path = "bms/parser" }
 bms-parser-derive = { path = "bms/parser-derive" }
 bmsrs-chart = { path = "common/chart" }

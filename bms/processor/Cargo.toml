@@ -18,8 +18,7 @@ bmsrs-chart.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-bms-document.workspace = true
-bms-control-flow.workspace = true
+bms-syntax.workspace = true
 # facade 是工作区根 crate，不在 workspace.dependencies 中，用字面路径。
 bmsrs = { path = "../.." }
 bmsrs-player.workspace = true

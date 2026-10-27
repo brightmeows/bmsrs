@@ -3,34 +3,16 @@
 //! 生成器写出的文本重新解析后须与原 `Bms` 模型语义等价——
 //! 这是兜底重写档的验证底线。
 
-use bms_control_flow::BranchRng;
-use bms_document::{Document, ErrorStrategy};
 use bms_parser::Bms;
 use bms_parser::parse_message_line;
+use bms_syntax::SourceFile;
 
 use bms_writer::BmsWriter;
 
-/// 固定返回 1 的 `BranchRng`（`from_text` 需要分支选择器）。
-struct FixedRng;
-
-impl BranchRng for FixedRng {
-    fn gen_range(&mut self, _max: u64) -> u64 {
-        1
-    }
-}
-
 /// 解析 BMS 文本为 `Bms`，忽略分词警告。
-#[expect(clippy::expect_used, reason = "test helper panics on invalid input")]
 fn parse(text: &str) -> Bms {
-    let document = Document::from_text(text);
-    let pairs: Vec<_> = document
-        .token_results_with(ErrorStrategy::CollectAll)
-        .filter_map(|(line, result)| result.ok().map(|token| (line, token)))
-        .collect();
-    let flow = bms_control_flow::FlowDoc::from_tokens(pairs).expect("control flow");
-    let mut rng = FixedRng;
-    let flat = flow.select_branches(&mut rng).0;
-    Bms::from_flat_tokens(flat)
+    let source = SourceFile::parse(text);
+    Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
 #[test]

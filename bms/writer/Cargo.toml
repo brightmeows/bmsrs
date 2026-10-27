@@ -16,8 +16,7 @@ readme.workspace = true
 bms-parser.workspace = true
 
 [dev-dependencies]
-bms-control-flow.workspace = true
-bms-document.workspace = true
+bms-syntax.workspace = true
 
 [lints]
 workspace = true

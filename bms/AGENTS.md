@@ -25,9 +25,6 @@ flowchart LR
 | 3 转换 | `bms-processor` | `Bms` → `Chart` |
 | 4 分析 | `bms-analysis` | 诊断、符号索引与编辑器数据 |
 
-`bms-document`、`bms-control-flow`、`bms-tokenizer` 仅为测试/迁移兼容层，
-`publish = false`，不要新增功能。
-
 ## 设计原则
 
 | 原则 | 含义 |

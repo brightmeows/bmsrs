@@ -45,9 +45,6 @@ flowchart LR
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
 | `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
 
-`bms-document`、`bms-control-flow`、`bms-tokenizer` 仅为测试/迁移兼容层，
-`publish = false`，不再进入 facade 公开 API。
-
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 
 ### facade crate

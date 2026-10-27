@@ -7,8 +7,8 @@ use bms_parser::ChannelValueWarning;
 /// 这些警告表示谱面中的异常情况，但仍可生成有效的 `Chart`。
 ///
 /// 引用缺失类（`Missing*`）与值损坏类（[`ProcessWarning::UnparsableValue`]）
-/// 共同构成 processor 层的完整可观测面；控制流结构问题归
-/// `bms_control_flow::ControlFlowWarning`。
+/// 共同构成 processor 层的完整可观测面；控制流结构问题由
+/// `bms-syntax` 诊断负责。
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum ProcessWarning {
