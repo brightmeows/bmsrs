@@ -254,6 +254,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bms-source"
+version = "0.1.0"
+dependencies = [
+ "encoding_rs",
+ "proptest",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "bms-tokenizer"
 version = "0.1.0"
 dependencies = [
@@ -313,6 +322,7 @@ dependencies = [
  "bms-document",
  "bms-parser",
  "bms-processor",
+ "bms-source",
  "bms-tokenizer",
  "bms-writer",
  "bmson-def",

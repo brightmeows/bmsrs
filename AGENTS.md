@@ -31,6 +31,7 @@ flowchart LR
 | Crate | 定位 | 输入 → 输出 |
 |-------|------|-------------|
 | `bms-document` | BMS 无损文档层：字节保真、行级编辑与编码处理 | `Vec<u8>` → `Document` |
+| `bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
 | `bms-tokenizer` | BMS 单行语法：一行文本 → 结构化 token | `&str`（单行）→ `BmsToken` |
 | `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` |
@@ -42,6 +43,9 @@ flowchart LR
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
 | `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
+
+> 迁移中：`bms-source` 将取代 `bms-document`；`bms-syntax` 将合并
+> `bms-tokenizer` 与 `bms-control-flow`。旧条目在迁移完成前保留。
 
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 

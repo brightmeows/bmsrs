@@ -112,6 +112,11 @@ pub mod bms {
         pub use bms_document::*;
     }
 
+    /// 源文本层——字节、编码、行索引与字节保真编辑。
+    pub mod source {
+        pub use bms_source::*;
+    }
+
     /// 控制流树构建、分支选择与往返转换。
     pub mod control_flow {
         pub use bms_control_flow::*;
