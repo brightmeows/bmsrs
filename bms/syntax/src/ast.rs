@@ -2,7 +2,7 @@
 
 use rowan::{TextRange, TextSize};
 
-use crate::{LineKind, Parse, SyntaxKind, SyntaxNode, SyntaxToken};
+use crate::{LineKind, Parse, ParseOptions, SyntaxKind, SyntaxNode, SyntaxToken};
 
 /// 文档根节点。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -12,7 +12,25 @@ impl SourceFile {
     /// 解析文本并返回 CST。
     #[must_use]
     pub fn parse(text: &str) -> Parse {
-        crate::parser::parse(text)
+        Self::parse_with(text, &ParseOptions::default())
+    }
+
+    /// 使用选项解析文本。
+    #[must_use]
+    pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
+        crate::parser::parse_with(text, options)
+    }
+
+    /// 从无损文档解析。
+    #[must_use]
+    pub fn parse_document(document: &bms_source::Document) -> Parse {
+        Self::parse(&document.to_text())
+    }
+
+    /// 从无损文档按选项解析。
+    #[must_use]
+    pub fn parse_document_with(document: &bms_source::Document, options: &ParseOptions) -> Parse {
+        Self::parse_with(&document.to_text(), options)
     }
 
     /// 把节点包装为文档根；种类不匹配时返回 `None`。

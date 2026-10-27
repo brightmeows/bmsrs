@@ -24,3 +24,18 @@ pub use parser::{Diagnostic, DiagnosticKind, Parse};
 pub use rowan::{TextRange, TextSize};
 pub use select::{BlockDecision, BranchSelection};
 pub use syntax_kind::SyntaxKind;
+
+/// 语法解析选项。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseOptions {
+    /// 允许的头部命令前缀字符；默认 `['#', '%']`。
+    pub header_prefixes: Vec<char>,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        Self {
+            header_prefixes: vec!['#', '%'],
+        }
+    }
+}

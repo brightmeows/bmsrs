@@ -17,7 +17,10 @@ mod warnings;
 // 重新导出子模块的全部公开类型。
 pub use audio::{Audio, OwnedExWavParams};
 pub use bms_values::*;
-pub use cst::{CstParse, CstWarning};
+pub use cst::{
+    CstParse, CstWarning, CstWarningKind, ErrorStrategy, LineToken, tokenize_lines,
+    tokenize_lines_with,
+};
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{

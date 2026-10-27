@@ -323,6 +323,47 @@ impl Document {
         output
     }
 
+    /// 按 0-based 行索引输出字节，包含 BOM。
+    ///
+    /// 未编辑行原样切片，编辑过的行输出替换字节。越界索引被跳过。
+    #[must_use]
+    pub fn render_line_indices(&self, indices: &[usize]) -> Vec<u8> {
+        let mut output = Vec::new();
+        output.extend_from_slice(self.bom());
+        for &index in indices {
+            output.extend_from_slice(self.line_bytes(index));
+        }
+        output
+    }
+
+    /// 返回当前文档的完整文本。
+    ///
+    /// BOM 被去掉，行尾按原文件保留；解码错误用替换字符表示。
+    #[must_use]
+    pub fn to_text(&self) -> String {
+        let bytes = self.render();
+        let body = bytes.get(self.bom_len..).unwrap_or(&[]);
+        self.encoding.decode(body).0.into_owned()
+    }
+
+    /// 返回当前文档的完整文本；存在解码错误时返回 [`TextDecodeError`]。
+    ///
+    /// # Errors
+    ///
+    /// 文档中存在当前编码无法解码的字节时返回错误。
+    pub fn try_to_text(&self) -> Result<String, TextDecodeError> {
+        let bytes = self.render();
+        let body = bytes.get(self.bom_len..).unwrap_or(&[]);
+        let (text, had_errors) = self.encoding.decode(body);
+        if had_errors {
+            Err(TextDecodeError {
+                encoding: self.encoding.name(),
+            })
+        } else {
+            Ok(text.into_owned())
+        }
+    }
+
     /// 返回指定行的当前字节（优先使用编辑后的替换字节）。
     fn line_bytes(&self, index: usize) -> &[u8] {
         self.lines.get(index).map_or(&[], |line| {
@@ -354,4 +395,12 @@ pub enum EditError {
     /// 文本在原编码下无法表示。
     #[error(transparent)]
     Unmappable(#[from] UnmappableCharacter),
+}
+
+/// 文档文本解码失败。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("document contains bytes undecodable with {encoding}")]
+pub struct TextDecodeError {
+    /// 文档编码名。
+    pub encoding: &'static str,
 }

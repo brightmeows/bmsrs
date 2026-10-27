@@ -90,6 +90,8 @@ pub enum SyntaxKind {
 
     /// 通用错误节点。
     ErrorNode,
+    /// 自定义头部前缀（非 `#` / `%`）。
+    Prefix,
     /// 未知种类，仅用于 `kind_from_raw` 的兜底。
     Unknown,
 }
@@ -144,6 +146,7 @@ impl SyntaxKind {
             38 => Self::DefDirective,
             39 => Self::EndSwDirective,
             40 => Self::ErrorNode,
+            41 => Self::Prefix,
             _ => Self::Unknown,
         }
     }

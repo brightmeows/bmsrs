@@ -415,7 +415,7 @@ fn hover_text(document: &Document, token: &bms_syntax::SyntaxToken) -> Option<St
             )
         }),
         SyntaxKind::BodyChunk | SyntaxKind::Value => symbol_markdown(document, token.text_range()),
-        SyntaxKind::Hash | SyntaxKind::Percent => token
+        SyntaxKind::Hash | SyntaxKind::Percent | SyntaxKind::Prefix => token
             .parent()
             .and_then(bms_syntax::Line::cast)
             .and_then(|line| line.command_name())
@@ -791,7 +791,9 @@ fn semantic_tokens(
 /// token 种类到 semantic token 类型索引。
 const fn semantic_type(kind: SyntaxKind) -> Option<u32> {
     match kind {
-        SyntaxKind::Hash | SyntaxKind::Percent | SyntaxKind::ErrorToken => Some(0),
+        SyntaxKind::Hash | SyntaxKind::Percent | SyntaxKind::Prefix | SyntaxKind::ErrorToken => {
+            Some(0)
+        }
         SyntaxKind::CommandName => Some(1),
         SyntaxKind::Value | SyntaxKind::Text => Some(2),
         SyntaxKind::Measure | SyntaxKind::Channel => Some(3),

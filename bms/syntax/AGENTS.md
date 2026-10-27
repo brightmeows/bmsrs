@@ -49,10 +49,13 @@ SourceFile
 ## API
 
 - `SourceFile::parse(text)` 返回 `Parse`；`Parse::source_file()` / `errors()`
+- `SourceFile::parse_with(text, &ParseOptions)` 支持自定义 header 前缀
+- `SourceFile::parse_document(&Document)` / `parse_document_with` 从无损文档进入 CST
 - `SourceFile::lines()` 深度优先迭代所有行
 - `Line::command_name()` / `value()` / `measure()` / `channel()` / `body_chunks()`
 - `SourceFile::select_lines(rng)` 返回 `(Vec<Line>, BranchSelection)`；
   `rng(max)` 返回 `[1, max]`，`#SETRANDOM` / `#SETSWITCH` 不调用
+- `ParseOptions.header_prefixes` 默认 `['#', '%']`；非默认前缀生成 `Prefix` token
 
 ## 控制流选择
 

@@ -13,6 +13,7 @@ rust-version.workspace = true
 readme.workspace = true
 
 [dependencies]
+bms-source.workspace = true
 bms-syntax.workspace = true
 bms-values.workspace = true
 bmsrs-chart.workspace = true

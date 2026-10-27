@@ -88,3 +88,15 @@ fn channel_doc_matches_note_group() {
     let found = bms_analysis::channel_doc("11");
     assert_eq!(found.map(|doc| doc.title), Some("1P 可见音符"));
 }
+
+#[test]
+fn noncanonical_message_line_indexes_references() {
+    let analysis = Analysis::from_text("#1:0101\n");
+    assert_eq!(
+        analysis
+            .index()
+            .references_for(SymbolKind::Wav, "01")
+            .count(),
+        2
+    );
+}

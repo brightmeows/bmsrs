@@ -43,11 +43,11 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use bmsrs::bms::ErrorStrategy;
 use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
 use bmsrs::bms::source::Document;
-use bmsrs::bms::syntax::SourceFile;
 use bmsrs::bmson::processor::{BmsonNoteExt, BmsonProcessor};
 use bmsrs::chart::{AudioAsset, Chart, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide};
 use bmsrs::player::Player;
@@ -188,19 +188,11 @@ fn load_bms(path: &Path) -> Result<Chart<(), BmsCustomEvent>, String> {
 
     // 源文本层自动检测编码（Shift_JIS 等）并保留原始字节。
     let document = Document::from_bytes(bytes);
-    let mut text = String::new();
-    for index in 0..document.len() {
-        if let Some(line) = document.line_text(index) {
-            text.push_str(&line);
-            text.push('\n');
-        }
-    }
-
-    // CST 解析；值解析失败的行跳过并打印警告。
-    let source = SourceFile::parse(&text);
-    let parsed = Bms::from_cst(&source.source_file(), |_| 1);
+    // 直接从 Document 构建 Bms；值解析失败的行进入 warnings。
+    let parsed = Bms::from_document(&document, |_| 1, ErrorStrategy::CollectAll)
+        .map_err(|warning| format!("BMS 解析失败: {:?}", warning.kind))?;
     for warning in &parsed.warnings {
-        eprintln!("警告: 跳过无效 token: {}", warning.error);
+        eprintln!("警告: 跳过无效 token: {:?}", warning.kind);
     }
     let bms = parsed.bms;
 

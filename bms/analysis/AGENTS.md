@@ -20,6 +20,7 @@ BMS 分析层：在 `bms-syntax` 的 CST 上产出编辑器数据。不依赖 LS
   `#SWBGAxx` / `#ARGBxx`、`#BPMxx` / `#EXBPMxx`、`#STOPxx`、`#SCROLLxx`、
   `#SPEEDxx`、`#EXRANKxx`、`#CHANGEOPTIONxx`、`#SEEKxx`、`#TEXTxx` / `#SONGxx`
 - 引用：通道体的非 `00` 两字符值；通道种类决定资源种类
+- 非规范地址（如 `#1:0101`）在 Header 行上兜底尝试 `parse_message_line`，仍建引用索引
 - BGA 通道（04/06/07/0A）允许回退到 `#BMPxx` 定义
 - ID 统一转大写做大小写不敏感匹配
 
@@ -44,6 +45,7 @@ cargo test -p bms-analysis
 ### Always
 
 - 新增资源种类时同步 `SymbolKind`、定义前缀表、通道映射与诊断
+- 自定义 header 前缀走 `Analysis::from_text_with(&ParseOptions)`
 - 定义与引用都保留 `TextRange`，供 LSP 跳转/高亮
 - 文档查表用最长前缀匹配，避免 `BPM` 抢 `EXBPM`
 

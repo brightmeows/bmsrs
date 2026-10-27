@@ -33,6 +33,13 @@ BMS 语义层：rowan CST → 结构化 `Bms` 模型。类型化单行语法
 手动构造时须显式调用。
 `finalize` 可重复调用（先 clear），但建议只调用一次。
 
+## CST / 文档入口
+
+- `Bms::from_cst` / `from_cst_with`：选中分支的 token 构建；warning 只覆盖选中行
+- `Bms::from_document` / `from_document_with`：全行 token 化，未选中分支的错误也进 warning
+- `tokenize_lines` / `tokenize_lines_with`：带 1-based 行号的 `LineToken`
+- `ErrorStrategy::CollectAll` 收集全部；`FailFast` 返回按行号排序的首条 `CstWarning`
+
 ## Header 分发
 
 | 状态 | 变体 | 存储策略 |

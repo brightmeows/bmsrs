@@ -2,9 +2,9 @@
 
 use rowan::{GreenNode, GreenNodeBuilder, TextRange, TextSize};
 
-use crate::SyntaxKind;
 use crate::ast::SourceFile;
 use crate::lexer::{LineData, LineKind, lex};
+use crate::{ParseOptions, SyntaxKind};
 
 /// 诊断类别。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,8 +145,8 @@ struct SwitchCase<'a> {
 }
 
 /// 解析文本，构建 CST。
-pub fn parse(text: &str) -> Parse {
-    let lines = lex(text);
+pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
+    let lines = lex(text, options);
     let mut errors = Vec::new();
     collect_lex_errors(&lines, &mut errors);
     let items = parse_items(&lines, 0, lines.len(), &mut errors);

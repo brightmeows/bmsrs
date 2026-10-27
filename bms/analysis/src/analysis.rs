@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_syntax::{Line, LineKind, Parse, SourceFile};
+use bms_syntax::{Line, LineKind, Parse, ParseOptions, SourceFile, TextRange, TextSize};
 use bms_values::{BmsChannel, parse_header_line, parse_message_line};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
@@ -23,7 +23,13 @@ impl Analysis {
     /// 分析 BMS 文本。
     #[must_use]
     pub fn from_text(text: &str) -> Self {
-        let parse = SourceFile::parse(text);
+        Self::from_text_with(text, &ParseOptions::default())
+    }
+
+    /// 使用解析选项分析 BMS 文本。
+    #[must_use]
+    pub fn from_text_with(text: &str, options: &ParseOptions) -> Self {
+        let parse = SourceFile::parse_with(text, options);
         let source = parse.source_file();
         let mut diagnostics: Vec<_> = parse
             .errors()
@@ -37,7 +43,12 @@ impl Analysis {
             })
             .collect();
         let mut index = SymbolIndex::default();
-        collect_lines(&source, &mut index, &mut diagnostics);
+        collect_lines(
+            &source,
+            &options.header_prefixes,
+            &mut index,
+            &mut diagnostics,
+        );
         add_duplicate_diagnostics(&index, &mut diagnostics);
         add_missing_reference_diagnostics(&index, &mut diagnostics);
 
@@ -76,13 +87,25 @@ impl Analysis {
 /// 收集定义与引用。
 fn collect_lines(
     source: &SourceFile,
+    prefixes: &[char],
     index: &mut SymbolIndex,
     diagnostics: &mut Vec<AnalysisDiagnostic>,
 ) {
     for line in source.lines() {
         match line.kind() {
             LineKind::Header if !line.is_directive() => {
-                collect_header(&line, index, diagnostics);
+                let content_text = line.content_text();
+                if let Some(content) = content_text.as_deref()
+                    && let Ok(Some(message)) = parse_message_line(content)
+                {
+                    let body_start = content
+                        .find(':')
+                        .map_or(0, |offset| offset.saturating_add(1));
+                    let base = content_base(&line, content).saturating_add(body_start);
+                    collect_message_refs(message.channel(), &message.body, base, index);
+                } else {
+                    collect_header(&line, prefixes, index, diagnostics);
+                }
             }
             LineKind::Message => collect_message(&line, index, diagnostics),
             _ => {}
@@ -91,14 +114,19 @@ fn collect_lines(
 }
 
 /// 处理头部行。
-fn collect_header(line: &Line, index: &mut SymbolIndex, diagnostics: &mut Vec<AnalysisDiagnostic>) {
+fn collect_header(
+    line: &Line,
+    prefixes: &[char],
+    index: &mut SymbolIndex,
+    diagnostics: &mut Vec<AnalysisDiagnostic>,
+) {
     let Some(command) = line.command_name() else {
         return;
     };
     let Some(content) = line.content_text() else {
         return;
     };
-    match parse_header_line(&content, &['#', '%']) {
+    match parse_header_line(&content, prefixes) {
         Ok(Some(_header)) => {
             if let Some((kind, id)) = definition_kind(command.text()) {
                 index.push_definition(SymbolDefinition::new(
@@ -141,16 +169,62 @@ fn collect_message(
             return;
         }
     };
-    let Some(kind) = reference_kind(message.channel()) else {
+    let body_start = content
+        .find(':')
+        .map_or(0, |offset| offset.saturating_add(1));
+    let base = content_base(line, &content).saturating_add(body_start);
+    collect_message_refs(message.channel(), &message.body, base, index);
+}
+
+/// 按通道收集消息引用。
+fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mut SymbolIndex) {
+    let Some(kind) = reference_kind(channel) else {
         return;
     };
-    for chunk in line.body_chunks() {
-        let id = chunk.text().to_ascii_uppercase();
+    for (start, end) in body_chunk_ranges(body) {
+        let Some(text) = body.get(start..end) else {
+            continue;
+        };
+        let id = text.to_ascii_uppercase();
         if id == "00" {
             continue;
         }
-        index.push_reference(SymbolReference::new(kind, id, chunk.text_range()));
+        let range = TextRange::new(
+            text_size(base.saturating_add(start)),
+            text_size(base.saturating_add(end)),
+        );
+        index.push_reference(SymbolReference::new(kind, id, range));
     }
+}
+
+/// 返回内容段在整行文本中的起始偏移。
+fn content_base(line: &Line, content: &str) -> usize {
+    let line_text = line.syntax().text().to_string();
+    let content_offset = line_text.find(content).unwrap_or(0);
+    usize::from(line.range().start()).saturating_add(content_offset)
+}
+
+/// 返回 body 中每个两字符 chunk 的相对区间。
+fn body_chunk_ranges(body: &str) -> Vec<(usize, usize)> {
+    let mut boundaries: Vec<usize> = body.char_indices().map(|(index, _)| index).collect();
+    boundaries.push(body.len());
+    let mut chunks = Vec::new();
+    let mut index = 0usize;
+    while index + 2 < boundaries.len() {
+        let start = boundaries.get(index).copied().unwrap_or_default();
+        let end = boundaries
+            .get(index.saturating_add(2))
+            .copied()
+            .unwrap_or(body.len());
+        chunks.push((start, end));
+        index = index.saturating_add(2);
+    }
+    chunks
+}
+
+/// 把字节偏移转为 `TextSize`。
+fn text_size(offset: usize) -> TextSize {
+    TextSize::from(u32::try_from(offset).unwrap_or(u32::MAX))
 }
 
 /// 从命令名识别定义种类与 ID。

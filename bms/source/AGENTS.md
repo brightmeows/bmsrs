@@ -26,6 +26,12 @@ BMS 语法；头部、通道与控制流由 `bms-syntax` 的 CST 负责。
 - 前缀与后缀包含缩进、行内 `//` 注释与跨行 `/* */` 块注释的残余
 - `LineKind`：`Blank` / `Comment` / `Text` / `Error`
 
+## 文本桥
+
+- `Document::to_text()`：去 BOM、保留原行尾，解码错误用 replacement
+- `Document::try_to_text()`：严格版，返回 `TextDecodeError`
+- `Document::render_line_indices(&[usize])`：0-based 选行，含 BOM，未编辑行原样切片
+
 ## 注释状态机
 
 状态机在**原始字节**上扫描，不在解码后的文本上。依据是：所有受支持的

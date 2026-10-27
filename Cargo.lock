@@ -230,6 +230,7 @@ dependencies = [
 name = "bms-parser"
 version = "0.1.0"
 dependencies = [
+ "bms-source",
  "bms-syntax",
  "bms-values",
  "bmsrs-chart",

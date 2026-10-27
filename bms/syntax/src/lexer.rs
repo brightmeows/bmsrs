@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use bms_source::ScanState;
 
-use crate::SyntaxKind;
+use crate::{ParseOptions, SyntaxKind};
 
 /// 单个词法 token。
 #[derive(Debug, Clone, Copy)]
@@ -123,16 +123,16 @@ fn split_lines(text: &str) -> Vec<RawLine<'_>> {
 }
 
 /// 逐行词法分析。
-pub fn lex(text: &str) -> Vec<LineData<'_>> {
+pub fn lex<'a>(text: &'a str, options: &ParseOptions) -> Vec<LineData<'a>> {
     let mut state = ScanState::default();
     split_lines(text)
         .into_iter()
-        .map(|line| lex_line(line, &mut state))
+        .map(|line| lex_line(line, &mut state, options))
         .collect()
 }
 
 /// 词法分析一行。
-fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState) -> LineData<'a> {
+fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState, options: &ParseOptions) -> LineData<'a> {
     let scanned = state.scan(line.body);
     let mut tokens = Vec::new();
 
@@ -140,7 +140,7 @@ fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState) -> LineData<'a> {
         push_trivia(line.body, 0..content.start, line.start, &mut tokens);
         let absolute = line.start.saturating_add(content.start);
         let content_text = line.body.get(content.clone()).unwrap_or_default();
-        let kind = lex_content(content_text, absolute, &mut tokens);
+        let kind = lex_content(content_text, absolute, options, &mut tokens);
         push_trivia(
             line.body,
             content.end..line.body.len(),
@@ -177,7 +177,12 @@ fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState) -> LineData<'a> {
 }
 
 /// 把内容段解析为 token。
-fn lex_content<'a>(text: &'a str, absolute: usize, tokens: &mut Vec<LexToken<'a>>) -> LineKind {
+fn lex_content<'a>(
+    text: &'a str,
+    absolute: usize,
+    options: &ParseOptions,
+    tokens: &mut Vec<LexToken<'a>>,
+) -> LineKind {
     if text.starts_with("##") {
         push_token(tokens, SyntaxKind::Comment, text, absolute);
         return LineKind::Comment;
@@ -186,15 +191,15 @@ fn lex_content<'a>(text: &'a str, absolute: usize, tokens: &mut Vec<LexToken<'a>
     let Some(prefix) = text.chars().next() else {
         return LineKind::Blank;
     };
-    if prefix != '#' && prefix != '%' {
+    if !options.header_prefixes.contains(&prefix) {
         push_token(tokens, SyntaxKind::Text, text, absolute);
         return LineKind::Text;
     }
 
-    let prefix_kind = if prefix == '#' {
-        SyntaxKind::Hash
-    } else {
-        SyntaxKind::Percent
+    let (prefix_kind, prefix_len) = match prefix {
+        '#' => (SyntaxKind::Hash, 1),
+        '%' => (SyntaxKind::Percent, 1),
+        other => (SyntaxKind::Prefix, other.len_utf8()),
     };
 
     if let Some(body_start) = message_body_start(text) {
@@ -230,7 +235,7 @@ fn lex_content<'a>(text: &'a str, absolute: usize, tokens: &mut Vec<LexToken<'a>
         return LineKind::Message;
     }
 
-    lex_header(text, absolute, prefix_kind, tokens)
+    lex_header(text, absolute, prefix_kind, prefix_len, tokens)
 }
 
 /// 判断是否是 `#xxxYY:...` 通道行，返回 body 起始偏移。
@@ -253,16 +258,17 @@ fn lex_header<'a>(
     text: &'a str,
     absolute: usize,
     prefix_kind: SyntaxKind,
+    prefix_len: usize,
     tokens: &mut Vec<LexToken<'a>>,
 ) -> LineKind {
     push_token(
         tokens,
         prefix_kind,
-        text.get(..1).unwrap_or_default(),
+        text.get(..prefix_len).unwrap_or_default(),
         absolute,
     );
-    let rest = text.get(1..).unwrap_or_default();
-    let rest_start = absolute.saturating_add(1);
+    let rest = text.get(prefix_len..).unwrap_or_default();
+    let rest_start = absolute.saturating_add(prefix_len);
 
     let command_end = rest
         .char_indices()

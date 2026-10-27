@@ -1,6 +1,6 @@
 //! CST 解析测试。
 
-use bms_syntax::{LineKind, SourceFile, SyntaxKind};
+use bms_syntax::{LineKind, ParseOptions, SourceFile, SyntaxKind};
 
 #[test]
 fn cst_text_is_lossless() {
@@ -148,4 +148,35 @@ fn token_at_offset_finds_command_name() {
         found.map(|token| token.text().to_owned()),
         Some("TITLE".to_owned())
     );
+}
+
+#[test]
+fn custom_header_prefix_is_recognized() {
+    let options = ParseOptions {
+        header_prefixes: vec!['@'],
+    };
+    let parse = SourceFile::parse_with("@TITLE Song\n", &options);
+    let line = parse
+        .source_file()
+        .lines()
+        .next()
+        .unwrap_or_else(|| panic!("line"));
+    assert_eq!(
+        (
+            line.command_name().map(|token| token.text().to_owned()),
+            line.value().map(|token| token.text().to_owned())
+        ),
+        (Some("TITLE".to_owned()), Some("Song".to_owned()))
+    );
+}
+
+#[test]
+fn custom_header_prefix_is_text_by_default() {
+    let parse = SourceFile::parse("@TITLE Song\n");
+    let line = parse
+        .source_file()
+        .lines()
+        .next()
+        .unwrap_or_else(|| panic!("line"));
+    assert_eq!(line.kind(), LineKind::Text);
 }

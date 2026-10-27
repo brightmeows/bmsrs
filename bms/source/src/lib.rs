@@ -38,7 +38,7 @@ mod line;
 mod source;
 
 pub use classify::{ScanState, Scanned};
-pub use document::{Document, DocumentOptions, EditError};
+pub use document::{Document, DocumentOptions, EditError, TextDecodeError};
 pub use encoding::{
     DetectedEncoding, DetectionMethod, SourceEncoding, UnmappableCharacter, UnsupportedEncoding,
 };

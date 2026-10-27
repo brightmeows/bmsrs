@@ -6,6 +6,8 @@
 
 /// BMS 格式的解析与处理。
 pub mod bms {
+    pub use parser::ErrorStrategy;
+
     /// 整管线入口的错误。
     #[derive(Debug, thiserror::Error)]
     pub enum FromTextError {
@@ -24,6 +26,14 @@ pub mod bms {
             range: syntax::TextRange,
             /// 分词错误。
             error: parser::BmsTokenizeError,
+        },
+        /// 文档解码错误。
+        #[error("decode error at {range:?}: {error}")]
+        Decode {
+            /// 文本范围。
+            range: syntax::TextRange,
+            /// 解码错误。
+            error: source::TextDecodeError,
         },
     }
 
@@ -47,16 +57,14 @@ pub mod bms {
             /// 分词错误。
             error: parser::BmsTokenizeError,
         },
-    }
-
-    /// token 抽取的错误处理策略。
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-    pub enum ErrorStrategy {
-        /// 遍历全部行，错误以逐项警告出现。
-        #[default]
-        CollectAll,
-        /// 在首个错误处停止，结果包含该错误。
-        FailFast,
+        /// 文档解码失败。
+        #[error("decode warning at {range:?}: {error}")]
+        Decode {
+            /// 文本范围。
+            range: syntax::TextRange,
+            /// 解码错误。
+            error: source::TextDecodeError,
+        },
     }
 
     /// 由原始 BMS 文本构建 [`Bms`](parser::Bms)。
@@ -68,42 +76,66 @@ pub mod bms {
     /// `FailFast` 遇到首个 CST 或分词错误时返回 [`FromTextError`]。
     pub fn from_text(
         text: &str,
-        mut rng: impl FnMut(u64) -> u64,
+        rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
     ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
-        let source = syntax::SourceFile::parse(text);
-        let mut parsed = parser::Bms::from_cst(&source.source_file(), &mut rng);
-        let mut warnings = Vec::new();
+        from_text_with(text, &syntax::ParseOptions::default(), rng, error_strategy)
+    }
 
-        for diagnostic in source.errors() {
-            warnings.push(FromTextWarning::Syntax {
-                range: diagnostic.range(),
-                message: diagnostic.message().to_owned(),
-            });
-        }
-        for warning in parsed.warnings.drain(..) {
-            warnings.push(FromTextWarning::Tokenize {
+    /// 使用解析选项由原始 BMS 文本构建 [`Bms`](parser::Bms)。
+    ///
+    /// # Errors
+    ///
+    /// `FailFast` 遇到首个 CST、分词或解码错误时返回 [`FromTextError`]。
+    pub fn from_text_with(
+        text: &str,
+        options: &syntax::ParseOptions,
+        rng: impl FnMut(u64) -> u64,
+        error_strategy: ErrorStrategy,
+    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+        let document = source::Document::from_text(text);
+        let parsed = parser::Bms::from_document_with(&document, options, rng, error_strategy)
+            .map_err(from_cst_error)?;
+        Ok((
+            parsed.bms,
+            parsed.warnings.into_iter().map(from_cst_warning).collect(),
+        ))
+    }
+
+    /// 把解析层警告转换为 facade 警告。
+    fn from_cst_warning(warning: parser::CstWarning) -> FromTextWarning {
+        match warning.kind {
+            parser::CstWarningKind::Syntax(message) => FromTextWarning::Syntax {
                 range: warning.range,
-                error: warning.error,
-            });
+                message,
+            },
+            parser::CstWarningKind::Tokenize(error) => FromTextWarning::Tokenize {
+                range: warning.range,
+                error,
+            },
+            parser::CstWarningKind::Decode(error) => FromTextWarning::Decode {
+                range: warning.range,
+                error,
+            },
         }
+    }
 
-        if error_strategy == ErrorStrategy::FailFast
-            && let Some(first) = warnings.first()
-        {
-            return Err(match first {
-                FromTextWarning::Syntax { range, message } => FromTextError::Syntax {
-                    range: *range,
-                    message: message.clone(),
-                },
-                FromTextWarning::Tokenize { range, error } => FromTextError::Tokenize {
-                    range: *range,
-                    error: error.clone(),
-                },
-            });
+    /// 把解析层警告转换为 facade 错误。
+    fn from_cst_error(warning: parser::CstWarning) -> FromTextError {
+        match warning.kind {
+            parser::CstWarningKind::Syntax(message) => FromTextError::Syntax {
+                range: warning.range,
+                message,
+            },
+            parser::CstWarningKind::Tokenize(error) => FromTextError::Tokenize {
+                range: warning.range,
+                error,
+            },
+            parser::CstWarningKind::Decode(error) => FromTextError::Decode {
+                range: warning.range,
+                error,
+            },
         }
-
-        Ok((parsed.bms, warnings))
     }
 
     /// 源文本层——字节、编码、行索引与字节保真编辑。
