@@ -6,6 +6,7 @@ members = [
     "bms/source",
     "bms/syntax",
     "bms/analysis",
+    "app/bms-lsp",
     "bms/tokenizer-derive",
     "bms/control-flow",
     "bms/parser",
@@ -93,6 +94,8 @@ insta = { version = "1", features = ["yaml"] }
 proptest = "1"
 criterion = "0.8"
 rowan = "0.17"
+lsp-server = "0.10"
+lsp-types = "0.97"
 
 # Local (path)
 bmson-def = { path = "bmson/def" }
