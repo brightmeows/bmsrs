@@ -14,8 +14,8 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
+    AudioAsset, BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint,
+    LnLifeHint, LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 use bmsrs_player::Player;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
@@ -196,7 +196,11 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
             events,
             judge_deltas: None,
             life_deltas: None,
-            audio_assets: vec![],
+            audio_assets: vec![AudioAsset::from_path_buf(
+                std::path::PathBuf::from("bench.wav"),
+                Duration::ZERO,
+                None,
+            )],
         },
     }
 }
