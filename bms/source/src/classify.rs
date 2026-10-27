@@ -15,9 +15,16 @@ use crate::{LineError, LineKind, SourceEncoding};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ScanState {
     /// 是否处于 `/* ... */` 块注释中。
-    pub in_block: bool,
+    in_block: bool,
     /// 是否处于 `"..."` 字符串中。
-    pub in_string: bool,
+    in_string: bool,
+}
+
+impl ScanState {
+    /// 扫描一行文本，更新跨行状态并返回内容段。
+    pub fn scan(&mut self, text: &str) -> Scanned {
+        scan_line(text.as_bytes(), None, self)
+    }
 }
 
 /// 单行扫描结果。

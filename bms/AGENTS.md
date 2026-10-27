@@ -19,6 +19,7 @@ flowchart LR
 | 阶段 | Crate | 职责 |
 |------|-------|------|
 | 0 文档 | `bms-document` | 原始字节 → 行（含 trivia）；token 抽取、行编辑与字节保真写回 |
+| 0a 语法 | `bms-syntax` | 解码文本 → rowan CST；词法、容错解析与控制流查询 |
 | 1 词法 | `bms-tokenizer` | 单行文本 → `BmsToken` |
 | — 派生 | `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro，无运行时逻辑 |
 | 2 控制流 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip |

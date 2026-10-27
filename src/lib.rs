@@ -117,6 +117,11 @@ pub mod bms {
         pub use bms_source::*;
     }
 
+    /// 语法层——rowan CST、词法、解析与控制流查询。
+    pub mod syntax {
+        pub use bms_syntax::*;
+    }
+
     /// 控制流树构建、分支选择与往返转换。
     pub mod control_flow {
         pub use bms_control_flow::*;

@@ -4,6 +4,7 @@ members = [
     "bms/tokenizer",
     "bms/document",
     "bms/source",
+    "bms/syntax",
     "bms/tokenizer-derive",
     "bms/control-flow",
     "bms/parser",
@@ -37,6 +38,7 @@ bms-tokenizer.workspace = true
 bms-writer.workspace = true
 bms-document.workspace = true
 bms-source.workspace = true
+bms-syntax.workspace = true
 bms-control-flow.workspace = true
 bms-parser.workspace = true
 bms-processor.workspace = true
@@ -88,12 +90,14 @@ rayon = "1.12"
 insta = { version = "1", features = ["yaml"] }
 proptest = "1"
 criterion = "0.8"
+rowan = "0.17"
 
 # Local (path)
 bmson-def = { path = "bmson/def" }
 bms-tokenizer = { path = "bms/tokenizer" }
 bms-document = { path = "bms/document" }
 bms-source = { path = "bms/source" }
+bms-syntax = { path = "bms/syntax" }
 bms-control-flow = { path = "bms/control-flow" }
 bms-parser = { path = "bms/parser" }
 bms-tokenizer-derive = { path = "bms/tokenizer-derive" }
