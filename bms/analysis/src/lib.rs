@@ -6,7 +6,7 @@
 //! - 资源定义 / 引用索引（WAV、BMP、BGA、BPM、STOP、SCROLL、SPEED 等）
 //! - 重复定义与缺失引用诊断
 //!
-//! 本 crate 不依赖 LSP 类型，协议适配由 `app/bms-lsp` 负责。
+//! 本 crate 不依赖 LSP 类型，协议适配由独立仓库 `bms-lsp` 负责。
 
 mod analysis;
 mod diagnostic;

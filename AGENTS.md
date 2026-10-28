@@ -17,7 +17,6 @@ flowchart LR
     Par --> BProc[bms-processor]
     Par --> Writer[bms-writer]
     Syn --> Analysis[bms-analysis]
-    Analysis --> LSP[app/bms-lsp]
 
     BMSON[".bmson file"] --> BDef[bmson-def]
     BDef --> BMProc[bmson-processor]
@@ -39,12 +38,14 @@ flowchart LR
 | `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
 | `bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
 | `bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
-| `bms-lsp` | BMS language server（stdio，`publish = false`） | LSP 消息 |
 | `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
 | `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
 | `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
+
+`bms-lsp` 已拆到独立仓库：<https://github.com/brightmeows/bms-lsp>。
+它通过 git `rev` 依赖本仓库的 `bms-analysis` 与 `bms-syntax`，不再随本工作区构建。
 
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 
