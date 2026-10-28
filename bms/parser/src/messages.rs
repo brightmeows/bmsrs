@@ -467,7 +467,7 @@ impl Messages {
         let merged = match lines {
             [] => String::new(),
             [line] => line.clone(),
-            _ => merge_channel(lines),
+            _ => Self::merge_bodies(lines),
         };
         let objects = split_2char_values_lenient(&merged);
         let total_objects = objects.len() as u32;
@@ -553,66 +553,67 @@ impl Messages {
     }
 }
 
-// 通道合并（按位置，遵循规格）
-
-/// 使用按位置合并语义合并同一 `(measure, channel)` 的多条 BMS 消息行：
-///
-/// - 行按**文件顺序**处理（后续行 = 更高优先级）。
-/// - 某位置上的非 `"00"` 值会**覆盖**原有值。
-/// - `"00"` 值**保留**现有值（无操作）。
-///
-/// 最终分辨率（对象总数）为所有行计数的**最大值**。每行的值按比例映射
-/// 到此网格上：`dest_position = src_position × max_count / line_count`。
-///
-/// # Panics
-///
-/// 当 `lines` 为空时触发 panic（调用方必须自行保护）。
-#[expect(
-    clippy::indexing_slicing,
-    reason = "loop guard ensures access is within bounds"
-)]
-fn merge_channel(lines: &[String]) -> String {
-    debug_assert!(!lines.is_empty(), "merge_channel called with empty lines");
-
-    // 将每行解析为 2 字符值块。
-    let parsed: Vec<Vec<String>> = lines
-        .iter()
-        .map(|line| {
-            split_2char_values_lenient(line)
-                .into_iter()
-                .map(String::from)
-                .collect()
-        })
-        .collect();
-
-    // 查找最大计数（最终分辨率）。
-    let max_count = parsed.iter().map(Vec::len).max().unwrap_or(1);
-    if max_count == 0 {
-        return String::new();
-    }
-
-    // 以最大分辨率初始化结果缓冲区，全部为 "00"。
-    let mut result: Vec<&str> = vec!["00"; max_count];
-
-    // 按文件顺序处理各行。后续行优先级更高，
-    // 但 "00" 为无操作（保留现有值）。
-    for line_vals in &parsed {
-        let line_count = line_vals.len();
-        if line_count == 0 {
-            continue;
+impl Messages {
+    /// 使用按位置合并语义合并同一 `(measure, channel)` 的多条 BMS 消息行。
+    ///
+    /// - 行按**文件顺序**处理（后续行 = 更高优先级）。
+    /// - 某位置上的非 `"00"` 值会**覆盖**原有值。
+    /// - `"00"` 值**保留**现有值（无操作）。
+    ///
+    /// 最终分辨率（对象总数）为所有行计数的**最大值**。每行的值按比例映射
+    /// 到此网格上：`dest_position = src_position × max_count / line_count`。
+    ///
+    /// 空输入返回空字符串。
+    #[must_use]
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "loop guard ensures access is within bounds"
+    )]
+    pub fn merge_bodies(lines: &[String]) -> String {
+        if lines.is_empty() {
+            return String::new();
         }
-        // 将此行网格上的每个位置映射到最大网格上。
-        for (j, val) in line_vals.iter().enumerate() {
-            let dest = j * max_count / line_count;
-            if val != "00" {
-                // dest < max_count 由构造保证
-                result[dest] = val;
+
+        // 将每行解析为 2 字符值块。
+        let parsed: Vec<Vec<String>> = lines
+            .iter()
+            .map(|line| {
+                split_2char_values_lenient(line)
+                    .into_iter()
+                    .map(String::from)
+                    .collect()
+            })
+            .collect();
+
+        // 查找最大计数（最终分辨率）。
+        let max_count = parsed.iter().map(Vec::len).max().unwrap_or(1);
+        if max_count == 0 {
+            return String::new();
+        }
+
+        // 以最大分辨率初始化结果缓冲区，全部为 "00"。
+        let mut result: Vec<&str> = vec!["00"; max_count];
+
+        // 按文件顺序处理各行。后续行优先级更高，
+        // 但 "00" 为无操作（保留现有值）。
+        for line_vals in &parsed {
+            let line_count = line_vals.len();
+            if line_count == 0 {
+                continue;
             }
-            // "00" → 跳过（保留现有值）
+            // 将此行网格上的每个位置映射到最大网格上。
+            for (j, val) in line_vals.iter().enumerate() {
+                let dest = j * max_count / line_count;
+                if val != "00" {
+                    // dest < max_count 由构造保证
+                    result[dest] = val;
+                }
+                // "00" → 跳过（保留现有值）
+            }
         }
-    }
 
-    result.concat()
+        result.concat()
+    }
 }
 
 /// 将合并后的通道值字符串按 `base` 归一化为 2-char 索引列表。
@@ -1149,26 +1150,26 @@ mod tests {
             "0022332255224400".to_owned(),
             "0066".to_owned(),
         ];
-        assert_eq!(merge_channel(&lines), "1122332266224400");
+        assert_eq!(Messages::merge_bodies(&lines), "1122332266224400");
     }
 
     #[test]
     fn merge_channel_single_line_passthrough() {
         let lines = vec!["AABBCC".to_owned()];
-        assert_eq!(merge_channel(&lines), "AABBCC");
+        assert_eq!(Messages::merge_bodies(&lines), "AABBCC");
     }
 
     #[test]
     fn merge_channel_00_preserves_earlier() {
         // 当第 2 行在该位置为 "00" 时，第 1 行的非 00 值被保留。
         let lines = vec!["11".to_owned(), "00".to_owned()];
-        assert_eq!(merge_channel(&lines), "11");
+        assert_eq!(Messages::merge_bodies(&lines), "11");
     }
 
     #[test]
     fn merge_channel_later_overwrites_non_00() {
         // 后续行的非 00 值覆盖先前的非 00 值。
         let lines = vec!["11".to_owned(), "22".to_owned()];
-        assert_eq!(merge_channel(&lines), "22");
+        assert_eq!(Messages::merge_bodies(&lines), "22");
     }
 }
