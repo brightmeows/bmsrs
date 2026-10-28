@@ -3,9 +3,8 @@
 //! 这些测试仅通过公开 API 消费 crate，与外部消费者的使用方式完全一致。
 //! 整管线入口（`from_text`）已移至 `bmsrs` facade，其测试随迁。
 
-use bms_document::Document;
 use bms_parser::*;
-use bms_tokenizer::{
+use bms_parser::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
     Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
@@ -13,12 +12,14 @@ use bmsrs_chart::BgaLayer;
 
 /// 辅助函数：将 BMS 字符串解析为 `Bms`（默认 C = &str）。
 fn parse(input: &str) -> Bms {
-    Bms::from_flat_tokens(Document::from_text(input).tokens().map(|(_, token)| token))
+    let source = bms_syntax::SourceFile::parse(input);
+    Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
 /// 辅助函数：使用 `C = String` 解析，验证拥有字符串管道工作正常。
 fn parse_string(input: &str) -> Bms {
-    Bms::from_flat_tokens(Document::from_text(input).tokens().map(|(_, token)| token))
+    let source = bms_syntax::SourceFile::parse(input);
+    Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
 // 重新导出可访问性

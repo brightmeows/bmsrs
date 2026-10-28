@@ -38,10 +38,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bms_parser::{Bms, BpmValue, KeyType};
-use bms_tokenizer::{
+use bms_parser::{
     BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, LnMode, SeekIndex, WavIndex,
 };
+use bms_parser::{Bms, BpmValue, KeyType};
 use bmsrs_chart::{
     AudioAsset, BgaResource, BpmChange, BpmLookup, Chart, ChartData, ChartInfo, CropRect, Damage,
     Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent,
@@ -275,7 +275,7 @@ impl BmsConverter<'_> {
                 consumed,
             );
         }
-        if self.bms.gameplay.ln_type == Some(bms_tokenizer::LnType::Type2) {
+        if self.bms.gameplay.ln_type == Some(bms_parser::LnType::Type2) {
             return (
                 pair_lntype2(&self.bms.messages.long_note_events, self.table),
                 HashSet::new(),
@@ -434,7 +434,7 @@ impl BmsConverter<'_> {
 
     /// 收集 LNOBJ 终点标记的 BGM 事件。
     ///
-    /// 按 BMS 规范，当 [`#LNOBJ`](bms_tokenizer::BmsHeaderGameplay::LnObj)
+    /// 按 BMS 规范，当 [`#LNOBJ`](bms_parser::BmsHeaderGameplay::LnObj)
     /// 终点标记经过判定线时，其 WAV 文件作为 BGM 播放。此函数遍历
     /// [`pair_lnobj`] 返回的 `consumed` 音符索引，为每个终点标记生成一个
     /// BGM 事件。

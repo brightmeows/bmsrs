@@ -8,29 +8,30 @@ BMS（Be-Music Script）格式解析管道。`.bms` 原始字节经文档层与�
 
 ```mermaid
 flowchart LR
-    Raw[".bms bytes"] --> Doc[bms-document]
-    Doc -->|逐行| Tok[bms-tokenizer]
-    Tok --> CF[bms-control-flow]
-    CF --> Par[bms-parser]
+    Raw[".bms bytes"] --> Src[bms-source]
+    Src -->|解码文本| Syn[bms-syntax]
+    Syn -->|CST| Par[bms-parser]
     Par --> Proc[bms-processor]
     Proc --> Chart["Chart&lt;T&gt;"]
+    Syn --> Analysis[bms-analysis]
 ```
 
 | 阶段 | Crate | 职责 |
 |------|-------|------|
-| 0 文档 | `bms-document` | 原始字节 → 行（含 trivia）；token 抽取、行编辑与字节保真写回 |
-| 1 词法 | `bms-tokenizer` | 单行文本 → `BmsToken` |
-| — 派生 | `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro，无运行时逻辑 |
-| 2 控制流 | `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip |
-| 3 语义 | `bms-parser` | flat token → `Bms` 模型 |
+| 0 源文本 | `bms-source` | 原始字节 → 编码/行/trivia/编辑；不做语义分类 |
+| 1 值层 | `bms-values` | 单行文本 → 类型化 header/message、索引与值 |
+| 2 语法 | `bms-syntax` | 解码文本 → rowan CST；词法、容错解析、控制流查询 |
+| 3 语义 | `bms-parser` | CST → `Bms`；聚合与保真模型 |
+| — 派生 | `bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro，无运行时逻辑 |
 | 4 转换 | `bms-processor` | `Bms` → `Chart` |
+| 5 分析 | `bms-analysis` | 诊断、符号索引与编辑器数据 |
 
 ## 设计原则
 
 | 原则 | 含义 |
 |------|------|
-| 分层不越界 | tokenizer 不做跨命令验证、control-flow 不依赖 parser、parser 不展开控制流、processor 不引入 I/O |
-| 整文件循环只有一份 | 分行、注释状态机、编码与行尾都在 `bms-document`；tokenizer 只做单行 |
+| 分层不越界 | values 不做整文件、syntax 不做语义值、parser 不展开控制流、processor 不引入 I/O |
+| 整文件循环只有一份 | 分行、注释状态机、编码与行尾都在 `bms-source`；CST 只处理解码文本 |
 | `P` 泛型贯穿 | `P`（负载类型）由调用侧选择，贯穿管道；字符串字段统一使用 `String` |
 | 模式族解耦 | 键位映射通过零大小类型实现 `BmsLayout` trait，不在 `Chart` 中存储模式信息 |
 
@@ -61,12 +62,13 @@ BMS 命令、通道映射、头部字段等术语参照 **bms skill**（`~/.agen
 ## 测试
 
 ```bash
-cargo test -p bms-document
-cargo test -p bms-tokenizer
-cargo test -p bms-control-flow
+cargo test -p bms-source
+cargo test -p bms-values
+cargo test -p bms-syntax
 cargo test -p bms-parser
 cargo test -p bms-processor
-# bms-tokenizer-derive 通过 bms-tokenizer 的 roundtrip 测试间接验证
+cargo test -p bms-analysis
+# bms-values-derive 通过 bms-values 的 roundtrip 测试间接验证
 ```
 
 ## 域级约束

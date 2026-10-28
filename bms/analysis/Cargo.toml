@@ -1,0 +1,20 @@
+[package]
+name = "bms-analysis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BMS 分析层：诊断、符号索引与编辑器数据"
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[dependencies]
+bms-syntax.workspace = true
+bms-values.workspace = true
+
+[lints]
+workspace = true

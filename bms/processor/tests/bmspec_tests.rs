@@ -6,12 +6,11 @@
 //!
 //! 节拍（beat）换算：1 beat = resolution（240）个脉冲。
 
-use bms_control_flow::FlowDoc;
-use bms_document::Document;
 use bms_parser::Bms;
 use bms_processor::BmsProcessor;
 use bms_processor::custom_event::BmsCustomEvent;
 use bms_processor::layout::Bme;
+use bms_syntax::SourceFile;
 use bmsrs_chart::{Chart, EventKind, NoteKind};
 use bmsrs_player::Player;
 
@@ -21,12 +20,13 @@ type BmsChart = Chart<(), BmsCustomEvent>;
 /// 管道辅助：BMS 原文 → `Chart<(), BmsCustomEvent>`。
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn process(bms_text: &str) -> BmsChart {
-    let bms = Bms::from_flat_tokens(
-        Document::from_text(bms_text)
-            .tokens()
-            .map(|(_, token)| token),
-    );
-    BmsProcessor::process::<Bme>(&bms).expect("process should succeed")
+    BmsProcessor::process::<Bme>(&parse_bms(bms_text)).expect("process should succeed")
+}
+
+/// 用随机值 1 解析 BMS 文本。
+fn parse_bms(bms_text: &str) -> Bms {
+    let source = SourceFile::parse(bms_text);
+    Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
 /// 提取所有 Note 事件（含种类信息）。
@@ -527,20 +527,9 @@ fn bmspec_3_scroll_initial_speed() {
 
 /// 辅助函数：走完整控制流管道的 BMS 处理。
 /// 用 `SETRANDOM` / `SETSWITCH` 固定分支值。
-/// 测试用确定性 RNG（总是返回 0，适合 SETRANDOM 固定值场景）。
-struct TestRng;
-impl bms_control_flow::BranchRng for TestRng {
-    fn gen_range(&mut self, _max: u64) -> u64 {
-        0
-    }
-}
-
 fn process_with_cf(bms_text: &str) -> BmsChart {
-    let tokens: Vec<_> = Document::from_text(bms_text).tokens().collect();
-    #[expect(clippy::expect_used, reason = "test helper panics on build failure")]
-    let tree = FlowDoc::from_tokens(tokens).expect("build FlowDoc");
-    let (flat, _) = tree.select_branches(&mut TestRng);
-    let bms = Bms::from_flat_tokens(flat);
+    let source = SourceFile::parse(bms_text);
+    let bms = Bms::from_cst(&source.source_file(), |_| 0).bms;
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
     BmsProcessor::process::<Bme>(&bms).expect("process should succeed")
 }
@@ -667,21 +656,17 @@ fn bmspec_1_07_basic_info() {
 /// bmspec-1-08-WAV: WAV 定义引用（在 Bms 模型层验证，Chart 不保留 WavIndex→文件名映射）。
 #[test]
 fn bmspec_1_08_wav_references() {
-    let tokens: Vec<_> = Document::from_text(
+    let bms = parse_bms(
         "#TITLE #WAV test case\n\
          #WAV01 index.mp3\n\
          #WAVZZ wow.mp3\n\
          #WAVAA zz.ogg\n",
-    )
-    .tokens()
-    .map(|(_, token)| token)
-    .collect();
-    let bms = Bms::from_flat_tokens(tokens);
+    );
 
-    let wav01: bms_tokenizer::WavIndex = "01".parse().unwrap();
-    let wav_zz: bms_tokenizer::WavIndex = "ZZ".parse().unwrap();
-    let wav_aa: bms_tokenizer::WavIndex = "AA".parse().unwrap();
-    let wav02: bms_tokenizer::WavIndex = "02".parse().unwrap();
+    let wav01: bms_parser::WavIndex = "01".parse().unwrap();
+    let wav_zz: bms_parser::WavIndex = "ZZ".parse().unwrap();
+    let wav_aa: bms_parser::WavIndex = "AA".parse().unwrap();
+    let wav02: bms_parser::WavIndex = "02".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav01).map(String::as_str),

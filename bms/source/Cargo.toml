@@ -1,0 +1,23 @@
+[package]
+name = "bms-source"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BMS 源文本层：原始字节、编码、行索引与字节保真编辑"
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[dependencies]
+encoding_rs.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

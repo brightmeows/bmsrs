@@ -4,9 +4,8 @@
 //! 命令）转换为结构化的 [`Bms`] 对象，包含带类型的元数据、资源定义、
 //! 计时与通道消息。
 
-use bms_tokenizer::{BmsBase, BmsHeader, BmsHeaderGameplay, BmsHeaderTiming, BmsMessage, BmsToken};
-
 mod audio;
+mod cst;
 mod display;
 mod gameplay;
 mod messages;
@@ -17,6 +16,11 @@ mod warnings;
 
 // 重新导出子模块的全部公开类型。
 pub use audio::{Audio, OwnedExWavParams};
+pub use bms_values::*;
+pub use cst::{
+    CstParse, CstWarning, CstWarningKind, ErrorStrategy, LineToken, tokenize_lines,
+    tokenize_lines_with,
+};
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{

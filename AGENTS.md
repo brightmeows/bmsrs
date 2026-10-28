@@ -11,12 +11,13 @@ BMS（Be-Music Script）/ BMSON 谱面格式解析、转换与模拟播放的 Ru
 
 ```mermaid
 flowchart LR
-    BMS[".bms file"] --> Doc[bms-document]
-    Doc -->|逐行| Tok[bms-tokenizer]
-    Tok --> CF[bms-control-flow]
-    CF --> Par[bms-parser]
+    BMS[".bms file"] --> Src[bms-source]
+    Src -->|解码文本| Syn[bms-syntax]
+    Syn -->|CST| Par[bms-parser]
     Par --> BProc[bms-processor]
     Par --> Writer[bms-writer]
+    Syn --> Analysis[bms-analysis]
+    Analysis --> LSP[app/bms-lsp]
 
     BMSON[".bmson file"] --> BDef[bmson-def]
     BDef --> BMProc[bmson-processor]
@@ -30,13 +31,15 @@ flowchart LR
 
 | Crate | 定位 | 输入 → 输出 |
 |-------|------|-------------|
-| `bms-document` | BMS 无损文档层：字节保真、行级编辑与编码处理 | `Vec<u8>` → `Document` |
-| `bms-tokenizer` | BMS 单行语法：一行文本 → 结构化 token | `&str`（单行）→ `BmsToken` |
-| `bms-tokenizer-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
-| `bms-control-flow` | `#RANDOM`/`#SWITCH` 分支选择与 roundtrip | `BmsToken[]` → `FlowDoc<P>` |
-| `bms-parser` | BMS 语义分析：flat token → `Bms` 模型 | `BmsToken[]` → `Bms` |
+| `bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
+| `bms-syntax` | BMS 语法层：rowan CST、词法、容错解析与控制流查询 | `&str` → `SourceFile` |
+| `bms-values` | BMS 单行语法与类型化值：header/message、索引与解析 | `&str`（单行）→ 类型化值 |
+| `bms-parser` | BMS 语义层：CST → `Bms` 模型 | CST → `Bms` |
+| `bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
 | `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
 | `bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
+| `bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
+| `bms-lsp` | BMS language server（stdio，`publish = false`） | LSP 消息 |
 | `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
 | `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |

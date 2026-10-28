@@ -1,0 +1,25 @@
+[package]
+name = "bms-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "BMS language server"
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+bms-analysis.workspace = true
+bms-syntax.workspace = true
+lsp-server.workspace = true
+lsp-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

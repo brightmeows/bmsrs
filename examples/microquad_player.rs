@@ -43,10 +43,11 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use bmsrs::bms::document::Document;
+use bmsrs::bms::ErrorStrategy;
 use bmsrs::bms::parser::Bms;
 use bmsrs::bms::processor::BmsProcessor;
 use bmsrs::bms::processor::custom_event::BmsCustomEvent;
+use bmsrs::bms::source::Document;
 use bmsrs::bmson::processor::{BmsonNoteExt, BmsonProcessor};
 use bmsrs::chart::{AudioAsset, Chart, Event, EventKind, Lane, NoCustomEvent, NoteKind, NoteSide};
 use bmsrs::player::Player;
@@ -185,19 +186,15 @@ fn load_chart(path: &Path) -> Result<(Chart<(), NoCustomEvent>, PathBuf), String
 fn load_bms(path: &Path) -> Result<Chart<(), BmsCustomEvent>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("无法读取文件 {}: {e}", path.display()))?;
 
-    // 文档层自动检测编码（Shift_JIS 等）并保留原始字节。
+    // 源文本层自动检测编码（Shift_JIS 等）并保留原始字节。
     let document = Document::from_bytes(bytes);
-
-    // 解析失败的行跳过，保留其余 token。
-    let bms = Bms::from_flat_tokens(document.token_results().filter_map(
-        |(_, result)| match result {
-            Ok(token) => Some(token),
-            Err(error) => {
-                eprintln!("警告: 跳过无效 token: {error}");
-                None
-            }
-        },
-    ));
+    // 直接从 Document 构建 Bms；值解析失败的行进入 warnings。
+    let parsed = Bms::from_document(&document, |_| 1, ErrorStrategy::CollectAll)
+        .map_err(|warning| format!("BMS 解析失败: {:?}", warning.kind))?;
+    for warning in &parsed.warnings {
+        eprintln!("警告: 跳过无效 token: {:?}", warning.kind);
+    }
+    let bms = parsed.bms;
 
     // 转换为格式无关的 Chart。
     BmsProcessor::process_default(&bms).map_err(|e| format!("BMS 处理失败: {e}"))

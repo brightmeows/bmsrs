@@ -1,10 +1,8 @@
-//! 示例：从 `FlowDoc<TokenPayload>` 派生出 `FlowDoc<Bms>` 视图。
+//! 示例：在 rowan CST 上选择控制流分支并查看每轮结果。
 //!
-//! `bms-control-flow` 并不知道 `Bms` 的存在——这正是 payload 泛型设计的
-//! 核心目的。本示例展示下游使用模式：先构建 token 级控制流树，再用
-//! [`FlowDoc::map_payload`] 把每个 payload 区间规约为已解析的 `Bms`，
-//! 同时保持 Random/Switch 骨架不变。这是谱面编辑器查看每个分支变体
-//! 已解析内容时所需的数据形态。
+//! `SourceFile::select_lines` 保留所有分支的 CST，只按随机值返回选中行；
+//! `Bms::from_cst` 在同一份 CST 上做语义 lowering。本示例对同一份谱面
+//! 分别取随机值 1 和 2，展示两次选择的行与标题。
 //!
 //! 运行方式：
 //!
@@ -16,12 +14,10 @@
 // `println!`（改用 `tracing`）的规则在此不适用。
 #![expect(clippy::print_stdout, reason = "example prints to stdout by design")]
 
-use bmsrs::bms::control_flow::{FlowBlock, FlowDoc, FlowNode, TokenPayload};
-use bmsrs::bms::document::Document;
 use bmsrs::bms::parser::Bms;
+use bmsrs::bms::syntax::SourceFile;
 
-/// 一份极小谱面：含一个顶层区间和一个 `#RANDOM` 块，
-/// 后者分裂为两条分支，各带自己的通道消息。
+/// 一份极小谱面：含一个 `#RANDOM` 块，两条分支各带自己的标题与通道消息。
 const SOURCE: &str = "\
 #TITLE Demo
 #BPM 120
@@ -29,68 +25,36 @@ const SOURCE: &str = "\
 #WAV02 b.wav
 #RANDOM 2
 #IF 1
+#TITLE Branch A
 #00101:0101
 #ENDIF
 #IF 2
+#TITLE Branch B
 #00101:0202
 #ENDIF
 #ENDRANDOM
 ";
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. 将 BMS 文本分词为 `(line, token)` 流。
-    let tokens: Vec<_> = Document::from_text(SOURCE).tokens().collect();
+fn main() {
+    let parse = SourceFile::parse(SOURCE);
+    let file = parse.source_file();
 
-    // 2. 构建 token 级控制流树——可编辑的事实来源。
-    //    连续的非控制流 token 打包成 payload 区间；
-    //    `#RANDOM`/`#IF` 变为结构化分支。
-    let token_tree = FlowDoc::from_tokens(tokens)?;
-
-    // 3. 派生 `FlowDoc<Bms>`：每个 payload 区间通过
-    //    `Bms::from_flat_tokens` 规约为 `Bms`。控制流骨架原样保留，
-    //    只是叶子 payload 类型发生了变化。
-    let bms_tree: FlowDoc<Bms> = token_tree.map_payload(
-        |TokenPayload {
-             tokens: payload_tokens,
-         }| { Bms::from_flat_tokens(payload_tokens.into_iter().map(|(_, token)| token)) },
-    );
-
-    // 4. 遍历结果树：每个区间打印其已解析 `Bms` 摘要，
-    //    按原始控制流结构嵌套输出。
-    println!("FlowDoc<Bms> — skeleton with per-span parsed Bms:");
-    walk(&bms_tree, 0);
-    Ok(())
-}
-
-/// 递归打印 `FlowDoc<Bms>` 节点列表，并附每区间的摘要。
-fn walk(nodes: &[FlowNode<Bms>], depth: usize) {
-    let indent = "  ".repeat(depth);
-    for node in nodes {
-        match node {
-            FlowNode::Payload(bms) => {
-                let title = bms.metadata.title.as_deref().unwrap_or("(untitled)");
-                let events = bms.messages.bgm_events.len() + bms.messages.note_events.len();
-                println!(
-                    "{indent}• span: title={title:?}, bpm={:?}, events={events}",
-                    bms.timing.bpm
-                );
-            }
-            FlowNode::Block(FlowBlock::Random(r)) => {
-                println!("{indent}▸ #RANDOM ({} chains)", r.chains.len());
-                for chain in &r.chains {
-                    println!("{indent}  chain ({} branches)", chain.branches.len());
-                    for branch in &chain.branches {
-                        println!("{indent}    branch {:?}", branch.kind);
-                        walk(&branch.body, depth + 3);
-                    }
-                }
-            }
-            FlowNode::Block(FlowBlock::Switch(s)) => {
-                println!("{indent}▸ #SWITCH ({} cases)", s.cases.len());
-                for case in &s.cases {
-                    println!("{indent}  case {:?}", case.kind);
-                    walk(&case.body, depth + 2);
-                }
+    for value in 1..=2 {
+        let (lines, selection) = file.select_lines(|_| value);
+        let parsed = Bms::from_cst(&file, |_| value);
+        println!(
+            "value {value}: {} selected lines, {} decisions, title {:?}",
+            lines.len(),
+            selection.decisions().len(),
+            parsed.bms.metadata.title
+        );
+        for line in &lines {
+            if let Some(command) = line.command_name() {
+                let line_value = line
+                    .value()
+                    .map(|token| token.text().to_owned())
+                    .unwrap_or_default();
+                println!("  #{} {}", command.text(), line_value);
             }
         }
     }
