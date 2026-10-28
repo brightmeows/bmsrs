@@ -9,8 +9,8 @@
 use std::collections::BTreeMap;
 
 use bms_values::{
-    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ChannelIndex, ScrollIndex, SpeedIndex,
-    StopIndex, WavIndex, base36_digit_value,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BodyCells, BpmIndex, ChannelIndex, ScrollIndex,
+    SpeedIndex, StopIndex, WavIndex, base36_digit_value,
 };
 use bmsrs_chart::BgaLayer;
 
@@ -439,8 +439,7 @@ impl Messages {
     )]
     fn finalize_bgm_lines(&mut self, lines: &[String], measure: u16, base: BmsBase) {
         for line in lines {
-            let objects = split_2char_values_lenient(line);
-            let total_objects = objects.len() as u32;
+            let total_objects = BodyCells::including_zero(line).total() as u32;
             self.push_bgm_full(line, measure, total_objects, base, BmsChannel::Bgm);
         }
     }
@@ -469,8 +468,7 @@ impl Messages {
             [line] => line.clone(),
             _ => Self::merge_bodies(lines),
         };
-        let objects = split_2char_values_lenient(&merged);
-        let total_objects = objects.len() as u32;
+        let total_objects = BodyCells::including_zero(&merged).total() as u32;
 
         match channel {
             BmsChannel::BpmChange => {
@@ -575,12 +573,11 @@ impl Messages {
         }
 
         // 将每行解析为 2 字符值块。
-        let parsed: Vec<Vec<String>> = lines
+        let parsed: Vec<Vec<&str>> = lines
             .iter()
             .map(|line| {
-                split_2char_values_lenient(line)
-                    .into_iter()
-                    .map(String::from)
+                BodyCells::including_zero(line)
+                    .map(|cell| cell.text)
                     .collect()
             })
             .collect();
@@ -604,9 +601,9 @@ impl Messages {
             // 将此行网格上的每个位置映射到最大网格上。
             for (j, val) in line_vals.iter().enumerate() {
                 let dest = j * max_count / line_count;
-                if val != "00" {
+                if *val != "00" {
                     // dest < max_count 由构造保证
-                    result[dest] = val;
+                    result[dest] = *val;
                 }
                 // "00" → 跳过（保留现有值）
             }
@@ -618,18 +615,17 @@ impl Messages {
 
 /// 将合并后的通道值字符串按 `base` 归一化为 2-char 索引列表。
 ///
-/// 每个通过 [`split_2char_values_lenient`] 解析出的 2-char 块
+/// 每个通过 [`BodyCells::including_zero`] 解析出的 2-char 块
 /// 都经 [`BmsIndex::try_from`] 构造后调用 [`BmsIndex::normalize`]
 /// 按指定进制归一化。
 ///
-/// `split_2char_values_lenient` 保证产出的是 2-char base62 片段，
+/// `BodyCells` 保证产出的是 2-char base62 片段，
 /// [`BmsIndex::try_from`] 对它们总是成功；`filter_map` 保守处理，
 /// 理论上不会过滤任何值。
 fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<BmsIndex> {
-    split_2char_values_lenient(merged)
-        .iter()
-        .filter_map(|chunk| {
-            BmsIndex::try_from(*chunk)
+    BodyCells::including_zero(merged)
+        .filter_map(|cell| {
+            BmsIndex::try_from(cell.text)
                 .ok()
                 .map(|idx| idx.normalize(base))
         })
@@ -638,109 +634,12 @@ fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<BmsIndex> {
 
 // 内部解析辅助函数
 
-/// 将 BMS 消息值字符串按宽松解析拆分为 2 字符块：无效字符被静默跳过，
-/// 每两个连续的有效 Base62 字符组成一个块。末尾单个有效字符被丢弃。
-///
-/// 此逻辑镜像了分词器此前的 `parse_body_objects` 逻辑，因此无论在哪个
-/// 阶段执行拆分，事件解析的一致性都能得到保证。
-///
-/// # Panics
-///
-/// 从逻辑上不会 panic（Base62 字符集是 ASCII 子集，`from_utf8`  不会失败）。
-/// 使用 `expect` 作为安全断言。
-#[must_use]
-#[expect(
-    clippy::indexing_slicing,
-    reason = "while-loop guard ensures i < len and i+1 < len before indexing"
-)]
-#[expect(
-    clippy::expect_used,
-    reason = "two base62 chars are valid ASCII by the is_base62 guard"
-)]
-fn split_2char_values_lenient(values: &str) -> Vec<&str> {
-    let bytes = values.as_bytes();
-    let mut result = Vec::new();
-    let mut i = 0;
-    let len = bytes.len();
-    while i < len {
-        if BmsBase::Base62.is_valid_char(bytes[i])
-            && i + 1 < len
-            && BmsBase::Base62.is_valid_char(bytes[i + 1])
-        {
-            let chunk =
-                std::str::from_utf8(&bytes[i..i + 2]).expect("two base62 chars are valid ASCII");
-            result.push(chunk);
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
-    result
-}
-
-/// 非 `"00"` 的 2-char BMS 通道值的零分配流式迭代器。
-///
-/// 在字节切片上直接扫描，跳过 `"00"`，产生 `(索引, 值)` 对。
-///
-/// 等效于 `split_2char_values_lenient` + `enumerate` + `filter`，
-/// 但不分配中间 `Vec`。
-pub struct NonZeroChunks<'a> {
-    /// 值字符串的原始字节。
-    bytes: &'a [u8],
-    /// 当前字节位置。
-    pos: usize,
-    /// 当前 2-char 块索引。
-    index: usize,
-}
-
-#[expect(
-    clippy::indexing_slicing,
-    reason = "while-loop guard ensures pos + 1 < len before indexing"
-)]
-#[expect(
-    clippy::expect_used,
-    reason = "two ASCII chars are valid UTF-8 by construction from tokenizer"
-)]
-impl<'a> Iterator for NonZeroChunks<'a> {
-    type Item = (usize, &'a str);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let bytes = self.bytes;
-        while self.pos + 1 < bytes.len() {
-            let start = self.pos;
-            self.pos += 2;
-            let idx = self.index;
-            self.index += 1;
-            // 跳过 "00"
-            if bytes[start] == b'0' && bytes[start + 1] == b'0' {
-                continue;
-            }
-            let chunk = std::str::from_utf8(&bytes[start..start + 2])
-                .expect("two ASCII chars are valid UTF-8");
-            return Some((idx, chunk));
-        }
-        None
-    }
-}
-
-/// 遍历非 `"00"` 的 2-char BMS 通道值，产生 `(索引, 值)` 对。
-///
-/// 提取 `parse_indexed_channel` 类方法的通用前件：
-/// 拆分 → 按位置枚举 → 跳过 `"00"`。
-fn iter_nonzero_chunks(values: &str) -> impl Iterator<Item = (usize, &str)> {
-    NonZeroChunks {
-        bytes: values.as_bytes(),
-        pos: 0,
-        index: 0,
-    }
-}
-
 /// 将地雷通道的 2-char 值解码为 base36 数值。
 ///
 /// 地雷伤害值始终为 base36，不受 `#BASE 62` 影响
 ///（见 BMS base62 规范 `bms/ext/base62-format.md` L127-129）。
 ///
-/// `"00"` 已由上层 `iter_nonzero_chunks` 过滤，不会进入此函数。
+/// `"00"` 已由上层 [`BodyCells::non_zero`] 过滤，不会进入此函数。
 /// 返回 `None` 表示原始值无法解码——processor 以默认伤害值处理。
 fn decode_mine_raw(val: &str) -> Option<u16> {
     let upper = val.to_ascii_uppercase();
@@ -757,7 +656,9 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+        for cell in BodyCells::including_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             let Ok(wav_id) = val.parse::<WavIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -796,7 +697,9 @@ impl Messages {
         total_objects: u32,
         channel: BmsChannel,
     ) {
-        for (i, val) in iter_nonzero_chunks(values) {
+        for cell in BodyCells::non_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             // 通道 03 的值为十六进制整数（01-FF）
             let Ok(bpm_val) = u8::from_str_radix(val, 16) else {
                 self.push_unparsable(measure, channel, val);
@@ -818,7 +721,9 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in iter_nonzero_chunks(values) {
+        for cell in BodyCells::non_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             let Ok(bpm_id) = val.parse::<BpmIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -839,7 +744,9 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in iter_nonzero_chunks(values) {
+        for cell in BodyCells::non_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             let Ok(stop_id) = val.parse::<StopIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -860,7 +767,9 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in iter_nonzero_chunks(values) {
+        for cell in BodyCells::non_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -881,7 +790,9 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in iter_nonzero_chunks(values) {
+        for cell in BodyCells::non_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             let Ok(speed_id) = val.parse::<SpeedIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -903,7 +814,9 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+        for cell in BodyCells::including_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             let Ok(bmp_id) = val.parse::<BmpIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -935,8 +848,10 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in iter_nonzero_chunks(values) {
-            // "00" 已由 iter_nonzero_chunks 跳过（语义：该位置无音符）。
+        for cell in BodyCells::non_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
+            // "00" 已由 BodyCells::non_zero 跳过（语义：该位置无音符）。
             let Ok(wav_id) = val.parse::<WavIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -970,7 +885,9 @@ impl Messages {
         base: BmsBase,
         channel: BmsChannel,
     ) {
-        for (i, val) in split_2char_values_lenient(values).into_iter().enumerate() {
+        for cell in BodyCells::including_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
             let Ok(wav_id) = val.parse::<WavIndex>() else {
                 self.push_unparsable(measure, channel, val);
                 continue;
@@ -987,7 +904,7 @@ impl Messages {
     /// 从完整拼接的值中解析地雷事件（ch D1–E9）。
     ///
     /// 双字符索引解码为 base36 数值存入 `raw_value`；伤害计算由
-    /// processor 负责。`"00"` 条目被 `iter_nonzero_chunks` 过滤。
+    /// processor 负责。`"00"` 条目被 [`BodyCells::non_zero`] 过滤。
     fn push_mine_full(
         &mut self,
         values: &str,
@@ -996,8 +913,10 @@ impl Messages {
         lane: u8,
         total_objects: u32,
     ) {
-        for (i, val) in iter_nonzero_chunks(values) {
-            // "00" 已由 iter_nonzero_chunks 跳过。
+        for cell in BodyCells::non_zero(values) {
+            let i = cell.index;
+            let val = cell.text;
+            // "00" 已由 BodyCells::non_zero 跳过。
             let raw_value = decode_mine_raw(val);
             self.mine_events.push(MineEvent {
                 position: event_pos(i, measure, total_objects),
@@ -1112,31 +1031,6 @@ impl Messages {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn nonzero_chunks_matches_old_impl() {
-        let values = "010203000A0B00FF";
-        let old: Vec<_> = split_2char_values_lenient(values)
-            .into_iter()
-            .enumerate()
-            .filter(|(_, v)| *v != "00")
-            .collect();
-        let new: Vec<_> = iter_nonzero_chunks(values).collect();
-        assert_eq!(old, new);
-    }
-
-    #[test]
-    fn nonzero_chunks_skips_zeros() {
-        let result: Vec<_> = iter_nonzero_chunks("00010000FF00").collect();
-        assert_eq!(result, vec![(1, "01"), (4, "FF")]);
-    }
-
-    #[test]
-    fn nonzero_chunks_empty_input() {
-        assert!(iter_nonzero_chunks("").next().is_none());
-        assert!(iter_nonzero_chunks("00").next().is_none());
-        assert!(iter_nonzero_chunks("0000").next().is_none());
-    }
 
     #[test]
     fn merge_channel_basic_example() {

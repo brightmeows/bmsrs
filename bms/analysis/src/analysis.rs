@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use bms_syntax::{Line, LineKind, Parse, ParseOptions, SourceFile, TextRange, TextSize};
-use bms_values::{BmsChannel, parse_header_line, parse_message_line};
+use bms_values::{BmsChannel, BodyCells, parse_header_line, parse_message_line};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};
@@ -181,17 +181,14 @@ fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mu
     let Some(kind) = reference_kind(channel) else {
         return;
     };
-    for (start, end) in body_chunk_ranges(body) {
-        let Some(text) = body.get(start..end) else {
-            continue;
-        };
-        let id = text.to_ascii_uppercase();
+    for cell in BodyCells::including_zero(body) {
+        let id = cell.text.to_ascii_uppercase();
         if id == "00" {
             continue;
         }
         let range = TextRange::new(
-            text_size(base.saturating_add(start)),
-            text_size(base.saturating_add(end)),
+            text_size(base.saturating_add(cell.range.start)),
+            text_size(base.saturating_add(cell.range.end)),
         );
         index.push_reference(SymbolReference::new(kind, id, range));
     }
@@ -202,24 +199,6 @@ fn content_base(line: &Line, content: &str) -> usize {
     let line_text = line.syntax().text().to_string();
     let content_offset = line_text.find(content).unwrap_or(0);
     usize::from(line.range().start()).saturating_add(content_offset)
-}
-
-/// 返回 body 中每个两字符 chunk 的相对区间。
-fn body_chunk_ranges(body: &str) -> Vec<(usize, usize)> {
-    let mut boundaries: Vec<usize> = body.char_indices().map(|(index, _)| index).collect();
-    boundaries.push(body.len());
-    let mut chunks = Vec::new();
-    let mut index = 0usize;
-    while index + 2 < boundaries.len() {
-        let start = boundaries.get(index).copied().unwrap_or_default();
-        let end = boundaries
-            .get(index.saturating_add(2))
-            .copied()
-            .unwrap_or(body.len());
-        chunks.push((start, end));
-        index = index.saturating_add(2);
-    }
-    chunks
 }
 
 /// 把字节偏移转为 `TextSize`。

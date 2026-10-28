@@ -17,6 +17,7 @@
 use std::fmt;
 use std::num::NonZeroUsize;
 
+mod body;
 mod channel;
 mod error;
 mod header;
@@ -24,6 +25,7 @@ mod index;
 mod message;
 
 pub use bms_values_derive::{BmsIndexNewtype, BmsTokenAttr};
+pub use body::{BodyCells, Cell};
 pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::parse_header_line;
