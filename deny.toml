@@ -18,11 +18,7 @@ yanked = "warn"
 # unmaintained 是维护状态信号而非漏洞，不挡合并。cargo-deny 0.20 已移除
 # per-category severity（vulnerability/unsound/unmaintained 一律 deny），
 # 降级手段只剩作用域：置 none 完全跳过该类检查（连警告也不出）。
-# macroquad 的 unsound 走条目豁免并写明理由，可随时撤
 unmaintained = "none"
-ignore = [
-    { id = "RUSTSEC-2025-0035", reason = "macroquad 的多个 soundness 问题仅经 facade 的 dev 依赖进 examples（microquad_player）；0.4.x 无安全升级，示例仅本机演示运行，不进入发布产物" },
-]
 
 [licenses]
 unused-allowed-license = "warn"

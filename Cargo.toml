@@ -47,9 +47,6 @@ bmsrs-player.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-macroquad.workspace = true
-kira.workspace = true
-clap.workspace = true
 encoding_rs.workspace = true
 rayon.workspace = true
 serde_json.workspace = true
@@ -80,9 +77,6 @@ rand = { version = "0.10", default-features = false, features = ["std", "std_rng
 derive_more = { version = "2", default-features = false, features = ["from", "display", "deref", "from_str", "is_variant", "try_unwrap"] }
 itertools = "0.15"
 serde_with = "3"
-macroquad = "0.4"
-kira = { version = "0.12", features = ["cpal"] }
-clap = { version = "4", features = ["derive"] }
 encoding_rs = "0.8"
 rayon = "1.12"
 insta = { version = "1", features = ["yaml"] }
