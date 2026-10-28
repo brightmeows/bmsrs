@@ -392,6 +392,13 @@ fn note_events_filter_zero_entries() {
 }
 
 #[test]
+fn repeated_finalize_does_not_duplicate_events() {
+    let mut msgs = parse_one("#00111:0102");
+    msgs.finalize(BmsBase::Base36);
+    assert_eq!(msgs.note_events.len(), 2);
+}
+
+#[test]
 fn note_events_only_zero_entries_produces_nothing() {
     let msgs = parse_one("#00111:0000");
     assert_eq!(msgs.note_events.len(), 0);

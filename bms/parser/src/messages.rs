@@ -380,21 +380,11 @@ impl Messages {
     /// `base` 控制索引归一化：在标准 Base36 模式下索引被转为大写以进行
     /// 不区分大小写的查找；在 Base62 模式下保留原始大小写。
     pub fn finalize(&mut self, base: BmsBase) {
-        // 清除已有的解析结果，使 finalize 可安全重复调用。
-        self.bgm_events.clear();
-        self.note_events.clear();
-        self.long_note_events.clear();
-        self.mine_events.clear();
-        self.bpm_changes.clear();
-        self.stop_events.clear();
-        self.scroll_events.clear();
-        self.speed_events.clear();
-        self.bga_events.clear();
-        self.measure_lengths.clear();
-        self.non_event_data.clear();
-        self.warnings.clear();
-
+        // 取出 raw 与头部来源的 stp_events，整体重置消息解析结果，
+        // 使 finalize 可安全重复调用。
         let raw = std::mem::take(&mut self.raw);
+        let stp_events = std::mem::take(&mut self.stp_events);
+        *self = Self::default();
 
         for (&measure, channels) in &raw {
             for (&channel, lines) in channels {
@@ -403,6 +393,7 @@ impl Messages {
         }
 
         self.raw = raw;
+        self.stp_events = stp_events;
     }
 
     /// 将单个通道的多行数据分派到对应的最终化方法。
