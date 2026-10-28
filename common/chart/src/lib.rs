@@ -32,6 +32,14 @@
 //! - `C: CustomEvent` —— 格式特有的自定义事件类型
 //!   （默认 [`NoCustomEvent`]）。
 //!
+//! # 格式扩展的擦除
+//!
+//! 处理器产出的 `Chart` 可能带有格式扩展（例如 `BmsonNoteExt`、
+//! `BmsCustomEvent`）。上层在消费完这些扩展后，可用
+//! [`ChartData::filter_map_events`] 把谱面擦成
+//! `Chart<(), NoCustomEvent>` 交给只依赖核心 IR 的渲染器；若只想替换
+//! 每音符扩展、保留自定义事件，用 [`ChartData::map_events`]。
+//!
 //! # Example
 //!
 //! ```
@@ -306,6 +314,10 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// `NoteExt` 类型可改变（例如从 `BmsonNoteExt` 剥离为 `()`），
     /// `CustomEvent` 类型保持不变。
     ///
+    /// 典型场景：渲染器只消费核心音符字段时，把
+    /// `Chart<BmsonNoteExt, NoCustomEvent>` 的每音符扩展替换为 `()`；
+    /// 自定义事件类型保持不变。
+    ///
     /// 若需同时改变 `CustomEvent` 类型或过滤事件，请用
     /// [`filter_map_events`](Self::filter_map_events)。
     ///
@@ -336,7 +348,8 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// - `filter_map_events` 可同时改变两者，且支持丢弃事件。
     ///
     /// 典型场景：将 `Chart<T, BmsCustomEvent>` 转换为 `Chart<U, NoCustomEvent>`，
-    /// 同时丢弃所有 `Custom` 事件。
+    /// 同时丢弃所有 `Custom` 事件。上层消费完 `BmsCustomEvent` 后，用本方法
+    /// 把谱面擦成只依赖核心 IR 的 `Chart<(), NoCustomEvent>`，再交给渲染器。
     ///
     /// # 示例
     ///
