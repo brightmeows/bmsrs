@@ -346,15 +346,6 @@ fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
 }
 
 impl Messages {
-    /// 将一条无法解析的通道值记入 [`Messages::warnings`](Self::warnings)。
-    fn push_unparsable(&mut self, measure: u16, channel: BmsChannel, value: &str) {
-        self.warnings.push(ChannelValueWarning {
-            measure,
-            channel,
-            value: value.to_owned(),
-        });
-    }
-
     /// 将一条消息的值追加到 `raw` 存储。
     ///
     /// 同一 `(measure, channel)` 的每一行作为内部 `Vec` 的独立条目存储，
@@ -440,7 +431,8 @@ impl Messages {
     fn finalize_bgm_lines(&mut self, lines: &[String], measure: u16, base: BmsBase) {
         for line in lines {
             let total_objects = BodyCells::including_zero(line).total() as u32;
-            self.push_bgm_full(line, measure, total_objects, base, BmsChannel::Bgm);
+            let context = ChannelContext::new(measure, total_objects, base, BmsChannel::Bgm);
+            self.push_bgm_full(line, context);
         }
     }
 
@@ -469,56 +461,19 @@ impl Messages {
             _ => Self::merge_bodies(lines),
         };
         let total_objects = BodyCells::including_zero(&merged).total() as u32;
+        let context = ChannelContext::new(measure, total_objects, base, channel);
 
         match channel {
-            BmsChannel::BpmChange => {
-                self.push_bpm_absolute_full(&merged, measure, total_objects, channel);
-            }
-            BmsChannel::ExtendedBpm => {
-                self.push_bpm_reference_full(&merged, measure, total_objects, base, channel);
-            }
-            BmsChannel::BgaBase => self.push_bga_full(
-                &merged,
-                measure,
-                BgaLayer::Base,
-                total_objects,
-                base,
-                channel,
-            ),
-            BmsChannel::BgaPoor => self.push_bga_full(
-                &merged,
-                measure,
-                BgaLayer::Poor,
-                total_objects,
-                base,
-                channel,
-            ),
-            BmsChannel::BgaLayer => self.push_bga_full(
-                &merged,
-                measure,
-                BgaLayer::Layer,
-                total_objects,
-                base,
-                channel,
-            ),
-            BmsChannel::BgaLayer2 => self.push_bga_full(
-                &merged,
-                measure,
-                BgaLayer::Layer2,
-                total_objects,
-                base,
-                channel,
-            ),
-            BmsChannel::Stop => self.push_stop_full(&merged, measure, total_objects, base, channel),
-            BmsChannel::Scroll => {
-                self.push_scroll_full(&merged, measure, total_objects, base, channel);
-            }
-            BmsChannel::Speed => {
-                self.push_speed_full(&merged, measure, total_objects, base, channel);
-            }
-            BmsChannel::Note(note_ch) => {
-                self.dispatch_note_channel(&merged, measure, note_ch, total_objects, base, channel);
-            }
+            BmsChannel::BpmChange => self.push_bpm_absolute_full(&merged, context),
+            BmsChannel::ExtendedBpm => self.push_bpm_reference_full(&merged, context),
+            BmsChannel::BgaBase => self.push_bga_full(&merged, BgaLayer::Base, context),
+            BmsChannel::BgaPoor => self.push_bga_full(&merged, BgaLayer::Poor, context),
+            BmsChannel::BgaLayer => self.push_bga_full(&merged, BgaLayer::Layer, context),
+            BmsChannel::BgaLayer2 => self.push_bga_full(&merged, BgaLayer::Layer2, context),
+            BmsChannel::Stop => self.push_stop_full(&merged, context),
+            BmsChannel::Scroll => self.push_scroll_full(&merged, context),
+            BmsChannel::Speed => self.push_speed_full(&merged, context),
+            BmsChannel::Note(note_ch) => self.dispatch_note_channel(&merged, note_ch, context),
             // 非事件通道 —— 保留已归一化的数据供处理器转换为 BmsCustomEvent。
             // 所有 2-char 值在此按 base 归一化，消除 processor 的重复归一化（F1）。
             BmsChannel::BgaBaseOpacity
@@ -646,28 +601,68 @@ fn decode_mine_raw(val: &str) -> Option<u16> {
     BmsBase::Base36.decode(&upper)
 }
 
+/// 单个（小节，通道）正文解析的共享上下文。
+#[derive(Clone, Copy, Debug)]
+struct ChannelContext {
+    /// 小节号。
+    measure: u16,
+    /// 正文的完整单元数。
+    total_objects: u32,
+    /// 索引归一化使用的进制基数。
+    base: BmsBase,
+    /// 原始通道类型，用于警告。
+    channel: BmsChannel,
+}
+
+impl ChannelContext {
+    /// 构造上下文。
+    const fn new(measure: u16, total_objects: u32, base: BmsBase, channel: BmsChannel) -> Self {
+        Self {
+            measure,
+            total_objects,
+            base,
+            channel,
+        }
+    }
+}
+
+/// 将正文单元逐个交给 `make`，失败值记入警告。
+fn parse_indexed<T>(
+    context: ChannelContext,
+    cells: BodyCells<'_>,
+    out: &mut Vec<T>,
+    warnings: &mut Vec<ChannelValueWarning>,
+    mut make: impl FnMut(Position, &str) -> Option<T>,
+) {
+    for cell in cells {
+        let position = event_pos(cell.index, context.measure, context.total_objects);
+        match make(position, cell.text) {
+            Some(value) => out.push(value),
+            None => warnings.push(ChannelValueWarning {
+                measure: context.measure,
+                channel: context.channel,
+                value: cell.text.to_owned(),
+            }),
+        }
+    }
+}
+
 impl Messages {
     /// 从完整拼接的值中解析 BGM 事件（ch 01）。
-    fn push_bgm_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::including_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            let Ok(wav_id) = val.parse::<WavIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.bgm_events.push(BgmEvent {
-                position: event_pos(i, measure, total_objects),
-                wav_id: WavIndex::from(wav_id.normalize(base)),
-            });
-        }
+    fn push_bgm_full(&mut self, values: &str, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::including_zero(values),
+            &mut self.bgm_events,
+            &mut self.warnings,
+            |position, value| {
+                let wav_id = value.parse::<WavIndex>().ok()?;
+                Some(BgmEvent {
+                    position,
+                    wav_id: WavIndex::from(wav_id.normalize(context.base)),
+                })
+            },
+        );
     }
 
     /// 从原始值解析小节长度变更（ch 02）。
@@ -690,180 +685,137 @@ impl Messages {
     ///
     /// `"00"` 值表示休止（无 BPM 变更），按 BMS 规格被**跳过** —— 将
     /// `BpmValue::Absolute(0.0)` 传递到下游会导致计时轨除以零。
-    fn push_bpm_absolute_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        total_objects: u32,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::non_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            // 通道 03 的值为十六进制整数（01-FF）
-            let Ok(bpm_val) = u8::from_str_radix(val, 16) else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.bpm_changes.push(BpmChange {
-                position: event_pos(i, measure, total_objects),
-                value: BpmValue::Absolute(f64::from(bpm_val)),
-            });
-        }
+    fn push_bpm_absolute_full(&mut self, values: &str, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::non_zero(values),
+            &mut self.bpm_changes,
+            &mut self.warnings,
+            |position, value| {
+                // 通道 03 的值为十六进制整数（01-FF）
+                let bpm_val = u8::from_str_radix(value, 16).ok()?;
+                Some(BpmChange {
+                    position,
+                    value: BpmValue::Absolute(f64::from(bpm_val)),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析 BPM 引用变更（ch 08）。
-    fn push_bpm_reference_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::non_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            let Ok(bpm_id) = val.parse::<BpmIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.bpm_changes.push(BpmChange {
-                position: event_pos(i, measure, total_objects),
-                value: BpmValue::Reference(BpmIndex::from(bpm_id.normalize(base))),
-            });
-        }
+    fn push_bpm_reference_full(&mut self, values: &str, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::non_zero(values),
+            &mut self.bpm_changes,
+            &mut self.warnings,
+            |position, value| {
+                let bpm_id = value.parse::<BpmIndex>().ok()?;
+                Some(BpmChange {
+                    position,
+                    value: BpmValue::Reference(BpmIndex::from(bpm_id.normalize(context.base))),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析停止事件（ch 09）。
-    fn push_stop_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::non_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            let Ok(stop_id) = val.parse::<StopIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.stop_events.push(StopEvent {
-                position: event_pos(i, measure, total_objects),
-                stop_id: StopIndex::from(stop_id.normalize(base)),
-            });
-        }
+    fn push_stop_full(&mut self, values: &str, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::non_zero(values),
+            &mut self.stop_events,
+            &mut self.warnings,
+            |position, value| {
+                let stop_id = value.parse::<StopIndex>().ok()?;
+                Some(StopEvent {
+                    position,
+                    stop_id: StopIndex::from(stop_id.normalize(context.base)),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析滚动事件（ch SC）。
-    fn push_scroll_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::non_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            let Ok(scroll_id) = val.parse::<ScrollIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.scroll_events.push(ScrollEvent {
-                position: event_pos(i, measure, total_objects),
-                scroll_id: ScrollIndex::from(scroll_id.normalize(base)),
-            });
-        }
+    fn push_scroll_full(&mut self, values: &str, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::non_zero(values),
+            &mut self.scroll_events,
+            &mut self.warnings,
+            |position, value| {
+                let scroll_id = value.parse::<ScrollIndex>().ok()?;
+                Some(ScrollEvent {
+                    position,
+                    scroll_id: ScrollIndex::from(scroll_id.normalize(context.base)),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析速度关键帧事件（ch SP）。
-    fn push_speed_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::non_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            let Ok(speed_id) = val.parse::<SpeedIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.speed_events.push(SpeedEvent {
-                position: event_pos(i, measure, total_objects),
-                speed_id: SpeedIndex::from(speed_id.normalize(base)),
-            });
-        }
+    fn push_speed_full(&mut self, values: &str, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::non_zero(values),
+            &mut self.speed_events,
+            &mut self.warnings,
+            |position, value| {
+                let speed_id = value.parse::<SpeedIndex>().ok()?;
+                Some(SpeedEvent {
+                    position,
+                    speed_id: SpeedIndex::from(speed_id.normalize(context.base)),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析 BGA 显示事件（ch 04–07）。
-    fn push_bga_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        layer: BgaLayer,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::including_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            let Ok(bmp_id) = val.parse::<BmpIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.bga_events.push(BgaEvent {
-                position: event_pos(i, measure, total_objects),
-                layer,
-                bmp_id: BmpIndex::from(bmp_id.normalize(base)),
-            });
-        }
+    fn push_bga_full(&mut self, values: &str, layer: BgaLayer, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::including_zero(values),
+            &mut self.bga_events,
+            &mut self.warnings,
+            |position, value| {
+                let bmp_id = value.parse::<BmpIndex>().ok()?;
+                Some(BgaEvent {
+                    position,
+                    layer,
+                    bmp_id: BmpIndex::from(bmp_id.normalize(context.base)),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析可玩音符事件（ch 11–49）。
     ///
     /// WAV 索引为 `"00"` 的条目会被过滤掉 —— 它们表示"无音符"
     ///（静音步）位置，不应产生事件。
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "BMS event parsing requires channel context: measure, player, lane, type, plus base for normalization"
-    )]
     fn push_playable_full(
         &mut self,
         values: &str,
-        measure: u16,
         player: u8,
         lane: u8,
         key_type: KeyType,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
+        context: ChannelContext,
     ) {
-        for cell in BodyCells::non_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            // "00" 已由 BodyCells::non_zero 跳过（语义：该位置无音符）。
-            let Ok(wav_id) = val.parse::<WavIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.note_events.push(NoteEvent {
-                position: event_pos(i, measure, total_objects),
-                player,
-                lane,
-                key_type,
-                wav_id: WavIndex::from(wav_id.normalize(base)),
-            });
-        }
+        parse_indexed(
+            context,
+            BodyCells::non_zero(values),
+            &mut self.note_events,
+            &mut self.warnings,
+            |position, value| {
+                let wav_id = value.parse::<WavIndex>().ok()?;
+                Some(NoteEvent {
+                    position,
+                    player,
+                    lane,
+                    key_type,
+                    wav_id: WavIndex::from(wav_id.normalize(context.base)),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析长音事件（ch 51–69）。
@@ -871,60 +823,43 @@ impl Messages {
     /// 保留 `"00"` 条目——LNTYPE 2 (MGQ) 中 `"00"` 是释放标记，
     /// 由 `pair_lntype2` 使用。`pair_lntype1` 内部也会过滤 `"00"`，
     /// 因此统一保留，让 LN 配对函数按模式自行处理。
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "BMS event parsing requires channel context: measure, player, lane, plus base and channel for normalization and warnings"
-    )]
-    fn push_long_note_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        player: u8,
-        lane: u8,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
-        for cell in BodyCells::including_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            let Ok(wav_id) = val.parse::<WavIndex>() else {
-                self.push_unparsable(measure, channel, val);
-                continue;
-            };
-            self.long_note_events.push(LongNoteEvent {
-                position: event_pos(i, measure, total_objects),
-                player,
-                lane,
-                wav_id: WavIndex::from(wav_id.normalize(base)),
-            });
-        }
+    fn push_long_note_full(&mut self, values: &str, player: u8, lane: u8, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::including_zero(values),
+            &mut self.long_note_events,
+            &mut self.warnings,
+            |position, value| {
+                let wav_id = value.parse::<WavIndex>().ok()?;
+                Some(LongNoteEvent {
+                    position,
+                    player,
+                    lane,
+                    wav_id: WavIndex::from(wav_id.normalize(context.base)),
+                })
+            },
+        );
     }
 
     /// 从完整拼接的值中解析地雷事件（ch D1–E9）。
     ///
     /// 双字符索引解码为 base36 数值存入 `raw_value`；伤害计算由
     /// processor 负责。`"00"` 条目被 [`BodyCells::non_zero`] 过滤。
-    fn push_mine_full(
-        &mut self,
-        values: &str,
-        measure: u16,
-        player: u8,
-        lane: u8,
-        total_objects: u32,
-    ) {
-        for cell in BodyCells::non_zero(values) {
-            let i = cell.index;
-            let val = cell.text;
-            // "00" 已由 BodyCells::non_zero 跳过。
-            let raw_value = decode_mine_raw(val);
-            self.mine_events.push(MineEvent {
-                position: event_pos(i, measure, total_objects),
-                player,
-                lane,
-                raw_value,
-            });
-        }
+    fn push_mine_full(&mut self, values: &str, player: u8, lane: u8, context: ChannelContext) {
+        parse_indexed(
+            context,
+            BodyCells::non_zero(values),
+            &mut self.mine_events,
+            &mut self.warnings,
+            |position, value| {
+                Some(MineEvent {
+                    position,
+                    player,
+                    lane,
+                    raw_value: decode_mine_raw(value),
+                })
+            },
+        );
     }
 
     /// 将音符通道分发到对应的处理器。
@@ -939,15 +874,7 @@ impl Messages {
     ///
     /// 地雷通道 `D1`–`D9` / `E1`–`E9` 仅 lane 1–9 有效——扩展范围
     ///（如假设性的 `DA`）不产生 `MineEvent`。
-    fn dispatch_note_channel(
-        &mut self,
-        values: &str,
-        measure: u16,
-        ch: ChannelIndex,
-        total_objects: u32,
-        base: BmsBase,
-        channel: BmsChannel,
-    ) {
+    fn dispatch_note_channel(&mut self, values: &str, ch: ChannelIndex, context: ChannelContext) {
         let bytes = ch.as_bytes();
         // classify_channel 仅对 2 字节通道返回 Note 变体；1 字节通道
         //（如 `"1"` = Bgm）走非 Note 分支。此处要求 2 字节以安全索引。
@@ -973,56 +900,16 @@ impl Messages {
         }
 
         match first {
-            b'1' => self.push_playable_full(
-                values,
-                measure,
-                1,
-                lane,
-                KeyType::Visible,
-                total_objects,
-                base,
-                channel,
-            ),
-            b'2' => self.push_playable_full(
-                values,
-                measure,
-                2,
-                lane,
-                KeyType::Visible,
-                total_objects,
-                base,
-                channel,
-            ),
-            b'3' => self.push_playable_full(
-                values,
-                measure,
-                1,
-                lane,
-                KeyType::Invisible,
-                total_objects,
-                base,
-                channel,
-            ),
-            b'4' => self.push_playable_full(
-                values,
-                measure,
-                2,
-                lane,
-                KeyType::Invisible,
-                total_objects,
-                base,
-                channel,
-            ),
-            b'5' => {
-                self.push_long_note_full(values, measure, 1, lane, total_objects, base, channel);
-            }
-            b'6' => {
-                self.push_long_note_full(values, measure, 2, lane, total_objects, base, channel);
-            }
+            b'1' => self.push_playable_full(values, 1, lane, KeyType::Visible, context),
+            b'2' => self.push_playable_full(values, 2, lane, KeyType::Visible, context),
+            b'3' => self.push_playable_full(values, 1, lane, KeyType::Invisible, context),
+            b'4' => self.push_playable_full(values, 2, lane, KeyType::Invisible, context),
+            b'5' => self.push_long_note_full(values, 1, lane, context),
+            b'6' => self.push_long_note_full(values, 2, lane, context),
             // 地雷通道仅 lane 1–9 有效；`classify_channel` 已确保进入此
             // 分支的 D/E 通道 second ∈ '1'..='9'，此处显式拒绝扩展 lane。
-            b'D' if lane <= 9 => self.push_mine_full(values, measure, 1, lane, total_objects),
-            b'E' if lane <= 9 => self.push_mine_full(values, measure, 2, lane, total_objects),
+            b'D' if lane <= 9 => self.push_mine_full(values, 1, lane, context),
+            b'E' if lane <= 9 => self.push_mine_full(values, 2, lane, context),
             _ => { /* 非音符第一字符 —— 仅保留在 raw 中 */ }
         }
     }
