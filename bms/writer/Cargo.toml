@@ -17,6 +17,7 @@ bms-parser.workspace = true
 
 [dev-dependencies]
 bms-syntax.workspace = true
+proptest.workspace = true
 
 [lints]
 workspace = true

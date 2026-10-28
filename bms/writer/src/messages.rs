@@ -1,7 +1,5 @@
 //! 通道行（消息）的序列化。
 
-use std::collections::BTreeMap;
-
 use bms_parser::BmsChannel;
 use bms_parser::Messages;
 
@@ -27,7 +25,8 @@ pub fn write_messages(messages: &Messages) -> Vec<String> {
                     }
                 }
                 _ => {
-                    if let Some(body) = merge_bodies(bodies) {
+                    let body = Messages::merge_bodies(bodies);
+                    if !body.is_empty() {
                         out.push(message_line(measure, *channel, &body));
                     }
                 }
@@ -35,37 +34,6 @@ pub fn write_messages(messages: &Messages) -> Vec<String> {
         }
     }
     out
-}
-
-/// 将一个（小节，通道）的多行正文按位置合并为单行。
-///
-/// 槽位解析按各行自身长度（`len / 2`）进行；后续行的非 `00`
-/// 值覆盖先前值，`00` 不清除已有值。全部为空时返回 `None`。
-fn merge_bodies(bodies: &[String]) -> Option<String> {
-    let mut slots: BTreeMap<usize, String> = BTreeMap::new();
-    for body in bodies {
-        for (slot, value) in chunk_2char(body).enumerate() {
-            if value != "00" || !slots.contains_key(&slot) {
-                slots.insert(slot, value.to_owned());
-            }
-        }
-    }
-    if slots.is_empty() {
-        return None;
-    }
-    let len = slots.keys().next_back().copied()? + 1;
-    Some(bms_parser::BmsMessage::encode_body(
-        (0..len).map(|i| slots.get(&i).map_or("00", String::as_str)),
-    ))
-}
-
-/// 将正文按 2 字符切块迭代；尾部奇数字符忽略。
-fn chunk_2char(body: &str) -> impl Iterator<Item = &str> {
-    body.as_bytes().chunks(2).map(|chunk| {
-        // chunks 长度为 1 仅出现在奇数长度正文的尾部；BMS 正文的
-        // 值恒为 2 字符，此处仅处理防御性场景。
-        std::str::from_utf8(chunk).unwrap_or("00")
-    })
 }
 
 /// 格式化一条通道行（`#MMMCC:body`）。
