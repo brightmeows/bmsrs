@@ -3,7 +3,7 @@
 ## 定位
 
 BMS 分析层：在 `bms-syntax` 的 CST 上产出编辑器数据。不依赖 LSP 类型，
-协议适配由 `app/bms-lsp` 负责。
+协议适配由独立仓库 `bms-lsp` 负责。
 
 ## 产出
 
