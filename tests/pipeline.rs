@@ -1,7 +1,8 @@
-//! `bmsrs` 整管线入口的集成测试。
+//! Integration tests for the `bmsrs` whole-pipeline entry points.
 //!
-//! `bms::from_text` / `bms::from_bytes` 是 CST → 控制流选择 → 单行解析的组装入口；
-//! 这里验证错误策略的两种行为与外部消费者的使用方式一致。
+//! `bms::from_text` / `bms::from_bytes` assemble CST parsing, control-flow
+//! selection, and single-line parsing; these tests verify that both error
+//! strategies behave as external consumers expect.
 
 use bmsrs::bms::ErrorStrategy;
 
