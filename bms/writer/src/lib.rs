@@ -1,15 +1,16 @@
-//! `Bms` 模型 → BMS 文本的全量重写生成器。
+//! Full-rewrite generator from the `Bms` model to BMS text.
 //!
-//! [`BmsWriter`] 将结构化的 [`Bms`] 模型重新生成为
-//! BMS 文本。生成是**规范化**的：头部按域分组输出，通道行按
-//! （小节，通道）排序合并——注释、原始行格式与空行不保留。
-//! 保真行级编辑请配合 `bmsrs-bms-source` 的行编辑能力使用，本
-//! crate 服务于结构性大改后的兜底重写。
+//! [`BmsWriter`] regenerates BMS text from the structured [`Bms`] model. The
+//! output is **canonical**: headers are emitted grouped by domain, and channel
+//! lines are sorted and merged by (measure, channel); comments, original line
+//! formatting, and blank lines are not preserved. For byte-faithful line-level
+//! editing, use `bmsrs-bms-source`'s line editing instead; this crate is the fallback
+//! rewrite after structural changes.
 //!
-//! # 管道
+//! # Pipeline
 //!
 //! ```text
-//! bmsrs_bms_parser::Bms → BmsWriter::write → String（BMS 文本）
+//! bmsrs_bms_parser::Bms -> BmsWriter::write -> String (BMS text)
 //! ```
 
 mod headers;
@@ -17,25 +18,27 @@ mod messages;
 
 use bmsrs_bms_parser::Bms;
 
-/// BMS 文本生成器。
+/// BMS text generator.
 ///
-/// 零大小类型，全部功能通过关联函数 [`BmsWriter::write`] 暴露。
+/// Zero-sized type; all functionality is exposed through the associated
+/// function [`BmsWriter::write`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BmsWriter;
 
 impl BmsWriter {
-    /// 将 [`Bms`] 模型生成为 BMS 文本。
+    /// Generate BMS text from the [`Bms`] model.
     ///
-    /// 输出布局：
-    /// 1. 头部命令，按 元数据 → 游玩 → 计时 → 显示 → 音频 → 视觉 →
-    ///    未识别头（原序）分组
-    /// 2. 通道行，按（小节，通道）升序；同一（小节，通道）的
-    ///    多行按位置合并为一行（非 `00` 覆盖，`00` 保留位置），
-    ///    与 [`bmsrs_bms_parser`] 的解析合并语义一致
-    /// 3. 以换行符结尾
+    /// Output layout:
+    /// 1. Header commands grouped as metadata, gameplay, timing, display,
+    ///    audio, visual, then unrecognized headers (original order)
+    /// 2. Channel lines sorted ascending by (measure, channel); multiple lines
+    ///    for the same (measure, channel) are merged into one line by position
+    ///    (non-`00` overrides, `00` preserves the position), matching
+    ///    [`bmsrs_bms_parser`]'s parse-time merge semantics
+    /// 3. Terminated by a newline
     ///
-    /// 输出为 Unicode 文本；字符编码转换（Shift-JIS 等）由调用方
-    /// 负责。
+    /// Output is Unicode text; character-encoding conversion (`Shift-JIS` and
+    /// so on) is the caller's responsibility.
     #[must_use]
     pub fn write(bms: &Bms) -> String {
         let mut lines = headers::write_headers(bms);

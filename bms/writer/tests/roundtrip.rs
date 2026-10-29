@@ -1,7 +1,8 @@
-//! `BmsWriter` 的 roundtrip 集成测试。
+//! Roundtrip integration tests for `BmsWriter`.
 //!
-//! 生成器写出的文本重新解析后须与原 `Bms` 模型语义等价——
-//! 这是兜底重写档的验证底线。
+//! Text written by the generator must be semantically equivalent to the
+//! original `Bms` model when parsed again; this is the verification baseline for
+//! the fallback-rewrite tier.
 
 use bmsrs_bms_parser::Bms;
 use bmsrs_bms_parser::parse_message_line;
@@ -10,7 +11,7 @@ use proptest::prelude::*;
 
 use bmsrs_bms_writer::BmsWriter;
 
-/// 解析 BMS 文本为 `Bms`，忽略分词警告。
+/// Parse BMS text into `Bms`, ignoring tokenizer warnings.
 fn parse(text: &str) -> Bms {
     let source = SourceFile::parse(text);
     Bms::from_cst(&source.source_file(), |_| 1).bms
@@ -40,7 +41,8 @@ fn written_text_reparses_to_equal_model() {
 
 #[test]
 fn merged_channel_positions_preserve_nonzero_overwrite_semantics() {
-    // 同 (measure, channel) 两行：第二行的位置 1 非 00 覆盖第一行。
+    // Two lines for the same (measure, channel): position 1 in the second line
+    // is non-00 and overrides the first line.
     let text = "#00111:1100\n#00111:0022\n";
     let bms = parse(text);
     let written = BmsWriter::write(&bms);
@@ -88,7 +90,7 @@ proptest! {
 
 #[test]
 fn bgm_lines_stay_independent() {
-    // BGM（ch 01）多行不合并——多声部语义。
+    // BGM (ch 01) lines are not merged; this is polyphony semantics.
     let text = "#00101:1111\n#00101:2222\n";
     let bms = parse(text);
     let written = BmsWriter::write(&bms);
@@ -115,7 +117,8 @@ fn stp_events_are_written_with_position() {
 
 #[test]
 fn encode_body_roundtrips_via_parse() {
-    // encode 与 parse 的 body 互逆性：拼接即原文。
+    // encode and parse are inverses for the body: concatenation reproduces the
+    // original text.
     let line = parse_message_line("#00111:010203")
         .expect("valid message")
         .expect("is message");
