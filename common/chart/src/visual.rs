@@ -15,7 +15,7 @@ pub enum BgaLayer {
     /// 基础 / 主背景（通道 `04`）。
     #[default]
     Base,
-    /// 未命中 / POOR 表现图层（通道 `05`、`06`）。
+    /// 未命中 / POOR 表现图层（通道 `06`）。
     Poor,
     /// 叠加在主 BGA 之上的覆盖图层（通道 `07`）。
     Layer,
@@ -23,6 +23,45 @@ pub enum BgaLayer {
     ///
     /// LAYER2 叠加在 LAYER 之上。
     Layer2,
+}
+
+/// 指向 [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources) 的索引。
+///
+/// 向量下标就是唯一标识；独立的 newtype 避免与音频索引等裸 `u32`
+/// 互相赋值。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BgaResourceId(u32);
+
+impl BgaResourceId {
+    /// 从裸索引创建 BGA 资源索引。
+    #[must_use]
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// 返回裸索引值。
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl From<u32> for BgaResourceId {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<BgaResourceId> for u32 {
+    fn from(value: BgaResourceId) -> Self {
+        value.0
+    }
+}
+
+impl std::fmt::Display for BgaResourceId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
 }
 
 /// 图片裁剪与放置定义（BMS `#BGA` / `#@BGA`）。
@@ -53,8 +92,6 @@ pub struct CropRect {
 /// 其 processor 产出均为 [`None`]。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BgaResource {
-    /// 谱面内唯一标识符。
-    pub id: u32,
     /// 相对于谱面文件所在目录的文件路径。
     pub path: PathBuf,
     /// 源裁剪矩形与目标偏移。[`None`] = 整图。

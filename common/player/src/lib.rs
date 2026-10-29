@@ -19,8 +19,8 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         timing: TimingTrack::simple(120.0, 240).unwrap(),
-//!         judge_multiplier: 1.0,
-//!         life_multiplier: 1.0,
+//!         judge_multiplier: Some(1.0),
+//!         life_multiplier: Some(1.0),
 //!         ln_type_hint: LnTypeHint::default(),
 //!         ln_judge_hint: LnJudgeHint::default(),
 //!         ln_life_hint: LnLifeHint::default(),
@@ -32,7 +32,8 @@
 //!                 side: NoteSide::P1,
 //!                 lane: Lane::Key(NonZeroU8::new(1).unwrap()),
 //!                 kind: NoteKind::Normal,
-//!                 audio_index: None,
+//!                 role: bmsrs_chart::NoteRole::Normal,
+//!                 audio: bmsrs_chart::NoteAudio::none(),
 //!                 ext: (),
 //!             },
 //!         )],
@@ -94,8 +95,8 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// 若谱面不合法（`ChartData` 不变量或 BGA 资源引用越界），
     /// 返回 [`ChartDataError`]。
     pub fn new(mut chart: Chart<T, C>) -> Result<Self, ChartDataError> {
-        chart.validate()?;
         chart.data.sort_events();
+        chart.validate()?;
         let resolution = chart.data.timing.resolution();
         let scroll_cache = ScrollCache::build(&chart.data.events, resolution);
         let speed_cache = SpeedCache::build(&chart.data.events);

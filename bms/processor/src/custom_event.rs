@@ -6,7 +6,7 @@
 //! tick 统一由 [`Event`](bmsrs_chart::Event) 存储，
 //! 本类型的变体不含 tick。
 
-use bmsrs_chart::{BgaLayer, CustomEvent};
+use bmsrs_chart::{BgaLayer, BgaResourceId, CustomEvent};
 
 /// BMS 格式特有的谱面事件。
 ///
@@ -51,7 +51,7 @@ pub enum BmsCustomEvent {
     /// 将 BGA 资源绑定到按键操作，按下时显示对应帧。
     BgaKeyBound {
         /// BGA 资源索引（对应 BMP 定义中的资源）。
-        resource_id: u32,
+        resource_id: BgaResourceId,
     },
     /// 定时文本显示（通道 `99` / `#TEXTxx` / `#SONGxx`）。
     TextDisplay {

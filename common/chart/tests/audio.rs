@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_chart::{AudioAsset, Event, EventKind};
+use bmsrs_chart::{AudioAsset, AudioIndex, Event, EventKind};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,10 +30,10 @@ fn audio_asset_bmson_slice_style() {
 
 #[test]
 fn bgm_event_fields() {
-    let ev: Event<()> = Event::bgm(960, 3);
+    let ev: Event<()> = Event::bgm(960, AudioIndex::new(3));
     assert_eq!(ev.tick(), 960);
     assert!(
-        matches!(ev.kind, EventKind::Bgm { audio_index: 3, .. }),
+        matches!(ev.kind, EventKind::Bgm { audio_index } if audio_index.get() == 3),
         "expected Bgm with audio_index 3"
     );
 }

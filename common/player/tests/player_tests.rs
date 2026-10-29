@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Event, EventKind,
-    Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent,
-    TimingTrack, TimingTrackError,
+    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
+    ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind,
+    NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 use bmsrs_player::Player;
 
@@ -44,21 +44,22 @@ fn make_test_chart() -> Chart {
                 240,
             )
             .unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             events: vec![
                 Event::bar(0),
-                Event::bgm(240, 0),
+                Event::bgm(240, AudioIndex::new(0)),
                 Event::new(
                     480,
                     EventKind::Note {
                         side: NoteSide::P1,
                         lane: key(1),
                         kind: NoteKind::Normal,
-                        audio_index: None,
+                        role: NoteRole::Normal,
+                        audio: NoteAudio::none(),
                         ext: (),
                     },
                 ),
@@ -435,8 +436,8 @@ fn player_new_accepts_negative_bpm() {
         chart: ChartInfo::default(),
         data: ChartData {
             timing: TimingTrack::simple(-120.0, 240).unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
@@ -462,8 +463,8 @@ fn make_chart_with_bgm() -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             timing: TimingTrack::simple(120.0, 240).unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
@@ -471,9 +472,9 @@ fn make_chart_with_bgm() -> Chart {
             life_deltas: None,
             events: vec![
                 Event::bar(0),
-                Event::bgm(120, 0),
-                Event::bgm(240, 1),
-                Event::bgm(360, 2),
+                Event::bgm(120, AudioIndex::new(0)),
+                Event::bgm(240, AudioIndex::new(1)),
+                Event::bgm(360, AudioIndex::new(2)),
                 Event::bar(960),
             ],
             // validate 检查音频索引完整性：三条 BGM 引用索引 0-2，素材表须覆盖。
@@ -495,22 +496,18 @@ fn make_chart_with_bga() -> Chart {
         chart: ChartInfo {
             bga_resources: vec![
                 BgaResource {
-                    id: 0,
                     path: "base.png".into(),
                     crop: None,
                 },
                 BgaResource {
-                    id: 1,
                     path: "layer.png".into(),
                     crop: None,
                 },
                 BgaResource {
-                    id: 2,
                     path: "poor.png".into(),
                     crop: None,
                 },
                 BgaResource {
-                    id: 3,
                     path: "layer2.png".into(),
                     crop: None,
                 },
@@ -519,8 +516,8 @@ fn make_chart_with_bga() -> Chart {
         },
         data: ChartData {
             timing: TimingTrack::simple(120.0, 240).unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
@@ -532,28 +529,28 @@ fn make_chart_with_bga() -> Chart {
                     120,
                     EventKind::Bga {
                         layer: BgaLayer::Base,
-                        resource_id: 0,
+                        resource_id: BgaResourceId::new(0),
                     },
                 ),
                 Event::new(
                     240,
                     EventKind::Bga {
                         layer: BgaLayer::Layer,
-                        resource_id: 1,
+                        resource_id: BgaResourceId::new(1),
                     },
                 ),
                 Event::new(
                     360,
                     EventKind::Bga {
                         layer: BgaLayer::Poor,
-                        resource_id: 2,
+                        resource_id: BgaResourceId::new(2),
                     },
                 ),
                 Event::new(
                     480,
                     EventKind::Bga {
                         layer: BgaLayer::Layer2,
-                        resource_id: 3,
+                        resource_id: BgaResourceId::new(3),
                     },
                 ),
                 Event::bar(960),
@@ -574,7 +571,7 @@ fn player_bgm_in_range_returns_events() {
         .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { audio_index } = &e.kind {
-                Some((e.tick(), *audio_index))
+                Some((e.tick(), audio_index.get()))
             } else {
                 None
             }
@@ -614,7 +611,7 @@ fn player_bga_events_base_returns_all_events() {
         .iter()
         .filter_map(|e| {
             if let EventKind::Bga { layer, resource_id } = &e.kind {
-                Some((*layer, *resource_id, e.tick()))
+                Some((*layer, resource_id.get(), e.tick()))
             } else {
                 None
             }
@@ -709,7 +706,7 @@ fn player_bgm_multiple_channels_returns_all() {
         .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { audio_index } = &e.kind {
-                Some((e.tick(), *audio_index))
+                Some((e.tick(), audio_index.get()))
             } else {
                 None
             }

@@ -57,8 +57,8 @@
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
 //!         timing: TimingTrack::simple(120.0, 240).unwrap(),
-//!         judge_multiplier: 1.0,
-//!         life_multiplier: 1.0,
+//!         judge_multiplier: Some(1.0),
+//!         life_multiplier: Some(1.0),
 //!         ln_type_hint: LnTypeHint::default(),
 //!         ln_judge_hint: LnJudgeHint::default(),
 //!         ln_life_hint: LnLifeHint::default(),
@@ -70,7 +70,8 @@
 //!                 side: NoteSide::P1,
 //!                 lane: Lane::Key(NonZeroU8::new(1).unwrap()),
 //!                 kind: NoteKind::Normal,
-//!                 audio_index: None,
+//!                 role: bmsrs_chart::NoteRole::Normal,
+//!                 audio: bmsrs_chart::NoteAudio::none(),
 //!                 ext: (),
 //!             },
 //!         )],
@@ -90,12 +91,12 @@ pub mod note;
 pub mod timing;
 pub mod visual;
 
-pub use audio::AudioAsset;
+pub use audio::{AudioAsset, AudioIndex};
 pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
 pub use mode::{Lane, NoteSide};
-pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
+pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
-pub use visual::{BgaLayer, BgaResource, CropRect, VideoAsset};
+pub use visual::{BgaLayer, BgaResource, BgaResourceId, CropRect, VideoAsset};
 
 /// 乐曲级元数据 —— 对应 BMSON v2 的 `SongInfo`。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -131,6 +132,8 @@ pub struct ChartInfo {
     pub bga_resources: Vec<BgaResource>,
     /// 背景视频（BMS `#VIDEOFILE` / `#MOVIE`）。BMSON 无此概念，为 `None`。
     pub video: Option<VideoAsset>,
+    /// 可玩按键总数；`None` 表示来源格式未提供或无法推断。
+    pub key_count: Option<u8>,
 }
 
 /// 自定义判定窗口偏移（DJ.NEXT 扩展）。
@@ -178,7 +181,7 @@ pub enum ChartDataError {
     /// 事件引用了越界的音频素材索引。
     DanglingAudioIndex {
         /// 越界的索引值。
-        index: u32,
+        index: AudioIndex,
         /// 音频素材表长度。
         len: usize,
     },
@@ -188,10 +191,12 @@ pub enum ChartDataError {
     /// [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources) 范围内。
     DanglingBgaResource {
         /// 越界的资源 id。
-        id: u32,
+        id: BgaResourceId,
         /// BGA 资源表长度。
         len: usize,
     },
+    /// 事件未按 `(tick, priority)` 升序排列。
+    UnsortedEvents,
 }
 
 impl fmt::Display for ChartDataError {
@@ -203,6 +208,7 @@ impl fmt::Display for ChartDataError {
             Self::DanglingBgaResource { id, len } => {
                 write!(f, "bga resource id {id} out of range (0..{len})")
             }
+            Self::UnsortedEvents => write!(f, "events are not sorted by (tick, priority)"),
         }
     }
 }
@@ -220,10 +226,10 @@ impl std::error::Error for ChartDataError {}
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// 用于脉冲 ↔ 秒换算的计时轨。
     pub timing: TimingTrack,
-    /// 判定窗口倍率（`1.0` = 标准）。
-    pub judge_multiplier: f64,
-    /// 血量槽倍率（`1.0` = 标准）。
-    pub life_multiplier: f64,
+    /// 判定窗口倍率（`Some(1.0)` = 标准）；`None` 表示来源未指定。
+    pub judge_multiplier: Option<f64>,
+    /// 血量槽倍率（`Some(1.0)` = 标准）；`None` 表示来源未指定。
+    pub life_multiplier: Option<f64>,
     /// 谱面级长音类型提示（BMSON LN/CN）。
     pub ln_type_hint: LnTypeHint,
     /// 谱面级长音判定提示。
@@ -260,7 +266,8 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// 验证谱面数据的关键不变量。
     ///
     /// 检查项：
-    /// - 事件引用完整性：`Note`/`Bgm` 事件的 `audio_index` 均落在
+    /// - 事件按 [`Event::sort_key`] 升序排列
+    /// - 事件引用完整性：`Note`/`Bgm` 事件的音频索引均落在
     ///   [`audio_assets`](Self::audio_assets) 范围内
     ///
     /// 计时轨合法性（初始 BPM 有效、resolution 为正）由
@@ -270,23 +277,27 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// 若任何检查失败，返回 [`ChartDataError`]。
     pub fn validate(&self) -> Result<(), ChartDataError> {
+        if self.events.windows(2).any(|pair| match pair {
+            [left, right] => left.sort_key() > right.sort_key(),
+            _ => false,
+        }) {
+            return Err(ChartDataError::UnsortedEvents);
+        }
+
         let len = self.audio_assets.len();
         for event in &self.events {
-            let referenced = match &event.kind {
-                EventKind::Note {
-                    audio_index: Some(i),
-                    ..
-                } => Some(*i),
-                EventKind::Bgm { audio_index } => Some(*audio_index),
-                _ => None,
+            let audio_indices: &[AudioIndex] = match &event.kind {
+                EventKind::Note { audio, .. } => audio.as_slice(),
+                EventKind::Bgm { audio_index } => std::slice::from_ref(audio_index),
+                _ => &[],
             };
-            if let Some(audio_index) = referenced
-                && audio_index as usize >= len
-            {
-                return Err(ChartDataError::DanglingAudioIndex {
-                    index: audio_index,
-                    len,
-                });
+            for &audio_index in audio_indices {
+                if audio_index.get() as usize >= len {
+                    return Err(ChartDataError::DanglingAudioIndex {
+                        index: audio_index,
+                        len,
+                    });
+                }
             }
         }
         Ok(())
@@ -447,7 +458,7 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
         let len = self.chart.bga_resources.len();
         for event in &self.data.events {
             if let EventKind::Bga { resource_id, .. } = &event.kind
-                && *resource_id as usize >= len
+                && resource_id.get() as usize >= len
             {
                 return Err(ChartDataError::DanglingBgaResource {
                     id: *resource_id,

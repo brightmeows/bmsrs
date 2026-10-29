@@ -7,9 +7,9 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartDataError, ChartInfo,
-    Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, NoteKind,
-    NoteSide, SongInfo, StopEvent, TimingTrack,
+    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
+    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+    NoCustomEvent, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -34,8 +34,8 @@ fn chart_construction_is_empty_by_default() {
         chart: ChartInfo::default(),
         data: ChartData {
             timing: TimingTrack::simple(120.0, 240).unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
@@ -60,8 +60,8 @@ fn chart_construction() {
         chart: ChartInfo::default(),
         data: ChartData {
             timing: TimingTrack::simple(120.0, 240).unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
@@ -73,7 +73,8 @@ fn chart_construction() {
                     side: NoteSide::P1,
                     lane: key(1),
                     kind: NoteKind::Normal,
-                    audio_index: None,
+                    role: NoteRole::Normal,
+                    audio: NoteAudio::none(),
                     ext: (),
                 },
             )],
@@ -109,8 +110,8 @@ fn chart_data_last_tick_empty() {
     // 空事件列表 → last_tick() 返回 0。
     let data = ChartData::<(), NoCustomEvent> {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
+        judge_multiplier: Some(1.0),
+        life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
@@ -126,8 +127,8 @@ fn chart_data_last_tick_empty() {
 fn chart_data_last_tick_with_events() {
     let data: ChartData = ChartData {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
+        judge_multiplier: Some(1.0),
+        life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
@@ -143,8 +144,8 @@ fn chart_data_last_tick_with_events() {
 fn chart_data_duration() {
     let data: ChartData = ChartData {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
+        judge_multiplier: Some(1.0),
+        life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
@@ -163,8 +164,8 @@ fn chart_data_duration() {
 fn valid_chart_data() -> ChartData {
     ChartData {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
+        judge_multiplier: Some(1.0),
+        life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
@@ -179,12 +180,23 @@ fn valid_chart_data() -> ChartData {
 fn validate_rejects_dangling_audio_index() {
     // Bgm 事件引用索引 3，素材表为空。
     let mut data = valid_chart_data();
-    data.events = vec![Event::bgm(0, 3)];
+    data.events = vec![Event::bgm(0, AudioIndex::new(3))];
 
     assert_eq!(
         data.validate(),
-        Err(ChartDataError::DanglingAudioIndex { index: 3, len: 0 })
+        Err(ChartDataError::DanglingAudioIndex {
+            index: AudioIndex::new(3),
+            len: 0
+        })
     );
+}
+
+#[test]
+fn validate_rejects_unsorted_events() {
+    let mut data = valid_chart_data();
+    data.events = vec![Event::bar(480), Event::bar(240)];
+
+    assert_eq!(data.validate(), Err(ChartDataError::UnsortedEvents));
 }
 
 #[test]
@@ -202,7 +214,8 @@ fn validate_accepts_consistent_chart() {
             side: NoteSide::P1,
             lane: key(1),
             kind: NoteKind::Normal,
-            audio_index: Some(0),
+            role: NoteRole::Normal,
+            audio: NoteAudio::one(AudioIndex::new(0)),
             ext: (),
         },
     )];
@@ -222,7 +235,8 @@ fn event_tick_accessor() {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
-                audio_index: None,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
                 ext: (),
             },
         )
@@ -245,7 +259,8 @@ fn event_priority_order() {
                     side: NoteSide::P1,
                     lane: key(1),
                     kind: NoteKind::Normal,
-                    audio_index: None,
+                    role: NoteRole::Normal,
+                    audio: NoteAudio::none(),
                     ext: (),
                 },
             )
@@ -258,7 +273,8 @@ fn event_priority_order() {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
-                audio_index: None,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
                 ext: (),
             },
         )
@@ -285,7 +301,7 @@ fn event_bga_fields() {
         480,
         EventKind::Bga {
             layer: BgaLayer::Layer2,
-            resource_id: 3,
+            resource_id: BgaResourceId::new(3),
         },
     );
     assert_eq!(ev.tick(), 480);
@@ -294,7 +310,7 @@ fn event_bga_fields() {
     } = ev.kind
     {
         assert_eq!(layer, BgaLayer::Layer2);
-        assert_eq!(resource_id, 3);
+        assert_eq!(resource_id.get(), 3);
     } else {
         panic!("expected Bga event");
     }
@@ -310,7 +326,8 @@ fn event_note_with_ext() {
             kind: NoteKind::Mine {
                 damage: Damage::new(25.0),
             },
-            audio_index: Some(0),
+            role: NoteRole::Normal,
+            audio: NoteAudio::one(AudioIndex::new(0)),
             ext: (),
         },
     );
@@ -319,13 +336,13 @@ fn event_note_with_ext() {
         side,
         lane,
         kind,
-        audio_index,
+        audio,
         ..
     } = ev.kind
     {
         assert_eq!(side, NoteSide::P2);
         assert_eq!(lane, Lane::Scratch(nz(1)));
-        assert_eq!(audio_index, Some(0));
+        assert_eq!(audio.primary(), Some(AudioIndex::new(0)));
         assert!(matches!(kind, NoteKind::Mine { .. }));
     } else {
         panic!("expected Note event");
@@ -436,11 +453,9 @@ fn audio_asset_with_duration() {
 #[test]
 fn bga_resource_construction() {
     let res = BgaResource {
-        id: 1,
         path: "bg.png".into(),
         crop: None,
     };
-    assert_eq!(res.id, 1);
     assert_eq!(res.path.to_string_lossy(), "bg.png");
     assert!(res.crop.is_none());
 }
@@ -669,7 +684,8 @@ fn map_ext_applies_fn_to_note_variant() {
         side: NoteSide::P1,
         lane: key(1),
         kind: NoteKind::Normal,
-        audio_index: None,
+        role: NoteRole::Normal,
+        audio: NoteAudio::none(),
         ext: 42,
     };
     let mapped = kind.map_ext(|e| {
@@ -687,8 +703,8 @@ fn map_ext_applies_fn_to_note_variant() {
 fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
     ChartData {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
+        judge_multiplier: Some(1.0),
+        life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
@@ -702,7 +718,8 @@ fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
                     side: NoteSide::P1,
                     lane: key(1),
                     kind: NoteKind::Normal,
-                    audio_index: None,
+                    role: NoteRole::Normal,
+                    audio: NoteAudio::none(),
                     ext: (),
                 },
             ),
@@ -726,8 +743,8 @@ fn filter_map_events_preserves_all_when_none_filtered() {
 fn filter_map_events_drops_custom_events() {
     let data = ChartData {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
-        judge_multiplier: 1.0,
-        life_multiplier: 1.0,
+        judge_multiplier: Some(1.0),
+        life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
         ln_judge_hint: LnJudgeHint::default(),
         ln_life_hint: LnLifeHint::default(),
@@ -789,18 +806,20 @@ fn validate_rejects_dangling_bga_resource() {
         0,
         EventKind::Bga {
             layer: BgaLayer::Base,
-            resource_id: 2,
+            resource_id: BgaResourceId::new(2),
         },
     )];
     chart.chart.bga_resources = vec![BgaResource {
-        id: 0,
         path: std::path::PathBuf::from("bg.png"),
         crop: None,
     }];
 
     assert_eq!(
         chart.validate(),
-        Err(ChartDataError::DanglingBgaResource { id: 2, len: 1 })
+        Err(ChartDataError::DanglingBgaResource {
+            id: BgaResourceId::new(2),
+            len: 1
+        })
     );
 }
 
@@ -815,11 +834,10 @@ fn validate_accepts_consistent_bga_references() {
         0,
         EventKind::Bga {
             layer: BgaLayer::Base,
-            resource_id: 0,
+            resource_id: BgaResourceId::new(0),
         },
     )];
     chart.chart.bga_resources = vec![BgaResource {
-        id: 0,
         path: std::path::PathBuf::from("bg.png"),
         crop: None,
     }];

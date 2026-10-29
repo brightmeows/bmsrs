@@ -2,7 +2,9 @@
 
 use std::num::NonZeroU8;
 
-use bmsrs_chart::{Damage, Event, EventKind, Lane, NoteKind, NoteSide};
+use bmsrs_chart::{
+    AudioIndex, Damage, Event, EventKind, Lane, NoteAudio, NoteKind, NoteRole, NoteSide,
+};
 
 #[test]
 fn event_note_fields() {
@@ -12,7 +14,8 @@ fn event_note_fields() {
             side: NoteSide::P1,
             lane: Lane::Key(NonZeroU8::new(5).unwrap()),
             kind: NoteKind::Long { duration: 480 },
-            audio_index: None,
+            role: NoteRole::Normal,
+            audio: NoteAudio::none(),
             ext: (),
         },
     );
@@ -32,6 +35,25 @@ fn event_note_fields() {
 #[test]
 fn note_kind_default_is_normal() {
     assert_eq!(NoteKind::default(), NoteKind::Normal);
+}
+
+#[test]
+fn note_audio_from_indices_collapses_single() {
+    let audio = NoteAudio::from_indices([AudioIndex::new(7)]);
+
+    assert_eq!(audio.primary(), Some(AudioIndex::new(7)));
+}
+
+#[test]
+fn note_audio_from_indices_preserves_layers() {
+    let audio = NoteAudio::from_indices([AudioIndex::new(7), AudioIndex::new(9)]);
+
+    assert_eq!(audio.len(), 2);
+}
+
+#[test]
+fn note_role_default_is_normal() {
+    assert_eq!(NoteRole::default(), NoteRole::Normal);
 }
 
 #[test]

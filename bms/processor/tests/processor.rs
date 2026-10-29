@@ -108,6 +108,28 @@ fn process_basic_note() {
 }
 
 #[test]
+fn process_key_count_uses_used_lanes() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    for lane in [1, 2, 3, 4, 5, 8, 9] {
+        bms.messages.note_events.push(NoteEvent {
+            position: Position::new(0, 0, 8),
+            player: 1,
+            lane,
+            key_type: KeyType::Visible,
+            wav_id: "01".parse().unwrap(),
+        });
+    }
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
+
+    assert_eq!(chart.chart.key_count, Some(7));
+}
+
+#[test]
 fn process_key7_note_lands_on_key_seven() {
     // KEY7 通道 19 丢弃 bug 的端到端回归。
     let mut bms = Bms::default();
@@ -577,7 +599,7 @@ fn lnobj_end_marker_plays_bgm() {
         .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { audio_index } = &e.kind {
-                Some((e.tick(), *audio_index))
+                Some((e.tick(), audio_index.get()))
             } else {
                 None
             }

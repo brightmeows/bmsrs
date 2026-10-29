@@ -24,6 +24,14 @@
 | `T: NoteExt` | `()` | 每音符扩展数据（音量、pan、LN 模式等）|
 | `C: CustomEvent` | `NoCustomEvent` | 格式特有自定义事件类型 |
 
+音符核心字段：
+
+| 类型 | 作用 |
+|------|------|
+| `NoteAudio` | 音频层集合：`None` / `One(AudioIndex)` / `Many(Box<[AudioIndex]>)`；`Many` 至少两层 |
+| `NoteRole` | `Normal` / `Release`，与 `NoteKind` 正交，擦除 `NoteExt` 后仍保留 |
+| `AudioIndex` / `BgaResourceId` | 独立 newtype，避免音频与 BGA 索引互相赋值 |
+
 ## 事件优先级
 
 `Event` 枚举变体按优先级排序：
@@ -58,7 +66,11 @@ Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 | `LnTypeHint`/`LnJudgeHint`/`LnLifeHint` | 长音提示的 typed enum，位于 `note.rs`。`LnTypeHint` 由 BMS `#LNMODE` / BMSON `ln_type_hint` 共同填充 |
 | `Event` 的 `tick()` 方法 | 统一访问所有变体的 tick 字段 |
 | `Event::sort_key()` | `(tick, priority)` 复合键，同脉冲排序的唯一入口 |
+| `ChartData::validate()` | 先检查事件有序，再检查音符/BGM 音频索引与 BGA 资源索引；`UnsortedEvents` 是独立错误 |
+| `judge_multiplier` / `life_multiplier` | `Option<f64>`；`None` = 来源未指定，`Some(1.0)` = 标准 |
+| `ChartInfo.key_count` | 可玩按键总数；`None` = 未提供或无法推断 |
 | `BgaResource.crop` | 源裁剪矩形与目标偏移（BMS `#BGA`/`#@BGA`）。`None` = 整图。BMSON 不区分裁剪，恒为 `None` |
+| `BgaResource` 无 `id` | `bga_resources` 的向量下标就是唯一资源 id；事件用 `BgaResourceId` 引用 |
 | `ChartInfo.video` | 背景视频（BMS `#VIDEOFILE`/`#MOVIE`）。BMSON 无此概念，恒为 `None` |
 | `VideoAsset` 的 `Eq` | `fps: Option<f64>` 使其无法派生 `Eq`；手动 `impl Eq`（保证不含 NaN，仿 `Damage`）。`colors`/`delay_frames` 用 `u32` 规避 |
 | `CropRect` 全整数 | 源矩形 + 偏移均为 `i32`，自然 `Eq` |

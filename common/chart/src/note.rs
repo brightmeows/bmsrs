@@ -6,6 +6,8 @@
 
 use std::fmt::Debug;
 
+use crate::audio::AudioIndex;
+
 /// 地雷伤害值。
 ///
 /// 保证不含 NaN，支持 [`Eq`] 比较。
@@ -38,6 +40,104 @@ impl PartialEq for Damage {
 }
 
 impl Eq for Damage {}
+
+/// 音符的音频层集合。
+///
+/// 大多数音符只有一层音频；BMSON 允许不同 `SoundChannel` 在相同位置
+/// 融合为一个音符，此时该音符携带多层音频。内部用三态表示，单音频
+/// 不产生额外分配，`Many` 至少包含两个元素。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NoteAudio(NoteAudioInner);
+
+/// [`NoteAudio`] 的内部三态表示。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum NoteAudioInner {
+    #[default]
+    /// 无音频层。
+    None,
+    /// 单层音频。
+    One(AudioIndex),
+    /// 多层音频，至少两个元素。
+    Many(Box<[AudioIndex]>),
+}
+
+impl NoteAudio {
+    /// 无音频层的音符。
+    #[must_use]
+    pub const fn none() -> Self {
+        Self(NoteAudioInner::None)
+    }
+
+    /// 只有一层音频的音符。
+    #[must_use]
+    pub const fn one(index: AudioIndex) -> Self {
+        Self(NoteAudioInner::One(index))
+    }
+
+    /// 从任意音频索引集合构造；零层得到 [`none`](Self::none)，一层得到
+    /// [`one`](Self::one)，两层及以上折叠为 `Many`。
+    #[must_use]
+    pub fn from_indices(indices: impl IntoIterator<Item = AudioIndex>) -> Self {
+        let collected: Vec<AudioIndex> = indices.into_iter().collect();
+        match collected.as_slice() {
+            [] => Self::none(),
+            [index] => Self::one(*index),
+            _ => Self(NoteAudioInner::Many(collected.into_boxed_slice())),
+        }
+    }
+
+    /// 以切片形式返回全部音频索引。
+    #[must_use]
+    pub fn as_slice(&self) -> &[AudioIndex] {
+        match &self.0 {
+            NoteAudioInner::None => &[],
+            NoteAudioInner::One(index) => std::slice::from_ref(index),
+            NoteAudioInner::Many(indices) => indices,
+        }
+    }
+
+    /// 遍历全部音频索引。
+    pub fn iter(&self) -> impl Iterator<Item = AudioIndex> + '_ {
+        self.as_slice().iter().copied()
+    }
+
+    /// 第一层音频索引；无音频时为 [`None`]。
+    #[must_use]
+    pub fn primary(&self) -> Option<AudioIndex> {
+        self.as_slice().first().copied()
+    }
+
+    /// 音频层数。
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.as_slice().len()
+    }
+
+    /// 是否没有音频层。
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.as_slice().is_empty()
+    }
+}
+
+impl From<Option<AudioIndex>> for NoteAudio {
+    fn from(value: Option<AudioIndex>) -> Self {
+        value.map_or_else(Self::none, Self::one)
+    }
+}
+
+/// 音符在游玩中的角色。
+///
+/// 与 [`NoteKind`] 正交：`up: true` 的释放音可以是普通音符，也可以是
+/// 长音音符。角色属于核心模型，擦除格式扩展后仍然保留。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NoteRole {
+    /// 普通可判定音符。
+    #[default]
+    Normal,
+    /// 释放音 / BSS / MSS 端点。
+    Release,
+}
 
 /// 可玩音符的种类。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

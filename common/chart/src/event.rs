@@ -19,9 +19,10 @@
 
 use std::fmt::Debug;
 
+use crate::audio::AudioIndex;
 use crate::mode::{Lane, NoteSide};
-use crate::note::NoteKind;
-use crate::visual::BgaLayer;
+use crate::note::{NoteAudio, NoteKind, NoteRole};
+use crate::visual::{BgaLayer, BgaResourceId};
 
 // EventKind 枚举
 
@@ -38,15 +39,17 @@ pub enum EventKind<T, C: CustomEvent = NoCustomEvent> {
         lane: Lane,
         /// 音符种类（普通、长音、地雷、不可见）。
         kind: NoteKind,
-        /// 指向 [`crate::ChartData::audio_assets`] 的音频素材索引，或 `None`。
-        audio_index: Option<u32>,
+        /// 音符在游玩中的角色（普通或释放音）。
+        role: NoteRole,
+        /// 此音符播放的音频层。
+        audio: NoteAudio,
         /// 格式特有的扩展数据（无扩展时用 `()`）。
         ext: T,
     },
     /// BGM（背景音乐）事件 —— 触发音频，不参与游玩交互。
     Bgm {
         /// 指向 [`crate::ChartData::audio_assets`] 的索引。
-        audio_index: u32,
+        audio_index: AudioIndex,
     },
     /// BPM 变更。
     Bpm {
@@ -77,7 +80,7 @@ pub enum EventKind<T, C: CustomEvent = NoCustomEvent> {
         /// 此事件所针对的 BGA 图层。
         layer: BgaLayer,
         /// 指向 [`crate::ChartInfo::bga_resources`] 的索引。
-        resource_id: u32,
+        resource_id: BgaResourceId,
     },
     /// 用于视觉显示的小节线。
     Bar,
@@ -129,13 +132,15 @@ impl<T, C: CustomEvent> EventKind<T, C> {
                 side,
                 lane,
                 kind,
-                audio_index,
+                role,
+                audio,
                 ext,
             } => EventKind::Note {
                 side,
                 lane,
                 kind,
-                audio_index,
+                role,
+                audio,
                 ext,
             },
             Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
@@ -165,7 +170,8 @@ impl<T, C: CustomEvent> EventKind<T, C> {
     ///     side: NoteSide::P1,
     ///     lane: Lane::Key(NonZeroU8::new(1).unwrap()),
     ///     kind: NoteKind::Normal,
-    ///     audio_index: None,
+    ///     role: bmsrs_chart::NoteRole::Normal,
+    ///     audio: bmsrs_chart::NoteAudio::none(),
     ///     ext: 42,
     /// };
     /// let mapped = kind.map_ext(|_| ());
@@ -183,13 +189,15 @@ impl<T, C: CustomEvent> EventKind<T, C> {
                 side,
                 lane,
                 kind,
-                audio_index,
+                role,
+                audio,
                 ext,
             } => EventKind::Note {
                 side,
                 lane,
                 kind,
-                audio_index,
+                role,
+                audio,
                 ext: f(ext),
             },
             Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
@@ -279,7 +287,7 @@ impl<T: NoteExt, C: CustomEvent> Event<T, C> {
 
     /// 创建 BGM 事件。
     #[must_use]
-    pub const fn bgm(tick: u64, audio_index: u32) -> Self {
+    pub const fn bgm(tick: u64, audio_index: AudioIndex) -> Self {
         Self::new(tick, EventKind::Bgm { audio_index })
     }
 

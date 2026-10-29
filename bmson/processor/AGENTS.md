@@ -34,3 +34,6 @@
 |------|------|
 | BGM 音符丢弃 | 同脉冲有可演奏音符时，BGM 音符 (`x: 0`) 被丢弃 |
 | 事件排序 | Note/BGA → BPM → Stop |
+| 分层音符 | 跨 `SoundChannel` 的同一 `(side, lane, tick)` 融合为一个 `Note`，音频层收进 `NoteAudio`；长音长度不一致产生 `LayeredNoteLengthMismatch` 警告 |
+| 释放音 | `up: true` 映射为核心 `NoteRole::Release`，不再放进 `BmsonNoteExt` |
+| 键数 | `ChartInfo.key_count` 从 `mode_hint` 推断；未知/扩展提示为 `None` |
