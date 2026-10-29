@@ -1,4 +1,4 @@
-//! 通过 [`parse_header_line`] 解析 [`BmsHeader`] 的集成测试。
+//! Integration tests for parsing [`BmsHeader`] through [`parse_header_line`].
 
 use bmsrs_bms_values::{
     BmpIndex, BmsBase, BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback,
@@ -1375,7 +1375,7 @@ fn parse_base_unknown_fallback() {
     assert!(matches!(result, BmsHeader::Fallback(_)));
 }
 
-// #EXWAV 参数范围校验
+// #EXWAV parameter range validation
 
 #[test]
 fn parse_exwav_pan_at_bounds() {
@@ -1482,14 +1482,14 @@ fn parse_exwav_multi_flag_pan_out_of_range_fallback() {
         panic!("expected ExWav variant");
     }
 
-    // pan 越界导致整个 EXWAV 回退
+    // An out-of-range pan makes the whole EXWAV fall back.
     let r2 = bmsrs_bms_values::parse_header_line("#EXWAV01 pf 10001 440 sound.wav", &['#', '%'])
         .unwrap()
         .unwrap();
     assert!(matches!(r2, BmsHeader::Fallback(_)));
 }
 
-// #WAVCMD pitch 范围校验
+// #WAVCMD pitch range validation
 
 #[test]
 fn parse_wavcmd_pitch_0_accepted() {
@@ -1535,7 +1535,7 @@ fn parse_wavcmd_pitch_128_fallback() {
 
 #[test]
 fn parse_wavcmd_pitch_0_boundary_still_allows_volume_over_100() {
-    // 音量命令（01）不受 pitch 范围限制
+    // The volume command (01) is not subject to the pitch range.
     let result = bmsrs_bms_values::parse_header_line("#WAVCMD 01 01 200", &['#', '%'])
         .unwrap()
         .unwrap();

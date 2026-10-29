@@ -1,11 +1,11 @@
-//! [`BmsChannel`] 分类与公共 API 的集成测试。
+//! Integration tests for [`BmsChannel`] classification and the public API.
 //!
-//! 这些测试仅通过公共 API 消费 crate，与
-//! 外部消费方的使用方式完全一致。
+//! These tests consume the crate only through its public API, exactly as an
+//! external consumer would.
 
 use bmsrs_bms_values::{BmsChannel, ChannelIndex};
 
-// 辅助函数
+// Helpers
 
 #[expect(clippy::expect_used, reason = "test helper panics on invalid input")]
 fn ch(s: &str) -> BmsChannel {
@@ -18,7 +18,7 @@ fn idx(s: &str) -> ChannelIndex {
     upper.as_str().try_into().unwrap()
 }
 
-// 已知十六进制通道
+// Known hexadecimal channels
 
 #[test]
 fn bgm() {
@@ -149,7 +149,7 @@ fn option() {
     assert_eq!(ch("a6"), BmsChannel::Option);
 }
 
-// 扩展通道
+// Extended channels
 
 #[test]
 fn scroll() {
@@ -164,7 +164,7 @@ fn speed() {
     assert_eq!(ch("sp"), BmsChannel::Speed);
 }
 
-// 音符通道
+// Note channels
 
 #[test]
 fn note_1p_visible() {
@@ -212,7 +212,7 @@ fn note_2p_long() {
 fn note_1p_landmine() {
     let expected = BmsChannel::Note(idx("D1"));
     assert_eq!(ch("D1"), expected);
-    // 小写输入在内部被规范化为大写。
+    // Lowercase input is normalized to uppercase internally.
     assert_eq!(ch("d1"), expected);
 }
 
@@ -225,7 +225,7 @@ fn note_2p_landmine() {
 
 #[test]
 fn note_mgq_ext() {
-    // MGQ 将音符通道扩展到 1A–1F、2A–2F 等。
+    // MGQ extends note channels to 1A-1F, 2A-2F, and so on.
     let expected = BmsChannel::Note(idx("1A"));
     assert_eq!(ch("1A"), expected);
     assert_eq!(ch("1a"), expected);
@@ -233,19 +233,19 @@ fn note_mgq_ext() {
 
 #[test]
 fn note_pomu_ext() {
-    // pomu 将音符通道扩展到 1G–1Z、2G–2Z 等。
+    // pomu extends note channels to 1G-1Z, 2G-2Z, and so on.
     let expected = BmsChannel::Note(idx("1G"));
     assert_eq!(ch("1G"), expected);
 }
 
 #[test]
 fn note_5f() {
-    // 5F 是一个长音 MGQ 扩展。
+    // 5F is a long-note MGQ extension.
     let expected = BmsChannel::Note(idx("5F"));
     assert_eq!(ch("5F"), expected);
 }
 
-// 保留通道（非音符）
+// Reserved channels (non-note)
 
 #[test]
 fn track_10_is_unknown_not_note() {
@@ -287,7 +287,7 @@ fn e0_is_unknown_not_note() {
     assert_eq!(ch("E0"), BmsChannel::Unknown(idx("E0")));
 }
 
-// 未知通道
+// Unknown channels
 
 #[test]
 fn channel_00_is_unknown() {
@@ -330,7 +330,7 @@ fn single_char_0_is_unknown() {
     assert_eq!(ch("0"), BmsChannel::Unknown(idx("0")));
 }
 
-// from_raw 边界情况
+// from_raw edge cases
 
 #[test]
 fn from_raw_invalid_string_returns_none() {
@@ -383,7 +383,7 @@ fn as_u8_hex_note_hex_channel() {
 
 #[test]
 fn as_u8_hex_note_non_hex_channel() {
-    // 1G 是有效的 Base36 但非十六进制 → None
+    // 1G is valid Base36 but not hexadecimal, so this returns None.
     let n = BmsChannel::Note(idx("1G"));
     assert_eq!(n.as_u8_hex(), None);
 }
@@ -415,12 +415,12 @@ fn display_note() {
 fn display_unknown() {
     let u = BmsChannel::Unknown(idx("ZZ"));
     assert_eq!(u.to_string(), "ZZ");
-    // 小写输入在规范化后以大写存储。
+    // Lowercase input is stored uppercase after normalization.
     let u2 = ch("zz");
     assert_eq!(u2.to_string(), "ZZ");
 }
 
-// Ord / Eq（BTreeMap 键所需）
+// Ord / Eq (required for BTreeMap keys)
 
 #[test]
 fn note_channels_ordered_by_raw_index() {
@@ -439,7 +439,7 @@ fn unit_variants_ordered_by_declaration() {
 
 #[test]
 fn note_greater_than_unit_variants() {
-    // 单元变体在声明顺序上先于元组变体。
+    // Unit variants precede tuple variants in declaration order.
     assert!(BmsChannel::Option < BmsChannel::Note(idx("11")));
     assert!(BmsChannel::Speed < BmsChannel::Note(idx("11")));
 }

@@ -1,7 +1,7 @@
-//! `#[derive(BmsToken)]` 往返转换的集成测试。
+//! Integration tests for `#[derive(BmsToken)]` roundtrip conversion.
 //!
-//! 每个测试验证 `try_match_header` → `format_header` → 再次解析
-//! 是恒等的（或至少是一致的）。
+//! Each test verifies that `try_match_header`, `format_header`, and parsing the
+//! result again form an identity (or at least a consistent roundtrip).
 
 use bmsrs_bms_values::{
     BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
@@ -101,7 +101,7 @@ fn metadata_song_alias() {
         }
     );
     let (cmd, val) = parsed.format_header();
-    assert_eq!(cmd, "#TEXT01"); // SONG 是别名；规范形式为 TEXT
+    assert_eq!(cmd, "#TEXT01"); // SONG is an alias; the canonical form is TEXT.
     assert_eq!(val, "some text");
 }
 
@@ -243,7 +243,8 @@ fn timing_bpmdef_roundtrip() {
         .unwrap()
         .unwrap();
     let (cmd, val) = parsed.format_header();
-    // 格式化后 BPM 值为 "180"（而非 "180.0"），这是 to_string 的结果。
+    // After formatting the BPM value is "180" (not "180.0"), which is what
+    // to_string produces.
     assert_eq!(cmd, "#BPM01");
     assert_eq!(val, "180");
 }
@@ -395,7 +396,7 @@ fn visual_poorbga_roundtrip() {
 
 #[test]
 fn visual_extchr_roundtrip() {
-    // 命令在分发前由 parse_header_line 转为大写。
+    // Commands are uppercased by parse_header_line before dispatch.
     let parsed = BmsHeaderResDefVisual::try_match_header("EXTCHR", "extra")
         .unwrap()
         .unwrap();
@@ -404,7 +405,7 @@ fn visual_extchr_roundtrip() {
 
 #[test]
 fn bpm_mixed_indexed_roundtrip() {
-    // 验证 #BPM（非索引）与 #BPM1A（索引）正确路由。
+    // Verify that #BPM (non-indexed) and #BPM1A (indexed) route correctly.
     let non_idx = BmsHeaderTiming::try_match_header("BPM", "120")
         .unwrap()
         .unwrap();

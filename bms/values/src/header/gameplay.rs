@@ -1,9 +1,9 @@
-//! 游玩行为头部：`#PLAYER`、`#RANK`、`#TOTAL`、`#VOLWAV`、
-//! `#LNTYPE`、`#LNOBJ`、`#LNMODE`、`#OCT/FP`、`#OPTION`、`#CHANGEOPTION`、
-//! `#BASE`。
+//! Gameplay behavior headers: `#PLAYER`, `#RANK`, `#TOTAL`, `#VOLWAV`,
+//! `#LNTYPE`, `#LNOBJ`, `#LNMODE`, `#OCT/FP`, `#OPTION`, `#CHANGEOPTION`, and
+//! `#BASE`.
 //!
-//! 本模块还定义了 [`BmsHeaderGameplay`] 所用的域类型：
-//! [`PlayerMode`]、[`Rank`]、[`LnType`]、[`LnMode`] 与 [`BmsBaseMode`]。
+//! This module also defines the domain types used by [`BmsHeaderGameplay`]:
+//! [`PlayerMode`], [`Rank`], [`LnType`], [`LnMode`], and [`BmsBaseMode`].
 
 use std::fmt;
 use std::str::FromStr;
@@ -11,39 +11,39 @@ use std::str::FromStr;
 use crate::BmsTokenAttr;
 use crate::index::{BmsBase, ChangeOptionIndex, ExRankIndex, LnObjIndex};
 
-/// `#PLAYER` 指定的游玩模式。
+/// Gameplay mode specified by `#PLAYER`.
 ///
-/// 现代播放器（LR2、nanasi、ruvit、beatoraja）通常**忽略**
-/// `#PLAYER`，从谱面中出现的通道推断实际模式。
-/// 该命令仅为向后兼容而保留。
+/// Modern players (LR2, nanasi, ruvit, beatoraja) usually **ignore** `#PLAYER`
+/// and infer the actual mode from the channels present in the chart. The
+/// command is kept only for backward compatibility.
 ///
-/// | 值 | 模式 | 血量槽 | 备注 |
+/// | Value | Mode | Life gauge | Notes |
 /// |-------|------|---------------|-------|
-/// | `1` / `SP` | Single Play | 1 | 默认；仅 1P 侧 |
-/// | `2` / `CP` | Couple Play | 2 | 双人合作；如今很少支持 |
-/// | `3` / `DP` | Double Play | 1 | 一名玩家使用两侧 |
-/// | `4` / `BP` | Battle Play | 2 | 两名玩家玩同一谱面；仅 BM98 支持 |
+/// | `1` / `SP` | Single Play | 1 | default; 1P side only |
+/// | `2` / `CP` | Couple Play | 2 | two-player co-op; rarely supported today |
+/// | `3` / `DP` | Double Play | 1 | one player uses both sides |
+/// | `4` / `BP` | Battle Play | 2 | two players play the same chart; BM98 only |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum PlayerMode {
-    /// 单人（Single Play）。值：`"1"` 或 `"SP"`。
+    /// Single Play. Values: `"1"` or `"SP"`.
     #[bms_token("1")]
     #[bms_token("SP")]
     #[bms_token("sp")]
     #[bms_token("Sp")]
     Single,
-    /// 双人合作（Couple Play）。值：`"2"` 或 `"CP"`。
+    /// Couple Play (two-player co-op). Values: `"2"` or `"CP"`.
     #[bms_token("2")]
     #[bms_token("CP")]
     #[bms_token("cp")]
     #[bms_token("Cp")]
     Couple,
-    /// Double Play（一人玩两侧）。值：`"3"` 或 `"DP"`。
+    /// Double Play (one player on both sides). Values: `"3"` or `"DP"`.
     #[bms_token("3")]
     #[bms_token("DP")]
     #[bms_token("dp")]
     #[bms_token("Dp")]
     Double,
-    /// Battle Play（两人玩同一谱面）。值：`"4"` 或 `"BP"`。
+    /// Battle Play (two players on the same chart). Values: `"4"` or `"BP"`.
     #[bms_token("4")]
     #[bms_token("BP")]
     #[bms_token("bp")]
@@ -51,91 +51,91 @@ pub enum PlayerMode {
     Battle,
 }
 
-/// `#LNTYPE` 指定的长音记法。
+/// Long-note notation specified by `#LNTYPE`.
 ///
-/// - **RDM**（`Type1`、`#LNTYPE 1`）：长音从首个非 `00`
-///   音符开始，到下一个非 `00` 音符结束。这是现代默认；
-///   省略 `#LNTYPE` 即表示 RDM。
-/// - **MGQ**（`Type2`、`#LNTYPE 2`）：长音在非 `00` 音符
-///   连续时持续，遇到 `00` 时关闭。**已废弃**——没有现代播放器
-///   使用 MGQ 记法。
+/// - **RDM** (`Type1`, `#LNTYPE 1`): a long note starts at the first non-`00`
+///   note and ends at the next non-`00` note. This is the modern default;
+///   omitting `#LNTYPE` means RDM.
+/// - **MGQ** (`Type2`, `#LNTYPE 2`): a long note continues while non-`00`
+///   notes are consecutive and closes at a `00`. **Deprecated**: no modern
+///   player uses MGQ notation.
 ///
-/// 两种类型都使用通道 `#xxx51-69`。另一种方式是
-/// [`LnObj`](BmsHeaderGameplay::LnObj)（RDM 类型 #2），它消耗一个
-/// `#WAV` 索引作为长音终止标记，允许作者在普通的
-/// `#xxx11-29` 通道上编辑长音。
+/// Both types use channels `#xxx51-69`. The alternative is
+/// [`LnObj`](BmsHeaderGameplay::LnObj) (RDM type #2), which consumes a `#WAV`
+/// index as a long-note terminator marker, letting authors edit long notes on
+/// ordinary `#xxx11-29` channels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnType {
-    /// RDM 类型长音（`#LNTYPE 1`）。
+    /// RDM-type long notes (`#LNTYPE 1`).
     #[bms_token("1")]
     #[bms_token("01")]
     Type1,
-    /// MGQ 类型长音（`#LNTYPE 2`）。
+    /// MGQ-type long notes (`#LNTYPE 2`).
     #[bms_token("2")]
     #[bms_token("02")]
     Type2,
 }
 
-/// `#LNMODE` 指定的长音模式（beatoraja 扩展）。
+/// Long-note mode specified by `#LNMODE` (beatoraja extension).
 ///
-/// 决定在 beatoraja 中游玩时长音的行为。
-/// 存在时，谱面的长音种类被**强制**，不受
-/// 玩家 LN MODE 选项影响。
+/// Determines how long notes behave during play in beatoraja. When present, the
+/// chart's long-note type is **forced**, regardless of the player's LN MODE
+/// option.
 ///
-/// | 值 | 模式 | 行为 |
+/// | Value | Mode | Behavior |
 /// |-------|------|-----------|
-/// | `1` | LN | 标准长音——起始处按键，结束处松键 |
-/// | `2` | CN | 充能音符——按住穿过音符；结束无需松键 |
-/// | `3` | HCN | 地狱充能音符——类似 CN 但判定更严格 |
+/// | `1` | LN | standard long note: press at the start, release at the end |
+/// | `2` | CN | charge note: hold through the note; no release required at the end |
+/// | `3` | HCN | hell charge note: like CN but with stricter judgment |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnMode {
-    /// 标准长音（`#LNMODE 1`）。
+    /// Standard long note (`#LNMODE 1`).
     #[bms_token("1")]
     #[bms_token("01")]
     Ln,
-    /// 充能音符（`#LNMODE 2`）。
+    /// Charge note (`#LNMODE 2`).
     #[bms_token("2")]
     #[bms_token("02")]
     Cn,
-    /// 地狱充能音符（`#LNMODE 3`）。
+    /// Hell charge note (`#LNMODE 3`).
     #[bms_token("3")]
     #[bms_token("03")]
     Hcn,
 }
 
-/// `#RANK` 指定的判定难度。
+/// Judgment difficulty specified by `#RANK`.
 ///
-/// 控制玩家计时的严格程度。标准值
-/// 0–4 映射到具名变体；非标准值（例如 fgt++ 相对
-/// rank）以 [`Rank::Other`] 保留。
+/// Controls how strict the timing windows are. Standard values 0-4 map to named
+/// variants; non-standard values (such as fgt++ relative rank) are preserved as
+/// [`Rank::Other`].
 ///
-/// 省略 `#RANK` 时默认：**`Normal` (2)**（在大多数播放器中）。
-/// 值得注意的例外：BMSE 与 iBMSC 默认为 `Easy` (3)。
+/// Default when `#RANK` is omitted: **`Normal` (2)** in most players. Notable
+/// exceptions: BMSE and iBMSC default to `Easy` (3).
 ///
-/// | 值 | 标签 | 近似窗口（LR2）| 备注 |
+/// | Value | Label | Approximate window (LR2) | Notes |
 /// |-------|-------|----------------------|-------|
 /// | `0` | VERY HARD | ±8 ms | |
 /// | `1` | HARD | ±15 ms | |
-/// | `2` | NORMAL | ±18 ms | 默认 |
+/// | `2` | NORMAL | ±18 ms | default |
 /// | `3` | EASY | ±21 ms | |
-/// | `4` | VERY EASY | — | nanasi/beatoraja 扩展 |
+/// | `4` | VERY EASY | n/a | nanasi/beatoraja extension |
 ///
-/// 某些播放器（fgt++、Angolmois、`TechnicalGroove`）接受
-/// 0–4 以外的值并将其视为相对倍率。这些由
-/// [`Rank::Other`] 捕获。
+/// Some players (fgt++, Angolmois, `TechnicalGroove`) accept values outside
+/// 0-4 and treat them as relative multipliers. Those are captured by
+/// [`Rank::Other`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rank {
-    /// `#RANK 0`——VERY HARD（LR2 中 ±8 ms）。
+    /// `#RANK 0`: VERY HARD (±8 ms in LR2).
     VeryHard,
-    /// `#RANK 1`——HARD（LR2 中 ±15 ms）。
+    /// `#RANK 1`: HARD (±15 ms in LR2).
     Hard,
-    /// `#RANK 2`——NORMAL（LR2 中 ±18 ms）。省略 `#RANK` 时的默认值。
+    /// `#RANK 2`: NORMAL (±18 ms in LR2). The default when `#RANK` is omitted.
     Normal,
-    /// `#RANK 3`——EASY（LR2 中 ±21 ms）。
+    /// `#RANK 3`: EASY (±21 ms in LR2).
     Easy,
-    /// `#RANK 4`——VERY EASY（nanasi/beatoraja 扩展）。
+    /// `#RANK 4`: VERY EASY (nanasi/beatoraja extension).
     VeryEasy,
-    /// 为向前兼容而保留的非标准 rank 值。
+    /// Non-standard rank value preserved for forward compatibility.
     Other(u8),
 }
 
@@ -169,123 +169,120 @@ impl fmt::Display for Rank {
     }
 }
 
-// BmsBase 定义于 crate::index::BmsBase（与前
-// BmsBaseMode 相同）。此处通过 import 使用；derive BmsTokenAttr 确保
-// `#BASE 16`、`#BASE 36`、`#BASE 62` 正确解析。
+// BmsBase is defined in crate::index::BmsBase (the same type as the former
+// BmsBaseMode). It is used here through an import; the BmsTokenAttr derive
+// ensures `#BASE 16`, `#BASE 36`, and `#BASE 62` parse correctly.
 
-/// 游玩行为头部。
+/// Gameplay behavior headers.
 ///
-/// 这些命令控制谱面*如何*游玩——判定严格度、
-/// 血量槽（生命条）行为、长音解读，以及谱面
-/// 选项。
+/// These commands control *how* the chart is played: judgment strictness, life
+/// gauge behavior, long-note interpretation, and chart options.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderGameplay {
-    /// `#PLAYER`——游戏模式（Single / Couple / Double / Battle）。
+    /// `#PLAYER`: game mode (Single / Couple / Double / Battle).
     ///
-    /// 现代播放器基本忽略，从通道推断模式。
+    /// Modern players mostly ignore it and infer the mode from channels.
     #[bms_token("#PLAYER {}")]
     Player(PlayerMode),
-    /// `#RANK`——判定难度（VERY HARD … VERY EASY）。
+    /// `#RANK`: judgment difficulty (VERY HARD ... VERY EASY).
     ///
-    /// 省略时默认：`Normal` (2)。
+    /// Default when omitted: `Normal` (2).
     #[bms_token("#RANK {}")]
     Rank(Rank),
-    /// `#DEFEXRANK`——以百分比表示的细粒度判定难度。
+    /// `#DEFEXRANK`: fine-grained judgment difficulty as a percentage.
     ///
-    /// `100` 等于 `#RANK 2`（NORMAL）。两者同时
-    /// 存在时覆盖 `#RANK`（最接近 EOF 的行胜出）。支持小数值。
+    /// `100` equals `#RANK 2` (NORMAL). When both are present it overrides
+    /// `#RANK` (the line closest to EOF wins). Decimal values are supported.
     #[bms_token("#DEFEXRANK {}")]
     DefExRank(f64),
-    /// `#EXRANK{id}`——逐位置判定覆盖。
+    /// `#EXRANK{id}`: per-position judgment override.
     ///
-    /// 被通道 `#xxxA0` 引用。当一个 `#EXRANK` 对象越过
-    /// 判定时，判定窗口变为指定的
-    /// 百分比。谱面显示的难度标签在 nanasi 中变为
-    /// "RANDOM"。
+    /// Referenced by channel `#xxxA0`. When an `#EXRANK` object crosses the
+    /// judgment line, the judgment window changes to the specified percentage.
+    /// In nanasi the displayed difficulty label becomes "RANDOM".
     #[bms_token("#EXRANK{id} {value}")]
     ExRank {
-        /// 2 字符索引。
+        /// 2-character index.
         id: ExRankIndex,
-        /// 以百分比表示的判定宽度（NORMAL = 100）。
+        /// Judgment width as a percentage (NORMAL = 100).
         value: f64,
     },
-    /// `#TOTAL`——血量槽最大增加量（百分比）。
+    /// `#TOTAL`: maximum life gauge increase (percentage).
     ///
-    /// 所有完美判定的音符会使血量槽每音符增加 `TOTAL / N`
-    /// 个百分点，其中 `N` 为可见音符总数。
-    /// 例如 `#TOTAL 200` 配 400 个音符，每音符 +0.5%。
+    /// Summing all perfect judgments increases the gauge by `TOTAL / N`
+    /// percentage points per note, where `N` is the total number of visible
+    /// notes. For example, `#TOTAL 200` with 400 notes gives +0.5% per note.
     ///
-    /// **强烈建议**始终指定——默认值因
-    /// 播放器差异巨大（BM98：`200+NOTES`；LR2：`160`；nanasi：
-    /// `350`；fgt++：`100+NOTES/8`）。
+    /// **Strongly recommended** to always specify: defaults vary widely by
+    /// player (BM98: `200+NOTES`; LR2: `160`; nanasi: `350`; fgt++:
+    /// `100+NOTES/8`).
     ///
-    /// 某些播放器（nazo、nazoZZ）支持负值，
-    /// 使*完美*判定*降低*血量槽。
+    /// Some players (nazo, nazoZZ) support negative values, making *perfect*
+    /// judgments *decrease* the life gauge.
     #[bms_token("#TOTAL {}")]
     Total(f64),
-    /// `#VOLWAV`——所有音频的主音量百分比。
+    /// `#VOLWAV`: master volume percentage for all audio.
     ///
-    /// `100` = 原始音量。默认：`100`。
+    /// `100` means original volume. Default: `100`.
     ///
-    /// **已废弃**——高度依赖实现与硬件。
-    /// 结果因播放器与驱动而异。beatoraja 上限为 100。
+    /// **Deprecated**: highly implementation- and hardware-dependent. Results
+    /// vary by player and driver. beatoraja caps it at 100.
     #[bms_token("#VOLWAV {}")]
     VolWav(f64),
-    /// `#LNTYPE`——长音记法（RDM 或 MGQ）。
+    /// `#LNTYPE`: long-note notation (RDM or MGQ).
     ///
-    /// `1` = RDM（默认）；`2` = MGQ（已废弃）。
+    /// `1` means RDM (default); `2` means MGQ (deprecated).
     #[bms_token("#LNTYPE {}")]
     LnType(LnType),
-    /// `#LNOBJ`——将一个 `#WAV` 索引指定为长音终止标记。
+    /// `#LNOBJ`: designates a `#WAV` index as a long-note terminator marker.
     ///
-    /// 当此索引的音符出现在通道 `#xxx11-29` 上时，它作为
-    /// 长音的*终点*（前一个可见音符为
-    /// 起点）。这是 `#LNTYPE 1` + 通道
-    /// `#xxx51-69` 的替代方案——流行的原因是 BMSE 在把 `#xxx51-69`
-    /// 对象移到 BGM 时会崩溃。
+    /// When a note with this index appears on channels `#xxx11-29`, it acts as
+    /// the *end* of a long note (the previous visible note is the start). This
+    /// is an alternative to `#LNTYPE 1` with channels `#xxx51-69`; it became
+    /// popular because BMSE crashes when `#xxx51-69` objects are moved to BGM.
     ///
-    /// **注意**：nanasi 与 fgt++ 有个小写索引
-    /// 不被识别为 `#LNOBJ` 标记的 bug——请使用大写。
+    /// **Note**: nanasi and fgt++ have a bug where a lowercase index is not
+    /// recognized as an `#LNOBJ` marker; use uppercase.
     #[bms_token("#LNOBJ {}")]
     LnObj(LnObjIndex),
-    /// `#LNMODE`——强制 LN / CN / HCN 模式（beatoraja 扩展）。
+    /// `#LNMODE`: forces LN / CN / HCN mode (beatoraja extension).
     ///
-    /// 存在时，谱面的长音类型被锁定，不受
-    /// 玩家 LN MODE 选项影响。
+    /// When present, the chart's long-note type is locked regardless of the
+    /// player's LN MODE option.
     #[bms_token("#LNMODE {}")]
     LnMode(LnMode),
-    /// `#OCT` / `#FP` / `#OCT/FP`——OCTAVE MODE 标志。
+    /// `#OCT` / `#FP` / `#OCT/FP`: OCTAVE MODE flag.
     ///
-    /// 原本是 14KEYS → OCT/FP 视觉重映射的 nanasi 标识符。
-    /// 数值被丢弃——没有已知播放器使用它。
-    /// 无论输入形式如何，`format_header` 始终输出 `#OCT/FP`。
+    /// Originally a nanasi marker for a 14KEYS to OCT/FP visual remap. The
+    /// value is discarded; no known player uses it. Regardless of the input
+    /// form, `format_header` always emits `#OCT/FP`.
     #[bms_token("#OCT/FP")]
     #[bms_token("#OCT")]
     #[bms_token("#FP")]
     OctFp,
-    /// `#OPTION`——从 BMS 文件强制玩家侧选项（nanasi）。
+    /// `#OPTION`: forces player-side options from the BMS file (nanasi).
     ///
-    /// 值使用厂商前缀（例如 `774:HI-SPEED_x0.77`）。
-    /// 多行 `#OPTION` 可共存；同类选项使用
-    /// 最接近 EOF 的行。
+    /// Values use a vendor prefix (for example, `774:HI-SPEED_x0.77`). Multiple
+    /// `#OPTION` lines may coexist; for the same option, the line closest to
+    /// EOF is used.
     #[bms_token("#OPTION {}")]
     Option(String),
-    /// `#CHANGEOPTION{id}`——游玩过程中动态改变选项（nanasi）。
+    /// `#CHANGEOPTION{id}`: changes options dynamically during play (nanasi).
     ///
-    /// 被通道 `#xxxA6` 引用。并非所有选项都支持动态
-    /// 变更（例如 `RANDOM`、`NOTES` 系列不支持）。
+    /// Referenced by channel `#xxxA6`. Not every option supports dynamic
+    /// changes (for example, the `RANDOM` and `NOTES` families do not).
     #[bms_token("#CHANGEOPTION{id} {value}")]
     ChangeOption {
-        /// 2 字符索引。
+        /// 2-character index.
         id: ChangeOptionIndex,
-        /// 选项字符串（例如 `"774:HIDDEN_STEALTH"`）。
+        /// Option string (for example, `"774:HIDDEN_STEALTH"`).
         value: String,
     },
-    /// `#BASE`——声明索引命令的进制基数。
+    /// `#BASE`: declares the radix base for indexed commands.
     ///
-    /// 有效值：`16`（十六进制，256 槽位）、`36`（base-36，1296 槽位，默认）、
-    /// `62`（大小写敏感的 base-62，3844 槽位，beatoraja 扩展）。
-    /// 未知值回退到 `BmsHeaderFallback`。
+    /// Valid values: `16` (hexadecimal, 256 slots), `36` (base-36, 1296 slots,
+    /// default), and `62` (case-sensitive base-62, 3844 slots, beatoraja
+    /// extension). Unknown values fall back to `BmsHeaderFallback`.
     #[bms_token("#BASE {}")]
     #[bms_fallback]
     Base(BmsBase),

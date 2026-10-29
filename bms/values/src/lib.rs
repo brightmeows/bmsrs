@@ -1,18 +1,22 @@
-//! BMS（Be-Music Script）格式的单行语法。
+//! Single-line syntax for the BMS (Be-Music Script) format.
 //!
-//! 本 crate 提供 BMS 解析管道的最底层：把**一行**文本解析为结构化 token。
-//! 整文件的分行、注释状态机、编码与行级编辑由 `bmsrs-bms-source` / `bmsrs-bms-syntax` 负责。
+//! This crate provides the lowest layer of the BMS parsing pipeline: it parses
+//! **one line** of text into structured tokens. Whole-file line splitting, the
+//! comment state machine, encoding, and line-level editing belong to
+//! `bmsrs-bms-source` / `bmsrs-bms-syntax`.
 //!
-//! # 结构
+//! # Structure
 //!
-//! - [`enum@BmsToken`] 表示 BMS 文件中一行有意义的内容。
-//! - [`BmsHeader`] 涵盖所有头部命令，按语义域分类。
-//! - [`BmsMessage`] 涵盖通道数据行（`#xxxYY:values`）。
-//! - [`parse_header_line`] / [`parse_message_line`] 是单行入口。
+//! - [`enum@BmsToken`] represents one meaningful line in a BMS file.
+//! - [`BmsHeader`] covers all header commands, grouped by semantic domain.
+//! - [`BmsMessage`] covers channel data lines (`#xxxYY:values`).
+//! - [`parse_header_line`] / [`parse_message_line`] are the single-line entry
+//!   points.
 //!
-//! 子模块为私有；所有公开类型均从 crate 根重新导出。
+//! The submodules are private; all public types are re-exported from the crate
+//! root.
 //!
-//! 类型化值（数值转换、解析出的枚举）始终为 owned。
+//! Typed values (numeric conversions and parsed enums) are always owned.
 
 use std::fmt;
 use std::num::NonZeroUsize;
@@ -46,29 +50,30 @@ pub use index::{
 pub use message::BmsMessage;
 pub use message::parse_message_line;
 
-/// BMS 头部值的统一 trait。
+/// Unified trait for BMS header values.
 ///
-/// 将解析（从输入字符串）与格式化（还原为 BMS 值字符串）
-/// 合并为单一契约。实现了 [`std::str::FromStr`] +
-/// [`std::fmt::Display`] 的类型可获得 blanket 实现——简单的数值或
-/// 标识符类型无需手动实现。
+/// Combines parsing (from an input string) and formatting (back to a BMS value
+/// string) into a single contract. Types implementing [`std::str::FromStr`] and
+/// [`std::fmt::Display`] get a blanket implementation, so simple numeric or
+/// identifier types need no manual implementation.
 ///
-/// # 格式化
+/// # Formatting
 ///
-/// 此 trait 以 [`std::fmt::Display`] 作为父 trait，而非提供自己的
-/// 格式化方法。调用方使用 `.to_string()` 获取 BMS
-/// 表示；这使该 trait 与标准库的格式化基础设施保持兼容。
+/// This trait uses [`std::fmt::Display`] as a supertrait instead of providing
+/// its own formatting method. Callers use `.to_string()` to get the BMS
+/// representation, which keeps the trait compatible with the standard library's
+/// formatting infrastructure.
 pub trait BmsValue: fmt::Display + Sized {
-    /// 将 `s` 解析为 `Self`。
+    /// Parse `s` into `Self`.
     ///
-    /// 返回 `None` 表示解析失败——调用方可以让输入
-    /// 回退到 `BmsHeaderFallback`，而非将失败视为硬错误。
+    /// Returns `None` on parse failure, letting the caller fall back to
+    /// `BmsHeaderFallback` instead of treating the failure as a hard error.
     #[must_use]
     fn parse(s: &str) -> Option<Self>;
 }
 
-// 覆盖基本类型（f64、u8、i32）、BmsIndex、PoorBgaMode、DifficultyLevel，
-// 以及任何已实现 FromStr + Display 的类型。
+// Covers primitive types (f64, u8, i32), BmsIndex, PoorBgaMode,
+// DifficultyLevel, and any type that implements FromStr + Display.
 
 impl<T: std::str::FromStr + fmt::Display> BmsValue for T {
     #[inline]
@@ -77,7 +82,7 @@ impl<T: std::str::FromStr + fmt::Display> BmsValue for T {
     }
 }
 
-// From / TryFrom 转换
+// From / TryFrom conversions
 
 impl TryFrom<BmsToken> for BmsHeader {
     type Error = BmsTryFromError;
@@ -101,11 +106,11 @@ impl TryFrom<(NonZeroUsize, Result<Self, BmsTokenizeError>)> for BmsToken {
     }
 }
 
-/// 分词 BMS 文件产生的单个 token。
+/// A single token produced by tokenizing a BMS file.
 #[derive(Debug, Clone, PartialEq, derive_more::From)]
 pub enum BmsToken {
-    /// 头部命令（元数据、游玩、计时、资源等）。
+    /// Header command (metadata, gameplay, timing, resources, and so on).
     Header(BmsHeader),
-    /// 通道数据行（`#xxxYY:values`）。
+    /// Channel data line (`#xxxYY:values`).
     Message(BmsMessage),
 }
