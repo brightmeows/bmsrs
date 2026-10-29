@@ -1,11 +1,12 @@
 #![expect(missing_docs, reason = "integration test")]
 
 use std::num::NonZeroU8;
+use std::path::Path;
 
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position};
 use bms_parser::{BpmIndex, LnObjIndex};
 use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
-use bms_processor::{BmsProcessor, ProcessWarning};
+use bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{EventKind, NoteKind};
 
@@ -127,6 +128,88 @@ fn process_key_count_uses_used_lanes() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     assert_eq!(chart.chart.key_count, Some(7));
+}
+
+#[test]
+fn process_rejects_zero_bpm() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(0.0);
+
+    let result = BmsProcessor::process::<Bme>(&bms);
+
+    assert!(matches!(result, Err(ProcessError::ZeroBpm)));
+}
+
+#[test]
+fn process_applies_path_wav_to_audio_asset() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio.path_wav = Some("snd".to_owned());
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
+
+    assert_eq!(
+        chart.data.audio_assets[0].path.as_ref(),
+        Path::new("snd/kick.wav")
+    );
+}
+
+#[test]
+fn process_preserves_bms_audio_sidecar() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio.cdda = Some("5".to_owned());
+    bms.audio.path_wav = Some("snd".to_owned());
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    assert_eq!(processed.audio.cdda.as_deref(), Some("5"));
+    assert_eq!(processed.audio.path_wav.as_deref(), Some("snd"));
+}
+
+#[test]
+fn process_preserves_bms_gameplay_sidecar() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.option = Some("774:HI-SPEED_x1.00".to_owned());
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    assert_eq!(
+        processed.gameplay.option.as_deref(),
+        Some("774:HI-SPEED_x1.00")
+    );
+}
+
+#[test]
+fn process_default_detects_oct_fp_layout() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.oct_fp = Some(true);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 2,
+        lane: 2,
+        key_type: KeyType::Visible,
+        wav_id: "01".parse().unwrap(),
+    });
+
+    let chart = BmsProcessor::process_default(&bms).unwrap().chart;
+    let lane = chart.data.events.iter().find_map(|event| {
+        if let EventKind::Note { lane, .. } = &event.kind {
+            Some(*lane)
+        } else {
+            None
+        }
+    });
+
+    assert_eq!(lane, Some(key(1)));
 }
 
 #[test]

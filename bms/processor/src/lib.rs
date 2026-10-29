@@ -34,14 +34,15 @@ mod position;
 pub mod layout;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use bms_parser::{
-    BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, LnMode, SeekIndex, WavIndex,
+    Audio, BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
+    OwnedExWavParams, PlayerMode, Rank, SeekIndex, WavCmdParams, WavIndex,
 };
-use bms_parser::{Bms, BpmValue, KeyType};
+use bms_parser::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
     ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
@@ -53,7 +54,7 @@ use thiserror::Error;
 pub use crate::error::ProcessWarning;
 
 use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsChannel, BmsLayout, Pms, PmsBme, PmsLayout};
+use crate::layout::{Bme, BmsChannel, BmsLayout, DscOctFp, Pms, PmsBme, PmsLayout};
 
 use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
@@ -67,6 +68,12 @@ pub enum ProcessError {
     /// `ZeroResolution` 被译成 `InvalidBpm(0.0)`，报误导性错误。
     #[error(transparent)]
     Timing(#[from] TimingTrackError),
+    /// 初始 BPM 为零。
+    ///
+    /// BMS 的 `#BPM 0` 在部分实现中表示谱面不滚动，但当前时间模型无法
+    /// 表示零 BPM；这里保持拒绝，而不是静默回退到 130。
+    #[error("initial BPM must not be zero; BMS #BPM 0 is not supported")]
+    ZeroBpm,
 }
 
 /// BMS 处理器产出的统一事件类型。
@@ -85,6 +92,83 @@ pub struct Processed {
     pub chart: Chart<(), BmsCustomEvent>,
     /// 处理过程中收集的可恢复警告。
     pub warnings: Vec<ProcessWarning>,
+    /// 未进入核心 `Chart` 的 BMS 游玩参数原始值。
+    pub gameplay: BmsGameplay,
+    /// 未进入核心 `AudioAsset` 的 BMS 音频参数原始值。
+    pub audio: BmsAudio,
+}
+
+/// BMS 游玩参数侧车。
+///
+/// 这些字段的换算规则依赖具体引擎，不进入格式无关的 `Chart`；需要
+/// 原始值的消费者从 [`Processed::gameplay`] 读取。
+#[derive(Debug, Clone, PartialEq)]
+pub struct BmsGameplay {
+    /// 游戏模式（`#PLAYER`）。
+    pub player: Option<PlayerMode>,
+    /// 判定难度（`#RANK`）。
+    pub rank: Option<Rank>,
+    /// 精细判定难度（`#DEFEXRANK`）。
+    pub def_ex_rank: Option<f64>,
+    /// 血量槽最大增量（`#TOTAL`）。
+    pub total: Option<f64>,
+    /// 主音量百分比（`#VOLWAV`）。
+    pub vol_wav: Option<f64>,
+    /// 按位置的判定宽度覆盖（`#EXRANKxx`）。
+    pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
+    /// 引擎特有选项字符串（`#OPTION`）。
+    pub option: Option<String>,
+    /// 动态选项变更定义（`#CHANGEOPTIONxx`）。
+    pub change_option_defs: BTreeMap<ChangeOptionIndex, String>,
+}
+
+impl From<&Gameplay> for BmsGameplay {
+    fn from(gameplay: &Gameplay) -> Self {
+        Self {
+            player: gameplay.player,
+            rank: gameplay.rank,
+            def_ex_rank: gameplay.def_ex_rank,
+            total: gameplay.total,
+            vol_wav: gameplay.vol_wav,
+            ex_rank_defs: gameplay.ex_rank_defs.clone(),
+            option: gameplay.option.clone(),
+            change_option_defs: gameplay.change_option_defs.clone(),
+        }
+    }
+}
+
+/// BMS 音频参数侧车。
+///
+/// `#PATH_WAV` 已经应用到 [`AudioAsset::path`](bmsrs_chart::AudioAsset::path)；
+/// 这里保留原始前缀与其他未进入核心模型的参数。
+#[expect(
+    clippy::derive_partial_eq_without_eq,
+    reason = "侧车保留 BMS 原始参数，部分字段无法安全实现 Eq"
+)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct BmsAudio {
+    /// `#EXWAV` 的逐 WAV 效果参数。
+    pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
+    /// `#WAVCMD` 全局播放命令。
+    pub wav_cmd: Option<WavCmdParams>,
+    /// `#CDDA` 音轨引用。
+    pub cdda: Option<String>,
+    /// `#MIDIFILE` 引用。
+    pub midifile: Option<String>,
+    /// `#PATH_WAV` 原始目录前缀。
+    pub path_wav: Option<String>,
+}
+
+impl From<&Audio> for BmsAudio {
+    fn from(audio: &Audio) -> Self {
+        Self {
+            ex_wav_params: audio.ex_wav_params.clone(),
+            wav_cmd: audio.wav_cmd.clone(),
+            cdda: audio.cdda.clone(),
+            midifile: audio.midifile.clone(),
+            path_wav: audio.path_wav.clone(),
+        }
+    }
 }
 
 /// BMS 谱面的默认节拍分辨率（每四分音符的脉冲数）。
@@ -105,6 +189,9 @@ impl BmsProcessor {
         L: BmsLayout,
     {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
+        if init_bpm == 0.0 {
+            return Err(ProcessError::ZeroBpm);
+        }
 
         let max_measure = find_max_measure(bms);
         let table = MeasureTable::new(max_measure, &bms.messages.measure_lengths, RESOLUTION);
@@ -115,7 +202,7 @@ impl BmsProcessor {
             warnings: Vec::new(),
         };
 
-        let (wav_map, audio_assets) = build_audio_assets(&bms.audio.wav_files);
+        let (wav_map, audio_assets) = build_audio_assets(&bms.audio);
         let bpm_changes = conv.build_bpm_changes();
         let bpm_lookup = BpmLookup::new(init_bpm, &bpm_changes);
 
@@ -194,6 +281,8 @@ impl BmsProcessor {
             .map(ProcessWarning::UnparsableValue)
             .collect();
         warnings.extend(conv.warnings);
+        let gameplay = BmsGameplay::from(&bms.gameplay);
+        let audio = BmsAudio::from(&bms.audio);
 
         Ok(Processed {
             chart: Chart {
@@ -202,6 +291,8 @@ impl BmsProcessor {
                 data,
             },
             warnings,
+            gameplay,
+            audio,
         })
     }
 
@@ -220,8 +311,9 @@ impl BmsProcessor {
         }
     }
 
-    /// 使用默认的 [`Bme`] 布局处理 BMS 谱面。
+    /// 使用默认布局处理 BMS 谱面。
     ///
+    /// 若谱面声明了 `#OCT/FP`，使用 [`DscOctFp`]；否则使用 [`Bme`]。
     /// `Bme` 统一覆盖 beat-5k/7k/10k/14k —— 两侧玩家均被映射，因此单人
     /// 谱面只是让 2P 轨道空置，双人谱面则填充它们。`#PLAYER` 头部命令不
     /// 影响映射（与现代引擎一致，均忽略该字段）。
@@ -234,7 +326,11 @@ impl BmsProcessor {
     /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
     /// [`ProcessError::Timing`]。
     pub fn process_default(bms: &Bms) -> Result<Processed, ProcessError> {
-        Self::process::<Bme>(bms)
+        if bms.gameplay.oct_fp == Some(true) {
+            Self::process::<DscOctFp>(bms)
+        } else {
+            Self::process::<Bme>(bms)
+        }
     }
 }
 
@@ -984,16 +1080,18 @@ fn find_max_measure(bms: &Bms) -> u16 {
 }
 
 /// 构建 WAV 音频素材并返回查找表与素材向量。
-fn build_audio_assets(
-    wav_files: &BTreeMap<WavIndex, String>,
-) -> (BTreeMap<WavIndex, AudioIndex>, Vec<AudioAsset>) {
+fn build_audio_assets(audio: &Audio) -> (BTreeMap<WavIndex, AudioIndex>, Vec<AudioAsset>) {
     let mut wav_map = BTreeMap::new();
     let mut audio_assets = Vec::new();
-    for (&wav_id, path) in wav_files {
+    for (&wav_id, path) in &audio.wav_files {
         #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
         let idx = AudioIndex::new(audio_assets.len() as u32);
+        let resolved_path = audio.path_wav.as_ref().map_or_else(
+            || PathBuf::from(path),
+            |prefix| Path::new(prefix).join(path),
+        );
         audio_assets.push(AudioAsset {
-            path: Arc::from(PathBuf::from(path.as_str())),
+            path: Arc::from(resolved_path),
             start: Duration::ZERO,
             duration: None,
         });
