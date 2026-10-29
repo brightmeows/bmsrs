@@ -39,7 +39,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bms_parser::{
-    Audio, BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
+    Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
     OwnedExWavParams, PlayerMode, Rank, SeekIndex, WavCmdParams, WavIndex,
 };
 use bms_parser::{Bms, BpmValue, Gameplay, KeyType};
@@ -770,7 +770,7 @@ impl BmsConverter<'_> {
                 self.events.push(Event::new(
                     self.table.position_to_tick(be.position),
                     EventKind::Bga {
-                        layer: be.layer,
+                        layer: map_bga_layer(be.layer),
                         resource_id: entry.resource_id,
                     },
                 ));
@@ -1033,6 +1033,16 @@ impl BmsConverter<'_> {
             asset = asset.with_delay_frames(delay.max(0.0).round() as u32);
         }
         Some(asset)
+    }
+}
+
+/// 将 BMS 语义层的图层枚举映射为格式无关的 [`bmsrs_chart::BgaLayer`]。
+const fn map_bga_layer(layer: BmsBgaLayer) -> bmsrs_chart::BgaLayer {
+    match layer {
+        BmsBgaLayer::Base => bmsrs_chart::BgaLayer::Base,
+        BmsBgaLayer::Poor => bmsrs_chart::BgaLayer::Poor,
+        BmsBgaLayer::Layer => bmsrs_chart::BgaLayer::Layer,
+        BmsBgaLayer::Layer2 => bmsrs_chart::BgaLayer::Layer2,
     }
 }
 

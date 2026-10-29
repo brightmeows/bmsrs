@@ -23,7 +23,7 @@ processor 承担**信息损失型转换**——合并优先级（`#BGA`/`#BMP`�
 | 音符 | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | LNOBJ 消耗的 note 从普通音符中排除 |
 | 时序 | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | 小节长通过 `length_ratio` (f64) 计算 |
 | BGM | `BgmEvent` | `Event::Bgm` | LNOBJ 终点标记也作为 BGM 播放 |
-| BGA | `BgaEvent` | `Event::Bga` | 四层（Base / Poor / Layer / Layer2）|
+| BGA | `BgaEvent` | `Event::Bga` | 四层（Base / Poor / Layer / Layer2）；`BmsBgaLayer` 在此映射到 `chart::BgaLayer` |
 | 显示元数据 | `BmsHeaderDisplay` | `ChartInfo` | `#BANNER`/`#BACKBMP`/`#STAGEFILE`/`#PREVIEW` ∊ `build_metadata` |
 | SCROLL | `ScrollEvent` | `Event::Scroll` | 卷轴速度倍率 |
 | SPEED | `SpeedEvent` | `Event::Speed` | 视觉间距关键帧，线性插值 |

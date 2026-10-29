@@ -16,7 +16,6 @@ readme.workspace = true
 bms-source.workspace = true
 bms-syntax.workspace = true
 bms-values.workspace = true
-bmsrs-chart.workspace = true
 thiserror.workspace = true
 
 [lib]
