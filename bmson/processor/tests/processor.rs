@@ -1,4 +1,4 @@
-//! `bmsrs-bmson-processor` 的集成测试。
+//! Integration tests for `bmsrs-bmson-processor`.
 
 #![expect(clippy::panic_in_result_fn, reason = "test helpers and assertions")]
 
@@ -29,7 +29,7 @@ const fn key(n: u8) -> Lane {
     Lane::Key(nz(n))
 }
 
-/// 构建一个简单的 v2 BMSON 谱面供测试使用。
+/// Build a simple v2 BMSON chart for tests.
 fn make_simple_bmson() -> bmsrs_bmson_def::Bmson<'static> {
     bmsrs_bmson_def::Bmson {
         version: "2.0.0",
@@ -486,7 +486,7 @@ fn process_pms_layout_single_player() -> TestResult {
         })
         .collect();
 
-    // PMS 模式：所有音符均为 Player 1
+    // PMS mode: every note is Player 1.
     assert_eq!(sides.len(), 9);
     assert!(sides.iter().all(|s| *s == NoteSide::P1));
     Ok(())
@@ -543,7 +543,8 @@ fn process_generic_layout_n_keys() -> TestResult {
 
 #[test]
 fn process_default_other_mode_hint_produces_warning() -> TestResult {
-    // 规范外的扩展提示回退 Beat 布局，且回退本身必须可观测。
+    // A non-standard extension hint falls back to the Beat layout, and the
+    // fallback itself must be observable.
     let mut bmson = make_simple_bmson();
     bmson.chart_data.mode_hint = ModeHint::Other("somewhere-new".to_owned());
     let warnings = BmsonProcessor::process_default(&bmson)?.warnings;
@@ -845,7 +846,8 @@ fn process_bga_events() -> TestResult {
     assert!(bga_evts.contains(&(960, BgaLayer::Poor)));
 
     assert_eq!(chart.chart.bga_resources.len(), 1);
-    // 稠密化：原始 id 1 → 下标 0；BGA 资源不再单独保存 id。
+    // Densification: raw id 1 becomes index 0; BGA resources no longer store
+    // their own id.
     assert!(chart.chart.bga_resources[0].crop.is_none());
     Ok(())
 }
@@ -896,7 +898,7 @@ fn process_long_note() -> TestResult {
 
 #[test]
 fn process_bgm_note_skips_playable_pulse() -> TestResult {
-    // BGM 音符（x=0）在与可玩音符相同脉冲时被丢弃。
+    // BGM notes (x=0) are dropped when they share a tick with playable notes.
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
         name: Path::new("playable.wav"),
@@ -947,7 +949,7 @@ fn process_bgm_note_skips_playable_pulse() -> TestResult {
         })
         .count();
 
-    // 只应有 1 个可玩音符（BGM 被丢弃）。
+    // There should be only 1 playable note (the BGM note is dropped).
     assert_eq!(event_count, 1);
     Ok(())
 }
@@ -1002,7 +1004,7 @@ fn bar_lines_auto_generated() -> TestResult {
 
 #[test]
 fn beat_layout_mapping() {
-    // 测试 Beat 布局的 x → (side, lane) 映射
+    // Test the Beat layout's x to (side, lane) mapping.
     assert_eq!(Beat::from_bmson(1), Some((NoteSide::P1, key(1))));
     assert_eq!(Beat::from_bmson(7), Some((NoteSide::P1, key(7))));
     assert_eq!(
