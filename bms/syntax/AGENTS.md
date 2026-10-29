@@ -1,10 +1,10 @@
-# bms-syntax
+# bmsrs-bms-syntax
 
 ## 定位
 
 BMS 语法层：在解码后的文本上构建 rowan CST，负责词法、容错解析、
-控制流嵌套与分支选择查询。不做字节编码（`bms-source`）与语义值解析
-（`bms-parser`）。
+控制流嵌套与分支选择查询。不做字节编码（`bmsrs-bms-source`）与语义值解析
+（`bmsrs-bms-parser`）。
 
 ## 核心不变量
 
@@ -70,7 +70,7 @@ SourceFile
 ## 测试
 
 ```bash
-cargo test -p bms-syntax
+cargo test -p bmsrs-bms-syntax
 ```
 
 公开 API 测试放 `tests/`，覆盖：lossless、行内 token、控制流嵌套、

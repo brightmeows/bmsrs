@@ -99,7 +99,7 @@ pub mod bms {
 
     /// 由原始 BMS 字节构建 [`Bms`](parser::Bms)，自动检测编码。
     ///
-    /// 与 [`from_text`] 的区别是保留 `bms-source` 的编码检测与解码路径，
+    /// 与 [`from_text`] 的区别是保留 `bmsrs-bms-source` 的编码检测与解码路径，
     /// 适用于 `Shift_JIS` 等非 UTF-8 谱面。
     ///
     /// # Errors
@@ -191,12 +191,12 @@ pub mod bms {
 
     /// 源文本层——字节、编码、行索引与字节保真编辑。
     pub mod source {
-        pub use bms_source::*;
+        pub use bmsrs_bms_source::*;
     }
 
     /// 语法层——rowan CST、词法、解析与控制流查询。
     pub mod syntax {
-        pub use bms_syntax::*;
+        pub use bmsrs_bms_syntax::*;
     }
 
     /// BMS 语义层——类型化 header/message 与 `Bms` 模型。
@@ -205,29 +205,29 @@ pub mod bms {
     /// 路径是 [`values`]；此处 re-export 仅为 parser
     /// 使用者的便利别名。
     pub mod parser {
-        pub use bms_parser::*;
+        pub use bmsrs_bms_parser::*;
     }
 
     /// 单行语法与类型化值——header/message、索引与解析。
     ///
     /// 值类型的规范路径。
     pub mod values {
-        pub use bms_values::*;
+        pub use bmsrs_bms_values::*;
     }
 
     /// 分析层——诊断、符号索引与编辑器数据。
     pub mod analysis {
-        pub use bms_analysis::*;
+        pub use bmsrs_bms_analysis::*;
     }
 
     /// BMS 处理器——将 `Bms` 转换为格式无关的 `Chart`。
     pub mod processor {
-        pub use bms_processor::*;
+        pub use bmsrs_bms_processor::*;
     }
 
     /// BMS 生成器——将 `Bms` 全量重写为 BMS 文本。
     pub mod writer {
-        pub use bms_writer::*;
+        pub use bmsrs_bms_writer::*;
     }
 }
 
@@ -235,12 +235,12 @@ pub mod bms {
 pub mod bmson {
     /// BMSON 类型系统（v0/v1/v2）。
     pub mod def {
-        pub use bmson_def::{v0, v1, *};
+        pub use bmsrs_bmson_def::{v0, v1, *};
     }
 
     /// BMSON 处理器——将 bmson 数据转换为格式无关的 `Chart`。
     pub mod processor {
-        pub use bmson_processor::*;
+        pub use bmsrs_bmson_processor::*;
     }
 }
 
@@ -259,8 +259,8 @@ pub mod player {
 /// 各层保留自己的 warning 类型；需要单一诊断流的消费者在这里做转换，
 /// 不强迫 processor 依赖 analysis。
 pub mod diagnostic {
-    use bms_analysis::{AnalysisDiagnostic, Severity};
-    use bms_syntax::TextRange;
+    use bmsrs_bms_analysis::{AnalysisDiagnostic, Severity};
+    use bmsrs_bms_syntax::TextRange;
 
     use crate::bms::FromTextWarning;
 
@@ -314,14 +314,14 @@ pub mod diagnostic {
         }
     }
 
-    impl From<bms_processor::ProcessWarning> for Diagnostic {
-        fn from(warning: bms_processor::ProcessWarning) -> Self {
+    impl From<bmsrs_bms_processor::ProcessWarning> for Diagnostic {
+        fn from(warning: bmsrs_bms_processor::ProcessWarning) -> Self {
             Self::new(Severity::Warning, None, warning.to_string(), "bms-process")
         }
     }
 
-    impl From<bmson_processor::BmsonProcessWarning> for Diagnostic {
-        fn from(warning: bmson_processor::BmsonProcessWarning) -> Self {
+    impl From<bmsrs_bmson_processor::BmsonProcessWarning> for Diagnostic {
+        fn from(warning: bmsrs_bmson_processor::BmsonProcessWarning) -> Self {
             Self::new(
                 Severity::Warning,
                 None,

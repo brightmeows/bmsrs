@@ -10,8 +10,8 @@
 
 ```mermaid
 flowchart LR
-    BProc[bms-processor] --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
-    BMProc[bmson-processor] --> Chart
+    BProc[bmsrs-bms-processor] --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
+    BMProc[bmsrs-bmson-processor] --> Chart
     Chart --> Player[bmsrs-player]
 ```
 

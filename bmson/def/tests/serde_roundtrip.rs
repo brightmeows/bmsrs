@@ -1,10 +1,10 @@
-//! bmson-def 类型的序列化 / 反序列化往返测试。
+//! bmsrs-bmson-def 类型的序列化 / 反序列化往返测试。
 //!
 //! 验证 serde JSON 往返转换产生语义等价的结果。
 
 use std::path::Path;
 
-use bmson_def::*;
+use bmsrs_bmson_def::*;
 
 /// 构建一个简单的 v2 谱面供测试使用。
 fn make_test_bmson() -> Bmson<'static> {
@@ -112,10 +112,13 @@ fn bmson_null_lines_is_some_none() {
     }"#;
     let bmson: Bmson = serde_json::from_str(json).unwrap();
     assert!(bmson.chart_data.lines.is_none());
-    assert_eq!(bmson.chart_data.bpm_events, [] as [bmson_def::BpmEvent; 0]);
+    assert_eq!(
+        bmson.chart_data.bpm_events,
+        [] as [bmsrs_bmson_def::BpmEvent; 0]
+    );
     assert_eq!(
         bmson.chart_data.stop_events,
-        [] as [bmson_def::StopEvent; 0]
+        [] as [bmsrs_bmson_def::StopEvent; 0]
     );
 }
 
@@ -285,10 +288,10 @@ fn chart_data_ln_hints_roundtrip() {
 #[test]
 fn bga_default_is_empty() {
     let bga = BGA::default();
-    assert_eq!(bga.bga_header, [] as [bmson_def::BGAHeader<'_>; 0]);
-    assert_eq!(bga.bga_events, [] as [bmson_def::BGAEvent; 0]);
-    assert_eq!(bga.layer_events, [] as [bmson_def::BGAEvent; 0]);
-    assert_eq!(bga.poor_events, [] as [bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.bga_header, [] as [bmsrs_bmson_def::BGAHeader<'_>; 0]);
+    assert_eq!(bga.bga_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.layer_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.poor_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
 }
 
 #[test]

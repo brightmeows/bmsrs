@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use bmson_def::*;
+use bmsrs_bmson_def::*;
 
 // v1 转换测试
 
@@ -114,8 +114,8 @@ fn v1_with_null_arrays_handled() {
         "bga": { "bga_header": [], "bga_events": [], "layer_events": [], "poor_events": [] }
     }"#;
     let v1: v1::Bmson = serde_json::from_str(json).unwrap();
-    assert_eq!(v1.bpm_events, [] as [bmson_def::BpmEvent; 0]);
-    assert_eq!(v1.stop_events, [] as [bmson_def::StopEvent; 0]);
+    assert_eq!(v1.bpm_events, [] as [bmsrs_bmson_def::BpmEvent; 0]);
+    assert_eq!(v1.stop_events, [] as [bmsrs_bmson_def::StopEvent; 0]);
 }
 
 // v0 转换测试
@@ -270,7 +270,7 @@ fn v0_bar_line_without_k_field() {
 #[test]
 fn v0_bar_line_k_dropped_when_converting_to_root() {
     let v0_bar = v0::BarLine { y: 960, k: Some(0) };
-    let root_bar: BarLine = bmson_def::BarLine { y: 960 };
+    let root_bar: BarLine = bmsrs_bmson_def::BarLine { y: 960 };
     assert_eq!(root_bar.y, v0_bar.y);
     // k 字段只存在于 v0
 }

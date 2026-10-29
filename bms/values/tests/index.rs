@@ -1,6 +1,6 @@
 //! [`BmsIndex`] 与索引 newtype 的集成测试。
 
-use bms_values::*;
+use bmsrs_bms_values::*;
 
 // BmsIndex 测试
 

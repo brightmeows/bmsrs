@@ -106,37 +106,58 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
-name = "bms-analysis"
+name = "bmsrs"
 version = "0.1.0"
 dependencies = [
- "bms-syntax",
- "bms-values",
-]
-
-[[package]]
-name = "bms-parser"
-version = "0.1.0"
-dependencies = [
- "bms-source",
- "bms-syntax",
- "bms-values",
+ "bmsrs-bms-analysis",
+ "bmsrs-bms-parser",
+ "bmsrs-bms-processor",
+ "bmsrs-bms-source",
+ "bmsrs-bms-syntax",
+ "bmsrs-bms-values",
+ "bmsrs-bms-writer",
+ "bmsrs-bmson-def",
+ "bmsrs-bmson-processor",
+ "bmsrs-chart",
+ "bmsrs-player",
+ "encoding_rs",
+ "rayon",
+ "serde_json",
  "thiserror",
 ]
 
 [[package]]
-name = "bms-processor"
+name = "bmsrs-bms-analysis"
 version = "0.1.0"
 dependencies = [
- "bms-parser",
- "bms-syntax",
+ "bmsrs-bms-syntax",
+ "bmsrs-bms-values",
+]
+
+[[package]]
+name = "bmsrs-bms-parser"
+version = "0.1.0"
+dependencies = [
+ "bmsrs-bms-source",
+ "bmsrs-bms-syntax",
+ "bmsrs-bms-values",
+ "thiserror",
+]
+
+[[package]]
+name = "bmsrs-bms-processor"
+version = "0.1.0"
+dependencies = [
  "bmsrs",
+ "bmsrs-bms-parser",
+ "bmsrs-bms-syntax",
  "bmsrs-chart",
  "bmsrs-player",
  "thiserror",
 ]
 
 [[package]]
-name = "bms-source"
+name = "bmsrs-bms-source"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
@@ -145,10 +166,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "bms-syntax"
+name = "bmsrs-bms-syntax"
 version = "0.1.0"
 dependencies = [
- "bms-source",
+ "bmsrs-bms-source",
  "insta",
  "proptest",
  "rowan",
@@ -156,16 +177,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "bms-values"
+name = "bmsrs-bms-values"
 version = "0.1.0"
 dependencies = [
- "bms-values-derive",
+ "bmsrs-bms-values-derive",
  "derive_more",
  "thiserror",
 ]
 
 [[package]]
-name = "bms-values-derive"
+name = "bmsrs-bms-values-derive"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
@@ -174,16 +195,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "bms-writer"
+name = "bmsrs-bms-writer"
 version = "0.1.0"
 dependencies = [
- "bms-parser",
- "bms-syntax",
+ "bmsrs-bms-parser",
+ "bmsrs-bms-syntax",
  "proptest",
 ]
 
 [[package]]
-name = "bmson-def"
+name = "bmsrs-bmson-def"
 version = "0.1.0"
 dependencies = [
  "chumsky",
@@ -195,32 +216,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "bmson-processor"
+name = "bmsrs-bmson-processor"
 version = "0.1.0"
 dependencies = [
- "bmson-def",
+ "bmsrs-bmson-def",
  "bmsrs-chart",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "bmsrs"
-version = "0.1.0"
-dependencies = [
- "bms-analysis",
- "bms-parser",
- "bms-processor",
- "bms-source",
- "bms-syntax",
- "bms-values",
- "bms-writer",
- "bmson-def",
- "bmson-processor",
- "bmsrs-chart",
- "bmsrs-player",
- "encoding_rs",
- "rayon",
  "serde_json",
  "thiserror",
 ]

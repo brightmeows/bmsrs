@@ -200,7 +200,7 @@ impl PmsLayout {
     /// - 若同时出现两种指示，Standard 优先（safe default）。
     /// - 若无可指示的事件，返回 Standard。
     #[must_use]
-    pub fn detect(bms: &bms_parser::Bms) -> Self {
+    pub fn detect(bms: &bmsrs_bms_parser::Bms) -> Self {
         let mut has_standard = false;
         let mut has_bme = false;
 

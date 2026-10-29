@@ -1,5 +1,5 @@
 [package]
-name = "bms-source"
+name = "bmsrs-bms-source"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,6 +1,6 @@
 //! 格式无关的音乐游戏谱面数据模型。
 //!
-//! [`Chart`] 是核心类型：由格式处理器（`bmson-processor`、`bms-processor`）
+//! [`Chart`] 是核心类型：由格式处理器（`bmsrs-bmson-processor`、`bmsrs-bms-processor`）
 //! 产生的中间表示，供播放器（`bmsrs-player`）消费。
 //!
 //! # 结构

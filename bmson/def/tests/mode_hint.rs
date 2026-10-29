@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use bmson_def::ModeHint;
+use bmsrs_bmson_def::ModeHint;
 
 #[test]
 fn round_trip_standard() {

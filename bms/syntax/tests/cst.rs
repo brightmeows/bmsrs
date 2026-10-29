@@ -1,6 +1,6 @@
 //! CST 解析测试。
 
-use bms_syntax::{LineKind, ParseOptions, SourceFile, SyntaxKind};
+use bmsrs_bms_syntax::{LineKind, ParseOptions, SourceFile, SyntaxKind};
 
 #[test]
 fn cst_text_is_lossless() {

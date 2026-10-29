@@ -1,6 +1,6 @@
 //! 分析诊断。
 
-use bms_syntax::TextRange;
+use bmsrs_bms_syntax::TextRange;
 
 /// 诊断严重度。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

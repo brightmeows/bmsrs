@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use bmson_def::{BarLine, Bmson, LnMode, ModeHint};
+use bmsrs_bmson_def::{BarLine, Bmson, LnMode, ModeHint};
 
 #[test]
 fn v1_to_root_basic() {
@@ -29,7 +29,7 @@ fn v1_to_root_basic() {
         }],
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
-    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    let v1: bmsrs_bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     let root: Bmson = v1.into();
 
     assert_eq!(root.song_info.title, "Test");
@@ -65,9 +65,9 @@ fn root_to_v1_round_trip() {
         "sound_channels": [],
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
-    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    let v1: bmsrs_bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     let root: Bmson = v1.clone().into();
-    let back: bmson_def::v1::Bmson = root.into();
+    let back: bmsrs_bmson_def::v1::Bmson = root.into();
 
     assert_eq!(back.version, v1.version);
     assert_eq!(back.info.title, v1.info.title);
@@ -97,7 +97,7 @@ fn v0_to_root_camel_case() {
         }],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    let v0: bmsrs_bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
     let root: Bmson = v0.try_into().unwrap();
 
     assert_eq!(root.song_info.title, "Legacy");
@@ -117,7 +117,7 @@ fn v0_stop_events_accepts_both_names() {
         "soundChannel": [],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    let v0: bmsrs_bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
     assert_eq!(v0.stop_events.len(), 1);
     assert_eq!(v0.stop_events[0].y, 480);
     assert!((v0.stop_events[0].v - 48.0).abs() < 1e-10);
@@ -129,7 +129,7 @@ fn v0_stop_events_accepts_both_names() {
         "soundChannel": [],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0_legacy: bmson_def::v0::Bmson = serde_json::from_str(v0_json_legacy).unwrap();
+    let v0_legacy: bmsrs_bmson_def::v0::Bmson = serde_json::from_str(v0_json_legacy).unwrap();
     assert_eq!(v0_legacy.stop_events[0].y, 240);
 }
 
@@ -148,12 +148,12 @@ fn v0_to_root_with_t_field_mapping() {
         }],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    let v0: bmsrs_bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
     let root: Bmson = v0.try_into().unwrap();
 
     let notes = &root.chart_data.sound_channels[0].note_events;
     assert_eq!(notes[0].t, Some(LnMode::Cn));
-    assert_eq!(notes[0].ln_type_hint, Some(bmson_def::LnType::Cn));
+    assert_eq!(notes[0].ln_type_hint, Some(bmsrs_bmson_def::LnType::Cn));
     assert_eq!(notes[1].t, None);
     assert_eq!(notes[1].ln_type_hint, None);
 }
@@ -177,12 +177,12 @@ fn v1_to_root_with_t_field_mapping() {
         }],
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
-    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    let v1: bmsrs_bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     let root: Bmson = v1.into();
 
     let notes = &root.chart_data.sound_channels[0].note_events;
     assert_eq!(notes[0].t, Some(LnMode::Cn));
-    assert_eq!(notes[0].ln_type_hint, Some(bmson_def::LnType::Cn));
+    assert_eq!(notes[0].ln_type_hint, Some(bmsrs_bmson_def::LnType::Cn));
     assert_eq!(notes[1].t, None);
     assert_eq!(notes[1].ln_type_hint, None);
 }
@@ -201,11 +201,11 @@ fn v1_ln_type_maps_to_ln_type_hint() {
         "sound_channels": [],
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
-    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
-    assert_eq!(v1.info.ln_type, Some(bmson_def::LnMode::Cn));
+    let v1: bmsrs_bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    assert_eq!(v1.info.ln_type, Some(bmsrs_bmson_def::LnMode::Cn));
 
     let root: Bmson = v1.into();
-    assert_eq!(root.chart_data.ln_type_hint, bmson_def::LnType::Cn);
+    assert_eq!(root.chart_data.ln_type_hint, bmsrs_bmson_def::LnType::Cn);
 }
 
 #[test]
@@ -221,11 +221,11 @@ fn v1_ln_type_default_none() {
         "sound_channels": [],
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
-    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    let v1: bmsrs_bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     assert_eq!(v1.info.ln_type, None);
 
     let root: Bmson = v1.into();
-    assert_eq!(root.chart_data.ln_type_hint, bmson_def::LnType::Ln);
+    assert_eq!(root.chart_data.ln_type_hint, bmsrs_bmson_def::LnType::Ln);
 }
 
 #[test]
@@ -242,9 +242,9 @@ fn v1_root_to_v1_ln_type_roundtrip() {
         "sound_channels": [],
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
-    let v1: bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    let v1: bmsrs_bmson_def::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     let root: Bmson = v1.clone().into();
-    let back: bmson_def::v1::Bmson = root.into();
+    let back: bmsrs_bmson_def::v1::Bmson = root.into();
     assert_eq!(back.info.ln_type, v1.info.ln_type);
 }
 
@@ -259,11 +259,11 @@ fn v0_info_ln_type_maps_to_ln_type_hint() {
         "bpmNotes": [], "stopNotes": [], "soundChannel": [],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
-    assert_eq!(v0.info.ln_type, Some(bmson_def::LnMode::Cn));
+    let v0: bmsrs_bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    assert_eq!(v0.info.ln_type, Some(bmsrs_bmson_def::LnMode::Cn));
 
     let root: Bmson = v0.try_into().unwrap();
-    assert_eq!(root.chart_data.ln_type_hint, bmson_def::LnType::Cn);
+    assert_eq!(root.chart_data.ln_type_hint, bmsrs_bmson_def::LnType::Cn);
 }
 
 #[test]
@@ -273,7 +273,7 @@ fn v0_init_bpm_negative_is_error() {
         "bpmNotes": [], "stopNotes": [], "soundChannel": [],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    let v0: bmsrs_bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
     let result: Result<Bmson, _> = v0.try_into();
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -287,15 +287,15 @@ fn v0_init_bpm_zero_is_error() {
         "bpmNotes": [], "stopNotes": [], "soundChannel": [],
         "bga": {"bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": []}
     }"#;
-    let v0: bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
+    let v0: bmsrs_bmson_def::v0::Bmson = serde_json::from_str(v0_json).unwrap();
     let result: Result<Bmson, _> = v0.try_into();
     assert!(result.is_err());
 }
 
 #[test]
 fn root_to_v0_invalid_init_bpm_errors() {
-    use bmson_def::Bmson;
-    use bmson_def::{ChartData, ChartInfo, SongInfo};
+    use bmsrs_bmson_def::Bmson;
+    use bmsrs_bmson_def::{ChartData, ChartInfo, SongInfo};
 
     let root = Bmson {
         version: "2.0.0",
@@ -314,13 +314,13 @@ fn root_to_v0_invalid_init_bpm_errors() {
             banner_image: None,
             preview_music: None,
             title_image: None,
-            bga: bmson_def::BGA::default(),
+            bga: bmsrs_bmson_def::BGA::default(),
         },
         chart_data: ChartData {
-            mode_hint: bmson_def::ModeHint::Beat7k,
-            ln_type_hint: bmson_def::LnType::Ln,
-            ln_judge_hint: bmson_def::LnJudge::Normal,
-            ln_life_hint: bmson_def::LnLife::Normal,
+            mode_hint: bmsrs_bmson_def::ModeHint::Beat7k,
+            ln_type_hint: bmsrs_bmson_def::LnType::Ln,
+            ln_judge_hint: bmsrs_bmson_def::LnJudge::Normal,
+            ln_life_hint: bmsrs_bmson_def::LnLife::Normal,
             init_bpm: 0.0,
             judge_multiplier: 1.0,
             life_multiplier: 1.0,
@@ -336,7 +336,7 @@ fn root_to_v0_invalid_init_bpm_errors() {
         mine_channels: vec![],
         key_channels: vec![],
     };
-    let result: Result<bmson_def::v0::Bmson, _> = root.try_into();
+    let result: Result<bmsrs_bmson_def::v0::Bmson, _> = root.try_into();
     assert!(result.is_err());
     assert!(
         result.unwrap_err().message.contains("init_bpm"),

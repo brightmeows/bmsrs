@@ -4,7 +4,7 @@
 //! `#ELSEIF` 首匹配、`#ELSE`/`#DEF` 兜底、`#SKIP` fall-through、多块、
 //! 嵌套、0 值与深嵌套。
 
-use bms_syntax::{Line, SourceFile};
+use bmsrs_bms_syntax::{Line, SourceFile};
 
 /// 按顺序返回预设随机值的测试 RNG。
 struct SequenceRng {
@@ -50,7 +50,7 @@ fn wavs(lines: &[Line]) -> Vec<String> {
 }
 
 /// 返回第一个决策的 `(value, selected_index)`。
-fn first_decision(selection: &bms_syntax::BranchSelection) -> (u64, usize) {
+fn first_decision(selection: &bmsrs_bms_syntax::BranchSelection) -> (u64, usize) {
     selection.decisions().first().map_or((0, 0), |decision| {
         (decision.value(), decision.selected_index())
     })

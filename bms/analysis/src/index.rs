@@ -1,6 +1,6 @@
 //! 资源定义与引用索引。
 
-use bms_syntax::{TextRange, TextSize};
+use bmsrs_bms_syntax::{TextRange, TextSize};
 
 /// 资源种类。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

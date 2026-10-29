@@ -1,6 +1,6 @@
 //! BMSON → `Chart` 转换处理器。
 //!
-//! [`BmsonProcessor`] 将一个 `bmson_def::Bmson`（v2 根 schema）转换为
+//! [`BmsonProcessor`] 将一个 `bmsrs_bmson_def::Bmson`（v2 根 schema）转换为
 //! 格式无关的 `Chart<BmsonNoteExt>`，转换时套用一个 [`BmsonLayout`] 模式族
 //! （[`Beat`]、[`Pms`]，或用于 n-keys 的 [`GenericLayout`]）。
 //!
@@ -9,14 +9,14 @@
 //! # 管道
 //!
 //! ```text
-//! bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<BmsonNoteExt>
+//! bmsrs_bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<BmsonNoteExt>
 //! ```
 //!
 //! 对于 v0/v1 文件，请先通过 `Bmson::from` 转换为根 schema。
 //!
 //! # 切片
 //!
-//! 每个 `bmson_def::SoundChannel` 会在每个唯一的音符脉冲处切片为预计算的
+//! 每个 `bmsrs_bmson_def::SoundChannel` 会在每个唯一的音符脉冲处切片为预计算的
 //! `AudioAsset`（详见内部 `slice` 模块）。
 
 mod error;
@@ -29,7 +29,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
+use bmsrs_bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
     ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio,
@@ -45,7 +45,7 @@ use crate::slice::slice_channel;
 
 /// BMSON 格式的每音符扩展数据。
 ///
-/// 携带来自 `bmson_def::NoteEvent` 的可选字段，这些字段不属于核心谱面模型。
+/// 携带来自 `bmsrs_bmson_def::NoteEvent` 的可选字段，这些字段不属于核心谱面模型。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BmsonNoteExt {
     /// 音符音量（百分比，DJ.NEXT 扩展）。
@@ -86,7 +86,7 @@ pub enum ProcessError {
     },
 }
 
-/// 将 [`bmson_def::Bmson`] 转换为 [`Chart<BmsonNoteExt>`] 的零大小处理器。
+/// 将 [`bmsrs_bmson_def::Bmson`] 转换为 [`Chart<BmsonNoteExt>`] 的零大小处理器。
 ///
 /// 调用 [`process`](Self::process) 时传入一个模式族布局，或调用
 /// [`process_default`](Self::process_default) 从 `mode_hint` 中自动选择。
@@ -108,7 +108,7 @@ impl BmsonProcessor {
     ///
     /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
     /// [`ProcessError::Timing`]。
-    pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Processed, ProcessError>
+    pub fn process<L>(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<Processed, ProcessError>
     where
         L: BmsonLayout,
     {
@@ -125,7 +125,7 @@ impl BmsonProcessor {
     /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
     /// [`ProcessError::Timing`]。
     pub fn process_nkeys(
-        bmson: &bmson_def::Bmson<'_>,
+        bmson: &bmsrs_bmson_def::Bmson<'_>,
         keys: u8,
     ) -> Result<Processed, ProcessError> {
         let layout = GenericLayout { keys };
@@ -136,7 +136,7 @@ impl BmsonProcessor {
     ///
     /// `beat-*` 与 `dj-*` 提示映射到 [`Beat`]；`popn-*` 映射到 [`Pms`]；
     /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；
-    /// 规范外的扩展提示（[`ModeHint::Other`](bmson_def::ModeHint::Other)）
+    /// 规范外的扩展提示（[`ModeHint::Other`](bmsrs_bmson_def::ModeHint::Other)）
     /// 回退到 [`Beat`]（BMSON 默认值），回退警告记录在
     /// [`Processed::warnings`] 中。
     ///
@@ -148,19 +148,19 @@ impl BmsonProcessor {
     ///   （[`Lane::Key`] 的索引上限），返回
     ///   [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
     ///   被静默丢弃）。
-    pub fn process_default(bmson: &bmson_def::Bmson<'_>) -> Result<Processed, ProcessError> {
+    pub fn process_default(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<Processed, ProcessError> {
         match &bmson.chart_data.mode_hint {
-            bmson_def::ModeHint::Popn5k | bmson_def::ModeHint::Popn9k => {
+            bmsrs_bmson_def::ModeHint::Popn5k | bmsrs_bmson_def::ModeHint::Popn9k => {
                 Self::process::<Pms>(bmson)
             }
-            bmson_def::ModeHint::Generic(n) => {
+            bmsrs_bmson_def::ModeHint::Generic(n) => {
                 let keys = u8::try_from(*n).map_err(|_e| ProcessError::InvalidKeyCount(*n))?;
                 if keys == 0 {
                     return Err(ProcessError::InvalidKeyCount(*n));
                 }
                 Self::process_nkeys(bmson, keys)
             }
-            bmson_def::ModeHint::Other(hint) => {
+            bmsrs_bmson_def::ModeHint::Other(hint) => {
                 let mut processed = Self::process::<Beat>(bmson)?;
                 processed
                     .warnings
@@ -173,7 +173,7 @@ impl BmsonProcessor {
 
     /// 自定义解码逻辑的公开入口（内部使用）。
     fn process_body(
-        bmson: &bmson_def::Bmson<'_>,
+        bmson: &bmsrs_bmson_def::Bmson<'_>,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
     ) -> Result<Processed, ProcessError> {
         let bmson_data = &bmson.chart_data;
@@ -245,13 +245,13 @@ impl BmsonProcessor {
 
 /// BMSON → [`Chart`] 转换上下文。
 ///
-/// 持有源文档 [`bmson_def::Bmson`]、解码函数与预计算的计时缓存，
+/// 持有源文档 [`bmsrs_bmson_def::Bmson`]、解码函数与预计算的计时缓存，
 /// 同时拥有 `audio_assets` 和 `events` 两个累加缓冲区，使各转换步骤
 /// 以 `&mut self` 方法组织而非自由函数 + `&mut` 参数。仅供
 /// [`BmsonProcessor::process_body`] 内部使用。
 struct BmsonConverter<'a> {
     /// 源 BMSON 文档。
-    bmson: &'a bmson_def::Bmson<'a>,
+    bmson: &'a bmsrs_bmson_def::Bmson<'a>,
     /// 通道解码函数（`x` → `(side, lane)`）。
     decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
     /// 预计算的计时缓存。
@@ -651,7 +651,7 @@ fn normalize_optional_path(option: Option<&Path>) -> Result<Option<String>, Proc
 ///
 /// 若 `data.init_bpm` 无效（零或非有限值），返回
 /// [`TimingTrackError::InvalidBpm`]。
-fn build_timing(data: &bmson_def::ChartData<'_>) -> Result<TimingTrack, TimingTrackError> {
+fn build_timing(data: &bmsrs_bmson_def::ChartData<'_>) -> Result<TimingTrack, TimingTrackError> {
     TimingTrack::new(
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
@@ -660,8 +660,8 @@ fn build_timing(data: &bmson_def::ChartData<'_>) -> Result<TimingTrack, TimingTr
     )
 }
 
-/// 从 BMSON [`NoteEvent`](bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。
-fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
+/// 从 BMSON [`NoteEvent`](bmsrs_bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。
+fn build_note_ext(ne: &bmsrs_bmson_def::NoteEvent) -> BmsonNoteExt {
     BmsonNoteExt {
         vol: ne.vol,
         pan: ne.pan,
@@ -675,35 +675,35 @@ fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
 }
 
 /// 将 beatoraja `t` 的 LN 模式转换为格式无关提示。
-const fn ln_mode_to_hint(m: bmson_def::LnMode) -> LnTypeHint {
+const fn ln_mode_to_hint(m: bmsrs_bmson_def::LnMode) -> LnTypeHint {
     match m {
-        bmson_def::LnMode::Cn => LnTypeHint::Cn,
-        bmson_def::LnMode::Hcn => LnTypeHint::Hcn,
+        bmsrs_bmson_def::LnMode::Cn => LnTypeHint::Cn,
+        bmsrs_bmson_def::LnMode::Hcn => LnTypeHint::Hcn,
         _ => LnTypeHint::Ln, // Ln + #[non_exhaustive] fallback
     }
 }
 
-/// 将 `bmson_def::LnType` 转换为格式无关的 [`LnTypeHint`]。
-const fn ln_type_to_hint(lt: bmson_def::LnType) -> LnTypeHint {
+/// 将 `bmsrs_bmson_def::LnType` 转换为格式无关的 [`LnTypeHint`]。
+const fn ln_type_to_hint(lt: bmsrs_bmson_def::LnType) -> LnTypeHint {
     match lt {
-        bmson_def::LnType::Cn => LnTypeHint::Cn,
-        bmson_def::LnType::Hcn => LnTypeHint::Hcn,
+        bmsrs_bmson_def::LnType::Cn => LnTypeHint::Cn,
+        bmsrs_bmson_def::LnType::Hcn => LnTypeHint::Hcn,
         _ => LnTypeHint::Ln, // Ln + #[non_exhaustive] fallback
     }
 }
 
-/// 将 `bmson_def::LnJudge` 转换为格式无关的 [`LnJudgeHint`]。
-const fn ln_judge_to_hint(lj: bmson_def::LnJudge) -> LnJudgeHint {
+/// 将 `bmsrs_bmson_def::LnJudge` 转换为格式无关的 [`LnJudgeHint`]。
+const fn ln_judge_to_hint(lj: bmsrs_bmson_def::LnJudge) -> LnJudgeHint {
     match lj {
-        bmson_def::LnJudge::Ticks => LnJudgeHint::Ticks,
+        bmsrs_bmson_def::LnJudge::Ticks => LnJudgeHint::Ticks,
         _ => LnJudgeHint::Normal,
     }
 }
 
-/// 将 `bmson_def::LnLife` 转换为格式无关的 [`LnLifeHint`]。
-const fn ln_life_to_hint(ll: bmson_def::LnLife) -> LnLifeHint {
+/// 将 `bmsrs_bmson_def::LnLife` 转换为格式无关的 [`LnLifeHint`]。
+const fn ln_life_to_hint(ll: bmsrs_bmson_def::LnLife) -> LnLifeHint {
     match ll {
-        bmson_def::LnLife::Ticks => LnLifeHint::Ticks,
+        bmsrs_bmson_def::LnLife::Ticks => LnLifeHint::Ticks,
         _ => LnLifeHint::Normal,
     }
 }
@@ -714,7 +714,7 @@ const fn ln_life_to_hint(ll: bmson_def::LnLife) -> LnLifeHint {
 /// 的 id 可能稀疏或巨大，重编号后渲染器可安全按索引取资源表。
 /// 重复的原始 id 以最后一次出现者生效（与 schema 注释一致，insert
 /// 覆盖）。
-fn build_bga_id_map(bga: &bmson_def::BGA<'_>) -> BTreeMap<u64, BgaResourceId> {
+fn build_bga_id_map(bga: &bmsrs_bmson_def::BGA<'_>) -> BTreeMap<u64, BgaResourceId> {
     bga.bga_header
         .iter()
         .enumerate()
@@ -729,7 +729,7 @@ fn build_bga_id_map(bga: &bmson_def::BGA<'_>) -> BTreeMap<u64, BgaResourceId> {
 }
 
 /// 从 BMSON 乐曲信息构建 [`SongInfo`]。
-fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
+fn build_song_info(bmson: &bmsrs_bmson_def::Bmson<'_>) -> SongInfo {
     SongInfo {
         title: bmson.song_info.title.to_owned(),
         artist: bmson.song_info.artist.to_owned(),
@@ -738,7 +738,7 @@ fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
 }
 
 /// 从 BMSON 谱面信息构建 [`ChartInfo`]。
-fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> Result<ChartInfo, ProcessError> {
+fn build_chart_info(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<ChartInfo, ProcessError> {
     let bga = &bmson.chart_info.bga;
     let bga_resources: Vec<BgaResource> = bga
         .bga_header
@@ -775,8 +775,8 @@ fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> Result<ChartInfo, ProcessEr
 }
 
 /// 从 `mode_hint` 推断可玩按键总数。
-fn mode_key_count(mode: &bmson_def::ModeHint) -> Option<u8> {
-    use bmson_def::ModeHint;
+fn mode_key_count(mode: &bmsrs_bmson_def::ModeHint) -> Option<u8> {
+    use bmsrs_bmson_def::ModeHint;
 
     match mode {
         ModeHint::Beat5k
@@ -815,7 +815,7 @@ const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
 /// 范围从 0 到 `last_tick`。`last_tick` 由调用方从完整事件集（含 BGA）
 /// 推算，确保覆盖所有事件类型。
 fn build_bar_lines(
-    lines: Option<&[bmson_def::BarLine]>,
+    lines: Option<&[bmsrs_bmson_def::BarLine]>,
     resolution: u64,
     last_tick: u64,
 ) -> Vec<Event<BmsonNoteExt>> {

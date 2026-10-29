@@ -1,5 +1,5 @@
 [package]
-name = "bms-parser"
+name = "bmsrs-bms-parser"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,9 +13,9 @@ rust-version.workspace = true
 readme.workspace = true
 
 [dependencies]
-bms-source.workspace = true
-bms-syntax.workspace = true
-bms-values.workspace = true
+bmsrs-bms-source.workspace = true
+bmsrs-bms-syntax.workspace = true
+bmsrs-bms-values.workspace = true
 thiserror.workspace = true
 
 [lib]

@@ -1,9 +1,9 @@
-# bms-source
+# bmsrs-bms-source
 
 ## 定位
 
 BMS 源文本层：原始字节 → 行 → 编辑 → 写回。只处理“字节到行”，不解析
-BMS 语法；头部、通道与控制流由 `bms-syntax` 的 CST 负责。
+BMS 语法；头部、通道与控制流由 `bmsrs-bms-syntax` 的 CST 负责。
 
 ## 核心不变量
 
@@ -56,7 +56,7 @@ ASCII 兼容编码中，注释标记（`/`、`*`、`;`、`"`）与行终止符�
 ## 测试
 
 ```bash
-cargo test -p bms-source
+cargo test -p bmsrs-bms-source
 ```
 
 公开 API 测试放 `tests/`，覆盖：字节 roundtrip（各编码 × 各终止符）、
@@ -68,7 +68,7 @@ cargo test -p bms-source
 
 - 新增编码支持前先确认它 ASCII 兼容且无状态，或单独实现分行策略
 - 编辑路径必须保证失败时文档不变
-- 新增行分类只做字节/trivia 层面的判断；语义分类留给 `bms-syntax`
+- 新增行分类只做字节/trivia 层面的判断；语义分类留给 `bmsrs-bms-syntax`
 
 ### Ask
 

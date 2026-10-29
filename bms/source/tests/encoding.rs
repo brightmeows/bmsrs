@@ -1,6 +1,6 @@
 //! 编码检测与支持范围测试。
 
-use bms_source::{DetectionMethod, Document, SourceEncoding};
+use bmsrs_bms_source::{DetectionMethod, Document, SourceEncoding};
 
 #[test]
 fn bom_selects_utf8() {

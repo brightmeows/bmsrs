@@ -3,9 +3,9 @@
 //! 这些测试仅通过公开 API 消费 `Messages` 结构体，使用
 //! `concat_raw` + `finalize`。
 
-use bms_parser::BmsBgaLayer;
-use bms_parser::*;
-use bms_parser::{BmsBase, BmsChannel, BpmIndex, WavIndex};
+use bmsrs_bms_parser::BmsBgaLayer;
+use bmsrs_bms_parser::*;
+use bmsrs_bms_parser::{BmsBase, BmsChannel, BpmIndex, WavIndex};
 
 /// 辅助函数：通过 Messages 解析单条标准消息行（`#xxxYY:body`），使用 Base36。
 fn parse_one(line: &str) -> Messages {
@@ -352,7 +352,10 @@ fn measure_length_fractional() {
 fn measure_length_default_on_invalid() {
     // 无效值被静默忽略。
     let msgs = parse_one("#00102:notanumber");
-    assert_eq!(msgs.measure_lengths, [] as [bms_parser::MeasureLength; 0]);
+    assert_eq!(
+        msgs.measure_lengths,
+        [] as [bmsrs_bms_parser::MeasureLength; 0]
+    );
 }
 
 #[test]

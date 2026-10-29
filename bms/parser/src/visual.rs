@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_values::{
+use bmsrs_bms_values::{
     ArgbParams, AtBgaParams, BgaParams, BmpIndex, BmsBase, BmsHeaderResDefVisual, ExBmpParams,
     PoorBgaMode, SeekIndex, SwBgaParams,
 };

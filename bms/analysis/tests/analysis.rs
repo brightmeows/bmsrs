@@ -1,6 +1,6 @@
 //! 分析层测试。
 
-use bms_analysis::{Analysis, SymbolKind};
+use bmsrs_bms_analysis::{Analysis, SymbolKind};
 
 #[test]
 fn wav_definition_and_reference_are_indexed() {
@@ -73,19 +73,19 @@ fn invalid_header_value_is_reported() {
 
 #[test]
 fn header_doc_matches_command_with_id() {
-    let found = bms_analysis::header_doc("#WAV01");
+    let found = bmsrs_bms_analysis::header_doc("#WAV01");
     assert_eq!(found.map(|doc| doc.command), Some("WAV"));
 }
 
 #[test]
 fn header_doc_matches_at_bga() {
-    let found = bms_analysis::header_doc("#@BGA01");
+    let found = bmsrs_bms_analysis::header_doc("#@BGA01");
     assert_eq!(found.map(|doc| doc.command), Some("@BGA"));
 }
 
 #[test]
 fn channel_doc_matches_note_group() {
-    let found = bms_analysis::channel_doc("11");
+    let found = bmsrs_bms_analysis::channel_doc("11");
     assert_eq!(found.map(|doc| doc.title), Some("1P 可见音符"));
 }
 

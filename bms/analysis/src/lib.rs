@@ -1,6 +1,6 @@
 //! BMS 分析层。
 //!
-//! 在 `bms-syntax` 的 CST 上构建编辑器所需数据：
+//! 在 `bmsrs-bms-syntax` 的 CST 上构建编辑器所需数据：
 //!
 //! - 语法与控制流诊断
 //! - 资源定义 / 引用索引（WAV、BMP、BGA、BPM、STOP、SCROLL、SPEED 等）

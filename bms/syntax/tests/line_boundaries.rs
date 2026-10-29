@@ -1,11 +1,11 @@
-//! `bms-source` 与 `bms-syntax` 的行边界一致性。
+//! `bmsrs-bms-source` 与 `bmsrs-bms-syntax` 的行边界一致性。
 //!
 //! `SourceFile::parse_document` 会先调用 `Document::to_text()` 再重新
 //! 切行。两层必须对行数与每行文本达成一致，否则 `Analysis` 的
 //! `TextRange` 会与文档坐标错位。
 
-use bms_source::Document;
-use bms_syntax::SourceFile;
+use bmsrs_bms_source::Document;
+use bmsrs_bms_syntax::SourceFile;
 
 /// 断言文档行与 CST 行的文本逐一相等。
 fn assert_document_boundaries(document: &Document) {

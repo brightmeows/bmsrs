@@ -1,6 +1,6 @@
 //! 音频通道切片算法。
 //!
-//! 每个 [`SoundChannel`](bmson_def::SoundChannel) 将一个音频文件与其全部
+//! 每个 [`SoundChannel`](bmsrs_bmson_def::SoundChannel) 将一个音频文件与其全部
 //! [`NoteEvent`] 打包在一起。处理器预先计算音频切片，使播放器在运行时
 //! 只需按索引查表即可拿到预设好长度的 [`AudioAsset`]。
 //!
@@ -25,7 +25,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bmson_def::SoundChannel;
+use bmsrs_bmson_def::SoundChannel;
 use bmsrs_chart::{AudioAsset, TimingTrack};
 
 /// 对单条音频通道切片的输出。
@@ -121,7 +121,7 @@ pub fn slice_channel(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bmson_def::NoteEvent;
+    use bmsrs_bmson_def::NoteEvent;
     use bmsrs_chart::{StopEvent, TimingTrack};
     use std::path::Path;
     use std::time::Duration;

@@ -1,5 +1,5 @@
 [package]
-name = "bms-processor"
+name = "bmsrs-bms-processor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,12 +13,12 @@ rust-version.workspace = true
 readme.workspace = true
 
 [dependencies]
-bms-parser.workspace = true
+bmsrs-bms-parser.workspace = true
 bmsrs-chart.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-bms-syntax.workspace = true
+bmsrs-bms-syntax.workspace = true
 # facade 是工作区根 crate，不在 workspace.dependencies 中，用字面路径。
 bmsrs = { path = "../.." }
 bmsrs-player.workspace = true

@@ -33,15 +33,15 @@ readme.workspace = true
 workspace = true
 
 [dependencies]
-bms-writer.workspace = true
-bms-source.workspace = true
-bms-syntax.workspace = true
-bms-analysis.workspace = true
-bms-parser.workspace = true
-bms-values.workspace = true
-bms-processor.workspace = true
-bmson-def.workspace = true
-bmson-processor.workspace = true
+bmsrs-bms-writer.workspace = true
+bmsrs-bms-source.workspace = true
+bmsrs-bms-syntax.workspace = true
+bmsrs-bms-analysis.workspace = true
+bmsrs-bms-parser.workspace = true
+bmsrs-bms-values.workspace = true
+bmsrs-bms-processor.workspace = true
+bmsrs-bmson-def.workspace = true
+bmsrs-bmson-processor.workspace = true
 bmsrs-chart.workspace = true
 bmsrs-player.workspace = true
 thiserror.workspace = true
@@ -85,17 +85,17 @@ criterion = "0.8"
 rowan = "0.17"
 
 # Local (path)
-bmson-def = { path = "bmson/def" }
-bms-source = { path = "bms/source" }
-bms-syntax = { path = "bms/syntax" }
-bms-analysis = { path = "bms/analysis" }
-bms-parser = { path = "bms/parser" }
-bms-values = { path = "bms/values" }
-bms-values-derive = { path = "bms/values-derive" }
+bmsrs-bmson-def = { path = "bmson/def" }
+bmsrs-bms-source = { path = "bms/source" }
+bmsrs-bms-syntax = { path = "bms/syntax" }
+bmsrs-bms-analysis = { path = "bms/analysis" }
+bmsrs-bms-parser = { path = "bms/parser" }
+bmsrs-bms-values = { path = "bms/values" }
+bmsrs-bms-values-derive = { path = "bms/values-derive" }
 bmsrs-chart = { path = "common/chart" }
-bmson-processor = { path = "bmson/processor" }
-bms-processor = { path = "bms/processor" }
-bms-writer = { path = "bms/writer" }
+bmsrs-bmson-processor = { path = "bmson/processor" }
+bmsrs-bms-processor = { path = "bms/processor" }
+bmsrs-bms-writer = { path = "bms/writer" }
 bmsrs-player = { path = "common/player" }
 
 [workspace.lints.rust]

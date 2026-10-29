@@ -1,15 +1,15 @@
 //! 头部命令的序列化。
 //!
-//! 从 [`Bms`](bms_parser::Bms) 的域字段重建 tokenizer 的域枚举值，
+//! 从 [`Bms`](bmsrs_bms_parser::Bms) 的域字段重建 tokenizer 的域枚举值，
 //! 复用 derive 生成的 `format_header` 完成命令名与值的格式化，
 //! 保证与解析路径使用同一套格式模板。
 
-use bms_parser::{
+use bmsrs_bms_parser::{
     ArgbParams, AtBgaParams, BgaParams, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ExBmpParams, ExWavParams,
     SwBgaParams, WavCmdParams,
 };
-use bms_parser::{Bms, OwnedExWavParams, OwnedSwBgaParams};
+use bmsrs_bms_parser::{Bms, OwnedExWavParams, OwnedSwBgaParams};
 
 /// 序列化全部头部命令行。
 ///
@@ -45,7 +45,7 @@ macro_rules! push_header {
 }
 
 /// 序列化元数据域。
-fn metadata(m: &bms_parser::Metadata, out: &mut Vec<String>) {
+fn metadata(m: &bmsrs_bms_parser::Metadata, out: &mut Vec<String>) {
     let headers = [
         m.title.clone().map(BmsHeaderMetadata::Title),
         m.subtitle.clone().map(BmsHeaderMetadata::Subtitle),
@@ -73,7 +73,7 @@ fn metadata(m: &bms_parser::Metadata, out: &mut Vec<String>) {
 }
 
 /// 序列化游玩域。
-fn gameplay(g: &bms_parser::Gameplay, out: &mut Vec<String>) {
+fn gameplay(g: &bmsrs_bms_parser::Gameplay, out: &mut Vec<String>) {
     let scalars = [
         g.player.map(BmsHeaderGameplay::Player),
         g.rank.map(BmsHeaderGameplay::Rank),
@@ -113,7 +113,7 @@ fn gameplay(g: &bms_parser::Gameplay, out: &mut Vec<String>) {
 }
 
 /// 序列化计时域。
-fn timing(t: &bms_parser::Timing, out: &mut Vec<String>) {
+fn timing(t: &bmsrs_bms_parser::Timing, out: &mut Vec<String>) {
     let scalars = [
         t.bpm.map(BmsHeaderTiming::Bpm),
         t.base_bpm.map(BmsHeaderTiming::BaseBpm),
@@ -160,7 +160,7 @@ fn timing(t: &bms_parser::Timing, out: &mut Vec<String>) {
 }
 
 /// 序列化显示域。
-fn display(d: &bms_parser::Display, out: &mut Vec<String>) {
+fn display(d: &bmsrs_bms_parser::Display, out: &mut Vec<String>) {
     let headers = [
         d.stage_file.clone().map(BmsHeaderDisplay::StageFile),
         d.banner.clone().map(BmsHeaderDisplay::Banner),
@@ -176,7 +176,7 @@ fn display(d: &bms_parser::Display, out: &mut Vec<String>) {
 }
 
 /// 序列化音频域。
-fn audio(a: &bms_parser::Audio, out: &mut Vec<String>) {
+fn audio(a: &bmsrs_bms_parser::Audio, out: &mut Vec<String>) {
     for (id, filename) in &a.wav_files {
         push_header!(
             BmsHeaderResDefAudio::Wav {
@@ -218,7 +218,7 @@ fn audio(a: &bms_parser::Audio, out: &mut Vec<String>) {
 }
 
 /// 序列化视觉域。
-fn visual(v: &bms_parser::Visual, out: &mut Vec<String>) {
+fn visual(v: &bmsrs_bms_parser::Visual, out: &mut Vec<String>) {
     for (id, filename) in &v.bmp_files {
         push_header!(
             BmsHeaderResDefVisual::Bmp {
@@ -313,7 +313,7 @@ fn visual(v: &bms_parser::Visual, out: &mut Vec<String>) {
 }
 
 /// 序列化视频相关标量字段。
-fn video_scalars(v: &bms_parser::Visual, out: &mut Vec<String>) {
+fn video_scalars(v: &bmsrs_bms_parser::Visual, out: &mut Vec<String>) {
     let scalars = [
         v.video_file.clone().map(BmsHeaderResDefVisual::VideoFile),
         v.movie.clone().map(BmsHeaderResDefVisual::Movie),
@@ -329,7 +329,7 @@ fn video_scalars(v: &bms_parser::Visual, out: &mut Vec<String>) {
 }
 
 /// 序列化 `#STP` 事件（按小节升序）。
-fn stp(events: &[bms_parser::StpEvent], out: &mut Vec<String>) {
+fn stp(events: &[bmsrs_bms_parser::StpEvent], out: &mut Vec<String>) {
     for event in events {
         let measure = event.position.measure();
         let position = event.position.numer();

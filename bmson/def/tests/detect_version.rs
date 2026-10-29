@@ -2,7 +2,7 @@
 //!
 //! 验证版本检测函数能正确处理 v0/v1/v2 JSON 以及各种边缘情况。
 
-use bmson_def::DetectedVersion;
+use bmsrs_bmson_def::DetectedVersion;
 
 #[test]
 fn detect_v2_from_full_json() {

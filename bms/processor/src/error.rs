@@ -1,6 +1,6 @@
 //! 处理警告类型定义。
 
-use bms_parser::ChannelValueWarning;
+use bmsrs_bms_parser::ChannelValueWarning;
 
 /// BMS 处理过程中可恢复的警告。
 ///
@@ -8,7 +8,7 @@ use bms_parser::ChannelValueWarning;
 ///
 /// 引用缺失类（`Missing*`）与值损坏类（[`ProcessWarning::UnparsableValue`]）
 /// 共同构成 processor 层的完整可观测面；控制流结构问题由
-/// `bms-syntax` 诊断负责。
+/// `bmsrs-bms-syntax` 诊断负责。
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum ProcessWarning {

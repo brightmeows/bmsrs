@@ -1,7 +1,7 @@
 //! BMS（Be-Music Script）格式的单行语法。
 //!
 //! 本 crate 提供 BMS 解析管道的最底层：把**一行**文本解析为结构化 token。
-//! 整文件的分行、注释状态机、编码与行级编辑由 `bms-source` / `bms-syntax` 负责。
+//! 整文件的分行、注释状态机、编码与行级编辑由 `bmsrs-bms-source` / `bmsrs-bms-syntax` 负责。
 //!
 //! # 结构
 //!
@@ -24,7 +24,7 @@ mod header;
 mod index;
 mod message;
 
-pub use bms_values_derive::{BmsIndexNewtype, BmsTokenAttr};
+pub use bmsrs_bms_values_derive::{BmsIndexNewtype, BmsTokenAttr};
 pub use body::{BodyCells, Cell};
 pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};

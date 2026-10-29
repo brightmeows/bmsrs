@@ -1,6 +1,6 @@
 //! 字节保真 roundtrip 测试。
 
-use bms_source::Document;
+use bmsrs_bms_source::Document;
 use proptest::prelude::*;
 
 /// 用指定编码编码测试文本。

@@ -1,5 +1,5 @@
 [package]
-name = "bms-values"
+name = "bmsrs-bms-values"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,7 +13,7 @@ rust-version.workspace = true
 readme.workspace = true
 
 [dependencies]
-bms-values-derive.workspace = true
+bmsrs-bms-values-derive.workspace = true
 derive_more.workspace = true
 thiserror.workspace = true
 

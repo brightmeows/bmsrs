@@ -1,11 +1,11 @@
 //! 通道行（消息）的序列化。
 
-use bms_parser::BmsChannel;
-use bms_parser::Messages;
+use bmsrs_bms_parser::BmsChannel;
+use bmsrs_bms_parser::Messages;
 
 /// 序列化全部通道行。
 ///
-/// 按（小节，通道）升序输出。合并语义与 [`bms_parser`] 的解析一致：
+/// 按（小节，通道）升序输出。合并语义与 [`bmsrs_bms_parser`] 的解析一致：
 /// - 通道 `01`（BGM）：多行独立保留（多声部支持）
 /// - 通道 `02`（小节长）：仅输出最后一行
 /// - 其余通道：按位置合并，非 `00` 覆盖先前值，`00` 保留位置

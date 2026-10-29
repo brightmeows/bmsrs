@@ -23,13 +23,16 @@ impl SourceFile {
 
     /// 从无损文档解析。
     #[must_use]
-    pub fn parse_document(document: &bms_source::Document) -> Parse {
+    pub fn parse_document(document: &bmsrs_bms_source::Document) -> Parse {
         Self::parse(&document.to_text())
     }
 
     /// 从无损文档按选项解析。
     #[must_use]
-    pub fn parse_document_with(document: &bms_source::Document, options: &ParseOptions) -> Parse {
+    pub fn parse_document_with(
+        document: &bmsrs_bms_source::Document,
+        options: &ParseOptions,
+    ) -> Parse {
         Self::parse_with(&document.to_text(), options)
     }
 

@@ -6,7 +6,7 @@
 
 #[test]
 fn replace_content_on_second_line_keeps_other_lines_intact() {
-    let mut doc = bms_source::Document::from_bytes(b"#TITLE t\n#BPM 160\n".to_vec());
+    let mut doc = bmsrs_bms_source::Document::from_bytes(b"#TITLE t\n#BPM 160\n".to_vec());
     doc.replace_content(1, "#BPM 170").expect("replace");
     let out = String::from_utf8(doc.render()).expect("utf8");
     eprintln!("RENDERED={out:?}");

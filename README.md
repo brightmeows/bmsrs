@@ -19,27 +19,27 @@ bmsrs 处理两种谱面格式：
 
 | 输入 | 处理 | 输出 |
 |------|------|------|
-| BMS 字节 | `bms-source`、`bms-syntax`、`bms-parser` | `Bms` |
-| `Bms` | `bms-processor` | `Chart` |
-| BMSON JSON | `bmson-def`、`bmson-processor` | `Chart` |
+| BMS 字节 | `bmsrs-bms-source`、`bmsrs-bms-syntax`、`bmsrs-bms-parser` | `Bms` |
+| `Bms` | `bmsrs-bms-processor` | `Chart` |
+| BMSON JSON | `bmsrs-bmson-def`、`bmsrs-bmson-processor` | `Chart` |
 | `Chart` | `bmsrs-player` | 时间轴查询 |
 
-`bms-analysis` 直接消费 CST，提供诊断、符号索引与编辑器数据。
-`bms-writer` 把 `Bms` 规范化重写为 BMS 文本。
+`bmsrs-bms-analysis` 直接消费 CST，提供诊断、符号索引与编辑器数据。
+`bmsrs-bms-writer` 把 `Bms` 规范化重写为 BMS 文本。
 
 ## Crate 一览
 
 | Crate | 职责 |
 |-------|------|
-| `bms-source` | BMS 源文本层：字节、编码、行索引、字节保真编辑 |
-| `bms-syntax` | BMS 语法层：rowan CST、词法、控制流查询 |
-| `bms-values` | BMS 单行语法与类型化值 |
-| `bms-parser` | BMS 语义层：CST 转换为 `Bms` |
-| `bms-processor` | `Bms` 转换为 `Chart` |
-| `bms-writer` | `Bms` 规范化重写为 BMS 文本 |
-| `bms-analysis` | 诊断、符号索引与编辑器数据 |
-| `bmson-def` | BMSON v0、v1、v2 类型定义 |
-| `bmson-processor` | `Bmson` 转换为 `Chart` |
+| `bmsrs-bms-source` | BMS 源文本层：字节、编码、行索引、字节保真编辑 |
+| `bmsrs-bms-syntax` | BMS 语法层：rowan CST、词法、控制流查询 |
+| `bmsrs-bms-values` | BMS 单行语法与类型化值 |
+| `bmsrs-bms-parser` | BMS 语义层：CST 转换为 `Bms` |
+| `bmsrs-bms-processor` | `Bms` 转换为 `Chart` |
+| `bmsrs-bms-writer` | `Bms` 规范化重写为 BMS 文本 |
+| `bmsrs-bms-analysis` | 诊断、符号索引与编辑器数据 |
+| `bmsrs-bmson-def` | BMSON v0、v1、v2 类型定义 |
+| `bmsrs-bmson-processor` | `Bmson` 转换为 `Chart` |
 | `bmsrs-chart` | 格式无关的 `Chart<T>` 中央 IR |
 | `bmsrs-player` | `Chart` 的纯仿真层 |
 | `bmsrs` | 公共 re-export facade |

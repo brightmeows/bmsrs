@@ -1,6 +1,6 @@
 //! 行级编辑测试。
 
-use bms_source::{Document, DocumentOptions, EditError, LineKind, SourceEncoding};
+use bmsrs_bms_source::{Document, DocumentOptions, EditError, LineKind, SourceEncoding};
 
 /// 返回 `Shift_JIS` 编码。
 fn shift_jis_encoding() -> SourceEncoding {
