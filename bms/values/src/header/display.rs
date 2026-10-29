@@ -122,8 +122,8 @@ pub enum BmsHeaderDisplay {
     /// `#PLAYLEVEL`: difficulty value shown in the song list.
     ///
     /// The display format varies by player (stars, bar graphs, integers). It is
-    /// usually an integer, but some players accept strings (for example,
-    /// `#PLAYLEVEL 安心`). Default when omitted: `3` (BM98 convention).
+    /// usually an integer, but some players accept non-numeric strings. Default
+    /// when omitted: `3` (BM98 convention).
     ///
     /// The value `0` has a special meaning in BM98 and several other players:
     /// it displays as a question mark (`?`) instead of a number, commonly used
