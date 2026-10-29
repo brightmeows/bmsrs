@@ -1,35 +1,40 @@
-//! BMS 源文本层。
+//! BMS source-text layer.
 //!
-//! 本 crate 只处理“字节到行”的部分，不解析 BMS 语法：
+//! This crate handles only the "bytes to lines" part and does not parse BMS
+//! syntax:
 //!
-//! - **字节保真**：持有原始字节与编码，未被编辑的行在写回时原样切片，
-//!   不经过任何解码与重新编码。
-//! - **行级结构**：把文件切成行，记录每行的字节区间、行尾终止符、
-//!   内容段与空白/注释 trivia。
-//! - **编辑与写回**：按行替换、插入、删除，[`Document::render`] 输出
-//!   包含未编辑行的新字节序列。
+//! - **Byte fidelity**: it retains the raw bytes and encoding. Unedited lines
+//!   are sliced verbatim when written back, without decoding or re-encoding.
+//! - **Line structure**: it splits the file into lines and records each line's
+//!   byte range, terminator, content span, and whitespace/comment trivia.
+//! - **Editing and write-back**: replace, insert, and delete by line;
+//!   [`Document::render`] emits a new byte sequence that includes unedited lines.
 //!
-//! 头部命令、通道行与 `#RANDOM` / `#SWITCH` 的结构由 `bmsrs-bms-syntax` 的
-//! CST 负责。本层只把一行分类为空白、注释、普通文本或解码错误。
+//! Header commands, channel lines, and the structure of `#RANDOM` / `#SWITCH`
+//! are handled by the CST in `bmsrs-bms-syntax`. This layer only classifies a
+//! line as blank, comment, plain text, or a decode error.
 //!
-//! # 行模型
+//! # Line model
 //!
-//! 一行由四段组成：
+//! A line consists of four segments:
 //!
 //! ```text
-//! <前缀 trivia><内容段><后缀 trivia><行尾终止符>
+//! <prefix trivia><content span><suffix trivia><line terminator>
 //! ```
 //!
-//! 内容段是第一个连续的非 trivia 区段；前缀与后缀包含缩进、行内注释与
-//! 跨行块注释的残余。结构化编辑只替换内容段，前后缀按原始字节拼接，
-//! 因此被编辑行里的注释与缩进不会被重新编码。
+//! The content span is the first contiguous non-trivia region; the prefix and
+//! suffix contain indentation, inline comments, and remnants of multi-line
+//! block comments. Structured edits replace only the content span, while the
+//! prefix and suffix are spliced from the raw bytes, so comments and
+//! indentation in edited lines are never re-encoded.
 //!
-//! # 编码
+//! # Encoding
 //!
-//! 支持全部 ASCII 兼容且无状态的编码（UTF-8、Shift_JIS、EUC-KR、GBK、
-//! Big5 等），以及带 BOM 的 UTF-16LE / UTF-16BE。ISO-2022-JP 与
-//! `replacement` 编码被拒绝：前者有跨行状态，无法按行独立编码；后者
-//! 不可解码。
+//! Supports every ASCII-compatible, stateless encoding (UTF-8, `Shift_JIS`,
+//! `EUC-KR`, `GBK`, `Big5`, and so on), plus UTF-16LE and UTF-16BE with a BOM.
+//! `ISO-2022-JP` and the `replacement` encoding are rejected: the former has
+//! cross-line state and cannot be encoded line by line; the latter cannot
+//! decode.
 
 mod classify;
 mod document;

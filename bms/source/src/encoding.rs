@@ -1,32 +1,35 @@
-//! 源文本编码：校验、检测与按行编解码。
+//! Source-text encodings: validation, detection, and per-line encoding and
+//! decoding.
 
 use std::borrow::Cow;
 
 use encoding_rs::Encoding;
 
-/// 可用于编辑与写回的源文本编码。
+/// A source-text encoding that can be used for editing and write-back.
 ///
-/// 构造时校验编码是否满足两个前提：
+/// Construction validates two requirements:
 ///
-/// - **ASCII 兼容**（UTF-16 除外）：行终止符 `CR` / `LF` 不会出现在多字节
-///   字符的尾字节中，因此可以按字节切行。
-/// - **无状态**：单行可以独立重新编码，不必回放整篇转义状态。
+/// - **ASCII compatibility** (except UTF-16): line terminators `CR` / `LF`
+///   never appear in the trailing byte of a multi-byte character, so lines can
+///   be split on byte boundaries.
+/// - **Statelessness**: a single line can be re-encoded independently, without
+///   replaying escape state for the whole file.
 ///
-/// `replacement` 编码不可解码，`ISO-2022-JP` 的转义序列跨行，两者都会被
-/// 拒绝。
+/// The `replacement` encoding cannot decode, and `ISO-2022-JP` escape sequences
+/// span lines; both are rejected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SourceEncoding(&'static Encoding);
 
 impl SourceEncoding {
-    /// UTF-8 的内部常量（构造必然成功）。
+    /// Internal UTF-8 constant (construction always succeeds).
     pub(crate) const UTF8: Self = Self(encoding_rs::UTF_8);
 
-    /// 校验并包装一个编码。
+    /// Validate and wrap an encoding.
     ///
     /// # Errors
     ///
-    /// 当编码是 `replacement`、`ISO-2022-JP`，或既非 ASCII 兼容又不是
-    /// UTF-16 时返回 [`UnsupportedEncoding`]。
+    /// Returns [`UnsupportedEncoding`] when the encoding is `replacement`,
+    /// `ISO-2022-JP`, or neither ASCII-compatible nor UTF-16.
     pub fn new(encoding: &'static Encoding) -> Result<Self, UnsupportedEncoding> {
         if encoding == encoding_rs::REPLACEMENT || encoding == encoding_rs::ISO_2022_JP {
             return Err(UnsupportedEncoding {
@@ -45,25 +48,26 @@ impl SourceEncoding {
         }
     }
 
-    /// 按 WHATWG 编码标签（例如 `#CHARSET` 的值）构造编码。
+    /// Construct an encoding from a WHATWG encoding label (for example, a
+    /// `#CHARSET` value).
     #[must_use]
     pub fn from_label(label: &[u8]) -> Option<Self> {
         let encoding = Encoding::for_label_no_replacement(label)?;
         Self::new(encoding).ok()
     }
 
-    /// 检测字节序列的编码。
+    /// Detect the encoding of a byte sequence.
     ///
-    /// 检测顺序：
+    /// Detection order:
     ///
     /// 1. BOM
-    /// 2. `#CHARSET` 声明
-    /// 3. 严格 UTF-8
-    /// 4. 候选表：`Shift_JIS`、`EUC-KR`、`GBK`、`Big5`
+    /// 2. `#CHARSET` declaration
+    /// 3. Strict UTF-8
+    /// 4. Candidate table: `Shift_JIS`, `EUC-KR`, `GBK`, `Big5`
     ///
-    /// `#CHARSET` 声明与实际字节不符时回退到候选表，并在
-    /// [`DetectedEncoding::method`] 中记为
-    /// [`DetectionMethod::DeclaredFallback`]。
+    /// When the `#CHARSET` declaration does not match the actual bytes,
+    /// detection falls back to the candidate table and records
+    /// [`DetectionMethod::DeclaredFallback`] in [`DetectedEncoding::method`].
     #[must_use]
     pub fn detect(bytes: &[u8]) -> DetectedEncoding {
         if let Some((bom_encoding, bom_len)) = Encoding::for_bom(bytes)
@@ -95,7 +99,7 @@ impl SourceEncoding {
         Self::detect_without_declared(bytes)
     }
 
-    /// 声明不符时的回退检测。
+    /// Fallback detection when the declaration does not match.
     fn detect_after_declared(bytes: &[u8], declared: Self) -> DetectedEncoding {
         if std::str::from_utf8(bytes).is_ok() {
             return DetectedEncoding {
@@ -121,7 +125,7 @@ impl SourceEncoding {
         }
     }
 
-    /// 无声明时的检测。
+    /// Detection when there is no declaration.
     fn detect_without_declared(bytes: &[u8]) -> DetectedEncoding {
         if std::str::from_utf8(bytes).is_ok() {
             return DetectedEncoding {
@@ -147,7 +151,8 @@ impl SourceEncoding {
         }
     }
 
-    /// 依次尝试候选编码，返回第一个能无损解码的。
+    /// Try the candidate encodings in order and return the first one that
+    /// decodes without loss.
     fn first_candidate(bytes: &[u8]) -> Option<Self> {
         let candidates = [
             encoding_rs::SHIFT_JIS,
@@ -165,26 +170,26 @@ impl SourceEncoding {
         })
     }
 
-    /// 返回底层编码。
+    /// Return the underlying encoding.
     #[must_use]
     pub const fn encoding(self) -> &'static Encoding {
         self.0
     }
 
-    /// 返回 WHATWG 规范名（例如 `"Shift_JIS"`）。
+    /// Return the WHATWG canonical name (for example, `"Shift_JIS"`).
     #[must_use]
     pub fn name(self) -> &'static str {
         self.0.name()
     }
 
-    /// 返回是否是 UTF-16LE / UTF-16BE。
+    /// Return whether this is UTF-16LE or UTF-16BE.
     #[must_use]
     pub fn is_utf16(self) -> bool {
         self.0 == encoding_rs::UTF_16LE || self.0 == encoding_rs::UTF_16BE
     }
 
-    /// 返回 UTF-16 的端序：`Some(true)` 为小端，`Some(false)` 为大端，
-    /// 其他编码返回 `None`。
+    /// Return the UTF-16 endianness: `Some(true)` for little-endian,
+    /// `Some(false)` for big-endian, and `None` for other encodings.
     #[must_use]
     pub fn utf16_little_endian(self) -> Option<bool> {
         if self.0 == encoding_rs::UTF_16LE {
@@ -196,20 +201,21 @@ impl SourceEncoding {
         }
     }
 
-    /// 解码字节，返回 `(文本, 是否出现解码错误)`。
+    /// Decode bytes and return `(text, had_decode_errors)`.
     ///
-    /// 调用方负责先剥离 BOM。
+    /// The caller is responsible for stripping the BOM first.
     #[must_use]
     pub fn decode(self, bytes: &[u8]) -> (Cow<'_, str>, bool) {
         self.0.decode_without_bom_handling(bytes)
     }
 
-    /// 将文本编码为字节。
+    /// Encode text as bytes.
     ///
     /// # Errors
     ///
-    /// 当文本包含此编码无法表示的字符时返回 [`UnmappableCharacter`]。
-    /// 不会像 [`Encoding::encode`] 那样把不可映射字符替换为数字字符引用。
+    /// Returns [`UnmappableCharacter`] when the text contains characters this
+    /// encoding cannot represent. Unlike [`Encoding::encode`], it does not
+    /// replace unmappable characters with numeric character references.
     pub fn encode(self, text: &str) -> Result<Vec<u8>, UnmappableCharacter> {
         let (bytes, _, had_unmappable) = self.0.encode(text);
         if had_unmappable {
@@ -221,7 +227,7 @@ impl SourceEncoding {
         }
     }
 
-    /// 返回文件开头属于此编码的 BOM 长度。
+    /// Return the length of this encoding's BOM at the start of the file.
     pub(crate) fn bom_len(self, bytes: &[u8]) -> usize {
         match Encoding::for_bom(bytes) {
             Some((encoding, len)) if encoding == self.0 => len,
@@ -230,58 +236,59 @@ impl SourceEncoding {
     }
 }
 
-/// 编码检测结果。
+/// Encoding detection result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DetectedEncoding {
-    /// 最终采用的编码。
+    /// Encoding finally selected.
     pub encoding: SourceEncoding,
-    /// BOM 的字节长度，`0` 表示无 BOM。
+    /// BOM length in bytes; `0` means no BOM.
     pub bom_len: usize,
-    /// 文件 `#CHARSET` 声明的编码（若有）。
+    /// Encoding declared by `#CHARSET` in the file, if any.
     pub declared: Option<SourceEncoding>,
-    /// 检测路径。
+    /// Detection path.
     pub method: DetectionMethod,
 }
 
-/// 编码的检测路径。
+/// Encoding detection path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DetectionMethod {
-    /// 由 BOM 确定。
+    /// Determined by the BOM.
     Bom,
-    /// 由 `#CHARSET` 声明确定，且解码无错。
+    /// Determined by the `#CHARSET` declaration, and decoding had no errors.
     Charset,
-    /// 严格 UTF-8。
+    /// Strict UTF-8.
     Utf8,
-    /// 候选表命中。
+    /// Matched a candidate encoding.
     Heuristic,
-    /// `#CHARSET` 声明解码失败，回退到候选表。
+    /// The `#CHARSET` declaration failed to decode; fell back to the candidate
+    /// table.
     DeclaredFallback,
-    /// 无候选通过，按 UTF-8 损失性解码。
+    /// No candidate succeeded; decoded as UTF-8 lossily.
     Lossy,
-    /// 调用方显式指定。
+    /// Explicitly specified by the caller.
     Explicit,
 }
 
-/// 编码不在支持范围内。
+/// The encoding is not supported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("unsupported encoding: {name}")]
 pub struct UnsupportedEncoding {
-    /// 被拒绝的编码名。
+    /// Name of the rejected encoding.
     pub name: &'static str,
 }
 
-/// 文本包含目标编码无法表示的字符。
+/// The text contains characters the target encoding cannot represent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("text cannot be represented in {encoding}")]
 pub struct UnmappableCharacter {
-    /// 目标编码名。
+    /// Target encoding name.
     pub encoding: &'static str,
 }
 
-/// 字节级扫描 `#CHARSET` 或 `%CHARSET` 行首指令。
+/// Scan for a `#CHARSET` or `%CHARSET` directive at the start of a line.
 ///
-/// 仅在行首位置匹配（`input[0]` 或前一个字节为 `\n` / `\r`），
-/// 避免匹配注释或通道数据中的内容。
+/// Matches only at line start (`input[0]`, or after a `\n` / `\r` byte) to
+/// avoid matching content inside comments or channel data.
 fn scan_charset_header(input: &[u8]) -> Option<String> {
     let mut i = 0;
     while let Some(&prefix_byte) = input.get(i) {
@@ -307,7 +314,8 @@ fn scan_charset_header(input: &[u8]) -> Option<String> {
             i += 1;
             continue;
         };
-        // 值为空行或全空白时跳过此行，继续扫描后续 #CHARSET 行。
+        // Skip a line whose value is empty or all whitespace, and keep scanning
+        // for later #CHARSET lines.
         let Some(value_start) = after_keyword
             .iter()
             .position(|&byte| !byte.is_ascii_whitespace())
@@ -331,7 +339,7 @@ fn scan_charset_header(input: &[u8]) -> Option<String> {
             i += 1;
             continue;
         };
-        // 值非 UTF-8 时跳过，不中断扫描。
+        // Skip values that are not UTF-8 instead of aborting the scan.
         if let Ok(value) = std::str::from_utf8(value_bytes)
             && !value.is_empty()
         {

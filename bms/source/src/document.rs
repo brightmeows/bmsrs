@@ -1,4 +1,4 @@
-//! 无损文档：构建、编辑与写回。
+//! Lossless documents: construction, editing, and write-back.
 
 use crate::classify::{ScanState, classify_line, classify_str, scan_line};
 use crate::source::split_lines;
@@ -8,39 +8,45 @@ use crate::{
 };
 use std::fmt;
 
-/// 文档构建选项。
+/// Document construction options.
 #[derive(Debug, Clone, Default)]
 pub struct DocumentOptions {
-    /// 显式指定的编码；`None` 表示自动检测。
+    /// Explicitly specified encoding; `None` means auto-detect.
     pub encoding: Option<SourceEncoding>,
 }
 
-/// 一份 BMS 无损文档。
+/// A lossless BMS document.
 ///
-/// 文档持有原始字节与编码。未被编辑的行在 [`render`](Self::render) 时
-/// 直接切片，不经过解码与重新编码，因此注释、空行、缩进、未知命令与
-/// 原始大小写都保持不变。
+/// The document owns the raw bytes and the encoding. Unedited lines are sliced
+/// directly during [`render`](Self::render), without decoding or re-encoding,
+/// so comments, blank lines, indentation, unknown commands, and original
+/// casing are all preserved.
 ///
-/// # 行编辑
+/// # Line editing
 ///
-/// - [`replace_line`](Self::replace_line)：整行替换，行内 trivia 随旧行丢弃。
-/// - [`replace_content`](Self::replace_content)：只替换内容段，前后缀按
-///   原始字节保留；对已整体替换的行退化为整行替换。
-/// - [`insert_line`](Self::insert_line)：新行继承相邻行的行尾终止符。
-/// - [`remove_line`](Self::remove_line)：删除整行。
+/// - [`replace_line`](Self::replace_line): replace the whole line; trivia
+///   inside the old line is discarded with it.
+/// - [`replace_content`](Self::replace_content): replace only the content span;
+///   the prefix and suffix keep their raw bytes. Degenerates to a whole-line
+///   replacement for lines that were already replaced.
+/// - [`insert_line`](Self::insert_line): the new line inherits the terminator
+///   of a neighboring line.
+/// - [`remove_line`](Self::remove_line): remove the whole line.
 ///
-/// 编辑内容在原编码下无法表示时返回 [`EditError::Unmappable`]，文档不变。
-/// 新行内容解析失败时仍会被接受，分类为 [`LineKind::Error`]。
+/// When edited content cannot be represented in the original encoding, returns
+/// [`EditError::Unmappable`] and leaves the document unchanged. New line
+/// content that fails to parse is still accepted and classified as
+/// [`LineKind::Error`].
 pub struct Document {
-    /// 原始字节。
+    /// Raw bytes.
     bytes: Vec<u8>,
-    /// 采用的编码。
+    /// Encoding in use.
     encoding: SourceEncoding,
-    /// BOM 字节长度。
+    /// BOM length in bytes.
     bom_len: usize,
-    /// 编码检测结果。
+    /// Encoding detection result.
     detection: DetectedEncoding,
-    /// 行列表。
+    /// Lines.
     lines: Vec<Line>,
 }
 
@@ -58,13 +64,13 @@ impl fmt::Debug for Document {
 }
 
 impl Document {
-    /// 自动检测编码，从字节构建文档。
+    /// Build a document from bytes, detecting the encoding automatically.
     #[must_use]
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
         Self::from_bytes_with(bytes, &DocumentOptions::default())
     }
 
-    /// 从字节与选项构建文档。
+    /// Build a document from bytes and options.
     #[must_use]
     pub fn from_bytes_with(bytes: Vec<u8>, options: &DocumentOptions) -> Self {
         let detection = options.encoding.map_or_else(
@@ -92,8 +98,10 @@ impl Document {
             lines.push(Line {
                 span: line_start..bom_len + span.range.end,
                 terminator: span.terminator,
-                // `scanned.content` 相对行 body 起算，换算到文档字节须
-                // 加上行自身的起始偏移；仅加 BOM 会使第二行起错位。
+                // `scanned.content` is relative to the line body; converting it
+                // to document byte offsets must add the line's own start
+                // offset. Adding only the BOM would misplace every line after
+                // the first.
                 content: scanned
                     .content
                     .map(|range| line_start + range.start..line_start + range.end),
@@ -111,7 +119,7 @@ impl Document {
         }
     }
 
-    /// 从 UTF-8 文本构建文档。
+    /// Build a document from UTF-8 text.
     #[must_use]
     pub fn from_text(text: &str) -> Self {
         let options = DocumentOptions {
@@ -120,49 +128,49 @@ impl Document {
         Self::from_bytes_with(text.as_bytes().to_vec(), &options)
     }
 
-    /// 返回文档采用的编码。
+    /// Return the encoding used by the document.
     #[must_use]
     pub const fn encoding(&self) -> SourceEncoding {
         self.encoding
     }
 
-    /// 返回编码检测结果。
+    /// Return the encoding detection result.
     #[must_use]
     pub const fn detection(&self) -> &DetectedEncoding {
         &self.detection
     }
 
-    /// 返回 BOM 字节。
+    /// Return the BOM bytes.
     #[must_use]
     pub fn bom(&self) -> &[u8] {
         self.bytes.get(..self.bom_len).unwrap_or(&[])
     }
 
-    /// 返回行列表。
+    /// Return the lines.
     #[must_use]
     pub fn lines(&self) -> &[Line] {
         &self.lines
     }
 
-    /// 返回行数。
+    /// Return the number of lines.
     #[must_use]
     pub const fn len(&self) -> usize {
         self.lines.len()
     }
 
-    /// 返回文档是否没有行。
+    /// Return whether the document has no lines.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.lines.is_empty()
     }
 
-    /// 返回指定行。
+    /// Return the line at the given index.
     #[must_use]
     pub fn line(&self, index: usize) -> Option<&Line> {
         self.lines.get(index)
     }
 
-    /// 返回指定行的文本（不含行尾终止符）。
+    /// Return the text of the given line, excluding the terminator.
     #[must_use]
     pub fn line_text(&self, index: usize) -> Option<String> {
         let line = self.lines.get(index)?;
@@ -174,13 +182,15 @@ impl Document {
         Some(self.encoding.decode(body).0.into_owned())
     }
 
-    /// 整行替换。
+    /// Replace a whole line.
     ///
-    /// 旧行的缩进与行内注释随之丢弃；行尾终止符保留。
+    /// Indentation and inline comments in the old line are discarded; the line
+    /// terminator is preserved.
     ///
     /// # Errors
     ///
-    /// 行索引越界，或 `text` 在原编码下无法表示时返回 [`EditError`]。
+    /// Returns [`EditError`] when the line index is out of bounds or `text`
+    /// cannot be represented in the original encoding.
     pub fn replace_line(&mut self, index: usize, text: &str) -> Result<(), EditError> {
         let Some(line) = self.lines.get(index) else {
             return Err(EditError::OutOfBounds {
@@ -201,13 +211,16 @@ impl Document {
         Ok(())
     }
 
-    /// 只替换内容段，保留前缀与后缀 trivia 的原始字节。
+    /// Replace only the content span, preserving the raw bytes of the prefix
+    /// and suffix trivia.
     ///
-    /// 对已整体替换（或没有内容段）的行，退化为 [`replace_line`](Self::replace_line)。
+    /// Degenerates to [`replace_line`](Self::replace_line) for lines that were
+    /// replaced as a whole (or have no content span).
     ///
     /// # Errors
     ///
-    /// 行索引越界，或 `text` 在原编码下无法表示时返回 [`EditError`]。
+    /// Returns [`EditError`] when the line index is out of bounds or `text`
+    /// cannot be represented in the original encoding.
     pub fn replace_content(&mut self, index: usize, text: &str) -> Result<(), EditError> {
         let Some(line) = self.lines.get(index) else {
             return Err(EditError::OutOfBounds {
@@ -239,14 +252,16 @@ impl Document {
         Ok(())
     }
 
-    /// 在 `index` 之前插入一行。
+    /// Insert a line before `index`.
     ///
-    /// 新行继承相邻行的行尾终止符；在无终止符的末行之后插入时，会先给
-    /// 末行补上 `LF`，避免两行内容粘连。
+    /// The new line inherits the terminator of a neighboring line. When
+    /// inserting after a final line that has no terminator, the final line
+    /// first gets an `LF` so the two lines do not run together.
     ///
     /// # Errors
     ///
-    /// 行索引大于行数，或 `text` 在原编码下无法表示时返回 [`EditError`]。
+    /// Returns [`EditError`] when the line index is greater than the number of
+    /// lines or `text` cannot be represented in the original encoding.
     pub fn insert_line(&mut self, index: usize, text: &str) -> Result<(), EditError> {
         if index > self.lines.len() {
             return Err(EditError::OutOfBounds {
@@ -295,11 +310,11 @@ impl Document {
         Ok(())
     }
 
-    /// 删除指定行并返回它。
+    /// Remove the line at `index` and return it.
     ///
     /// # Errors
     ///
-    /// 行索引越界时返回 [`EditError::OutOfBounds`]。
+    /// Returns [`EditError::OutOfBounds`] when the line index is out of bounds.
     pub fn remove_line(&mut self, index: usize) -> Result<Line, EditError> {
         if index >= self.lines.len() {
             return Err(EditError::OutOfBounds {
@@ -310,9 +325,10 @@ impl Document {
         Ok(self.lines.remove(index))
     }
 
-    /// 输出完整文件字节。
+    /// Emit the full file bytes.
     ///
-    /// 未编辑的行原样切片，编辑过的行输出其替换字节。
+    /// Unedited lines are sliced verbatim; edited lines emit their replacement
+    /// bytes.
     #[must_use]
     pub fn render(&self) -> Vec<u8> {
         let mut output = Vec::with_capacity(self.bytes.len());
@@ -323,9 +339,10 @@ impl Document {
         output
     }
 
-    /// 按 0-based 行索引输出字节，包含 BOM。
+    /// Emit bytes for 0-based line indices, including the BOM.
     ///
-    /// 未编辑行原样切片，编辑过的行输出替换字节。越界索引被跳过。
+    /// Unedited lines are sliced verbatim; edited lines emit their replacement
+    /// bytes. Out-of-bounds indices are skipped.
     #[must_use]
     pub fn render_line_indices(&self, indices: &[usize]) -> Vec<u8> {
         let mut output = Vec::new();
@@ -336,9 +353,10 @@ impl Document {
         output
     }
 
-    /// 返回当前文档的完整文本。
+    /// Return the full text of the current document.
     ///
-    /// BOM 被去掉，行尾按原文件保留；解码错误用替换字符表示。
+    /// The BOM is removed and line endings are preserved from the original
+    /// file; decode errors are represented with replacement characters.
     #[must_use]
     pub fn to_text(&self) -> String {
         let bytes = self.render();
@@ -346,11 +364,13 @@ impl Document {
         self.encoding.decode(body).0.into_owned()
     }
 
-    /// 返回当前文档的完整文本；存在解码错误时返回 [`TextDecodeError`]。
+    /// Return the full text of the current document; returns
+    /// [`TextDecodeError`] when decoding fails.
     ///
     /// # Errors
     ///
-    /// 文档中存在当前编码无法解码的字节时返回错误。
+    /// Returns an error when the document contains bytes the current encoding
+    /// cannot decode.
     pub fn try_to_text(&self) -> Result<String, TextDecodeError> {
         let bytes = self.render();
         let body = bytes.get(self.bom_len..).unwrap_or(&[]);
@@ -364,7 +384,8 @@ impl Document {
         }
     }
 
-    /// 返回指定行的当前字节（优先使用编辑后的替换字节）。
+    /// Return the current bytes of the given line, preferring the replacement
+    /// bytes after an edit.
     fn line_bytes(&self, index: usize) -> &[u8] {
         self.lines.get(index).map_or(&[], |line| {
             line.replacement
@@ -374,33 +395,33 @@ impl Document {
     }
 }
 
-/// 对新行文本做分类。
+/// Classify new line text.
 fn classify_text(text: &str) -> LineKind {
     let mut state = ScanState::default();
     let scanned = scan_line(text.as_bytes(), None, &mut state);
     classify_str(text, &scanned)
 }
 
-/// 行编辑错误。
+/// Line editing error.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum EditError {
-    /// 行索引越界。
+    /// Line index out of bounds.
     #[error("line index {index} out of bounds (len {len})")]
     OutOfBounds {
-        /// 请求的索引。
+        /// Requested index.
         index: usize,
-        /// 文档行数。
+        /// Number of lines in the document.
         len: usize,
     },
-    /// 文本在原编码下无法表示。
+    /// The text cannot be represented in the original encoding.
     #[error(transparent)]
     Unmappable(#[from] UnmappableCharacter),
 }
 
-/// 文档文本解码失败。
+/// Failed to decode the document text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("document contains bytes undecodable with {encoding}")]
 pub struct TextDecodeError {
-    /// 文档编码名。
+    /// Document encoding name.
     pub encoding: &'static str,
 }

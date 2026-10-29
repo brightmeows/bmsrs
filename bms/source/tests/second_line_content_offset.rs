@@ -1,8 +1,10 @@
-//! 第二行 `content` 区间的回归测试。
+//! Regression test for the second line's `content` range.
 //!
-//! 构建时 `scanned.content` 相对行 body 起算，换算文档绝对字节须加
-//! 行起始偏移；历史上只加了 BOM 长度，首行碰巧正确而第二行起错位
-//! （编辑写回时旧行内容混入新行）。
+//! When a document is built, `scanned.content` is relative to the line body;
+//! converting it to absolute document bytes must add the line start offset.
+//! Historically only the BOM length was added: the first line happened to be
+//! correct while lines from the second onward were misplaced (editing wrote the
+//! old line content into the new line).
 
 #[test]
 fn replace_content_on_second_line_keeps_other_lines_intact() {

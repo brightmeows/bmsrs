@@ -1,4 +1,4 @@
-//! 源层行分类测试。
+//! Source-layer line classification tests.
 
 use bmsrs_bms_source::{Document, LineKind};
 

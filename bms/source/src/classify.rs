@@ -1,47 +1,52 @@
-//! 行内注释状态机与行分类。
+//! Inline comment state machine and line classification.
 //!
-//! 扫描在原始字节上进行，不在解码后的文本上。原因是所有受支持的
-//! ASCII 兼容编码里，注释标记与行终止符（`/`、`*`、`;`、`"`、`#`、`:`、
-//! `CR`、`LF`）都落在 ASCII 区，且不会出现在多字节字符的尾字节中
-//! （`Shift_JIS` / `GBK` / `Big5` 的尾字节从 `0x40` 起，`EUC-KR` /
-//! `EUC-JP` 从 `0xA1` 起）。UTF-16 按 2 字节代码单元扫描，代码单元
-//! 小于 `0x80` 时等价于一个 ASCII 字节。
+//! Scanning runs on the raw bytes, not on decoded text. In every supported
+//! ASCII-compatible encoding, comment markers and line terminators (`/`, `*`,
+//! `;`, `"`, `#`, `:`, `CR`, `LF`) fall in the ASCII range and never appear in
+//! the trailing byte of a multi-byte character (trailing bytes start at `0x40`
+//! in `Shift_JIS` / `GBK` / `Big5` and at `0xA1` in `EUC-KR` / `EUC-JP`).
+//! UTF-16 is scanned as 2-byte code units; a code unit below `0x80` is
+//! equivalent to one ASCII byte.
 
 use std::ops::Range;
 
 use crate::{LineError, LineKind, SourceEncoding};
 
-/// 跨行保留的字符串 / 块注释状态。
+/// String and block-comment state preserved across lines.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ScanState {
-    /// 是否处于 `/* ... */` 块注释中。
+    /// Whether a `/* ... */` block comment is open.
     in_block: bool,
-    /// 是否处于 `"..."` 字符串中。
+    /// Whether a `"..."` string is open.
     in_string: bool,
 }
 
 impl ScanState {
-    /// 扫描一行文本，更新跨行状态并返回内容段。
+    /// Scan one line of text, update the cross-line state, and return the
+    /// content span.
     pub fn scan(&mut self, text: &str) -> Scanned {
         scan_line(text.as_bytes(), None, self)
     }
 }
 
-/// 单行扫描结果。
+/// Result of scanning one line.
 pub struct Scanned {
-    /// 内容段区间（相对行起点，不含终止符）。
+    /// Content span range, relative to the line start and excluding the
+    /// terminator.
     pub content: Option<Range<usize>>,
 }
 
-/// 扫描一行，更新跨行状态，返回内容段。
+/// Scan one line, update the cross-line state, and return the content span.
 pub fn scan_line(bytes: &[u8], utf16: Option<bool>, state: &mut ScanState) -> Scanned {
     let mut units = Units::new(bytes, utf16).peekable();
 
     let mut content_start: Option<usize> = None;
     let mut content_end: Option<usize> = None;
-    // 内容段在遇到内容之后的第一个注释时冻结，之后一律算后缀 trivia。
+    // Freeze the content span at the first comment after content begins;
+    // everything after it is suffix trivia.
     let mut content_closed = false;
-    // `;` 只在行首（允许前置空白）开启整行注释。
+    // `;` opens a whole-line comment only at line start (leading whitespace is
+    // allowed).
     let mut seen_non_whitespace = state.in_block || state.in_string;
     let mut previous_whitespace = true;
 
@@ -86,7 +91,7 @@ pub fn scan_line(bytes: &[u8], utf16: Option<bool>, state: &mut ScanState) -> Sc
                 if previous_whitespace
                     && matches!(units.peek(), Some(next) if next.ascii == Some(b'/')) =>
             {
-                // 行注释：本行剩余部分全部是 trivia。
+                // Line comment: the rest of this line is trivia.
                 break;
             }
             Some(b'/') if matches!(units.peek(), Some(next) if next.ascii == Some(b'*')) => {
@@ -99,7 +104,8 @@ pub fn scan_line(bytes: &[u8], utf16: Option<bool>, state: &mut ScanState) -> Sc
                 previous_whitespace = false;
             }
             Some(b';') if !seen_non_whitespace => {
-                // `;` 只在行首构成注释；行中保留为普通字符。
+                // `;` is a comment only at line start; elsewhere it is an
+                // ordinary character.
                 break;
             }
             Some(b'"') => {
@@ -130,13 +136,13 @@ pub fn scan_line(bytes: &[u8], utf16: Option<bool>, state: &mut ScanState) -> Sc
     }
 }
 
-/// 扩展内容区间。
+/// Extend the content range.
 fn record(start: &mut Option<usize>, end: &mut Option<usize>, unit_start: usize, unit_end: usize) {
     start.get_or_insert(unit_start);
     *end = Some(unit_end);
 }
 
-/// 根据扫描结果与原文分类一行。
+/// Classify a line from the scan result and the raw text.
 pub fn classify_line(body: &[u8], scanned: &Scanned, encoding: SourceEncoding) -> LineKind {
     let (text, had_errors) = encoding.decode(body);
     if had_errors {
@@ -162,7 +168,7 @@ pub fn classify_line(body: &[u8], scanned: &Scanned, encoding: SourceEncoding) -
     LineKind::Text
 }
 
-/// 对 UTF-8 文本做分类（用于编辑后的新行）。
+/// Classify UTF-8 text (used for new lines created by edits).
 pub fn classify_str(text: &str, scanned: &Scanned) -> LineKind {
     let Some(content) = &scanned.content else {
         return if text.trim().is_empty() {
@@ -178,18 +184,18 @@ pub fn classify_str(text: &str, scanned: &Scanned) -> LineKind {
     LineKind::Text
 }
 
-/// 原始字节或 UTF-16 代码单元的迭代器。
+/// Iterator over raw bytes or UTF-16 code units.
 struct Units<'a> {
-    /// 行字节。
+    /// Line bytes.
     bytes: &'a [u8],
-    /// UTF-16 端序；`None` 表示按单字节处理。
+    /// UTF-16 endianness; `None` means single-byte units.
     utf16: Option<bool>,
-    /// 当前偏移。
+    /// Current offset.
     offset: usize,
 }
 
 impl<'a> Units<'a> {
-    /// 构造迭代器。
+    /// Create the iterator.
     const fn new(bytes: &'a [u8], utf16: Option<bool>) -> Self {
         Self {
             bytes,
@@ -237,22 +243,22 @@ impl Iterator for Units<'_> {
     }
 }
 
-/// 扫描单元。
+/// A scanned unit.
 struct Unit {
-    /// 小于 `0x80` 时的 ASCII 值。
+    /// ASCII value when below `0x80`.
     ascii: Option<u8>,
-    /// 起始字节偏移。
+    /// Start byte offset.
     start: usize,
-    /// 结束字节偏移。
+    /// End byte offset.
     end: usize,
 }
 
-/// 将 UTF-16 代码单元映射为 ASCII 值。
+/// Map a UTF-16 code unit to an ASCII value.
 fn ascii_of(unit: u16) -> Option<u8> {
     u8::try_from(unit).ok().filter(|byte: &u8| byte.is_ascii())
 }
 
-/// 是否是 UTF-16 高代理项。
+/// Whether the unit is a UTF-16 high surrogate.
 const fn is_high_surrogate(unit: u16) -> bool {
     unit >= 0xD800 && unit <= 0xDBFF
 }
