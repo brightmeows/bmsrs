@@ -7,6 +7,44 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// 指向 [`ChartData::audio_assets`](crate::ChartData::audio_assets) 的索引。
+///
+/// 独立的 newtype 避免与 BGA 资源索引等裸 `u32` 互相赋值。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AudioIndex(u32);
+
+impl AudioIndex {
+    /// 从裸索引创建音频索引。
+    #[must_use]
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// 返回裸索引值。
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl From<u32> for AudioIndex {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<AudioIndex> for u32 {
+    fn from(value: AudioIndex) -> Self {
+        value.0
+    }
+}
+
+impl std::fmt::Display for AudioIndex {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
 /// 音频素材 —— 一个音频文件中的一段。
 ///
 /// 对于 BMS 谱面，每个素材是一整个 WAV 文件（`start: Duration::ZERO`、

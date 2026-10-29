@@ -12,7 +12,7 @@
 
 | 方法 | 作用 |
 |------|------|
-| `Player::new(chart)` | 构造播放器，返回 `Result`（校验 `ChartData` 合法性）|
+| `Player::new(chart)` | 先排序事件再校验 `ChartData`，返回 `Result` |
 | `advance(Duration)` | 纯累加播放时间（O(1)），脉冲按需派生 |
 | `seek(Duration)` | 跳到指定位置 |
 | `current_time() -> Duration` | 当前播放位置（状态本身）|

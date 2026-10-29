@@ -3,9 +3,9 @@
 //! 这些测试仅通过公开 API 消费 `Messages` 结构体，使用
 //! `concat_raw` + `finalize`。
 
+use bms_parser::BmsBgaLayer;
 use bms_parser::*;
 use bms_parser::{BmsBase, BmsChannel, BpmIndex, WavIndex};
-use bmsrs_chart::BgaLayer;
 
 /// 辅助函数：通过 Messages 解析单条标准消息行（`#xxxYY:body`），使用 Base36。
 fn parse_one(line: &str) -> Messages {
@@ -108,10 +108,10 @@ fn bpm_change_reference() {
 
 #[test]
 fn bga_layer_variants() {
-    assert!(matches!(BgaLayer::Base, BgaLayer::Base));
-    assert!(matches!(BgaLayer::Poor, BgaLayer::Poor));
-    assert!(matches!(BgaLayer::Layer, BgaLayer::Layer));
-    assert!(matches!(BgaLayer::Layer2, BgaLayer::Layer2));
+    assert!(matches!(BmsBgaLayer::Base, BmsBgaLayer::Base));
+    assert!(matches!(BmsBgaLayer::Poor, BmsBgaLayer::Poor));
+    assert!(matches!(BmsBgaLayer::Layer, BmsBgaLayer::Layer));
+    assert!(matches!(BmsBgaLayer::Layer2, BmsBgaLayer::Layer2));
 }
 
 #[test]
@@ -305,7 +305,7 @@ fn speed_event_zero_values_preserved() {
 fn bga_event_layer2_parsed() {
     let msgs = parse_one("#0010A:03");
     assert_eq!(msgs.bga_events.len(), 1);
-    assert_eq!(msgs.bga_events[0].layer, BgaLayer::Layer2);
+    assert_eq!(msgs.bga_events[0].layer, BmsBgaLayer::Layer2);
     assert_eq!(msgs.bga_events[0].bmp_id, "03".try_into().unwrap());
 }
 
@@ -313,7 +313,7 @@ fn bga_event_layer2_parsed() {
 fn bga_event_base_parsed() {
     let msgs = parse_one("#00104:03");
     assert_eq!(msgs.bga_events.len(), 1);
-    assert_eq!(msgs.bga_events[0].layer, BgaLayer::Base);
+    assert_eq!(msgs.bga_events[0].layer, BmsBgaLayer::Base);
     assert_eq!(msgs.bga_events[0].bmp_id, "03".try_into().unwrap());
 }
 
@@ -321,14 +321,14 @@ fn bga_event_base_parsed() {
 fn bga_event_poor_parsed() {
     let msgs = parse_one("#00106:AA");
     assert_eq!(msgs.bga_events.len(), 1);
-    assert_eq!(msgs.bga_events[0].layer, BgaLayer::Poor);
+    assert_eq!(msgs.bga_events[0].layer, BmsBgaLayer::Poor);
 }
 
 #[test]
 fn bga_event_layer_parsed() {
     let msgs = parse_one("#00107:BB");
     assert_eq!(msgs.bga_events.len(), 1);
-    assert_eq!(msgs.bga_events[0].layer, BgaLayer::Layer);
+    assert_eq!(msgs.bga_events[0].layer, BmsBgaLayer::Layer);
 }
 
 #[test]

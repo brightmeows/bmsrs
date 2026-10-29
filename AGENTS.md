@@ -108,6 +108,9 @@ Git worktree 统一放在 `.worktrees/` 目录下。
 ### API 设计
 
 公开操作通过类型的关联函数暴露（结构体或零大小 `*Builder`），**禁止**自由函数作为公开 API。
+例外：facade 的整管线入口（`bms::from_text` / `bms::from_bytes`）与低层纯函数
+（`bms-source` 的行/编码工具）可以保留自由函数；它们没有可挂靠的领域类型，
+包装成 builder 只会增加调用成本。
 仅当 API 有可配置参数时使用 `*Builder`；无状态时直接用结构体方法。
 私有操作**建议**同样按上述模式设计（挂在类型上而非自由函数），尤其当多个函数共享同一组参数或逻辑上属于同一转换过程时；但不强制——纯函数式辅助、无共享状态的简单工具函数保留为自由函数即可。
 
@@ -135,11 +138,27 @@ Git worktree 统一放在 `.worktrees/` 目录下。
 | 方面 | 规则 |
 |------|------|
 | 命名 | `<场景>_<期望>`，如 `empty_input_returns_empty_bms` |
-| 断言数 | 每个 test 一个断言 |
+| 断言数 | 一个场景一个测试，可包含多个相关断言；测试名写清场景与期望 |
 | 公开 API 测试 | 放 `tests/*.rs`（集成测试）；**禁止**在 `src/` 内测公开 API |
 | `pub(crate)`/ 私有测试 | 放 `src/*.rs` 内 `#[cfg(test)] mod` |
 | 优先测试公开类型 | 避免测试内部 `Wrap` 结构体 |
 | 防重复 | 新增测试前检查同 crate 的 `tests/` 与 `src/` 内 `#[cfg(test)] mod`，避免覆盖重复；仅当现有测试无法覆盖新场景时才新增 |
+
+### 已知限制
+
+以下项是当前有意不做或尚未闭合的边界；新增支持前先重判，不要默默假设。
+
+| 项 | 现状 | 重判触发条件 |
+|----|------|--------------|
+| `#EXRANKxx` 查表 | `BmsGameplay.ex_rank_defs` 保留原始定义；`JudgeOverride` 仍是 base36 直传值 | 判定系统整体设计定稿时 |
+| `#SWBGA` 细节 | `BgaKeyBound` 只承载资源 id，pattern/key/时长未建模 | 渲染器需要按键绑定动画时 |
+| `#CHARFILE` 等显示字段 | 未进入 `Chart` | 渲染器需要角色图时 |
+| `#CDDA` / `#MIDIFILE` | 只进 `BmsAudio` 侧车，没有播放抽象 | 播放器需要 CD/MIDI 源时 |
+| BMSON `resolution: 0` | 拒绝整个文件，比规范严格 | 需要兼容制谱工具缺陷时 |
+| BMS `#BPM 0` | 返回 `ZeroBpm`，不回退 130 | 需要支持“不滚动”谱面时 |
+| BMS `#PLAYER` | 被忽略，`Bme` 覆盖 5K/7K/10K/14K | 需要按 `#PLAYER` 自动分族时 |
+| BGM 分层 | BGM 事件保持独立，只有可判定音符融合 `NoteAudio` | 出现需要融合 BGM 分层的真实谱面时 |
+| processor 语义警告的范围 | 没有 `TextRange`；编辑器路径用 `bms-analysis` 重算 | LSP 需要把语义警告定位到原文时 |
 
 ### 版本发布
 

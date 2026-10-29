@@ -29,4 +29,15 @@ pub enum BmsonProcessWarning {
         /// 原始的扩展模式提示字符串。
         hint: String,
     },
+
+    /// 同一位置的分层长音长度不一致。
+    #[error("layered long note at tick {tick} has mismatched lengths {first} and {other}")]
+    LayeredNoteLengthMismatch {
+        /// 事件所在脉冲。
+        tick: u64,
+        /// 第一个音符的长度。
+        first: u64,
+        /// 冲突音符的长度。
+        other: u64,
+    },
 }

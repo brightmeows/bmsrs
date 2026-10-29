@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_chart::{BgaLayer, BgaResource, Event, EventKind};
+use bmsrs_chart::{BgaLayer, BgaResource, BgaResourceId, Event, EventKind};
 use std::path::PathBuf;
 
 #[test]
@@ -22,11 +22,9 @@ fn scroll_event_fields() {
 #[test]
 fn bga_resource_fields() {
     let r = BgaResource {
-        id: 5,
         path: PathBuf::from("bg.png"),
         crop: None,
     };
-    assert_eq!(r.id, 5);
     assert!(r.crop.is_none());
 }
 
@@ -36,12 +34,12 @@ fn bga_event_fields() {
         240,
         EventKind::Bga {
             layer: BgaLayer::Base,
-            resource_id: 2,
+            resource_id: BgaResourceId::new(2),
         },
     );
     assert_eq!(ev.tick(), 240);
     assert!(
-        matches!(ev.kind, EventKind::Bga { resource_id: 2, .. }),
+        matches!(ev.kind, EventKind::Bga { resource_id, .. } if resource_id.get() == 2),
         "expected Bga with resource_id 2"
     );
 }

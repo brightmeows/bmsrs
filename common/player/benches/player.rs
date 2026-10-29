@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     BpmChange, Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-    LnTypeHint, NoteKind, NoteSide, SongInfo, StopEvent, TimingTrack,
+    LnTypeHint, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
 };
 use bmsrs_player::Player;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
@@ -47,7 +47,8 @@ fn build_chart(n: usize) -> Chart {
                 side: NoteSide::P1,
                 lane: Lane::Key(KEY1),
                 kind: NoteKind::Normal,
-                audio_index: None,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
                 ext: (),
             },
         ));
@@ -87,8 +88,8 @@ fn build_chart(n: usize) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             timing,
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
@@ -166,7 +167,8 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
                 side: NoteSide::P1,
                 lane: Lane::Key(KEY1),
                 kind: NoteKind::Normal,
-                audio_index: None,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
                 ext: (),
             },
         ));
@@ -177,7 +179,7 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         let beat_start = (i as u64) * RESOLUTION;
         for j in 0..bgm_per_beat {
             let tick = beat_start + (RESOLUTION * j as u64 / bgm_per_beat.max(1) as u64);
-            events.push(Event::bgm(tick, 0));
+            events.push(Event::bgm(tick, bmsrs_chart::AudioIndex::new(0)));
         }
     }
 
@@ -188,8 +190,8 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         chart: ChartInfo::default(),
         data: ChartData {
             timing: TimingTrack::simple(120.0, RESOLUTION).unwrap(),
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: Some(1.0),
+            life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),

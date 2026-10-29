@@ -8,13 +8,11 @@
 
 use std::collections::BTreeMap;
 
+use crate::warnings::ChannelValueWarning;
 use bms_values::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BodyCells, BpmIndex, ChannelIndex, ScrollIndex,
     SpeedIndex, StopIndex, WavIndex, base36_digit_value,
 };
-use bmsrs_chart::BgaLayer;
-
-use crate::warnings::ChannelValueWarning;
 
 // 位置
 
@@ -218,13 +216,26 @@ pub struct SpeedEvent {
 
 // BGA 事件
 
-/// 一个 BGA 显示事件（通道 `04`、`05`、`06`、`07`）。
+/// BMS BGA 图层。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BmsBgaLayer {
+    /// 基础 / 主背景（通道 `04`）。
+    Base,
+    /// 未命中 / POOR 表现图层（通道 `06`）。
+    Poor,
+    /// 叠加在主 BGA 之上的覆盖图层（通道 `07`）。
+    Layer,
+    /// 第二覆盖图层（通道 `0A`）。
+    Layer2,
+}
+
+/// 一个 BGA 显示事件（通道 `04`、`06`、`07`、`0A`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BgaEvent {
     /// 小节内的位置。
     pub position: Position,
     /// 此事件所针对的 BGA 图层。
-    pub layer: BgaLayer,
+    pub layer: BmsBgaLayer,
     /// 指向 `#BMP` 表的引用。
     pub bmp_id: BmpIndex,
 }
@@ -263,7 +274,7 @@ pub struct StpEvent {
 /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
 ///
 /// 由最终化阶段在匹配到非事件通道时填充，处理器（`bms-processor`）
-/// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+/// 读取此数据转换为 `EventKind::Custom`。
 ///
 /// **归一化保证**：`values` 中的每个 2-char 索引已按 `base` 归一化
 /// （Base36 模式下大写，Base62 模式下保留原始大小写）。
@@ -320,7 +331,7 @@ pub struct Messages {
     ///
     /// 每个条目包含小节号、通道类型与已归一化的单值列表，由
     /// `finalize_merged` 在匹配到非事件通道时填充。处理器（`bms-processor`）
-    /// 读取此数据转换为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom)。
+    /// 读取此数据转换为 `EventKind::Custom`。
     /// 所有 2-char 索引值已按 `base` 归一化。
     ///
     pub non_event_data: Vec<NonEventData>,
@@ -457,10 +468,10 @@ impl Messages {
         match channel {
             BmsChannel::BpmChange => self.push_bpm_absolute_full(&merged, context),
             BmsChannel::ExtendedBpm => self.push_bpm_reference_full(&merged, context),
-            BmsChannel::BgaBase => self.push_bga_full(&merged, BgaLayer::Base, context),
-            BmsChannel::BgaPoor => self.push_bga_full(&merged, BgaLayer::Poor, context),
-            BmsChannel::BgaLayer => self.push_bga_full(&merged, BgaLayer::Layer, context),
-            BmsChannel::BgaLayer2 => self.push_bga_full(&merged, BgaLayer::Layer2, context),
+            BmsChannel::BgaBase => self.push_bga_full(&merged, BmsBgaLayer::Base, context),
+            BmsChannel::BgaPoor => self.push_bga_full(&merged, BmsBgaLayer::Poor, context),
+            BmsChannel::BgaLayer => self.push_bga_full(&merged, BmsBgaLayer::Layer, context),
+            BmsChannel::BgaLayer2 => self.push_bga_full(&merged, BmsBgaLayer::Layer2, context),
             BmsChannel::Stop => self.push_stop_full(&merged, context),
             BmsChannel::Scroll => self.push_scroll_full(&merged, context),
             BmsChannel::Speed => self.push_speed_full(&merged, context),
@@ -762,7 +773,7 @@ impl Messages {
     }
 
     /// 从完整拼接的值中解析 BGA 显示事件（ch 04–07）。
-    fn push_bga_full(&mut self, values: &str, layer: BgaLayer, context: ChannelContext) {
+    fn push_bga_full(&mut self, values: &str, layer: BmsBgaLayer, context: ChannelContext) {
         parse_indexed(
             context,
             BodyCells::including_zero(values),

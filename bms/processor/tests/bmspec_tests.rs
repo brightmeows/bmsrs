@@ -886,7 +886,8 @@ fn swbga_custom_event() {
         .collect();
     assert_eq!(keybounds.len(), 1);
     assert_eq!(
-        keybounds[0], 0,
+        keybounds[0].get(),
+        0,
         "BMP index 01 经 bmp_map 查表映射到 0 基 resource_id"
     );
 }

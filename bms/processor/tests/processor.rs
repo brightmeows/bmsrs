@@ -1,17 +1,18 @@
 #![expect(missing_docs, reason = "integration test")]
 
 use std::num::NonZeroU8;
+use std::path::Path;
 
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position};
 use bms_parser::{BpmIndex, LnObjIndex};
-use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
-use bms_processor::{BmsProcessor, ProcessWarning};
+use bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
+use bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{EventKind, NoteKind};
 
-/// 在测试中构造有效 [`BmsChannel`] 的简写。
-fn ch(player: u8, lane: u8) -> BmsChannel {
-    BmsChannel::new(player, lane).unwrap_or_else(|| panic!("invalid BMS channel"))
+/// 在测试中构造有效 [`ChannelPos`] 的简写。
+fn ch(player: u8, lane: u8) -> ChannelPos {
+    ChannelPos::new(player, lane).unwrap_or_else(|| panic!("invalid BMS channel"))
 }
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -105,6 +106,110 @@ fn process_basic_note() {
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0], (0, NoteSide::P1, key(1), NoteKind::Normal));
     assert_eq!(chart.data.audio_assets.len(), 1);
+}
+
+#[test]
+fn process_key_count_uses_used_lanes() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    for lane in [1, 2, 3, 4, 5, 8, 9] {
+        bms.messages.note_events.push(NoteEvent {
+            position: Position::new(0, 0, 8),
+            player: 1,
+            lane,
+            key_type: KeyType::Visible,
+            wav_id: "01".parse().unwrap(),
+        });
+    }
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
+
+    assert_eq!(chart.chart.key_count, Some(7));
+}
+
+#[test]
+fn process_rejects_zero_bpm() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(0.0);
+
+    let result = BmsProcessor::process::<Bme>(&bms);
+
+    assert!(matches!(result, Err(ProcessError::ZeroBpm)));
+}
+
+#[test]
+fn process_applies_path_wav_to_audio_asset() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio.path_wav = Some("snd".to_owned());
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
+
+    assert_eq!(
+        chart.data.audio_assets[0].path.as_ref(),
+        Path::new("snd/kick.wav")
+    );
+}
+
+#[test]
+fn process_preserves_bms_audio_sidecar() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio.cdda = Some("5".to_owned());
+    bms.audio.path_wav = Some("snd".to_owned());
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    assert_eq!(processed.audio.cdda.as_deref(), Some("5"));
+    assert_eq!(processed.audio.path_wav.as_deref(), Some("snd"));
+}
+
+#[test]
+fn process_preserves_bms_gameplay_sidecar() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.option = Some("774:HI-SPEED_x1.00".to_owned());
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+
+    assert_eq!(
+        processed.gameplay.option.as_deref(),
+        Some("774:HI-SPEED_x1.00")
+    );
+}
+
+#[test]
+fn process_default_detects_oct_fp_layout() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.oct_fp = Some(true);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 2,
+        lane: 2,
+        key_type: KeyType::Visible,
+        wav_id: "01".parse().unwrap(),
+    });
+
+    let chart = BmsProcessor::process_default(&bms).unwrap().chart;
+    let lane = chart.data.events.iter().find_map(|event| {
+        if let EventKind::Note { lane, .. } = &event.kind {
+            Some(*lane)
+        } else {
+            None
+        }
+    });
+
+    assert_eq!(lane, Some(key(1)));
 }
 
 #[test]
@@ -527,14 +632,14 @@ fn all_layouts_map_extended_channel_lane_10() {
 
 #[test]
 fn bms_channel_rejects_invalid_input() {
-    assert_eq!(BmsChannel::new(3, 1), None);
-    assert_eq!(BmsChannel::new(0, 1), None);
-    assert_eq!(BmsChannel::new(1, 0), None);
+    assert_eq!(ChannelPos::new(3, 1), None);
+    assert_eq!(ChannelPos::new(0, 1), None);
+    assert_eq!(ChannelPos::new(1, 0), None);
     // lane 10 现已支持（扩展通道 `1A`–`1Z` 等）。
-    assert!(BmsChannel::new(1, 10).is_some());
-    assert!(BmsChannel::new(1, 35).is_some());
+    assert!(ChannelPos::new(1, 10).is_some());
+    assert!(ChannelPos::new(1, 35).is_some());
     // 上限：lane 36+ 仍无效。
-    assert!(BmsChannel::new(1, 36).is_none());
+    assert!(ChannelPos::new(1, 36).is_none());
 }
 
 #[test]
@@ -577,7 +682,7 @@ fn lnobj_end_marker_plays_bgm() {
         .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { audio_index } = &e.kind {
-                Some((e.tick(), *audio_index))
+                Some((e.tick(), audio_index.get()))
             } else {
                 None
             }

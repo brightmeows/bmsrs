@@ -24,8 +24,9 @@ pub use cst::{
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{
-    BgaEvent, BgmEvent, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength, Messages,
-    MineEvent, NonEventData, NoteEvent, Position, ScrollEvent, SpeedEvent, StopEvent, StpEvent,
+    BgaEvent, BgmEvent, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength,
+    Messages, MineEvent, NonEventData, NoteEvent, Position, ScrollEvent, SpeedEvent, StopEvent,
+    StpEvent,
 };
 pub use metadata::Metadata;
 pub use timing::Timing;

@@ -1,4 +1,7 @@
 //! 头部命令与通道的中文说明。
+//!
+//! 本表是人工维护的摘要，权威来源是 bms skill（`~/.agents/skills/bms/`）
+//! 及其指向的 BMS command memo。修改摘要前先核对 skill，避免与规范漂移。
 
 /// 头部命令说明。
 #[derive(Debug, Clone, Copy)]

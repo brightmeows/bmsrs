@@ -2,7 +2,7 @@
 //!
 //! 本 crate 聚合并重新导出各子 crate 的公共 API，
 //! 模块层级统一镜像工作区的目录结构。
-//! 整条管线的组装入口 [`bms::from_text`] 也在此。
+//! 整条管线的组装入口 [`bms::from_text`] / [`bms::from_bytes`] 也在此。
 
 /// BMS 格式的解析与处理。
 pub mod bms {
@@ -94,7 +94,58 @@ pub mod bms {
         error_strategy: ErrorStrategy,
     ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
         let document = source::Document::from_text(text);
-        let parsed = parser::Bms::from_document_with(&document, options, rng, error_strategy)
+        from_document(&document, options, rng, error_strategy)
+    }
+
+    /// 由原始 BMS 字节构建 [`Bms`](parser::Bms)，自动检测编码。
+    ///
+    /// 与 [`from_text`] 的区别是保留 `bms-source` 的编码检测与解码路径，
+    /// 适用于 `Shift_JIS` 等非 UTF-8 谱面。
+    ///
+    /// # Errors
+    ///
+    /// `FailFast` 遇到首个 CST、分词或解码错误时返回 [`FromTextError`]。
+    pub fn from_bytes(
+        bytes: Vec<u8>,
+        rng: impl FnMut(u64) -> u64,
+        error_strategy: ErrorStrategy,
+    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+        from_bytes_with(
+            bytes,
+            &source::DocumentOptions::default(),
+            rng,
+            error_strategy,
+        )
+    }
+
+    /// 使用文档解码选项由原始 BMS 字节构建 [`Bms`](parser::Bms)。
+    ///
+    /// # Errors
+    ///
+    /// `FailFast` 遇到首个 CST、分词或解码错误时返回 [`FromTextError`]。
+    pub fn from_bytes_with(
+        bytes: Vec<u8>,
+        document_options: &source::DocumentOptions,
+        rng: impl FnMut(u64) -> u64,
+        error_strategy: ErrorStrategy,
+    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+        let document = source::Document::from_bytes_with(bytes, document_options);
+        from_document(
+            &document,
+            &syntax::ParseOptions::default(),
+            rng,
+            error_strategy,
+        )
+    }
+
+    /// 从已构建的文档跑完整语义管道。
+    fn from_document(
+        document: &source::Document,
+        options: &syntax::ParseOptions,
+        rng: impl FnMut(u64) -> u64,
+        error_strategy: ErrorStrategy,
+    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+        let parsed = parser::Bms::from_document_with(document, options, rng, error_strategy)
             .map_err(from_cst_error)?;
         Ok((
             parsed.bms,
@@ -201,4 +252,93 @@ pub mod chart {
 /// 纯仿真 / 播放层。
 pub mod player {
     pub use bmsrs_player::*;
+}
+
+/// 跨层统一的诊断出口。
+///
+/// 各层保留自己的 warning 类型；需要单一诊断流的消费者在这里做转换，
+/// 不强迫 processor 依赖 analysis。
+pub mod diagnostic {
+    use bms_analysis::{AnalysisDiagnostic, Severity};
+    use bms_syntax::TextRange;
+
+    use crate::bms::FromTextWarning;
+
+    /// 统一诊断。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Diagnostic {
+        /// 严重度。
+        pub severity: Severity,
+        /// 文本范围；语义警告可能没有范围。
+        pub range: Option<TextRange>,
+        /// 消息。
+        pub message: String,
+        /// 稳定错误码。
+        pub code: &'static str,
+    }
+
+    impl Diagnostic {
+        /// 构造一条诊断。
+        #[must_use]
+        pub fn new(
+            severity: Severity,
+            range: Option<TextRange>,
+            message: impl Into<String>,
+            code: &'static str,
+        ) -> Self {
+            Self {
+                severity,
+                range,
+                message: message.into(),
+                code,
+            }
+        }
+    }
+
+    impl From<FromTextWarning> for Diagnostic {
+        fn from(warning: FromTextWarning) -> Self {
+            match warning {
+                FromTextWarning::Syntax { range, message } => {
+                    Self::new(Severity::Warning, Some(range), message, "syntax")
+                }
+                FromTextWarning::Tokenize { range, error } => Self::new(
+                    Severity::Warning,
+                    Some(range),
+                    error.to_string(),
+                    "tokenize",
+                ),
+                FromTextWarning::Decode { range, error } => {
+                    Self::new(Severity::Warning, Some(range), error.to_string(), "decode")
+                }
+            }
+        }
+    }
+
+    impl From<bms_processor::ProcessWarning> for Diagnostic {
+        fn from(warning: bms_processor::ProcessWarning) -> Self {
+            Self::new(Severity::Warning, None, warning.to_string(), "bms-process")
+        }
+    }
+
+    impl From<bmson_processor::BmsonProcessWarning> for Diagnostic {
+        fn from(warning: bmson_processor::BmsonProcessWarning) -> Self {
+            Self::new(
+                Severity::Warning,
+                None,
+                warning.to_string(),
+                "bmson-process",
+            )
+        }
+    }
+
+    impl From<AnalysisDiagnostic> for Diagnostic {
+        fn from(diagnostic: AnalysisDiagnostic) -> Self {
+            Self::new(
+                diagnostic.severity(),
+                Some(diagnostic.range()),
+                diagnostic.message(),
+                diagnostic.code().unwrap_or("analysis"),
+            )
+        }
+    }
 }

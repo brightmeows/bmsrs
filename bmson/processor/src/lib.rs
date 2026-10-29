@@ -25,14 +25,15 @@ mod slice;
 pub mod layout;
 
 use std::collections::{BTreeMap, HashSet};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, BgaLayer, BgaResource, BpmChange, Chart, ChartData, ChartInfo, Damage, Event,
-    EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteExt, NoteKind, NoteSide, SongInfo,
-    StopEvent, TimingTrack, TimingTrackError,
+    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
+    ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio,
+    NoteExt, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 use thiserror::Error;
 
@@ -51,11 +52,8 @@ pub struct BmsonNoteExt {
     pub vol: Option<i8>,
     /// 音符声像（pan，DJ.NEXT 扩展）。
     pub pan: Option<i8>,
-    /// 释放音 / BSS 标志（bmson `up`）。
-    pub release_sound: Option<bool>,
-    /// 长音模式（bmson `t` 字段，beatoraja 扩展，1=LN/2=CN/3=HCN）。
-    pub ln_mode: Option<u64>,
-    /// 每音符的 LN 类型提示覆盖（bmson v2）。
+    /// 每音符的 LN 类型提示；beatoraja `t` 与 bmson v2
+    /// `ln_type_hint` 都归并到这里，`t` 优先。
     pub ln_type_hint: Option<LnTypeHint>,
     /// 每音符的 LN 判定提示覆盖（bmson v2）。
     pub ln_judge_hint: Option<LnJudgeHint>,
@@ -78,6 +76,14 @@ pub enum ProcessError {
     /// （[`Lane::Key`] 的索引上限）。
     #[error("generic-nkeys key count must be in 1..=255, got {0}")]
     InvalidKeyCount(u64),
+    /// 谱面引用了不安全的资源路径。
+    #[error("unsafe resource path \"{path}\": {reason}")]
+    UnsafePath {
+        /// 原始路径。
+        path: String,
+        /// 拒绝原因。
+        reason: &'static str,
+    },
 }
 
 /// 将 [`bmson_def::Bmson`] 转换为 [`Chart<BmsonNoteExt>`] 的零大小处理器。
@@ -184,9 +190,9 @@ impl BmsonProcessor {
             warnings: Vec::new(),
         };
 
-        conv.process_sound_channels();
-        conv.process_mine_channels();
-        conv.process_key_channels();
+        conv.process_sound_channels()?;
+        conv.process_mine_channels()?;
+        conv.process_key_channels()?;
         conv.collect_bpm_events();
         conv.collect_stop_events();
         conv.collect_scroll_events();
@@ -194,12 +200,12 @@ impl BmsonProcessor {
         conv.build_bar_lines();
 
         let song_info = build_song_info(bmson);
-        let chart_info = build_chart_info(bmson);
+        let chart_info = build_chart_info(bmson)?;
 
         let mut data = ChartData {
             timing,
-            judge_multiplier: bmson_data.judge_multiplier,
-            life_multiplier: bmson_data.life_multiplier,
+            judge_multiplier: Some(bmson_data.judge_multiplier),
+            life_multiplier: Some(bmson_data.life_multiplier),
             ln_type_hint: ln_type_to_hint(bmson_data.ln_type_hint),
             ln_judge_hint: ln_judge_to_hint(bmson_data.ln_judge_hint),
             ln_life_hint: ln_life_to_hint(bmson_data.ln_life_hint),
@@ -251,13 +257,104 @@ struct BmsonConverter<'a> {
     /// 预计算的计时缓存。
     timing: TimingTrack,
     /// BMSON BGA 原始 id → 稠密资源下标映射。
-    bga_ids: &'a BTreeMap<u64, u32>,
+    bga_ids: &'a BTreeMap<u64, BgaResourceId>,
     /// 正在构建的音频素材向量。
     audio_assets: Vec<AudioAsset>,
     /// 正在构建的事件向量。
     events: Vec<Event<BmsonNoteExt>>,
     /// 处理过程中收集的可恢复警告。
     warnings: Vec<BmsonProcessWarning>,
+}
+
+/// 同一 `(side, lane, tick)` 上等待融合的音符。
+struct LayeredNote {
+    /// 音符位置。
+    lane: Lane,
+    /// 音符种类；分层长音取第一个长度。
+    kind: NoteKind,
+    /// 释放音角色；任一层为 `up: true` 时取 `Release`。
+    role: NoteRole,
+    /// 音频层。
+    audio: Vec<AudioIndex>,
+    /// 第一层的格式扩展。
+    ext: BmsonNoteExt,
+}
+
+/// 待合并的单个可判定音符。
+struct PendingNote {
+    /// 玩家侧。
+    side: NoteSide,
+    /// 轨道。
+    lane: Lane,
+    /// 脉冲位置。
+    tick: u64,
+    /// 音符种类。
+    kind: NoteKind,
+    /// 游玩角色。
+    role: NoteRole,
+    /// 音频索引。
+    audio: Option<AudioIndex>,
+    /// 格式扩展。
+    ext: BmsonNoteExt,
+}
+
+/// 把 `Lane` 编码为可排序的键，避免给核心类型加 `Ord`。
+const fn lane_key(lane: Lane) -> (u8, u8) {
+    match lane {
+        Lane::Key(key) => (0, key.get()),
+        Lane::Scratch(key) => (1, key.get()),
+        Lane::FootPedal => (2, 0),
+        _ => (3, 0),
+    }
+}
+
+/// 合并一个可判定音符到分层表。
+fn merge_layered_note(
+    notes: &mut BTreeMap<(NoteSide, u8, u8, u64), LayeredNote>,
+    warnings: &mut Vec<BmsonProcessWarning>,
+    note: PendingNote,
+) {
+    let PendingNote {
+        side,
+        lane,
+        tick,
+        kind,
+        role,
+        audio,
+        ext,
+    } = note;
+    let (lane_kind, lane_index) = lane_key(lane);
+    let entry = notes
+        .entry((side, lane_kind, lane_index, tick))
+        .or_insert_with(|| LayeredNote {
+            lane,
+            kind,
+            role,
+            audio: Vec::new(),
+            ext,
+        });
+
+    if let Some(index) = audio
+        && !entry.audio.contains(&index)
+    {
+        entry.audio.push(index);
+    }
+
+    if role == NoteRole::Release {
+        entry.role = NoteRole::Release;
+    }
+
+    match (entry.kind, kind) {
+        (NoteKind::Long { duration: first }, NoteKind::Long { duration: other })
+            if first != other =>
+        {
+            warnings.push(BmsonProcessWarning::LayeredNoteLengthMismatch { tick, first, other });
+        }
+        (NoteKind::Normal, NoteKind::Long { .. }) => {
+            entry.kind = kind;
+        }
+        _ => {}
+    }
 }
 
 impl BmsonConverter<'_> {
@@ -331,9 +428,12 @@ impl BmsonConverter<'_> {
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
     )]
-    fn process_sound_channels(&mut self) {
+    fn process_sound_channels(&mut self) -> Result<(), ProcessError> {
+        let mut layered: BTreeMap<(NoteSide, u8, u8, u64), LayeredNote> = BTreeMap::new();
+
         for channel in &self.bmson.chart_data.sound_channels {
-            let sliced = slice_channel(channel, &self.timing);
+            let path = normalize_path(channel.name)?;
+            let sliced = slice_channel(channel, &self.timing, &path);
 
             let channel_playable: HashSet<u64> = channel
                 .note_events
@@ -346,7 +446,7 @@ impl BmsonConverter<'_> {
                     .pulse_to_index
                     .get(&ne.y)
                     .copied()
-                    .map(|idx| (idx + self.audio_assets.len()) as u32);
+                    .map(|idx| AudioIndex::new((idx + self.audio_assets.len()) as u32));
 
                 if ne.is_bgm() {
                     if channel_playable.contains(&ne.y) {
@@ -364,21 +464,45 @@ impl BmsonConverter<'_> {
                     } else {
                         NoteKind::Normal
                     };
-                    self.events.push(Event::new(
-                        ne.y,
-                        EventKind::Note {
+                    let role = if ne.up == Some(true) {
+                        NoteRole::Release
+                    } else {
+                        NoteRole::Normal
+                    };
+                    merge_layered_note(
+                        &mut layered,
+                        &mut self.warnings,
+                        PendingNote {
                             side,
                             lane,
+                            tick: ne.y,
                             kind,
-                            audio_index: audio_idx,
+                            role,
+                            audio: audio_idx,
                             ext: build_note_ext(ne),
                         },
-                    ));
+                    );
                 }
             }
 
             self.audio_assets.extend(sliced.assets);
         }
+
+        for ((side, _, _, tick), note) in layered {
+            self.events.push(Event::new(
+                tick,
+                EventKind::Note {
+                    side,
+                    lane: note.lane,
+                    kind: note.kind,
+                    role: note.role,
+                    audio: NoteAudio::from_indices(note.audio),
+                    ext: note.ext,
+                },
+            ));
+        }
+
+        Ok(())
     }
 
     /// 处理地雷通道：每个通道贡献一个整文件 `AudioAsset` 和地雷音符。
@@ -386,11 +510,12 @@ impl BmsonConverter<'_> {
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
     )]
-    fn process_mine_channels(&mut self) {
+    fn process_mine_channels(&mut self) -> Result<(), ProcessError> {
         for mc in &self.bmson.mine_channels {
-            let mine_audio_idx = self.audio_assets.len() as u32;
+            let path = normalize_path(mc.name)?;
+            let mine_audio_idx = AudioIndex::new(self.audio_assets.len() as u32);
             self.audio_assets.push(AudioAsset {
-                path: Arc::from(mc.name.to_path_buf()),
+                path: Arc::from(path),
                 start: Duration::ZERO,
                 duration: None,
             });
@@ -407,12 +532,14 @@ impl BmsonConverter<'_> {
                         kind: NoteKind::Mine {
                             damage: Damage::new(mn.damage),
                         },
-                        audio_index: Some(mine_audio_idx),
+                        role: NoteRole::Normal,
+                        audio: NoteAudio::one(mine_audio_idx),
                         ext: BmsonNoteExt::default(),
                     },
                 ));
             }
         }
+        Ok(())
     }
 
     /// 处理按键（不可见）通道：结构与地雷通道相同。
@@ -420,11 +547,12 @@ impl BmsonConverter<'_> {
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
     )]
-    fn process_key_channels(&mut self) {
+    fn process_key_channels(&mut self) -> Result<(), ProcessError> {
         for kc in &self.bmson.key_channels {
-            let key_audio_idx = self.audio_assets.len() as u32;
+            let path = normalize_path(kc.name)?;
+            let key_audio_idx = AudioIndex::new(self.audio_assets.len() as u32);
             self.audio_assets.push(AudioAsset {
-                path: Arc::from(kc.name.to_path_buf()),
+                path: Arc::from(path),
                 start: Duration::ZERO,
                 duration: None,
             });
@@ -439,13 +567,82 @@ impl BmsonConverter<'_> {
                         side,
                         lane,
                         kind: NoteKind::Invisible,
-                        audio_index: Some(key_audio_idx),
+                        role: NoteRole::Normal,
+                        audio: NoteAudio::one(key_audio_idx),
                         ext: BmsonNoteExt::default(),
                     },
                 ));
             }
         }
+        Ok(())
     }
+}
+
+/// 将 BMSON 资源路径规范化为安全的相对路径。
+///
+/// 拒绝绝对路径、Windows 盘符/UNC 前缀、`..` 父目录引用、NUL 与空路径；
+/// 把反斜杠规范成正斜杠，使 Windows 风格路径在 Unix 上也能解析。
+fn normalize_path(path: &Path) -> Result<PathBuf, ProcessError> {
+    let raw = path.to_string_lossy();
+    if raw.contains('\0') {
+        return Err(ProcessError::UnsafePath {
+            path: raw.into_owned(),
+            reason: "NUL byte",
+        });
+    }
+    if raw.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+        && raw.as_bytes().get(1) == Some(&b':')
+    {
+        return Err(ProcessError::UnsafePath {
+            path: raw.into_owned(),
+            reason: "drive prefix",
+        });
+    }
+
+    let normalized = raw.replace('\\', "/");
+    let normalized_path = Path::new(&normalized);
+    if normalized_path.is_absolute() {
+        return Err(ProcessError::UnsafePath {
+            path: raw.into_owned(),
+            reason: "absolute path",
+        });
+    }
+
+    let mut safe = PathBuf::new();
+    for component in normalized_path.components() {
+        match component {
+            Component::Normal(part) => safe.push(part),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                return Err(ProcessError::UnsafePath {
+                    path: raw.into_owned(),
+                    reason: "parent directory traversal",
+                });
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(ProcessError::UnsafePath {
+                    path: raw.into_owned(),
+                    reason: "absolute path",
+                });
+            }
+        }
+    }
+
+    if safe.as_os_str().is_empty() {
+        return Err(ProcessError::UnsafePath {
+            path: raw.into_owned(),
+            reason: "empty path",
+        });
+    }
+
+    Ok(safe)
+}
+
+/// 规范化可选路径并转为 `String`。
+fn normalize_optional_path(option: Option<&Path>) -> Result<Option<String>, ProcessError> {
+    option
+        .map(|raw| normalize_path(raw).map(|safe| safe.to_string_lossy().into_owned()))
+        .transpose()
 }
 
 /// 从 BMSON 谱面数据构建 [`TimingTrack`]。
@@ -468,20 +665,21 @@ fn build_note_ext(ne: &bmson_def::NoteEvent) -> BmsonNoteExt {
     BmsonNoteExt {
         vol: ne.vol,
         pan: ne.pan,
-        release_sound: ne.up,
-        ln_mode: ne.t.map(ln_mode_to_u64),
-        ln_type_hint: ne.ln_type_hint.map(ln_type_to_hint),
+        ln_type_hint: ne
+            .t
+            .map(ln_mode_to_hint)
+            .or_else(|| ne.ln_type_hint.map(ln_type_to_hint)),
         ln_judge_hint: ne.ln_judge_hint.map(ln_judge_to_hint),
         ln_life_hint: ne.ln_life_hint.map(ln_life_to_hint),
     }
 }
 
-/// 将 `LnMode` 判别值转换为 beatoraja 的数值型 LN 模式值。
-const fn ln_mode_to_u64(m: bmson_def::LnMode) -> u64 {
+/// 将 beatoraja `t` 的 LN 模式转换为格式无关提示。
+const fn ln_mode_to_hint(m: bmson_def::LnMode) -> LnTypeHint {
     match m {
-        bmson_def::LnMode::Cn => 2,
-        bmson_def::LnMode::Hcn => 3,
-        _ => 1, // Ln + #[non_exhaustive] fallback
+        bmson_def::LnMode::Cn => LnTypeHint::Cn,
+        bmson_def::LnMode::Hcn => LnTypeHint::Hcn,
+        _ => LnTypeHint::Ln, // Ln + #[non_exhaustive] fallback
     }
 }
 
@@ -516,7 +714,7 @@ const fn ln_life_to_hint(ll: bmson_def::LnLife) -> LnLifeHint {
 /// 的 id 可能稀疏或巨大，重编号后渲染器可安全按索引取资源表。
 /// 重复的原始 id 以最后一次出现者生效（与 schema 注释一致，insert
 /// 覆盖）。
-fn build_bga_id_map(bga: &bmson_def::BGA<'_>) -> BTreeMap<u64, u32> {
+fn build_bga_id_map(bga: &bmson_def::BGA<'_>) -> BTreeMap<u64, BgaResourceId> {
     bga.bga_header
         .iter()
         .enumerate()
@@ -525,7 +723,7 @@ fn build_bga_id_map(bga: &bmson_def::BGA<'_>) -> BTreeMap<u64, u32> {
                 clippy::cast_possible_truncation,
                 reason = "BGA header count fits in u32"
             )]
-            (h.id, i as u32)
+            (h.id, BgaResourceId::new(i as u32))
         })
         .collect()
 }
@@ -536,61 +734,62 @@ fn build_song_info(bmson: &bmson_def::Bmson<'_>) -> SongInfo {
         title: bmson.song_info.title.to_owned(),
         artist: bmson.song_info.artist.to_owned(),
         genre: bmson.song_info.genre.to_owned(),
+    }
+}
+
+/// 从 BMSON 谱面信息构建 [`ChartInfo`]。
+fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> Result<ChartInfo, ProcessError> {
+    let bga = &bmson.chart_info.bga;
+    let bga_resources: Vec<BgaResource> = bga
+        .bga_header
+        .iter()
+        .map(|h| {
+            Ok(BgaResource {
+                path: normalize_path(h.name)?,
+                // BMSON 无裁剪/放置概念（图片/视频统一为路径）。
+                crop: None,
+            })
+        })
+        .collect::<Result<_, ProcessError>>()?;
+
+    Ok(ChartInfo {
+        subtitle: bmson.chart_info.subtitle.to_owned(),
+        chart_name: bmson.chart_info.chart_name.to_owned(),
+        level: bmson.chart_info.level,
         subartists: bmson
             .chart_info
             .subartists
             .iter()
             .map(std::string::ToString::to_string)
             .collect(),
-    }
-}
-
-/// 从 BMSON 谱面信息构建 [`ChartInfo`]。
-fn build_chart_info(bmson: &bmson_def::Bmson<'_>) -> ChartInfo {
-    let bga = &bmson.chart_info.bga;
-    // 稠密下标：与 build_bga_id_map 的 enumerate 序一致，
-    // 保证 resource_id == bga_resources 下标的不变量。
-    let bga_resources: Vec<BgaResource> = bga
-        .bga_header
-        .iter()
-        .enumerate()
-        .map(|(i, h)| {
-            #[expect(
-                clippy::cast_possible_truncation,
-                reason = "BGA header count fits in u32"
-            )]
-            BgaResource {
-                id: i as u32,
-                path: h.name.to_path_buf(),
-                // BMSON 无裁剪/放置概念（图片/视频统一为路径）。
-                crop: None,
-            }
-        })
-        .collect();
-
-    ChartInfo {
-        subtitle: bmson.chart_info.subtitle.to_owned(),
-        chart_name: bmson.chart_info.chart_name.to_owned(),
-        level: bmson.chart_info.level,
-        back_image: bmson
-            .chart_info
-            .back_image
-            .map(|p| p.to_string_lossy().into_owned()),
-        eyecatch_image: bmson
-            .chart_info
-            .eyecatch_image
-            .map(|p| p.to_string_lossy().into_owned()),
-        banner_image: bmson
-            .chart_info
-            .banner_image
-            .map(|p| p.to_string_lossy().into_owned()),
-        preview_music: bmson
-            .chart_info
-            .preview_music
-            .map(|p| p.to_string_lossy().into_owned()),
+        title_image: normalize_optional_path(bmson.chart_info.title_image)?,
+        back_image: normalize_optional_path(bmson.chart_info.back_image)?,
+        eyecatch_image: normalize_optional_path(bmson.chart_info.eyecatch_image)?,
+        banner_image: normalize_optional_path(bmson.chart_info.banner_image)?,
+        preview_music: normalize_optional_path(bmson.chart_info.preview_music)?,
         bga_resources,
         // BMSON 无 #VIDEOFILE/#MOVIE 概念。
         video: None,
+        key_count: mode_key_count(&bmson.chart_data.mode_hint),
+    })
+}
+
+/// 从 `mode_hint` 推断可玩按键总数。
+fn mode_key_count(mode: &bmson_def::ModeHint) -> Option<u8> {
+    use bmson_def::ModeHint;
+
+    match mode {
+        ModeHint::Beat5k
+        | ModeHint::Dj5kOnly
+        | ModeHint::DjRuby
+        | ModeHint::Dj5k
+        | ModeHint::Popn5k => Some(5),
+        ModeHint::Beat7k | ModeHint::Dj7k => Some(7),
+        ModeHint::Beat10k | ModeHint::Dj10k => Some(10),
+        ModeHint::Beat14k | ModeHint::Dj14k | ModeHint::DjAndromeda => Some(14),
+        ModeHint::Popn9k => Some(9),
+        ModeHint::Generic(count) => u8::try_from(*count).ok(),
+        _ => None,
     }
 }
 

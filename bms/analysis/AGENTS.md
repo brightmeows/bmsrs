@@ -14,6 +14,9 @@ BMS 分析层：在 `bms-syntax` 的 CST 上产出编辑器数据。不依赖 LS
 | `header_doc()` | 头部命令中文说明，按命令前缀匹配（`WAV01` → `WAV`） |
 | `channel_doc()` | 通道中文说明，支持音符通道分组 |
 
+`docs.rs` 是人工摘要，权威来源是 bms skill；修改前先核对 skill，
+不要把它当作规范原文。
+
 ## 索引规则
 
 - 定义：`#WAVxx` / `#EXWAVxx`、`#BMPxx` / `#EXBMPxx`、`#BGAxx` / `#@BGAxx` /

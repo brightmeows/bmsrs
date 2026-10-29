@@ -10,6 +10,10 @@ BMS 语义层：rowan CST → 结构化 `Bms` 模型。类型化单行语法
 
 **`Bms` 保真映射。** `Bms` 字段是 BMS 文件内容的直接结构化表示，不存需要计算或语义解释才能得到的派生值。域级判据见 `bms/AGENTS.md` 职责判据。
 
+`BgaEvent.layer` 使用本 crate 的 `BmsBgaLayer`；`bms-parser` 不依赖
+`bmsrs-chart`，图层到 `bmsrs_chart::BgaLayer` 的映射由 `bms-processor`
+负责。
+
 | 不做什么 | 理由 |
 |----------|------|
 | 值解释（路径、URL、邮箱） | 字符串原样保留 |

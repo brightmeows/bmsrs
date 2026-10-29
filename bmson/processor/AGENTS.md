@@ -24,7 +24,9 @@
 ## 声音通道切片
 
 每个 `SoundChannel` 在启动时预先切片为 `AudioAsset` 数组，
-每一切片以唯一 Note 脉冲为边界。运行时的音符事件通过索引查预切好的 asset。
+每一切片以唯一 Note 脉冲为边界。切片时间使用
+`TimingTrack::tick_to_musical_duration`，STOP 暂停不进入音频偏移。
+运行时的音符事件通过索引查预切好的 asset。
 
 见内部 `slice` 模块。
 
@@ -34,3 +36,8 @@
 |------|------|
 | BGM 音符丢弃 | 同脉冲有可演奏音符时，BGM 音符 (`x: 0`) 被丢弃 |
 | 事件排序 | Note/BGA → BPM → Stop |
+| 分层音符 | 跨 `SoundChannel` 的同一 `(side, lane, tick)` 融合为一个 `Note`，音频层收进 `NoteAudio`；长音长度不一致产生 `LayeredNoteLengthMismatch` 警告 |
+| 释放音 | `up: true` 映射为核心 `NoteRole::Release`，不再放进 `BmsonNoteExt` |
+| 键数 | `ChartInfo.key_count` 从 `mode_hint` 推断；未知/扩展提示为 `None` |
+| 资源路径 | `SoundChannel`/`mine_channels`/`key_channels`/BGA/图片路径统一走 `normalize_path`：拒绝绝对路径、盘符、`..`、NUL 与空路径，反斜杠转正斜杠 |
+| 元数据 | `subartists` 与 `title_image` 映射到 `ChartInfo`；`ln_mode` 已删除，beatoraja `t` 覆盖 `ln_type_hint` |

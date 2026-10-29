@@ -10,9 +10,11 @@ use bmson_def::{
     MineChannel, MineNote, ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
 };
 use bmson_processor::layout::{Beat, GenericLayout, Pms};
-use bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor};
+use bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor, ProcessError};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind};
+use bmsrs_chart::{
+    BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteRole,
+};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
@@ -114,6 +116,255 @@ fn process_basic_note() -> TestResult {
 
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0], (0, NoteSide::P1, key(1), NoteKind::Normal));
+    Ok(())
+}
+
+#[test]
+fn process_layered_notes_fuse_audio_layers() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    for name in ["a.wav", "b.wav"] {
+        bmson.chart_data.sound_channels.push(SoundChannel {
+            name: Path::new(name),
+            note_events: vec![NoteEvent {
+                x: 1,
+                y: 0,
+                l: 0,
+                c: false,
+                t: None,
+                up: None,
+                ln_type_hint: None,
+                ln_judge_hint: None,
+                ln_life_hint: None,
+                vol: None,
+                pan: None,
+            }],
+        });
+    }
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+    let notes: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter(|event| matches!(event.kind, EventKind::Note { .. }))
+        .collect();
+
+    assert_eq!(notes.len(), 1);
+    let EventKind::Note { audio, .. } = &notes[0].kind else {
+        panic!("expected a note event");
+    };
+    assert_eq!(audio.len(), 2);
+    Ok(())
+}
+
+#[test]
+fn process_layered_long_notes_warn_on_length_mismatch() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    for (name, length) in [("a.wav", 240), ("b.wav", 480)] {
+        bmson.chart_data.sound_channels.push(SoundChannel {
+            name: Path::new(name),
+            note_events: vec![NoteEvent {
+                x: 1,
+                y: 0,
+                l: length,
+                c: false,
+                t: None,
+                up: None,
+                ln_type_hint: None,
+                ln_judge_hint: None,
+                ln_life_hint: None,
+                vol: None,
+                pan: None,
+            }],
+        });
+    }
+
+    let processed = BmsonProcessor::process::<Beat>(&bmson)?;
+
+    assert!(
+        processed
+            .warnings
+            .contains(&BmsonProcessWarning::LayeredNoteLengthMismatch {
+                tick: 0,
+                first: 240,
+                other: 480,
+            })
+    );
+    Ok(())
+}
+
+#[test]
+fn process_up_note_sets_release_role() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("release.wav"),
+        note_events: vec![NoteEvent {
+            x: 1,
+            y: 0,
+            l: 0,
+            c: false,
+            t: None,
+            up: Some(true),
+            ln_type_hint: None,
+            ln_judge_hint: None,
+            ln_life_hint: None,
+            vol: None,
+            pan: None,
+        }],
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+    let role = chart.data.events.iter().find_map(|event| {
+        if let EventKind::Note { role, .. } = &event.kind {
+            Some(*role)
+        } else {
+            None
+        }
+    });
+
+    assert_eq!(role, Some(NoteRole::Release));
+    Ok(())
+}
+
+#[test]
+fn beatoraja_ln_mode_overrides_ln_type_hint() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("ln.wav"),
+        note_events: vec![NoteEvent {
+            x: 1,
+            y: 0,
+            l: 240,
+            c: false,
+            t: Some(bmson_def::LnMode::Cn),
+            up: None,
+            ln_type_hint: Some(LnType::Hcn),
+            ln_judge_hint: None,
+            ln_life_hint: None,
+            vol: None,
+            pan: None,
+        }],
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+    let hint = chart.data.events.iter().find_map(|event| {
+        if let EventKind::Note { ext, .. } = &event.kind {
+            ext.ln_type_hint
+        } else {
+            None
+        }
+    });
+
+    assert_eq!(hint, Some(LnTypeHint::Cn));
+    Ok(())
+}
+
+#[test]
+fn process_beat_mode_sets_key_count() -> TestResult {
+    let bmson = make_simple_bmson();
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+
+    assert_eq!(chart.chart.key_count, Some(7));
+    Ok(())
+}
+
+#[test]
+fn process_maps_subartists_and_title_image_to_chart_info() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_info.subartists = vec!["music:Composer"];
+    bmson.chart_info.title_image = Some(Path::new("title.png"));
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+
+    assert_eq!(chart.chart.subartists, vec!["music:Composer"]);
+    assert_eq!(chart.chart.title_image.as_deref(), Some("title.png"));
+    Ok(())
+}
+
+#[test]
+fn process_rejects_parent_directory_path() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("../evil.wav"),
+        note_events: vec![],
+    });
+
+    let result = BmsonProcessor::process::<Beat>(&bmson);
+
+    assert!(matches!(
+        result,
+        Err(ProcessError::UnsafePath {
+            reason: "parent directory traversal",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn process_rejects_absolute_path() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("/etc/passwd"),
+        note_events: vec![],
+    });
+
+    let result = BmsonProcessor::process::<Beat>(&bmson);
+
+    assert!(matches!(
+        result,
+        Err(ProcessError::UnsafePath {
+            reason: "absolute path",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn process_rejects_nul_path() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("bad\0.wav"),
+        note_events: vec![],
+    });
+
+    let result = BmsonProcessor::process::<Beat>(&bmson);
+
+    assert!(matches!(
+        result,
+        Err(ProcessError::UnsafePath {
+            reason: "NUL byte",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn process_normalizes_backslash_path() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("snd\\kick.wav"),
+        note_events: vec![NoteEvent {
+            x: 1,
+            y: 0,
+            l: 0,
+            c: false,
+            t: None,
+            up: None,
+            ln_type_hint: None,
+            ln_judge_hint: None,
+            ln_life_hint: None,
+            vol: None,
+            pan: None,
+        }],
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+
+    assert_eq!(
+        chart.data.audio_assets[0].path.as_ref(),
+        Path::new("snd/kick.wav")
+    );
     Ok(())
 }
 
@@ -594,8 +845,8 @@ fn process_bga_events() -> TestResult {
     assert!(bga_evts.contains(&(960, BgaLayer::Poor)));
 
     assert_eq!(chart.chart.bga_resources.len(), 1);
-    // 稠密化：原始 id 1 → 下标 0
-    assert_eq!(chart.chart.bga_resources[0].id, 0);
+    // 稠密化：原始 id 1 → 下标 0；BGA 资源不再单独保存 id。
+    assert!(chart.chart.bga_resources[0].crop.is_none());
     Ok(())
 }
 
@@ -812,15 +1063,12 @@ fn note_ext_fields() {
     let ext = BmsonNoteExt {
         vol: Some(-50),
         pan: Some(100),
-        release_sound: Some(true),
-        ln_mode: Some(2),
         ln_type_hint: Some(LnTypeHint::Cn),
         ln_judge_hint: Some(LnJudgeHint::Ticks),
         ln_life_hint: Some(LnLifeHint::Normal),
     };
     assert_eq!(ext.vol, Some(-50));
     assert_eq!(ext.pan, Some(100));
-    assert_eq!(ext.release_sound, Some(true));
 }
 
 #[test]

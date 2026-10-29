@@ -3,12 +3,12 @@
 //! 这些测试仅通过公开 API 消费 crate，与外部消费者的使用方式完全一致。
 //! 整管线入口（`from_text`）已移至 `bmsrs` facade，其测试随迁。
 
+use bms_parser::BmsBgaLayer;
 use bms_parser::*;
 use bms_parser::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
     Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
-use bmsrs_chart::BgaLayer;
 
 /// 辅助函数：将 BMS 字符串解析为 `Bms`（默认 C = &str）。
 fn parse(input: &str) -> Bms {
@@ -69,7 +69,7 @@ fn event_types_accessible() {
     };
     let _bga = BgaEvent {
         position: pos,
-        layer: BgaLayer::Base,
+        layer: BmsBgaLayer::Base,
         bmp_id: "03".parse().unwrap(),
     };
     let _: MeasureLength = MeasureLength {
@@ -398,25 +398,25 @@ fn bga_messages_parsed() {
         bms.messages
             .bga_events
             .iter()
-            .any(|e| e.layer == BgaLayer::Base)
+            .any(|e| e.layer == BmsBgaLayer::Base)
     );
     assert!(
         bms.messages
             .bga_events
             .iter()
-            .any(|e| e.layer == BgaLayer::Poor)
+            .any(|e| e.layer == BmsBgaLayer::Poor)
     );
     assert!(
         bms.messages
             .bga_events
             .iter()
-            .any(|e| e.layer == BgaLayer::Layer)
+            .any(|e| e.layer == BmsBgaLayer::Layer)
     );
     assert!(
         bms.messages
             .bga_events
             .iter()
-            .any(|e| e.layer == BgaLayer::Layer2)
+            .any(|e| e.layer == BmsBgaLayer::Layer2)
     );
 }
 

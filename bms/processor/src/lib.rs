@@ -34,25 +34,27 @@ mod position;
 pub mod layout;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use bms_parser::{
-    BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, LnMode, SeekIndex, WavIndex,
+    Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
+    OwnedExWavParams, PlayerMode, Rank, SeekIndex, WavCmdParams, WavIndex,
 };
-use bms_parser::{Bms, BpmValue, KeyType};
+use bms_parser::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
-    AudioAsset, BgaResource, BpmChange, BpmLookup, Chart, ChartData, ChartInfo, CropRect, Damage,
-    Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, SongInfo, StopEvent,
-    TimingTrack, TimingTrackError, VideoAsset,
+    AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
+    ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    VideoAsset,
 };
 use thiserror::Error;
 
 pub use crate::error::ProcessWarning;
 
 use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsChannel, BmsLayout, Pms, PmsBme, PmsLayout};
+use crate::layout::{Bme, BmsLayout, ChannelPos, DscOctFp, Pms, PmsBme, PmsLayout};
 
 use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
@@ -66,6 +68,12 @@ pub enum ProcessError {
     /// `ZeroResolution` 被译成 `InvalidBpm(0.0)`，报误导性错误。
     #[error(transparent)]
     Timing(#[from] TimingTrackError),
+    /// 初始 BPM 为零。
+    ///
+    /// BMS 的 `#BPM 0` 在部分实现中表示谱面不滚动，但当前时间模型无法
+    /// 表示零 BPM；这里保持拒绝，而不是静默回退到 130。
+    #[error("initial BPM must not be zero; BMS #BPM 0 is not supported")]
+    ZeroBpm,
 }
 
 /// BMS 处理器产出的统一事件类型。
@@ -84,6 +92,83 @@ pub struct Processed {
     pub chart: Chart<(), BmsCustomEvent>,
     /// 处理过程中收集的可恢复警告。
     pub warnings: Vec<ProcessWarning>,
+    /// 未进入核心 `Chart` 的 BMS 游玩参数原始值。
+    pub gameplay: BmsGameplay,
+    /// 未进入核心 `AudioAsset` 的 BMS 音频参数原始值。
+    pub audio: BmsAudio,
+}
+
+/// BMS 游玩参数侧车。
+///
+/// 这些字段的换算规则依赖具体引擎，不进入格式无关的 `Chart`；需要
+/// 原始值的消费者从 [`Processed::gameplay`] 读取。
+#[derive(Debug, Clone, PartialEq)]
+pub struct BmsGameplay {
+    /// 游戏模式（`#PLAYER`）。
+    pub player: Option<PlayerMode>,
+    /// 判定难度（`#RANK`）。
+    pub rank: Option<Rank>,
+    /// 精细判定难度（`#DEFEXRANK`）。
+    pub def_ex_rank: Option<f64>,
+    /// 血量槽最大增量（`#TOTAL`）。
+    pub total: Option<f64>,
+    /// 主音量百分比（`#VOLWAV`）。
+    pub vol_wav: Option<f64>,
+    /// 按位置的判定宽度覆盖（`#EXRANKxx`）。
+    pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
+    /// 引擎特有选项字符串（`#OPTION`）。
+    pub option: Option<String>,
+    /// 动态选项变更定义（`#CHANGEOPTIONxx`）。
+    pub change_option_defs: BTreeMap<ChangeOptionIndex, String>,
+}
+
+impl From<&Gameplay> for BmsGameplay {
+    fn from(gameplay: &Gameplay) -> Self {
+        Self {
+            player: gameplay.player,
+            rank: gameplay.rank,
+            def_ex_rank: gameplay.def_ex_rank,
+            total: gameplay.total,
+            vol_wav: gameplay.vol_wav,
+            ex_rank_defs: gameplay.ex_rank_defs.clone(),
+            option: gameplay.option.clone(),
+            change_option_defs: gameplay.change_option_defs.clone(),
+        }
+    }
+}
+
+/// BMS 音频参数侧车。
+///
+/// `#PATH_WAV` 已经应用到 [`AudioAsset::path`](bmsrs_chart::AudioAsset::path)；
+/// 这里保留原始前缀与其他未进入核心模型的参数。
+#[expect(
+    clippy::derive_partial_eq_without_eq,
+    reason = "侧车保留 BMS 原始参数，部分字段无法安全实现 Eq"
+)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct BmsAudio {
+    /// `#EXWAV` 的逐 WAV 效果参数。
+    pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
+    /// `#WAVCMD` 全局播放命令。
+    pub wav_cmd: Option<WavCmdParams>,
+    /// `#CDDA` 音轨引用。
+    pub cdda: Option<String>,
+    /// `#MIDIFILE` 引用。
+    pub midifile: Option<String>,
+    /// `#PATH_WAV` 原始目录前缀。
+    pub path_wav: Option<String>,
+}
+
+impl From<&Audio> for BmsAudio {
+    fn from(audio: &Audio) -> Self {
+        Self {
+            ex_wav_params: audio.ex_wav_params.clone(),
+            wav_cmd: audio.wav_cmd.clone(),
+            cdda: audio.cdda.clone(),
+            midifile: audio.midifile.clone(),
+            path_wav: audio.path_wav.clone(),
+        }
+    }
 }
 
 /// BMS 谱面的默认节拍分辨率（每四分音符的脉冲数）。
@@ -104,6 +189,9 @@ impl BmsProcessor {
         L: BmsLayout,
     {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
+        if init_bpm == 0.0 {
+            return Err(ProcessError::ZeroBpm);
+        }
 
         let max_measure = find_max_measure(bms);
         let table = MeasureTable::new(max_measure, &bms.messages.measure_lengths, RESOLUTION);
@@ -114,7 +202,7 @@ impl BmsProcessor {
             warnings: Vec::new(),
         };
 
-        let (wav_map, audio_assets) = build_audio_assets(&bms.audio.wav_files);
+        let (wav_map, audio_assets) = build_audio_assets(&bms.audio);
         let bpm_changes = conv.build_bpm_changes();
         let bpm_lookup = BpmLookup::new(init_bpm, &bpm_changes);
 
@@ -171,8 +259,8 @@ impl BmsProcessor {
 
         let mut data = ChartData {
             timing,
-            judge_multiplier: 1.0,
-            life_multiplier: 1.0,
+            judge_multiplier: None,
+            life_multiplier: None,
             ln_type_hint,
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
@@ -193,6 +281,8 @@ impl BmsProcessor {
             .map(ProcessWarning::UnparsableValue)
             .collect();
         warnings.extend(conv.warnings);
+        let gameplay = BmsGameplay::from(&bms.gameplay);
+        let audio = BmsAudio::from(&bms.audio);
 
         Ok(Processed {
             chart: Chart {
@@ -201,6 +291,8 @@ impl BmsProcessor {
                 data,
             },
             warnings,
+            gameplay,
+            audio,
         })
     }
 
@@ -219,8 +311,9 @@ impl BmsProcessor {
         }
     }
 
-    /// 使用默认的 [`Bme`] 布局处理 BMS 谱面。
+    /// 使用默认布局处理 BMS 谱面。
     ///
+    /// 若谱面声明了 `#OCT/FP`，使用 [`DscOctFp`]；否则使用 [`Bme`]。
     /// `Bme` 统一覆盖 beat-5k/7k/10k/14k —— 两侧玩家均被映射，因此单人
     /// 谱面只是让 2P 轨道空置，双人谱面则填充它们。`#PLAYER` 头部命令不
     /// 影响映射（与现代引擎一致，均忽略该字段）。
@@ -233,7 +326,11 @@ impl BmsProcessor {
     /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
     /// [`ProcessError::Timing`]。
     pub fn process_default(bms: &Bms) -> Result<Processed, ProcessError> {
-        Self::process::<Bme>(bms)
+        if bms.gameplay.oct_fp == Some(true) {
+            Self::process::<DscOctFp>(bms)
+        } else {
+            Self::process::<Bme>(bms)
+        }
     }
 }
 
@@ -291,48 +388,58 @@ impl BmsConverter<'_> {
         }
     }
     /// 收集全部可玩音符到事件向量中。
+    #[expect(
+        clippy::too_many_lines,
+        reason = "普通/不可见/LNOBJ/长音/地雷五种来源共用同一匹配逻辑，拆开反而割裂"
+    )]
     fn collect_notes<L: BmsLayout>(
         &mut self,
-        wav_map: &BTreeMap<WavIndex, u32>,
+        wav_map: &BTreeMap<WavIndex, AudioIndex>,
         paired_lns: &[PairedLn],
         consumed: &HashSet<usize>,
         unpaired_starts: &[(u8, u8, u64)],
     ) {
-        let push_note =
-            |tick: u64, side, lane, kind: NoteKind, audio: Option<u32>, ev: &mut Vec<BmsEvent>| {
-                if let Some((note_side, note_lane)) =
-                    BmsChannel::new(side, lane).and_then(L::map_channel)
-                {
-                    ev.push(Event::new(
-                        tick,
-                        EventKind::Note {
-                            side: note_side,
-                            lane: note_lane,
-                            kind,
-                            audio_index: audio,
-                            ext: (),
-                        },
-                    ));
-                }
-            };
-
-        let mut check_wav = |wav_id: &WavIndex, player: u8, lane: u8, tick: u64| -> Option<u32> {
-            let audio = wav_map.get(wav_id).copied();
-            // `to_index()` 返回 `None` 时静默跳过警告：非可分解的 WAV 键
-            // （如 "ZZ" LNOBJ 标记）不属于 WAV 表定义的范围，不产生
-            // 缺失定义警告。
-            if audio.is_none()
-                && let Some(key) = wav_id.0.to_index()
+        let push_note = |tick: u64,
+                         side,
+                         lane,
+                         kind: NoteKind,
+                         audio: Option<AudioIndex>,
+                         ev: &mut Vec<BmsEvent>| {
+            if let Some((note_side, note_lane)) =
+                ChannelPos::new(side, lane).and_then(L::map_channel)
             {
-                self.warnings.push(ProcessWarning::MissingWavDefinition {
-                    key,
-                    player,
-                    lane,
+                ev.push(Event::new(
                     tick,
-                });
+                    EventKind::Note {
+                        side: note_side,
+                        lane: note_lane,
+                        kind,
+                        role: NoteRole::Normal,
+                        audio: NoteAudio::from(audio),
+                        ext: (),
+                    },
+                ));
             }
-            audio
         };
+
+        let mut check_wav =
+            |wav_id: &WavIndex, player: u8, lane: u8, tick: u64| -> Option<AudioIndex> {
+                let audio = wav_map.get(wav_id).copied();
+                // `to_index()` 返回 `None` 时静默跳过警告：非可分解的 WAV 键
+                // （如 "ZZ" LNOBJ 标记）不属于 WAV 表定义的范围，不产生
+                // 缺失定义警告。
+                if audio.is_none()
+                    && let Some(key) = wav_id.0.to_index()
+                {
+                    self.warnings.push(ProcessWarning::MissingWavDefinition {
+                        key,
+                        player,
+                        lane,
+                        tick,
+                    });
+                }
+                audio
+            };
 
         // 构建 LN 区间表：(player, lane) → Vec<(start_tick, end_tick)>。
         let ln_ranges = build_ln_ranges(paired_lns);
@@ -414,7 +521,7 @@ impl BmsConverter<'_> {
     }
 
     /// 收集 BGM 事件到事件向量中。
-    fn collect_bgm(&mut self, wav_map: &BTreeMap<WavIndex, u32>) {
+    fn collect_bgm(&mut self, wav_map: &BTreeMap<WavIndex, AudioIndex>) {
         for be in &self.bms.messages.bgm_events {
             if let Some(&audio) = wav_map.get(&be.wav_id) {
                 self.events
@@ -429,7 +536,11 @@ impl BmsConverter<'_> {
     /// 终点标记经过判定线时，其 WAV 文件作为 BGM 播放。此函数遍历
     /// [`pair_lnobj`] 返回的 `consumed` 音符索引，为每个终点标记生成一个
     /// BGM 事件。
-    fn collect_lnobj_bgm(&mut self, wav_map: &BTreeMap<WavIndex, u32>, consumed: &HashSet<usize>) {
+    fn collect_lnobj_bgm(
+        &mut self,
+        wav_map: &BTreeMap<WavIndex, AudioIndex>,
+        consumed: &HashSet<usize>,
+    ) {
         let Some(ln_obj) = self.bms.gameplay.ln_obj else {
             return;
         };
@@ -659,7 +770,7 @@ impl BmsConverter<'_> {
                 self.events.push(Event::new(
                     self.table.position_to_tick(be.position),
                     EventKind::Bga {
-                        layer: be.layer,
+                        layer: map_bga_layer(be.layer),
                         resource_id: entry.resource_id,
                     },
                 ));
@@ -764,7 +875,7 @@ impl BmsConverter<'_> {
             map.insert(
                 id,
                 BmpEntry {
-                    resource_id: i as u32,
+                    resource_id: BgaResourceId::new(i as u32),
                     path,
                     crop,
                 },
@@ -858,7 +969,6 @@ impl BmsConverter<'_> {
         let bga_resources: Vec<BgaResource> = bmp_map
             .values()
             .map(|e| BgaResource {
-                id: e.resource_id,
                 path: e.path.clone().into(),
                 crop: e.crop,
             })
@@ -869,13 +979,6 @@ impl BmsConverter<'_> {
                 title: self.bms.metadata.title.clone().unwrap_or_default(),
                 artist: self.bms.metadata.artist.clone().unwrap_or_default(),
                 genre: self.bms.metadata.genre.clone().unwrap_or_default(),
-                subartists: self
-                    .bms
-                    .metadata
-                    .sub_artist
-                    .as_deref()
-                    .map(|s| vec![s.to_owned()])
-                    .unwrap_or_default(),
             },
             ChartInfo {
                 subtitle: self.bms.metadata.subtitle.clone().unwrap_or_default(),
@@ -886,12 +989,21 @@ impl BmsConverter<'_> {
                     .map(|l| format!("{l:.0}"))
                     .unwrap_or_default(),
                 level: self.bms.display.play_level.map_or(0, |l| l as u64),
+                subartists: self
+                    .bms
+                    .metadata
+                    .sub_artist
+                    .as_deref()
+                    .map(|s| vec![s.to_owned()])
+                    .unwrap_or_default(),
+                title_image: None,
                 back_image: self.bms.display.back_bmp.clone(),
                 eyecatch_image: self.bms.display.stage_file.clone(),
                 banner_image: self.bms.display.banner.clone(),
                 preview_music: self.bms.display.preview.clone(),
                 bga_resources,
                 video,
+                key_count: key_count(&self.events),
             },
         )
     }
@@ -921,6 +1033,16 @@ impl BmsConverter<'_> {
             asset = asset.with_delay_frames(delay.max(0.0).round() as u32);
         }
         Some(asset)
+    }
+}
+
+/// 将 BMS 语义层的图层枚举映射为格式无关的 [`bmsrs_chart::BgaLayer`]。
+const fn map_bga_layer(layer: BmsBgaLayer) -> bmsrs_chart::BgaLayer {
+    match layer {
+        BmsBgaLayer::Base => bmsrs_chart::BgaLayer::Base,
+        BmsBgaLayer::Poor => bmsrs_chart::BgaLayer::Poor,
+        BmsBgaLayer::Layer => bmsrs_chart::BgaLayer::Layer,
+        BmsBgaLayer::Layer2 => bmsrs_chart::BgaLayer::Layer2,
     }
 }
 
@@ -969,16 +1091,18 @@ fn find_max_measure(bms: &Bms) -> u16 {
 }
 
 /// 构建 WAV 音频素材并返回查找表与素材向量。
-fn build_audio_assets(
-    wav_files: &BTreeMap<WavIndex, String>,
-) -> (BTreeMap<WavIndex, u32>, Vec<AudioAsset>) {
+fn build_audio_assets(audio: &Audio) -> (BTreeMap<WavIndex, AudioIndex>, Vec<AudioAsset>) {
     let mut wav_map = BTreeMap::new();
     let mut audio_assets = Vec::new();
-    for (&wav_id, path) in wav_files {
+    for (&wav_id, path) in &audio.wav_files {
         #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
-        let idx = audio_assets.len() as u32;
+        let idx = AudioIndex::new(audio_assets.len() as u32);
+        let resolved_path = audio.path_wav.as_ref().map_or_else(
+            || PathBuf::from(path),
+            |prefix| Path::new(prefix).join(path),
+        );
         audio_assets.push(AudioAsset {
-            path: Arc::from(PathBuf::from(path.as_str())),
+            path: Arc::from(resolved_path),
             start: Duration::ZERO,
             duration: None,
         });
@@ -990,8 +1114,8 @@ fn build_audio_assets(
 /// [`build_bmp_map`](BmsConverter::build_bmp_map) 产出的条目：稠密资源 id、
 /// 源文件路径与可选裁剪定义。
 struct BmpEntry {
-    /// 0 基资源 id（对应 [`BgaResource::id`]）。
-    resource_id: u32,
+    /// 0 基资源 id（对应 `bga_resources` 的向量下标）。
+    resource_id: BgaResourceId,
     /// 源图片文件路径（裁剪定义指向的底层 `#BMP`）。
     path: String,
     /// 裁剪与放置定义（`#BGA` / `#@BGA`）；无则为 `None`。
@@ -1018,6 +1142,34 @@ fn build_ln_ranges(paired_lns: &[PairedLn]) -> HashMap<(u8, u8), Vec<(u64, u64)>
             .push((ln.tick, ln.end_tick));
     }
     ln_ranges
+}
+
+/// 从事件流推断可玩按键总数。
+///
+/// 每侧取 `Lane::Key` 的最大编号，再把两侧相加；没有任何按键音符时
+/// 返回 `None`。刮盘、踏板与地雷不计入按键数。
+fn key_count(events: &[BmsEvent]) -> Option<u8> {
+    let mut p1 = 0u8;
+    let mut p2 = 0u8;
+
+    for event in events {
+        if let EventKind::Note {
+            side,
+            lane: Lane::Key(key),
+            ..
+        } = &event.kind
+        {
+            let slot = if side.as_u8() == NoteSide::P1.as_u8() {
+                &mut p1
+            } else {
+                &mut p2
+            };
+            *slot = (*slot).max(key.get());
+        }
+    }
+
+    let total = p1.saturating_add(p2);
+    (total > 0).then_some(total)
 }
 
 /// 判断 visible note 是否应被 LN 区间抑制。

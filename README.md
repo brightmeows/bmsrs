@@ -59,12 +59,12 @@ bmsrs = { git = "https://github.com/brightmeows/bmsrs" }
 use std::time::Duration;
 
 use bmsrs::bms::processor::BmsProcessor;
-use bmsrs::bms::{ErrorStrategy, from_text};
+use bmsrs::bms::{ErrorStrategy, from_bytes};
 use bmsrs::player::Player;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source = std::fs::read_to_string("chart.bms")?;
-    let (bms, _warnings) = from_text(&source, |_| 1, ErrorStrategy::CollectAll)?;
+    let bytes = std::fs::read("chart.bms")?;
+    let (bms, _warnings) = from_bytes(bytes, |_| 1, ErrorStrategy::CollectAll)?;
     let processed = BmsProcessor::process_default(&bms)?;
 
     let mut player = Player::new(processed.chart)?;
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`from_text` 的第二个参数是 `#RANDOM` 与 `#SWITCH` 的分支选择函数。示例固定选择第一个分支。
+`from_bytes` 的第二个参数是 `#RANDOM` 与 `#SWITCH` 的分支选择函数。示例固定选择第一个分支；已经是 UTF-8 文本时可改用 `from_text`。
 
 ### BMSON 到 Chart
 
