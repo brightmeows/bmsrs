@@ -1,87 +1,91 @@
-//! 处理警告类型定义。
+//! Processing warning type definitions.
 
 use bmsrs_bms_parser::ChannelValueWarning;
 
-/// BMS 处理过程中可恢复的警告。
+/// Recoverable warnings produced while processing BMS.
 ///
-/// 这些警告表示谱面中的异常情况，但仍可生成有效的 `Chart`。
+/// These warnings indicate anomalies in the chart, but a valid `Chart` can still
+/// be produced.
 ///
-/// 引用缺失类（`Missing*`）与值损坏类（[`ProcessWarning::UnparsableValue`]）
-/// 共同构成 processor 层的完整可观测面；控制流结构问题由
-/// `bmsrs-bms-syntax` 诊断负责。
+/// Missing-reference warnings (`Missing*`) and corrupted-value warnings
+/// ([`ProcessWarning::UnparsableValue`]) together form the complete observable
+/// surface of the processor layer; control-flow structure problems belong to
+/// `bmsrs-bms-syntax` diagnostics.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum ProcessWarning {
-    /// 音符引用了 `#WAV` 中未定义的键。
+    /// A note references a key that is not defined in `#WAV`.
     #[error(
         "note at tick {tick} (player {player}, lane {lane}) references undefined WAV key {key}"
     )]
     MissingWavDefinition {
-        /// 未定义的 WAV 键（base36 数值）。
+        /// Undefined WAV key (Base36 numeric value).
         key: u16,
-        /// 引用方音符所在玩家编号。
+        /// Player number of the referencing note.
         player: u8,
-        /// 引用方音符所在轨道编号。
+        /// Lane number of the referencing note.
         lane: u8,
-        /// 事件所在脉冲。
+        /// Tick where the event occurs.
         tick: u64,
     },
 
-    /// 长音起点未配对的终点。
+    /// A long-note start has no matching end.
     #[error("long note start at tick {tick} (player {player}, lane {lane}) has no matching end")]
     UnterminatedLongNote {
-        /// 玩家编号。
+        /// Player number.
         player: u8,
-        /// 轨道编号。
+        /// Lane number.
         lane: u8,
-        /// 长音起点所在脉冲。
+        /// Tick of the long-note start.
         tick: u64,
     },
 
-    /// 值无效（零、NaN 或无穷大）的 BPM 变更被忽略。
+    /// A BPM change with an invalid value (zero, NaN, or infinity) was ignored.
     ///
-    /// 过滤谓词与 [`TimingTrack`](bmsrs_chart::TimingTrack) 构造一致
-    /// （[`BpmChange::is_valid`](bmsrs_chart::BpmChange::is_valid)），
-    /// 无效值不进入计时轨，也不进入统一事件流。
+    /// The filter predicate matches [`TimingTrack`](bmsrs_chart::TimingTrack)
+    /// construction ([`BpmChange::is_valid`](bmsrs_chart::BpmChange::is_valid));
+    /// invalid values enter neither the timing track nor the unified event
+    /// stream.
     #[error("invalid BPM change at tick {tick} ignored (value {bpm})")]
     InvalidBpmChangeIgnored {
-        /// 事件所在脉冲。
+        /// Tick where the event occurs.
         tick: u64,
-        /// 被忽略的 BPM 值。
+        /// Ignored BPM value.
         bpm: f64,
     },
 
-    /// 负值 STOP 时长被钳位到 0。
+    /// A negative stop duration was clamped to 0.
     #[error("negative stop duration at tick {tick} clipped to 0 (computed {original})")]
     StopDurationClipped {
-        /// 事件所在脉冲。
+        /// Tick where the event occurs.
         tick: u64,
-        /// 计算出的负值时长（被钳位前）。
+        /// Computed negative duration (before clamping).
         original: f64,
     },
 
-    /// BPM 变更引用 `#BPMxx` 中未定义的键。
+    /// A BPM change references a key that is not defined in `#BPMxx`.
     #[error("BPM change at tick {tick} references undefined BPM key {key}")]
     MissingBpmDefinition {
-        /// 未定义的 BPM 键（base36 数值）。
+        /// Undefined BPM key (Base36 numeric value).
         key: u16,
-        /// 事件所在脉冲。
+        /// Tick where the event occurs.
         tick: u64,
     },
 
-    /// 停止事件引用 `#STOPxx` 中未定义的键。
+    /// A stop event references a key that is not defined in `#STOPxx`.
     #[error("stop event at tick {tick} references undefined STOP key {key}")]
     MissingStopDefinition {
-        /// 未定义的 STOP 键（base36 数值）。
+        /// Undefined STOP key (Base36 numeric value).
         key: u16,
-        /// 事件所在脉冲。
+        /// Tick where the event occurs.
         tick: u64,
     },
 
-    /// 通道值无法解析为该通道要求的类型，事件被跳过。
+    /// A channel value cannot be parsed as the type required by that channel;
+    /// the event was skipped.
     ///
-    /// 透传 parser 层的 [`ChannelValueWarning`]（含 measure/channel/value
-    /// 定位信息）。
+    /// Forwards the parser layer's [`ChannelValueWarning`] (including
+    /// measure/channel/value location information).
     #[error(transparent)]
     UnparsableValue(#[from] ChannelValueWarning),
 }

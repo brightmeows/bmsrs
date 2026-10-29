@@ -1,27 +1,29 @@
-//! BMS Position → 绝对脉冲转换。
+//! BMS position to absolute tick conversion.
 //!
-//! BMS 在小节内使用分数位置。每个小节有一个可配置长度（相对标准 4/4 拍
-//! 小节的比率）。本模块构建累计脉冲表，将 [`Position`] 转换为绝对脉冲。
+//! BMS uses fractional positions within a measure. Each measure has a
+//! configurable length (a ratio relative to a standard 4/4 measure). This
+//! module builds a cumulative tick table and converts [`Position`] to absolute
+//! ticks.
 
 use bmsrs_bms_parser::Position;
 
-/// 将小节号映射到累计脉冲位置的表。
+/// Table mapping measure numbers to cumulative tick positions.
 ///
-/// 由 `#XXX` 小节长度变更构建。未显式列出的小节默认为 `1.0`（标准 4/4 拍
-/// = `resolution * 4` 脉冲）。
+/// Built from `#xxx02` measure length changes. Measures not listed explicitly
+/// default to `1.0` (a standard 4/4 measure, or `resolution * 4` ticks).
 pub struct MeasureTable {
-    /// 每个小节起点的累计脉冲（索引 = 小节号）。
+    /// Cumulative tick at each measure start (index = measure number).
     starts: Vec<u64>,
 }
 
 impl MeasureTable {
-    /// 从 BMS 小节长度定义构建小节表。
+    /// Build a measure table from BMS measure length definitions.
     ///
-    /// `resolution` 为每四分音符的脉冲数（如 240）。
-    /// `measure_lengths` 为 `bms.messages.measure_lengths` 向量。
+    /// `resolution` is the number of ticks per quarter note (such as 240).
+    /// `measure_lengths` is the `bms.messages.measure_lengths` vector.
     ///
-    /// 每个小节的脉冲长度为 `resolution * 4 * length_ratio`，其中
-    /// `length_ratio` 为 BMS `#xxx02` 值（`1.0` = 4/4 拍）。
+    /// Each measure's tick length is `resolution * 4 * length_ratio`, where
+    /// `length_ratio` is the BMS `#xxx02` value (`1.0` means 4/4).
     pub(crate) fn new(
         max_measure: u16,
         measure_lengths: &[bmsrs_bms_parser::MeasureLength],
@@ -29,7 +31,7 @@ impl MeasureTable {
     ) -> Self {
         let ticks_per_measure = resolution * 4;
 
-        // 构建查找表：小节 → length_ratio（默认 1.0）。
+        // Build the lookup table: measure to length_ratio (default 1.0).
         let mut ratios: std::collections::BTreeMap<u16, f64> = std::collections::BTreeMap::new();
         for ml in measure_lengths {
             ratios.insert(ml.measure, ml.length_ratio);
@@ -55,26 +57,33 @@ impl MeasureTable {
         Self { starts }
     }
 
-    /// 返回所有小节起点的累计脉冲（即小节线位置）。
+    /// Return the cumulative ticks at every measure start (the barline
+    /// positions).
     ///
-    /// 返回值长度为 `max_measure + 2`，索引为小节号。
-    /// 第 0 项为 `0`，末项为最后一小节终点（可用于末条小节线）。
-    /// 适配变拍号：每个 bar tick 对应实际小节线位置，而非固定 4/4 间距。
+    /// The returned slice has length `max_measure + 2` and is indexed by
+    /// measure number. Item 0 is `0`; the last item is the end of the final
+    /// measure (usable as the last barline). This supports variable time
+    /// signatures: each bar tick is an actual barline position, not a fixed
+    /// 4/4 spacing.
     #[must_use]
     pub(crate) fn bar_ticks(&self) -> &[u64] {
         &self.starts
     }
 
-    /// 将 BMS [`Position`] 转换为绝对脉冲。
+    /// Convert a BMS [`Position`] to an absolute tick.
     ///
-    /// 小节内位置占该小节脉冲长度的 `numer / denom`。
+    /// The position within the measure is `numer / denom` of that measure's tick
+    /// length.
     ///
-    /// 使用 u128 中间运算并四舍五入，避免 u64 溢出且减少截断误差。
-    /// 旧实现的整数除法 `numer * measure_len / denom` 在短小节或高分母
-    /// 时大量位置坍缩到同一 tick（如 7-tick 小节中 1/8 位置 = 0）。
+    /// Uses u128 intermediate arithmetic and rounds to nearest, avoiding u64
+    /// overflow and reducing truncation error. The old implementation used
+    /// integer division `numer * measure_len / denom`, which collapsed many
+    /// positions to the same tick in short measures or with large denominators
+    /// (for example, 1/8 in a 7-tick measure gave 0).
     ///
-    /// `denom > 0` 由 [`Position::new`] 在构造时保证（字段私有，外部无法
-    /// 绕过），因此此处无需 `denom == 0` 防御性检查。
+    /// `denom > 0` is guaranteed by [`Position::new`] at construction (the field
+    /// is private and cannot be bypassed externally), so no defensive
+    /// `denom == 0` check is needed here.
     #[expect(
         clippy::cast_possible_truncation,
         reason = "offset fits in u64 (bounded by measure_len)"
@@ -89,7 +98,7 @@ impl MeasureTable {
 
         let n = u128::from(pos.numer()) * u128::from(measure_len);
         let d = u128::from(pos.denom());
-        // 四舍五入：加 d/2 后整除。
+        // Round to nearest: add d/2, then divide.
         let offset = ((n + d / 2) / d) as u64;
         measure_start + offset
     }
@@ -114,14 +123,14 @@ mod tests {
 
     #[test]
     fn variable_meter_preserves_measure_lengths() {
-        // 小节 0 = 1.0（4/4 拍），小节 1 = 0.5（2/4 拍），小节 2 = 1.0（4/4 拍）。
+        // Measure 0 = 1.0 (4/4), measure 1 = 0.5 (2/4), measure 2 = 1.0 (4/4).
         let lengths = vec![MeasureLength {
             measure: 1,
             length_ratio: 0.5,
         }];
         let table = MeasureTable::new(3, &lengths, RES);
 
-        // 小节 0 = 960 脉冲，小节 1 = 480 脉冲，小节 2 = 960 脉冲。
+        // Measure 0 = 960 ticks, measure 1 = 480 ticks, measure 2 = 960 ticks.
         assert_eq!(table.position_to_tick(Position::new(0, 0, 1)), 0);
         assert_eq!(table.position_to_tick(Position::new(1, 0, 1)), 960);
         assert_eq!(table.position_to_tick(Position::new(2, 0, 1)), 1440);
@@ -136,20 +145,20 @@ mod tests {
         }];
         let table = MeasureTable::new(1, &lengths, RES);
 
-        // 小节 0 为 480 脉冲。位置 1/2 = 脉冲 240。
+        // Measure 0 is 480 ticks. Position 1/2 is tick 240.
         assert_eq!(table.position_to_tick(Position::new(0, 1, 2)), 240);
     }
 
     #[test]
     fn three_four_time() {
-        // 3/4 拍：length_ratio = 0.75 → 每小节 720 脉冲。
+        // 3/4 time: length_ratio = 0.75 gives 720 ticks per measure.
         let lengths = vec![MeasureLength {
             measure: 0,
             length_ratio: 0.75,
         }];
         let table = MeasureTable::new(2, &lengths, RES);
 
-        // 小节 0 总计 720 脉冲。位置 3/4 表示进入 540 脉冲。
+        // Measure 0 totals 720 ticks. Position 3/4 lands at tick 540.
         assert_eq!(table.position_to_tick(Position::new(0, 3, 4)), 540);
         assert_eq!(table.position_to_tick(Position::new(0, 4, 4)), 720);
         assert_eq!(table.position_to_tick(Position::new(1, 0, 1)), 720);
@@ -157,25 +166,27 @@ mod tests {
 
     #[test]
     fn short_measure_rounds_instead_of_truncates() {
-        // 极短小节：ratio = 0.0078125 → 960 * 0.0078125 = 7.5 → 截断为 7。
+        // Very short measure: ratio = 0.0078125, so 960 * 0.0078125 = 7.5,
+        // truncated to 7.
         let lengths = vec![MeasureLength {
             measure: 0,
             length_ratio: 0.007_812_5,
         }];
         let table = MeasureTable::new(1, &lengths, RES);
 
-        // measure_len = 7。
-        // 位置 1/2：真实值 3.5 → 四舍五入 = 4（旧截断 = 3）。
+        // measure_len = 7.
+        // Position 1/2: exact 3.5 rounds to 4 (old truncation gave 3).
         assert_eq!(table.position_to_tick(Position::new(0, 1, 2)), 4);
-        // 位置 1/8：真实值 0.875 → 四舍五入 = 1（旧截断 = 0，与小节起点重合）。
+        // Position 1/8: exact 0.875 rounds to 1 (old truncation gave 0,
+        // colliding with the measure start).
         assert_eq!(table.position_to_tick(Position::new(0, 1, 8)), 1);
-        // 位置 1/192：真实值 0.036 → 四舍五入 = 0。
+        // Position 1/192: exact 0.036 rounds to 0.
         assert_eq!(table.position_to_tick(Position::new(0, 1, 192)), 0);
     }
 
     #[test]
     fn exact_positions_unchanged_by_rounding() {
-        // 整除的情况不应受四舍五入影响。
+        // Exact divisions must not be affected by rounding.
         let table = MeasureTable::new(4, &[], RES);
         assert_eq!(table.position_to_tick(Position::new(0, 1, 3)), 320);
         assert_eq!(table.position_to_tick(Position::new(0, 1, 6)), 160);
