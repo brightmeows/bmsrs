@@ -1,44 +1,47 @@
-//! 格式无关的音乐游戏谱面数据模型。
+//! Format-agnostic music game chart data model.
 //!
-//! [`Chart`] 是核心类型：由格式处理器（`bmsrs-bmson-processor`、`bmsrs-bms-processor`）
-//! 产生的中间表示，供播放器（`bmsrs-player`）消费。
+//! [`Chart`] is the core type: the intermediate representation produced by the
+//! format processors (`bmsrs-bmson-processor` and `bmsrs-bms-processor`) and
+//! consumed by the player (`bmsrs-player`).
 //!
-//! # 结构
+//! # Structure
 //!
-//! 谱面拆分为三个子结构体，与 BMSON v2 格式对应：
+//! A chart is split into three sub-structures corresponding to BMSON v2:
 //!
-//! | 组件 | BMSON v2 对应 | 内容 |
+//! | Component | BMSON v2 counterpart | Content |
 //! |------|--------------|------|
-//! | [`SongInfo`] | `SongInfo` | 乐曲级元数据（标题、艺术家、流派）|
-//! | [`ChartInfo`] | `ChartInfo` | 谱面级元数据 + BGA 资源 |
-//! | [`ChartData`] | `ChartData` | 游玩数据（计时、事件、音频）|
+//! | [`SongInfo`] | `SongInfo` | song-level metadata (title, artist, genre) |
+//! | [`ChartInfo`] | `ChartInfo` | chart-level metadata plus BGA resources |
+//! | [`ChartData`] | `ChartData` | gameplay data (timing, events, audio) |
 //!
-//! # 时间模型
+//! # Time model
 //!
-//! 所有事件位置均为绝对 [`u64`] 脉冲（tick）。全局
-//! [`TimingTrack::resolution`](TimingTrack::resolution) 定义每个四分音符的脉冲数
-//! （默认 240）。实际时间（wall-clock）通过
-//! [`TimingTrack::tick_to_duration`] 换算得到。
+//! All event positions are absolute [`u64`] ticks. The global
+//! [`TimingTrack::resolution`](TimingTrack::resolution) defines ticks per quarter
+//! note (default 240). Wall-clock time is obtained through
+//! [`TimingTrack::tick_to_duration`].
 //!
-//! # 统一事件时间线
+//! # Unified event timeline
 //!
-//! 所有计时事件存放在单一的 [`events`](ChartData::events) 向量中，
-//! 按脉冲排序。[`Event`] 枚举的每个变体代表一种事件
-//! （音符、BGM、BPM 变更、停止、滚动、BGA、小节线或格式特有的自定义事件）。
+//! All timed events live in a single [`events`](ChartData::events) vector sorted
+//! by tick. Each variant of the [`Event`] enum represents one event kind (note,
+//! BGM, BPM change, stop, scroll, BGA, barline, or a format-specific custom
+//! event).
 //!
-//! # 泛型参数
+//! # Generic parameters
 //!
-//! - `T: NoteExt` —— 每音符扩展数据（默认 `()`）。
-//! - `C: CustomEvent` —— 格式特有的自定义事件类型
-//!   （默认 [`NoCustomEvent`]）。
+//! - `T: NoteExt`: per-note extension data (default `()`).
+//! - `C: CustomEvent`: format-specific custom event type (default
+//!   [`NoCustomEvent`]).
 //!
-//! # 格式扩展的擦除
+//! # Erasing format extensions
 //!
-//! 处理器产出的 `Chart` 可能带有格式扩展（例如 `BmsonNoteExt`、
-//! `BmsCustomEvent`）。上层在消费完这些扩展后，可用
-//! [`ChartData::filter_map_events`] 把谱面擦成
-//! `Chart<(), NoCustomEvent>` 交给只依赖核心 IR 的渲染器；若只想替换
-//! 每音符扩展、保留自定义事件，用 [`ChartData::map_events`]。
+//! Processors may produce a `Chart` with format extensions (such as
+//! `BmsonNoteExt` or `BmsCustomEvent`). After consuming those extensions,
+//! callers can use [`ChartData::filter_map_events`] to erase the chart to
+//! `Chart<(), NoCustomEvent>` for renderers that only depend on the core IR. To
+//! replace only the per-note extension while keeping custom events, use
+//! [`ChartData::map_events`].
 //!
 //! # Example
 //!
@@ -98,106 +101,111 @@ pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind,
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
 pub use visual::{BgaLayer, BgaResource, BgaResourceId, CropRect, VideoAsset};
 
-/// 乐曲级元数据 —— 对应 BMSON v2 的 `SongInfo`。
+/// Song-level metadata, corresponding to BMSON v2's `SongInfo`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SongInfo {
-    /// 乐曲标题。
+    /// Song title.
     pub title: String,
-    /// 主要艺术家。
+    /// Main artist.
     pub artist: String,
-    /// 乐曲流派。
+    /// Song genre.
     pub genre: String,
 }
 
-/// 谱面级元数据与资源 —— 对应 BMSON v2 的 `ChartInfo`。
+/// Chart-level metadata and resources, corresponding to BMSON v2's `ChartInfo`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ChartInfo {
-    /// 乐曲副标题（可为空）。
+    /// Song subtitle (may be empty).
     pub subtitle: String,
-    /// 谱面名称 / 难度标签（例如 `"HYPER"`、`"ANOTHER"`）。
+    /// Chart name / difficulty label (for example, `"HYPER"`, `"ANOTHER"`).
     pub chart_name: String,
-    /// 数值难度等级（beat 模式通常为 1–12）。
+    /// Numeric difficulty level (usually 1-12 in beat modes).
     pub level: u64,
-    /// 其他贡献者（例如 `["music:composer", "chart:charter"]`）。
+    /// Other contributors (for example, `["music:composer", "chart:charter"]`).
     pub subartists: Vec<String>,
-    /// 标题图片路径（歌曲开始前显示）。
+    /// Title image path (shown before the song starts).
     pub title_image: Option<String>,
-    /// 背景图片路径（游玩时显示）。
+    /// Background image path (shown during gameplay).
     pub back_image: Option<String>,
-    /// 过场图片路径（加载时显示）。
+    /// Eyecatch image path (shown while loading).
     pub eyecatch_image: Option<String>,
-    /// 横幅图片路径（选曲时显示）。
+    /// Banner image path (shown during song selection).
     pub banner_image: Option<String>,
-    /// 预览音频路径（选曲时的短音频片段）。
+    /// Preview audio path (short clip during song selection).
     pub preview_music: Option<String>,
-    /// BGA 资源声明（图片 / 视频文件）。
+    /// BGA resource declarations (image and video files).
     pub bga_resources: Vec<BgaResource>,
-    /// 背景视频（BMS `#VIDEOFILE` / `#MOVIE`）。BMSON 无此概念，为 `None`。
+    /// Background video (BMS `#VIDEOFILE` / `#MOVIE`). BMSON has no such
+    /// concept, so it is `None`.
     pub video: Option<VideoAsset>,
-    /// 可玩按键总数；`None` 表示来源格式未提供或无法推断。
+    /// Total playable keys; `None` means the source format did not provide it or
+    /// it cannot be inferred.
     pub key_count: Option<u8>,
 }
 
-/// 自定义判定窗口偏移（DJ.NEXT 扩展）。
+/// Custom judgment-window offsets (DJ.NEXT extension).
 ///
-/// 每个字段指定该判定等级窗口的额外偏移（毫秒）。源自 BMSON 的
-/// `judgement_deltas`，BMS 谱面无此概念（处理器填 `None`）。
+/// Each field specifies an additional offset (milliseconds) for that judgment
+/// level's window. Sourced from BMSON `judgement_deltas`; BMS charts have no
+/// such concept (processors fill `None`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct JudgementDeltas {
-    /// PERFECT 窗口的额外偏移（毫秒）。
+    /// Additional offset for the PERFECT window (milliseconds).
     pub perfect: u64,
-    /// GREAT 窗口的额外偏移（毫秒）。
+    /// Additional offset for the GREAT window (milliseconds).
     pub great: u64,
-    /// GOOD 窗口的额外偏移（毫秒）。
+    /// Additional offset for the GOOD window (milliseconds).
     pub good: u64,
-    /// MISS 窗口的额外偏移（毫秒）。
+    /// Additional offset for the MISS window (milliseconds).
     pub miss: u64,
 }
 
-/// 自定义血量槽增量（DJ.NEXT 扩展）。
+/// Custom life gauge deltas (DJ.NEXT extension).
 ///
-/// 每个字段指定该判定等级的血量变化（百分比），负值表示扣除。
-/// 源自 BMSON 的 `life_deltas`，BMS 谱面无此概念（处理器填 `None`）。
+/// Each field specifies the life change (percentage) for that judgment level;
+/// negative values drain life. Sourced from BMSON `life_deltas`; BMS charts have
+/// no such concept (processors fill `None`).
 ///
-/// 保证不含 NaN（BMSON 经 serde 反序列化，JSON 不含 NaN）。
+/// Guaranteed to contain no NaN (BMSON is deserialized through serde, and JSON
+/// cannot contain NaN).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LifeDeltas {
-    // 手动实现 Eq：保证不含 NaN。
-    /// PERFECT 时的血量变化（百分比，可为负）。
+    // Manual Eq: guaranteed to contain no NaN.
+    /// Life change on PERFECT (percentage, may be negative).
     pub perfect: f64,
-    /// GREAT 时的血量变化（百分比，可为负）。
+    /// Life change on GREAT (percentage, may be negative).
     pub great: f64,
-    /// GOOD 时的血量变化（百分比，可为负）。
+    /// Life change on GOOD (percentage, may be negative).
     pub good: f64,
-    /// MISS 时的血量变化（百分比，可为负）。
+    /// Life change on MISS (percentage, may be negative).
     pub miss: f64,
 }
 
-// LifeDeltas 保证不含 NaN，故可安全实现 Eq。
+// LifeDeltas is guaranteed to contain no NaN, so Eq is safe.
 impl Eq for LifeDeltas {}
 
-/// `ChartData` 验证错误类型。
+/// `ChartData` validation error type.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ChartDataError {
-    /// 事件引用了越界的音频素材索引。
+    /// An event references an out-of-range audio asset index.
     DanglingAudioIndex {
-        /// 越界的索引值。
+        /// Out-of-range index value.
         index: AudioIndex,
-        /// 音频素材表长度。
+        /// Audio asset table length.
         len: usize,
     },
-    /// BGA 事件引用了越界的资源 id。
+    /// A BGA event references an out-of-range resource id.
     ///
-    /// 两侧 processor 均重编号为稠密下标，`resource_id` 必须落在
-    /// [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources) 范围内。
+    /// Both processors renumber to dense indices, so `resource_id` must fall
+    /// within [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources).
     DanglingBgaResource {
-        /// 越界的资源 id。
+        /// Out-of-range resource id.
         id: BgaResourceId,
-        /// BGA 资源表长度。
+        /// BGA resource table length.
         len: usize,
     },
-    /// 事件未按 `(tick, priority)` 升序排列。
+    /// Events are not sorted ascending by `(tick, priority)`.
     UnsortedEvents,
 }
 
@@ -217,67 +225,71 @@ impl fmt::Display for ChartDataError {
 
 impl std::error::Error for ChartDataError {}
 
-/// 游玩数据 —— 对应 BMSON v2 的 `ChartData`。
+/// Gameplay data, corresponding to BMSON v2's `ChartData`.
 ///
-/// 不实现 [`Default`]：合法状态要求 [`timing`](TimingTrack) 的初始
-/// BPM 有效且 `resolution` 为正，没有有意义的零值默认。
-/// 调用方必须显式提供计时轨（各处理器均以字面量构造）。
-/// 节拍分辨率由 [`TimingTrack`] 单点持有，经
-/// [`TimingTrack::resolution`](TimingTrack::resolution) 查询。
+/// Does not implement [`Default`]: a valid state requires a [`timing`](TimingTrack)
+/// with a valid initial BPM and a positive `resolution`, so there is no
+/// meaningful zero default. Callers must provide the timing track explicitly
+/// (processors construct it with literals). Beat resolution is owned solely by
+/// [`TimingTrack`] and queried through
+/// [`TimingTrack::resolution`](TimingTrack::resolution).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// 用于脉冲 ↔ 秒换算的计时轨。
+    /// Timing track used for tick to second conversion.
     pub timing: TimingTrack,
-    /// 判定窗口倍率（`Some(1.0)` = 标准）；`None` 表示来源未指定。
+    /// Judgment window multiplier (`Some(1.0)` is standard); `None` means the
+    /// source did not specify it.
     pub judge_multiplier: Option<f64>,
-    /// 血量槽倍率（`Some(1.0)` = 标准）；`None` 表示来源未指定。
+    /// Life gauge multiplier (`Some(1.0)` is standard); `None` means the source
+    /// did not specify it.
     pub life_multiplier: Option<f64>,
-    /// 谱面级长音类型提示（BMSON LN/CN）。
+    /// Chart-level long-note type hint (BMSON LN/CN).
     pub ln_type_hint: LnTypeHint,
-    /// 谱面级长音判定提示。
+    /// Chart-level long-note judgment hint.
     pub ln_judge_hint: LnJudgeHint,
-    /// 谱面级长音血量提示。
+    /// Chart-level long-note life hint.
     pub ln_life_hint: LnLifeHint,
-    /// 自定义判定窗口偏移（DJ.NEXT 扩展，BMS 为 `None`）。
+    /// Custom judgment-window offsets (DJ.NEXT extension; `None` for BMS).
     pub judge_deltas: Option<JudgementDeltas>,
-    /// 自定义血量槽增量（DJ.NEXT 扩展，BMS 为 `None`）。
+    /// Custom life gauge deltas (DJ.NEXT extension; `None` for BMS).
     pub life_deltas: Option<LifeDeltas>,
-    /// 全部计时事件，按脉冲升序排列。
+    /// All timed events, sorted ascending by tick.
     pub events: Vec<Event<T, C>>,
-    /// 音符与 BGM 事件引用的音频素材。
+    /// Audio assets referenced by note and BGM events.
     pub audio_assets: Vec<AudioAsset>,
 }
 
-// judge_multiplier 与 life_multiplier 保证不含 NaN。
+// judge_multiplier and life_multiplier are guaranteed to contain no NaN.
 impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for ChartData<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
-    /// 返回谱面数据中最后一个事件的脉冲位置。
+    /// Return the tick of the last event in the chart data.
     #[must_use]
     pub fn last_tick(&self) -> u64 {
         self.events.last().map_or(0, Event::tick)
     }
 
-    /// 返回谱面数据的总时长。
+    /// Return the total duration of the chart data.
     #[must_use]
     #[inline]
     pub fn duration(&self) -> std::time::Duration {
         self.timing.tick_to_duration(self.last_tick())
     }
 
-    /// 验证谱面数据的关键不变量。
+    /// Validate the key invariants of the chart data.
     ///
-    /// 检查项：
-    /// - 事件按 [`Event::sort_key`] 升序排列
-    /// - 事件引用完整性：`Note`/`Bgm` 事件的音频索引均落在
-    ///   [`audio_assets`](Self::audio_assets) 范围内
+    /// Checks:
+    /// - events are sorted ascending by [`Event::sort_key`]
+    /// - reference integrity: audio indices of `Note`/`Bgm` events fall within
+    ///   [`audio_assets`](Self::audio_assets)
     ///
-    /// 计时轨合法性（初始 BPM 有效、resolution 为正）由
-    /// [`TimingTrack`] 构造函数保证，非法状态无法在构造后存在。
+    /// Timing track validity (valid initial BPM and positive resolution) is
+    /// guaranteed by [`TimingTrack`] construction, so invalid states cannot exist
+    /// after construction.
     ///
     /// # Errors
     ///
-    /// 若任何检查失败，返回 [`ChartDataError`]。
+    /// Returns [`ChartDataError`] when any check fails.
     pub fn validate(&self) -> Result<(), ChartDataError> {
         if self.events.windows(2).any(|pair| match pair {
             [left, right] => left.sort_key() > right.sort_key(),
@@ -305,36 +317,38 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         Ok(())
     }
 
-    /// 确保事件按脉冲升序排列。
+    /// Ensure events are sorted ascending by tick.
     ///
-    /// [`Player`] 的二分查找（`partition_point`）依赖事件已排序。
+    /// [`Player`]'s binary search (`partition_point`) depends on sorted events.
     /// [`Player::new`](https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html#method.new)
-    /// 会自动调用本方法；不经
+    /// calls this method automatically; downstream consumers that read `events`
+    /// without going through
     /// [`Player`](https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html)
-    /// 直接消费 `events` 的下游须自行调用一次。
+    /// must call it once themselves.
     ///
-    /// 排序键为 [`Event::sort_key`]：同脉冲内按优先级排序
-    /// （Bar < Note/BGA/BGM < BPM < Stop < Scroll < Speed < Custom）。
-    /// 稳定排序保留同优先级的插入顺序。
+    /// The sort key is [`Event::sort_key`]: within the same tick, events sort by
+    /// priority (Bar < Note/BGA/BGM < BPM < Stop < Scroll < Speed < Custom). The
+    /// stable sort preserves insertion order for equal priorities.
     ///
     /// [`Player`]: https://docs.rs/bmsrs-player/latest/bmsrs_player/struct.Player.html
     pub fn sort_events(&mut self) {
         self.events.sort_by_key(Event::sort_key);
     }
 
-    /// 通过映射函数转换所有事件，返回新的 `ChartData`，其余字段不变。
+    /// Transform every event through a mapping function and return a new
+    /// `ChartData` with all other fields unchanged.
     ///
-    /// `NoteExt` 类型可改变（例如从 `BmsonNoteExt` 剥离为 `()`），
-    /// `CustomEvent` 类型保持不变。
+    /// The `NoteExt` type may change (for example, erasing `BmsonNoteExt` to
+    /// `()`), while the `CustomEvent` type stays the same.
     ///
-    /// 典型场景：渲染器只消费核心音符字段时，把
-    /// `Chart<BmsonNoteExt, NoCustomEvent>` 的每音符扩展替换为 `()`；
-    /// 自定义事件类型保持不变。
+    /// Typical use: when a renderer consumes only core note fields, replace the
+    /// per-note extension of `Chart<BmsonNoteExt, NoCustomEvent>` with `()`;
+    /// the custom event type stays unchanged.
     ///
-    /// 若需同时改变 `CustomEvent` 类型或过滤事件，请用
-    /// [`filter_map_events`](Self::filter_map_events)。
+    /// To change the `CustomEvent` type or filter events at the same time, use
+    /// [`filter_map_events`](Self::filter_map_events).
     ///
-    /// # 示例
+    /// # Example
     ///
     /// ```rust
     /// # use bmsrs_chart::{ChartData, Event, NoteExt, NoCustomEvent, EventKind};
@@ -352,19 +366,22 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         self.rebuild_events(|e| Some(f(e)))
     }
 
-    /// 通过映射+过滤函数转换所有事件，可同时改变 `T` 和 `C` 两个泛型参数。
+    /// Transform every event through a mapping-and-filter function, changing
+    /// both the `T` and `C` generic parameters.
     ///
-    /// 返回 [`None`] 的事件被丢弃。其余字段不变。
+    /// Events returning [`None`] are dropped. All other fields are unchanged.
     ///
-    /// 与 [`map_events`](Self::map_events) 的区别：
-    /// - `map_events` 仅改变 `T: NoteExt`，保留 `C: CustomEvent` 不变；
-    /// - `filter_map_events` 可同时改变两者，且支持丢弃事件。
+    /// Difference from [`map_events`](Self::map_events):
+    /// - `map_events` changes only `T: NoteExt` and keeps `C: CustomEvent`;
+    /// - `filter_map_events` can change both and supports dropping events.
     ///
-    /// 典型场景：将 `Chart<T, BmsCustomEvent>` 转换为 `Chart<U, NoCustomEvent>`，
-    /// 同时丢弃所有 `Custom` 事件。上层消费完 `BmsCustomEvent` 后，用本方法
-    /// 把谱面擦成只依赖核心 IR 的 `Chart<(), NoCustomEvent>`，再交给渲染器。
+    /// Typical use: convert `Chart<T, BmsCustomEvent>` into
+    /// `Chart<U, NoCustomEvent>` while dropping every `Custom` event. After
+    /// consuming `BmsCustomEvent`, the upper layer uses this method to erase the
+    /// chart to `Chart<(), NoCustomEvent>` for renderers that only depend on the
+    /// core IR.
     ///
-    /// # 示例
+    /// # Example
     ///
     /// ```rust
     /// # use bmsrs_chart::{
@@ -372,7 +389,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// #     CustomEvent,
     /// # };
     /// # fn example(data: ChartData<(), NoCustomEvent>) {
-    /// // 丢弃 Custom 事件，将其余事件的 C 类型转换为 NoCustomEvent
+    /// // Drop Custom events and convert the C type of the rest.
     /// let mapped: ChartData<(), NoCustomEvent> = data.filter_map_events(|e| {
     ///     let tick = e.tick();
     ///     match e.kind {
@@ -390,11 +407,12 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         self.rebuild_events(f)
     }
 
-    /// 按映射函数重建事件向量，其余字段原样保留。
+    /// Rebuild the event vector through a mapping function, keeping all other
+    /// fields as-is.
     ///
-    /// [`map_events`](Self::map_events) 与
-    /// [`filter_map_events`](Self::filter_map_events) 的共同底层——
-    /// 字段重列收敛在此一处，新增字段时只需同步本方法。
+    /// Shared implementation of [`map_events`](Self::map_events) and
+    /// [`filter_map_events`](Self::filter_map_events); field destructuring is
+    /// centralized here, so adding a field only requires updating this method.
     fn rebuild_events<U: NoteExt, D: CustomEvent>(
         self,
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
@@ -426,35 +444,36 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     }
 }
 
-/// 顶层谱面 —— 对应 BMSON v2 的 `Bmson` 根对象。
+/// Top-level chart, corresponding to BMSON v2's `Bmson` root object.
 ///
-/// 包含乐曲元数据、谱面元数据与游玩数据。
+/// Contains song metadata, chart metadata, and gameplay data.
 ///
-/// 不实现 [`Default`]，因为内嵌的 [`ChartData`] 无合法默认。
-/// 乐曲级与谱面级元数据（[`SongInfo`]、[`ChartInfo`]）仍实现 [`Default`]。
+/// Does not implement [`Default`] because the embedded [`ChartData`] has no
+/// valid default. Song-level and chart-level metadata ([`SongInfo`],
+/// [`ChartInfo`]) still implement [`Default`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// 乐曲级元数据（标题、艺术家、流派）。
+    /// Song-level metadata (title, artist, genre).
     pub song: SongInfo,
-    /// 谱面级元数据与资源。
+    /// Chart-level metadata and resources.
     pub chart: ChartInfo,
-    /// 游玩数据（计时、事件、音频）。
+    /// Gameplay data (timing, events, audio).
     pub data: ChartData<T, C>,
 }
 
 impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Chart<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
-    /// 验证谱面的关键不变量。
+    /// Validate the key invariants of the chart.
     ///
-    /// 检查项：
-    /// - [`ChartData`] 的全部不变量（委托 [`ChartData::validate`]）
-    /// - BGA 事件的 `resource_id` 均落在
-    ///   [`bga_resources`](crate::ChartInfo::bga_resources) 范围内
+    /// Checks:
+    /// - every [`ChartData`] invariant (delegates to [`ChartData::validate`])
+    /// - BGA events' `resource_id` falls within
+    ///   [`bga_resources`](crate::ChartInfo::bga_resources)
     ///
     /// # Errors
     ///
-    /// 若任何检查失败，返回 [`ChartDataError`]。
+    /// Returns [`ChartDataError`] when any check fails.
     pub fn validate(&self) -> Result<(), ChartDataError> {
         self.data.validate()?;
         let len = self.chart.bga_resources.len();
@@ -471,9 +490,10 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
         Ok(())
     }
 
-    /// 通过映射函数转换所有事件，返回新的 `Chart`，其余字段不变。
+    /// Transform every event through a mapping function and return a new
+    /// `Chart` with all other fields unchanged.
     ///
-    /// 见 [`ChartData::map_events`]。
+    /// See [`ChartData::map_events`].
     #[must_use]
     pub fn map_events<U: NoteExt>(self, f: impl FnMut(Event<T, C>) -> Event<U, C>) -> Chart<U, C> {
         Chart {
@@ -483,9 +503,10 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
         }
     }
 
-    /// 通过映射+过滤函数转换所有事件，可同时改变 `T` 和 `C` 两个泛型参数。
+    /// Transform every event through a mapping-and-filter function, changing
+    /// both the `T` and `C` generic parameters.
     ///
-    /// 见 [`ChartData::filter_map_events`]。
+    /// See [`ChartData::filter_map_events`].
     #[must_use]
     pub fn filter_map_events<U: NoteExt, D: CustomEvent>(
         self,

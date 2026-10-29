@@ -1,21 +1,22 @@
-//! 统一事件类型与格式扩展 trait。
+//! Unified event types and format-extension traits.
 //!
-//! 所有计时事件存放在单一的 `Vec<Event<T, C>>` 中，按脉冲排序，
-//! 支持统一迭代与二分查找。
+//! All timed events live in a single `Vec<Event<T, C>>` sorted by tick, enabling
+//! uniform iteration and binary search.
 //!
-//! [`Event`] 将脉冲位置（`tick`）与事件种类（[`EventKind`]）分离，
-//! 避免每个事件变体重复定义 `tick`。
+//! [`Event`] separates the tick position from the event kind ([`EventKind`]),
+//! avoiding a repeated `tick` field on every variant.
 //!
-//! 泛型参数：
-//! - `T` —— 每音符扩展数据（携带于 [`EventKind::Note`]）。
-//! - `C` —— 格式特有的自定义事件类型（携带于 [`EventKind::Custom`]）。
+//! Generic parameters:
+//! - `T`: per-note extension data (carried in [`EventKind::Note`]).
+//! - `C`: format-specific custom event type (carried in [`EventKind::Custom`]).
 //!
-//! # 排序
+//! # Ordering
 //!
-//! 处理器按 `(tick, priority)` 对事件排序。[`EventKind::priority`] 定义了
-//! 同一脉冲上各事件的顺序：
+//! Processors sort events by `(tick, priority)`. [`EventKind::priority`] defines
+//! the order of events at the same tick:
 //!
-//! `Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) → Custom(6)`
+//! `Bar(0)`, then `Note`/`BGA`/`BGM` (1), then `BPM` (2), then `Stop` (3), then
+//! `Scroll` (4), then `Speed` (5), then `Custom` (6).
 
 use std::fmt::Debug;
 
@@ -24,76 +25,79 @@ use crate::mode::{Lane, NoteSide};
 use crate::note::{NoteAudio, NoteKind, NoteRole};
 use crate::visual::{BgaLayer, BgaResourceId};
 
-// EventKind 枚举
+// EventKind enum
 
-/// 事件种类（不含脉冲位置）。
+/// Event kind (without the tick position).
 ///
-/// [`Event`] 将 `tick` 提取到外层结构体，本枚举仅表达"发生了什么"。
+/// [`Event`] extracts `tick` into the outer struct; this enum only expresses
+/// "what happened".
 #[derive(Clone, Debug, PartialEq)]
 pub enum EventKind<T, C: CustomEvent = NoCustomEvent> {
-    /// 可玩音符。
+    /// Playable note.
     Note {
-        /// 玩家侧。
+        /// Player side.
         side: NoteSide,
-        /// 按键 / 转盘 / 踏板。
+        /// Key / scratch / pedal.
         lane: Lane,
-        /// 音符种类（普通、长音、地雷、不可见）。
+        /// Note kind (normal, long, mine, invisible).
         kind: NoteKind,
-        /// 音符在游玩中的角色（普通或释放音）。
+        /// Note role during gameplay (normal or release).
         role: NoteRole,
-        /// 此音符播放的音频层。
+        /// Audio layers played by this note.
         audio: NoteAudio,
-        /// 格式特有的扩展数据（无扩展时用 `()`）。
+        /// Format-specific extension data (`()` when there is none).
         ext: T,
     },
-    /// BGM（背景音乐）事件 —— 触发音频，不参与游玩交互。
+    /// BGM (background music) event: triggers audio without gameplay interaction.
     Bgm {
-        /// 指向 [`crate::ChartData::audio_assets`] 的索引。
+        /// Index into [`crate::ChartData::audio_assets`].
         audio_index: AudioIndex,
     },
-    /// BPM 变更。
+    /// BPM change.
     Bpm {
-        /// 新的 BPM 值。
+        /// New BPM value.
         bpm: f64,
     },
-    /// 停止 / 暂停事件。
+    /// Stop / pause event.
     Stop {
-        /// 停止时长（脉冲数）。
+        /// Stop duration in ticks.
         duration: u64,
     },
-    /// 滚动速度倍率变更。
+    /// Scroll speed multiplier change.
     Scroll {
-        /// 滚动速度倍率（`1.0` = 标准，负值 = 反向）。
+        /// Scroll speed multiplier (`1.0` is standard; negative means reverse).
         rate: f64,
     },
-    /// 视觉音符间距（SPEED）关键帧变更。
+    /// Visual note spacing (SPEED) keyframe change.
     ///
-    /// 通过线性插值控制关键帧之间音符的视觉密度。与影响滚动速度的
-    /// [`Scroll`](Self::Scroll) 不同，SPEED 仅影响音符在屏幕上排列的
-    /// 紧密程度，与计时无关。
+    /// Controls the visual density of notes between keyframes through linear
+    /// interpolation. Unlike [`Scroll`](Self::Scroll), which affects scroll
+    /// speed, SPEED only affects how tightly notes are packed on screen and is
+    /// unrelated to timing.
     Speed {
-        /// 此关键帧处的间距倍率。
+        /// Spacing multiplier at this keyframe.
         rate: f64,
     },
-    /// BGA（背景动画）显示事件。
+    /// BGA (background animation) display event.
     Bga {
-        /// 此事件所针对的 BGA 图层。
+        /// BGA layer targeted by this event.
         layer: BgaLayer,
-        /// 指向 [`crate::ChartInfo::bga_resources`] 的索引。
+        /// Index into [`crate::ChartInfo::bga_resources`].
         resource_id: BgaResourceId,
     },
-    /// 用于视觉显示的小节线。
+    /// Barline for visual display.
     Bar,
-    /// 格式特有的自定义事件。
+    /// Format-specific custom event.
     Custom(C),
 }
 
 impl<T, C: CustomEvent> EventKind<T, C> {
-    /// 返回排序优先级（数字越小越优先）。
+    /// Return the sort priority (lower numbers come first).
     ///
-    /// 同一脉冲上按优先级升序排列。约定：
+    /// Events at the same tick sort by ascending priority. The convention is:
     ///
-    /// `Bar(0) → Note/BGA/BGM(1) → BPM(2) → Stop(3) → Scroll(4) → Speed(5) → Custom(6)`
+    /// `Bar(0)`, then `Note`/`BGA`/`BGM` (1), then `BPM` (2), then `Stop` (3),
+    /// then `Scroll` (4), then `Speed` (5), then `Custom` (6).
     #[must_use]
     pub const fn priority(&self) -> u8 {
         match self {
@@ -107,13 +111,15 @@ impl<T, C: CustomEvent> EventKind<T, C> {
         }
     }
 
-    /// 将 `Custom` 变体的负载从 `C` 映射为 `D`，其余变体原样重新构造。
+    /// Map the `Custom` variant's payload from `C` to `D`, rebuilding every other
+    /// variant as-is.
     ///
-    /// 用于在保持非 `Custom` 变体不变的前提下，改变事件的
-    /// [`CustomEvent`] 类型参数。典型场景：丢弃引擎特定自定义事件，
-    /// 将 `Chart<T, BmsCustomEvent>` 转换为 `Chart<T, NoCustomEvent>`。
+    /// Changes the event's [`CustomEvent`] type parameter while keeping non-
+    /// `Custom` variants unchanged. Typical use: dropping engine-specific custom
+    /// events to convert `Chart<T, BmsCustomEvent>` into
+    /// `Chart<T, NoCustomEvent>`.
     ///
-    /// # 示例
+    /// # Example
     ///
     /// ```
     /// use bmsrs_chart::{EventKind, NoCustomEvent};
@@ -154,13 +160,14 @@ impl<T, C: CustomEvent> EventKind<T, C> {
         }
     }
 
-    /// 将 `Note` 变体的 `ext` 字段从 `T` 映射为 `U`，其余变体原样重新构造。
+    /// Map the `Note` variant's `ext` field from `T` to `U`, rebuilding every
+    /// other variant as-is.
     ///
-    /// 用于在保持非 `Note` 变体不变的前提下，改变事件的
-    /// [`NoteExt`] 类型参数。典型场景：剥离 BMSON 扩展数据，
-    /// 将 `Chart<BmsonNoteExt>` 转换为 `Chart<()>`。
+    /// Changes the event's [`NoteExt`] type parameter while keeping non-`Note`
+    /// variants unchanged. Typical use: erasing BMSON extension data to convert
+    /// `Chart<BmsonNoteExt>` into `Chart<()>`.
     ///
-    /// # 示例
+    /// # Example
     ///
     /// ```
     /// use std::num::NonZeroU8;
@@ -212,21 +219,21 @@ impl<T, C: CustomEvent> EventKind<T, C> {
     }
 }
 
-// 手动实现 Eq：所有 f64 字段（Bpm.bpm、Scroll.rate、Speed.rate）保证
-// 不含 NaN，因此 PartialEq 满足 Eq 的反射性要求。
+// Manual Eq: all f64 fields (Bpm.bpm, Scroll.rate, Speed.rate) are guaranteed to
+// contain no NaN, so PartialEq satisfies Eq's reflexivity requirement.
 impl<T: Eq, C: Eq + CustomEvent> Eq for EventKind<T, C> {}
 
-// Event 结构体
+// Event struct
 
-/// 谱面中的单个计时事件。
+/// A single timed event in a chart.
 ///
-/// 将脉冲位置（`tick`）与事件种类（`kind`）分离。所有事件变体的 tick
-/// 统一存储在此，而非各变体各自重复。
+/// Separates the tick position from the event kind. The tick of every event
+/// variant is stored here instead of being repeated per variant.
 ///
-/// 处理器必须在排序前以期望的同脉冲顺序插入事件，因为稳定排序会保留
-/// 插入顺序。
+/// Processors must insert events in the desired same-tick order before sorting,
+/// because the stable sort preserves insertion order.
 ///
-/// # 构造
+/// # Construction
 ///
 /// ```rust
 /// use bmsrs_chart::{Event, EventKind};
@@ -236,106 +243,107 @@ impl<T: Eq, C: Eq + CustomEvent> Eq for EventKind<T, C> {}
 /// assert_eq!(ev.kind.priority(), 0);
 /// ```
 ///
-/// # `Eq` 保证
+/// # `Eq` guarantee
 ///
-/// `Event` 手动实现 [`Eq`]。含有 `f64` 字段的变体（`Bpm`、`Scroll`、
-/// `Speed`）保证其浮点字段不含 `NaN`，因此 `PartialEq` 比较满足
-/// `Eq` 的反射性要求。
+/// `Event` implements [`Eq`] manually. Variants with `f64` fields (`Bpm`,
+/// `Scroll`, `Speed`) guarantee that their float fields contain no `NaN`, so
+/// `PartialEq` satisfies `Eq`'s reflexivity requirement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Event<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// 脉冲位置。
+    /// Tick position.
     tick: u64,
-    /// 事件种类。
+    /// Event kind.
     pub kind: EventKind<T, C>,
 }
 
 impl<T: NoteExt, C: CustomEvent> Event<T, C> {
-    /// 创建一个新事件。
+    /// Create a new event.
     #[must_use]
     pub const fn new(tick: u64, kind: EventKind<T, C>) -> Self {
         Self { tick, kind }
     }
 
-    /// 返回此事件的脉冲位置。
+    /// Return this event's tick position.
     #[must_use]
     pub const fn tick(&self) -> u64 {
         self.tick
     }
 
-    /// 返回排序优先级（委托给 [`EventKind::priority`]）。
+    /// Return the sort priority (delegates to [`EventKind::priority`]).
     #[must_use]
     pub const fn priority(&self) -> u8 {
         self.kind.priority()
     }
 
-    /// 用于稳定排序的复合键：`(tick, priority)`。
+    /// Composite key for stable sorting: `(tick, priority)`.
     ///
-    /// 收敛"同脉冲事件子序"约定（见 [`EventKind::priority`]）。
-    /// 处理器应以本方法作为事件排序的唯一入口，避免排序规则散落多处。
+    /// Centralizes the "same-tick event ordering" convention (see
+    /// [`EventKind::priority`]). Processors should use this method as the only
+    /// sorting entry point so the rule does not scatter.
     #[must_use]
     pub const fn sort_key(&self) -> (u64, u8) {
         (self.tick, self.kind.priority())
     }
 
-    // 便利构造器
+    // Convenience constructors
 
-    /// 创建小节线事件。
+    /// Create a barline event.
     #[must_use]
     pub const fn bar(tick: u64) -> Self {
         Self::new(tick, EventKind::Bar)
     }
 
-    /// 创建 BGM 事件。
+    /// Create a BGM event.
     #[must_use]
     pub const fn bgm(tick: u64, audio_index: AudioIndex) -> Self {
         Self::new(tick, EventKind::Bgm { audio_index })
     }
 
-    /// 创建 BPM 变更事件。
+    /// Create a BPM change event.
     #[must_use]
     pub const fn bpm(tick: u64, bpm: f64) -> Self {
         Self::new(tick, EventKind::Bpm { bpm })
     }
 
-    /// 创建停止事件。
+    /// Create a stop event.
     #[must_use]
     pub const fn stop(tick: u64, duration: u64) -> Self {
         Self::new(tick, EventKind::Stop { duration })
     }
 
-    /// 创建滚动速度变更事件。
+    /// Create a scroll speed change event.
     #[must_use]
     pub const fn scroll(tick: u64, rate: f64) -> Self {
         Self::new(tick, EventKind::Scroll { rate })
     }
 
-    /// 创建 SPEED 关键帧事件。
+    /// Create a SPEED keyframe event.
     #[must_use]
     pub const fn speed(tick: u64, rate: f64) -> Self {
         Self::new(tick, EventKind::Speed { rate })
     }
 }
 
-// 手动实现 Eq。
+// Manual Eq implementation.
 impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Event<T, C> {}
 
 // NoteExt trait
 
-/// 格式特有的每音符扩展数据 trait。
+/// Trait for format-specific per-note extension data.
 ///
-/// 内置的 `()` 以零开销实现此 trait。
+/// The built-in `()` implements this trait at zero cost.
 pub trait NoteExt: Clone + Debug + PartialEq + Eq + Default {}
 
 impl NoteExt for () {}
 
 // CustomEvent trait
 
-/// 格式特有的自定义事件类型 trait（标记 trait）。
+/// Trait for format-specific custom event types (a marker trait).
 pub trait CustomEvent: Clone + Debug + PartialEq + Eq {}
 
-/// 哨兵类型：无自定义事件。
+/// Sentinel type: no custom events.
 ///
-/// 当 `C = NoCustomEvent` 时，Custom 变体携带此类型。
+/// When `C = NoCustomEvent`, the Custom variant carries this type.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NoCustomEvent;
 

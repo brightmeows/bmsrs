@@ -1,6 +1,7 @@
-//! `bmsrs-chart` 的集成测试。
+//! Integration tests for `bmsrs-chart`.
 //!
-//! 覆盖 Chart 模型、TimingTrack、Event、NoteKind 等核心类型。
+//! Covers core types such as the Chart model, `TimingTrack`, Event, and
+//! `NoteKind`.
 #![expect(clippy::unwrap_used, reason = "test code")]
 
 use std::num::NonZeroU8;
@@ -23,12 +24,13 @@ const fn key(n: u8) -> Lane {
     Lane::Key(nz(n))
 }
 
-// Chart 构造
+// Chart construction
 
 #[test]
 fn chart_construction_is_empty_by_default() {
-    // Chart 不实现 Default（内嵌 ChartData 无合法默认），
-    // 此处验证一个显式构造的空谱面：元数据为空、无事件。
+    // Chart does not implement Default (the embedded ChartData has no valid
+    // default); this verifies an explicitly constructed empty chart with empty
+    // metadata and no events.
     let chart: Chart = Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
@@ -108,7 +110,7 @@ fn chart_info_default() {
 
 #[test]
 fn chart_data_last_tick_empty() {
-    // 空事件列表 → last_tick() 返回 0。
+    // An empty event list makes last_tick() return 0.
     let data = ChartData::<(), NoCustomEvent> {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
         judge_multiplier: Some(1.0),
@@ -161,7 +163,7 @@ fn chart_data_duration() {
 
 // ChartData::validate
 
-/// 构造一个合法的空 [`ChartData`]（resolution 一致、无事件）。
+/// Build a valid empty [`ChartData`] (matching resolution, no events).
 fn valid_chart_data() -> ChartData {
     ChartData {
         timing: TimingTrack::simple(120.0, 240).unwrap(),
@@ -179,7 +181,7 @@ fn valid_chart_data() -> ChartData {
 
 #[test]
 fn validate_rejects_dangling_audio_index() {
-    // Bgm 事件引用索引 3，素材表为空。
+    // The Bgm event references index 3, and the asset table is empty.
     let mut data = valid_chart_data();
     data.events = vec![Event::bgm(0, AudioIndex::new(3))];
 
@@ -202,7 +204,8 @@ fn validate_rejects_unsorted_events() {
 
 #[test]
 fn validate_accepts_consistent_chart() {
-    // 音符引用索引 0，素材表恰有一项；resolution 一致。
+    // The note references index 0, the asset table has exactly one item, and
+    // resolutions match.
     let mut data = valid_chart_data();
     data.audio_assets = vec![AudioAsset::from_path_buf(
         std::path::PathBuf::from("a.wav"),
@@ -464,7 +467,10 @@ fn bga_resource_construction() {
 // NoteExt
 
 #[test]
-#[expect(clippy::clone_on_copy, reason = "该测试本身就是在验证 () 实现 Clone")]
+#[expect(
+    clippy::clone_on_copy,
+    reason = "this test verifies that () implements Clone"
+)]
 fn unit_note_ext() {
     let ext: () = <_ as Clone>::clone(&());
     assert_eq!(ext, ());
@@ -590,8 +596,8 @@ fn timing_track_partial_eq() {
     assert_ne!(a, c);
 }
 
-/// 负 BPM roundtrip——`tick_to_duration` 与 `duration_to_tick` 互为反函数。
-/// 覆盖 A12 场景。
+/// Negative BPM roundtrip: `tick_to_duration` and `duration_to_tick` are
+/// inverses. Covers the A12 scenario.
 #[test]
 fn timing_track_negative_bpm_roundtrip() {
     let tt = TimingTrack::new(
@@ -648,11 +654,11 @@ fn stop_event_fields() {
     assert_eq!(se.duration, 192);
 }
 
-// NoCustomEvent — 纯标记类型，无行为需测试。
+// NoCustomEvent is a pure marker type with no behavior to test.
 
 // EventKind::map_custom / map_ext
 
-/// 测试用自定义事件类型。
+/// Custom event type for tests.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct TestCustom(String);
 

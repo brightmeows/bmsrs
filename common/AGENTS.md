@@ -1,12 +1,14 @@
-# common/ — 格式无关公共层
+# common/: format-agnostic shared layer
 
-## 定位
+## Role
 
-格式无关的谱面数据模型与仿真层。BMS / BMSON 两条管道在此汇合——两边的 processor 都输出 `Chart<T>`。
+Format-agnostic chart data model and simulation layer. The BMS and BMSON
+pipelines converge here; both processors output `Chart<T>`.
 
-**零外部依赖。** 纯 `std`，无 `serde`、`thiserror`、`serde_json`。
+**Zero external dependencies.** Pure `std`, with no `serde`, `thiserror`, or
+`serde_json`.
 
-## 架构
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -15,43 +17,46 @@ flowchart LR
     Chart --> Player[bmsrs-player]
 ```
 
-| Crate | 职责 |
-|-------|------|
-| `bmsrs-chart` | `Chart<T>` 中央 IR——事件、时序、音符的格式无关模型 |
-| `bmsrs-player` | `Chart<T>` 纯仿真层——基于时间的查询接口 |
+| Crate | Responsibility |
+|-------|----------------|
+| `bmsrs-chart` | `Chart<T>` central IR: format-agnostic model of events, timing, and notes |
+| `bmsrs-player` | pure simulation layer for `Chart<T>`: time-based query interface |
 
-## 时间模型
+## Time model
 
-| 域 | 类型 | 用途 |
-|------|------|------|
-| Tick | `u64` | 所有事件位置、停止时长、LN 时长 |
-| Time | `Duration` | `AudioAsset.start`、`Chart::duration()`、播放器公开 API |
+| Domain | Type | Use |
+|--------|------|-----|
+| Tick | `u64` | all event positions, stop durations, LN durations |
+| Time | `Duration` | `AudioAsset.start`, `Chart::duration()`, player public API |
 
-`TimingTrack`（预计算段，查询 O(log n)）桥接两域；`BpmLookup` 服务构造 `TimingTrack` 前的轻量 BPM 查询。两者同处 `bmsrs-chart`。
+`TimingTrack` (precomputed segments, O(log n) queries) bridges the two domains;
+`BpmLookup` serves lightweight BPM queries before constructing a `TimingTrack`.
+Both live in `bmsrs-chart`.
 
-## 设计原则
+## Design principles
 
-| 原则 | 含义 |
-|------|------|
-| 零外部依赖 | 纯 `std`——序列化、错误库等由上游 crate 自行引入 |
-| 无副作用 | 不含 I/O、渲染、判定、计分——纯数据与查询 |
-| 模式信息不存储 | `Chart` 不存储模式族，音符已携带 `(NoteSide, Lane)` |
+| Principle | Meaning |
+|-----------|---------|
+| Zero external dependencies | pure `std`; serialization and error libraries are brought in by upstream crates |
+| No side effects | no I/O, rendering, judging, or scoring; pure data and queries |
+| Do not store mode information | `Chart` does not store a mode family; notes already carry `(NoteSide, Lane)` |
 
-## 跨格式豁免
+## Cross-format exemptions
 
-有意不做的统一，重判时点均为第三个格式的对应用例到场；
-在此之前不要顺手合并。
+These are deliberate non-unifications. The reassessment point is the arrival of
+the corresponding use case from a third format; do not merge them casually
+before then.
 
-| 决策 | 理由 |
-|------|------|
-| `BmsLayout` 与 `BmsonLayout` 不统一为单一 trait | 输入维度本质不同：BMS 为已验证的 `(player, lane)` 对，BMSON 为一维 `x`；两格式独立演进，统一只会引入泛型间接层 |
-| 两侧 `ProcessError` 各自定义，不合并 | 只共用 `TimingTrackError`（`#[from]` 透传）；BMSON 另有 `InvalidKeyCount`，合并会把格式特有错误拖进共享类型 |
-| `TimingTrack` 正查段与逆查段各自累计时间 | 同一数学变换的两份实现（`new` 与 `merge_inv`）；若出现第三种时间畸变事件（如渐变 BPM），先重判再写第三遍 |
+| Decision | Reason |
+|----------|--------|
+| `BmsLayout` and `BmsonLayout` are not unified into one trait | their input dimensions differ fundamentally: BMS takes a validated `(player, lane)` pair, BMSON takes one-dimensional `x`; the formats evolve independently, and unifying only adds a generic indirection layer |
+| The two `ProcessError` types are defined separately | they share only `TimingTrackError` (forwarded through `#[from]`); BMSON also has `InvalidKeyCount`, and merging would drag format-specific errors into a shared type |
+| `TimingTrack` forward and inverse segments accumulate time separately | two implementations of the same mathematical transform (`new` and `merge_inv`); if a third kind of timing distortion appears (such as gradual BPM), reassess before writing a third copy |
 
-## 测试
+## Tests
 
 ```bash
 cargo test -p bmsrs-chart
 cargo test -p bmsrs-player
-cargo bench -p bmsrs-player          # 热路径性能基准
+cargo bench -p bmsrs-player          # hot-path performance benchmarks
 ```
