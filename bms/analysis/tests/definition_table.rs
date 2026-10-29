@@ -1,8 +1,9 @@
-//! 资源定义表与 `bmsrs-bms-values` header 的一致性。
+//! Consistency between the resource definition table and `bmsrs-bms-values` headers.
 //!
-//! `Analysis::definition_kind` 维护一张命令前缀表；本测试用每条资源
-//! header 各一行，断言符号索引能识别出对应的种类与 ID。若 `bmsrs-bms-values`
-//! 增删或重命名 header，这里会先失败。
+//! `Analysis::definition_kind` maintains a command-prefix table. This test emits
+//! one line per resource header and asserts that the symbol index recognizes the
+//! corresponding kind and ID. If `bmsrs-bms-values` adds, removes, or renames a
+//! header, this test fails first.
 
 use bmsrs_bms_analysis::{Analysis, SymbolKind};
 
@@ -56,7 +57,7 @@ fn all_resource_headers_are_indexed() {
         assert_eq!(
             analysis.index().definitions_for(kind, id).count(),
             1,
-            "缺少定义 {kind:?} {id}"
+            "missing definition for {kind:?} {id}"
         );
     }
 }

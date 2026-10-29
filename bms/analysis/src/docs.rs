@@ -1,682 +1,684 @@
-//! 头部命令与通道的中文说明。
+//! English descriptions for header commands and channels.
 //!
-//! 本表是人工维护的摘要，权威来源是 bms skill（`~/.agents/skills/bms/`）
-//! 及其指向的 BMS command memo。修改摘要前先核对 skill，避免与规范漂移。
+//! This table is a manually maintained summary; the authoritative source is the
+//! bms skill (`~/.agents/skills/bms/`) and the BMS command memo it points to.
+//! Check the skill before changing a summary to avoid drifting from the
+//! specification.
 
-/// 头部命令说明。
+/// Description of a header command.
 #[derive(Debug, Clone, Copy)]
 pub struct HeaderDoc {
-    /// 命令前缀（不含 `#` / `%`）。
+    /// Command prefix (without `#` / `%`).
     pub command: &'static str,
-    /// 显示标题。
+    /// Display title.
     pub title: &'static str,
-    /// 简要说明。
+    /// Brief description.
     pub summary: &'static str,
-    /// 原始资料链接。
+    /// Link to the original reference.
     pub link: &'static str,
 }
 
-/// 通道说明。
+/// Description of a channel.
 #[derive(Debug, Clone, Copy)]
 pub struct ChannelDoc {
-    /// 通道号或通道组。
+    /// Channel number or channel group.
     pub code: &'static str,
-    /// 显示标题。
+    /// Display title.
     pub title: &'static str,
-    /// 简要说明。
+    /// Brief description.
     pub summary: &'static str,
-    /// 原始资料链接。
+    /// Link to the original reference.
     pub link: &'static str,
 }
 
-/// BMS command memo 链接。
+/// Link to the BMS command memo.
 const MEMO: &str = "https://hitkey.nekokan.dyndns.info/cmdsJP.htm";
 
-/// 头部命令表。
+/// Header command table.
 pub static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "TITLE",
         title: "#TITLE",
-        summary: "乐曲标题；显示在选曲和游玩界面。",
+        summary: "Song title; shown on the song selection and gameplay screens.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SUBTITLE",
         title: "#SUBTITLE",
-        summary: "乐曲副标题；可与 #TITLE 组合显示。",
+        summary: "Song subtitle; may be shown together with #TITLE.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ARTIST",
         title: "#ARTIST",
-        summary: "主要艺术家或作曲者。",
+        summary: "Main artist or composer.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SUBARTIST",
         title: "#SUBARTIST",
-        summary: "合作创作者或编曲者。",
+        summary: "Co-creator or arranger.",
         link: MEMO,
     },
     HeaderDoc {
         command: "GENRE",
         title: "#GENRE",
-        summary: "音乐流派；部分播放器也接受 #GENLE。",
+        summary: "Music genre; some players also accept #GENLE.",
         link: MEMO,
     },
     HeaderDoc {
         command: "GENLE",
         title: "#GENLE",
-        summary: "#GENRE 的常见拼写变体。",
+        summary: "Common misspelling variant of #GENRE.",
         link: MEMO,
     },
     HeaderDoc {
         command: "MAKER",
         title: "#MAKER",
-        summary: "谱面作者名。",
+        summary: "Chart author name.",
         link: MEMO,
     },
     HeaderDoc {
         command: "COMMENT",
         title: "#COMMENT",
-        summary: "选曲列表中显示的说明文本。",
+        summary: "Description text shown in the song list.",
         link: MEMO,
     },
     HeaderDoc {
         command: "CHARSET",
         title: "#CHARSET",
-        summary: "源文件编码声明，例如 Shift_JIS 或 UTF-8。",
+        summary: "Source file encoding declaration, such as Shift_JIS or UTF-8.",
         link: MEMO,
     },
     HeaderDoc {
         command: "URL",
         title: "%URL",
-        summary: "作者网站 URL。",
+        summary: "Author website URL.",
         link: MEMO,
     },
     HeaderDoc {
         command: "EMAIL",
         title: "%EMAIL",
-        summary: "作者邮箱地址。",
+        summary: "Author email address.",
         link: MEMO,
     },
     HeaderDoc {
         command: "TEXT",
         title: "#TEXTxx",
-        summary: "定时屏幕文本定义；由通道 99 引用。",
+        summary: "Timed on-screen text definition; referenced by channel 99.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SONG",
         title: "#SONGxx",
-        summary: "#TEXTxx 的同义定义。",
+        summary: "Synonym for #TEXTxx.",
         link: MEMO,
     },
     HeaderDoc {
         command: "PLAYER",
         title: "#PLAYER",
-        summary: "玩家模式：1 单打、2 双人、3 双打、4 对战。",
+        summary: "Player mode: 1 single, 2 couple, 3 double, 4 battle.",
         link: MEMO,
     },
     HeaderDoc {
         command: "RANK",
         title: "#RANK",
-        summary: "判定宽度；0 最严、4 最宽。",
+        summary: "Judgment width; 0 is strictest and 4 is widest.",
         link: MEMO,
     },
     HeaderDoc {
         command: "DEFEXRANK",
         title: "#DEFEXRANK",
-        summary: "以 NORMAL 为基准的默认判定宽度。",
+        summary: "Default judgment width relative to NORMAL.",
         link: MEMO,
     },
     HeaderDoc {
         command: "EXRANK",
         title: "#EXRANKxx",
-        summary: "按键级判定宽度定义；由 A0 通道引用。",
+        summary: "Per-key judgment width definition; referenced by channel A0.",
         link: MEMO,
     },
     HeaderDoc {
         command: "TOTAL",
         title: "#TOTAL",
-        summary: "血槽总增量；影响通关难度。",
+        summary: "Total life gauge increase; affects clear difficulty.",
         link: MEMO,
     },
     HeaderDoc {
         command: "VOLWAV",
         title: "#VOLWAV",
-        summary: "整体音量百分比。",
+        summary: "Overall volume percentage.",
         link: MEMO,
     },
     HeaderDoc {
         command: "PLAYLEVEL",
         title: "#PLAYLEVEL",
-        summary: "谱面难度数值。",
+        summary: "Chart difficulty value.",
         link: MEMO,
     },
     HeaderDoc {
         command: "DIFFICULTY",
         title: "#DIFFICULTY",
-        summary: "难度类别：1 BEGINNER 到 5 INSANE。",
+        summary: "Difficulty category: 1 BEGINNER through 5 INSANE.",
         link: MEMO,
     },
     HeaderDoc {
         command: "OPTION",
         title: "#OPTION",
-        summary: "谱面级选项定义。",
+        summary: "Chart-level option definition.",
         link: MEMO,
     },
     HeaderDoc {
         command: "CHANGEOPTION",
         title: "#CHANGEOPTIONxx",
-        summary: "按位置切换选项；由 A6 通道引用。",
+        summary: "Switches options by position; referenced by channel A6.",
         link: MEMO,
     },
     HeaderDoc {
         command: "LNTYPE",
         title: "#LNTYPE",
-        summary: "长音符类型：1 RDM 记法、2 MGQ 记法。",
+        summary: "Long-note type: 1 RDM notation, 2 MGQ notation.",
         link: MEMO,
     },
     HeaderDoc {
         command: "LNOBJ",
         title: "#LNOBJ",
-        summary: "把指定 WAV ID 视为长音符终点。",
+        summary: "Treats the specified WAV ID as a long-note end.",
         link: MEMO,
     },
     HeaderDoc {
         command: "LNMODE",
         title: "#LNMODE",
-        summary: "beatoraja 长音符模式：LN / CN / HCN。",
+        summary: "beatoraja long-note mode: LN / CN / HCN.",
         link: MEMO,
     },
     HeaderDoc {
         command: "OCT/FP",
         title: "#OCT/FP",
-        summary: "切换到 OCT/FP 模式。",
+        summary: "Switches to OCT/FP mode.",
         link: MEMO,
     },
     HeaderDoc {
         command: "OCT",
         title: "#OCT",
-        summary: "OCT/FP 模式的通道映射。",
+        summary: "Channel mapping for OCT/FP mode.",
         link: MEMO,
     },
     HeaderDoc {
         command: "FP",
         title: "#FP",
-        summary: "OCT/FP 模式的通道映射。",
+        summary: "Channel mapping for OCT/FP mode.",
         link: MEMO,
     },
     HeaderDoc {
         command: "PREVIEW",
         title: "#PREVIEW",
-        summary: "预览音频文件。",
+        summary: "Preview audio file.",
         link: MEMO,
     },
     HeaderDoc {
         command: "PATH_WAV",
         title: "#PATH_WAV",
-        summary: "WAV 文件搜索路径。",
+        summary: "WAV file search path.",
         link: MEMO,
     },
     HeaderDoc {
         command: "STAGEFILE",
         title: "#STAGEFILE",
-        summary: "游玩背景图。",
+        summary: "Gameplay background image.",
         link: MEMO,
     },
     HeaderDoc {
         command: "BANNER",
         title: "#BANNER",
-        summary: "选曲列表横幅图。",
+        summary: "Song list banner image.",
         link: MEMO,
     },
     HeaderDoc {
         command: "BACKBMP",
         title: "#BACKBMP",
-        summary: "标题画面背景图。",
+        summary: "Title screen background image.",
         link: MEMO,
     },
     HeaderDoc {
         command: "CHARFILE",
         title: "#CHARFILE",
-        summary: "角色图片定义。",
+        summary: "Character image definition.",
         link: MEMO,
     },
     HeaderDoc {
         command: "END",
         title: "#END",
-        summary: "谱面结束标记。",
+        summary: "Chart end marker.",
         link: MEMO,
     },
     HeaderDoc {
         command: "BASE",
         title: "#BASE",
-        summary: "索引进制：36 或 62。",
+        summary: "Index radix: 36 or 62.",
         link: MEMO,
     },
     HeaderDoc {
         command: "BPM",
         title: "#BPM",
-        summary: "初始 BPM；带 ID 时定义扩展 BPM。",
+        summary: "Initial BPM; with an ID, defines an extended BPM.",
         link: MEMO,
     },
     HeaderDoc {
         command: "EXBPM",
         title: "#EXBPMxx",
-        summary: "扩展 BPM 定义；由 08 通道引用。",
+        summary: "Extended BPM definition; referenced by channel 08.",
         link: MEMO,
     },
     HeaderDoc {
         command: "BASEBPM",
         title: "#BASEBPM",
-        summary: "自动 HI-SPEED 的参考 BPM。",
+        summary: "Reference BPM for automatic HI-SPEED.",
         link: MEMO,
     },
     HeaderDoc {
         command: "STOP",
         title: "#STOPxx",
-        summary: "停止序列定义；由 09 通道引用。",
+        summary: "Stop sequence definition; referenced by channel 09.",
         link: MEMO,
     },
     HeaderDoc {
         command: "STP",
         title: "#STP",
-        summary: "绝对时间停止：小节.位置 毫秒。",
+        summary: "Absolute-time stop: measure.position milliseconds.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SCROLL",
         title: "#SCROLLxx",
-        summary: "滚动速度倍率定义；由 SC 通道引用。",
+        summary: "Scroll speed multiplier definition; referenced by channel SC.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SPEED",
         title: "#SPEEDxx",
-        summary: "视觉音符间距定义；由 SP 通道引用。",
+        summary: "Visual note spacing definition; referenced by channel SP.",
         link: MEMO,
     },
     HeaderDoc {
         command: "WAV",
         title: "#WAVxx",
-        summary: "音频资源定义；由 BGM、音符与 LN 通道引用。",
+        summary: "Audio resource definition; referenced by BGM, note, and LN channels.",
         link: MEMO,
     },
     HeaderDoc {
         command: "EXWAV",
         title: "#EXWAVxx",
-        summary: "带声像、音量与频率参数的音频定义。",
+        summary: "Audio definition with pan, volume, and frequency parameters.",
         link: MEMO,
     },
     HeaderDoc {
         command: "WAVCMD",
         title: "#WAVCMD",
-        summary: "对 WAV 应用音高、音量或时长命令。",
+        summary: "Applies pitch, volume, or duration commands to a WAV.",
         link: MEMO,
     },
     HeaderDoc {
         command: "CDDA",
         title: "#CDDA",
-        summary: "CD-DA 音轨定义。",
+        summary: "CD-DA track definition.",
         link: MEMO,
     },
     HeaderDoc {
         command: "MIDIFILE",
         title: "#MIDIFILE",
-        summary: "MIDI 文件定义。",
+        summary: "MIDI file definition.",
         link: MEMO,
     },
     HeaderDoc {
         command: "BMP",
         title: "#BMPxx",
-        summary: "图片资源定义；由 BGA 通道引用。",
+        summary: "Image resource definition; referenced by BGA channels.",
         link: MEMO,
     },
     HeaderDoc {
         command: "EXBMP",
         title: "#EXBMPxx",
-        summary: "带透明色的图片定义。",
+        summary: "Image definition with a transparent color.",
         link: MEMO,
     },
     HeaderDoc {
         command: "BGA",
         title: "#BGAxx",
-        summary: "BGA 对象定义；由 04/06/07/0A 通道引用。",
+        summary: "BGA object definition; referenced by channels 04/06/07/0A.",
         link: MEMO,
     },
     HeaderDoc {
         command: "@BGA",
         title: "#@BGAxx",
-        summary: "以宽高形式定义 BGA 裁剪。",
+        summary: "Defines a BGA crop in width/height form.",
         link: MEMO,
     },
     HeaderDoc {
         command: "POORBGA",
         title: "#POORBGA",
-        summary: "MISS 时显示的 BGA 模式。",
+        summary: "BGA mode shown on MISS.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SWBGA",
         title: "#SWBGAxx",
-        summary: "逐帧动画 BGA 定义。",
+        summary: "Frame-by-frame animated BGA definition.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ARGB",
         title: "#ARGBxx",
-        summary: "带 ARGB 颜色的 BGA 定义。",
+        summary: "BGA definition with an ARGB color.",
         link: MEMO,
     },
     HeaderDoc {
         command: "VIDEOFILE",
         title: "#VIDEOFILE",
-        summary: "视频背景文件。",
+        summary: "Video background file.",
         link: MEMO,
     },
     HeaderDoc {
         command: "VIDEOf/s",
         title: "#VIDEOf/s",
-        summary: "视频播放帧率。",
+        summary: "Video playback frame rate.",
         link: MEMO,
     },
     HeaderDoc {
         command: "VIDEOCOLORS",
         title: "#VIDEOCOLORS",
-        summary: "视频颜色数。",
+        summary: "Video color count.",
         link: MEMO,
     },
     HeaderDoc {
         command: "VIDEODLY",
         title: "#VIDEODLY",
-        summary: "视频延迟。",
+        summary: "Video delay.",
         link: MEMO,
     },
     HeaderDoc {
         command: "MOVIE",
         title: "#MOVIE",
-        summary: "旧式视频定义。",
+        summary: "Legacy video definition.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SEEK",
         title: "#SEEKxx",
-        summary: "SEEK 定义；由 05 通道引用。",
+        summary: "SEEK definition; referenced by channel 05.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ExtChr",
         title: "#ExtChr",
-        summary: "扩展字符定义。",
+        summary: "Extended character definition.",
         link: MEMO,
     },
     HeaderDoc {
         command: "RANDOM",
         title: "#RANDOM",
-        summary: "随机块：在 [1, N] 中取值，供 #IF 选择。",
+        summary: "Random block: picks a value in [1, N] for #IF selection.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SETRANDOM",
         title: "#SETRANDOM",
-        summary: "固定随机值，不调用 RNG。",
+        summary: "Fixed random value; does not call the RNG.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ENDRANDOM",
         title: "#ENDRANDOM",
-        summary: "结束 #RANDOM 块。",
+        summary: "Ends a #RANDOM block.",
         link: MEMO,
     },
     HeaderDoc {
         command: "IF",
         title: "#IF",
-        summary: "随机块内的条件分支。",
+        summary: "Conditional branch inside a random block.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ELSEIF",
         title: "#ELSEIF",
-        summary: "前序分支未命中时的条件分支。",
+        summary: "Conditional branch when previous branches did not match.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ELSE",
         title: "#ELSE",
-        summary: "所有条件都未命中时的分支。",
+        summary: "Branch when no condition matched.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ENDIF",
         title: "#ENDIF",
-        summary: "结束 #IF 链。",
+        summary: "Ends an #IF chain.",
         link: MEMO,
     },
     HeaderDoc {
         command: "IFEND",
         title: "#IFEND",
-        summary: "#ENDIF 的别名。",
+        summary: "Alias for #ENDIF.",
         link: MEMO,
     },
     HeaderDoc {
         command: "END IF",
         title: "#END IF",
-        summary: "#ENDIF 的别名。",
+        summary: "Alias for #ENDIF.",
         link: MEMO,
     },
     HeaderDoc {
         command: "RONDAM",
         title: "#RONDAM",
-        summary: "#RANDOM 的常见拼写变体。",
+        summary: "Common misspelling variant of #RANDOM.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SWITCH",
         title: "#SWITCH",
-        summary: "多 case 分支块：在 [1, N] 中取值。",
+        summary: "Multi-case branch block: picks a value in [1, N].",
         link: MEMO,
     },
     HeaderDoc {
         command: "SETSWITCH",
         title: "#SETSWITCH",
-        summary: "固定 switch 值，不调用 RNG。",
+        summary: "Fixed switch value; does not call the RNG.",
         link: MEMO,
     },
     HeaderDoc {
         command: "CASE",
         title: "#CASE",
-        summary: "switch 的条件分支。",
+        summary: "Conditional branch for switch.",
         link: MEMO,
     },
     HeaderDoc {
         command: "SKIP",
         title: "#SKIP",
-        summary: "结束 fall-through，跳到 #ENDSW。",
+        summary: "Ends fall-through and jumps to #ENDSW.",
         link: MEMO,
     },
     HeaderDoc {
         command: "DEF",
         title: "#DEF",
-        summary: "switch 的默认分支。",
+        summary: "Default branch for switch.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ENDSW",
         title: "#ENDSW",
-        summary: "结束 #SWITCH 块。",
+        summary: "Ends a #SWITCH block.",
         link: MEMO,
     },
     HeaderDoc {
         command: "ENDSWITCH",
         title: "#ENDSWITCH",
-        summary: "#ENDSW 的别名。",
+        summary: "Alias for #ENDSW.",
         link: MEMO,
     },
 ];
 
-/// 通道表。
+/// Channel table.
 pub static CHANNEL_DOCS: &[ChannelDoc] = &[
     ChannelDoc {
         code: "01",
         title: "01 BGM",
-        summary: "背景音乐通道；值引用 #WAVxx。",
+        summary: "Background music channel; values reference #WAVxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "02",
-        title: "02 小节长度",
-        summary: "小节长度倍率；1.0 为 4/4。",
+        title: "02 Measure length",
+        summary: "Measure length multiplier; 1.0 means 4/4.",
         link: MEMO,
     },
     ChannelDoc {
         code: "03",
         title: "03 BPM",
-        summary: "BPM 变更；十六进制整数。",
+        summary: "BPM change; hexadecimal integer.",
         link: MEMO,
     },
     ChannelDoc {
         code: "04",
         title: "04 BGA BASE",
-        summary: "BGA 基础层；值引用 #BGAxx 或 #BMPxx。",
+        summary: "BGA base layer; values reference #BGAxx or #BMPxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "05",
         title: "05 SEEK",
-        summary: "SEEK 对象；值引用 #SEEKxx。",
+        summary: "SEEK object; values reference #SEEKxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "06",
         title: "06 BGA POOR",
-        summary: "MISS 时显示的 BGA 层。",
+        summary: "BGA layer shown on MISS.",
         link: MEMO,
     },
     ChannelDoc {
         code: "07",
         title: "07 BGA LAYER",
-        summary: "BGA 叠加层。",
+        summary: "BGA overlay layer.",
         link: MEMO,
     },
     ChannelDoc {
         code: "08",
-        title: "08 扩展 BPM",
-        summary: "值引用 #BPMxx / #EXBPMxx。",
+        title: "08 Extended BPM",
+        summary: "Values reference #BPMxx / #EXBPMxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "09",
         title: "09 STOP",
-        summary: "值引用 #STOPxx。",
+        summary: "Values reference #STOPxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "0A",
         title: "0A BGA LAYER2",
-        summary: "第二层 BGA。",
+        summary: "Second BGA layer.",
         link: MEMO,
     },
     ChannelDoc {
         code: "0B",
-        title: "0B BGA BASE 不透明度",
-        summary: "BGA 基础层不透明度。",
+        title: "0B BGA BASE opacity",
+        summary: "BGA base layer opacity.",
         link: MEMO,
     },
     ChannelDoc {
         code: "0C",
-        title: "0C BGA LAYER 不透明度",
-        summary: "BGA 叠加层不透明度。",
+        title: "0C BGA LAYER opacity",
+        summary: "BGA overlay layer opacity.",
         link: MEMO,
     },
     ChannelDoc {
         code: "0D",
-        title: "0D BGA LAYER2 不透明度",
-        summary: "第二层 BGA 不透明度。",
+        title: "0D BGA LAYER2 opacity",
+        summary: "Second BGA layer opacity.",
         link: MEMO,
     },
     ChannelDoc {
         code: "0E",
-        title: "0E BGA POOR 不透明度",
-        summary: "MISS 层不透明度。",
+        title: "0E BGA POOR opacity",
+        summary: "MISS layer opacity.",
         link: MEMO,
     },
     ChannelDoc {
         code: "97",
-        title: "97 BGM 音量",
-        summary: "BGM 通道音量。",
+        title: "97 BGM volume",
+        summary: "BGM channel volume.",
         link: MEMO,
     },
     ChannelDoc {
         code: "98",
-        title: "98 KEY 音量",
-        summary: "按键音音量。",
+        title: "98 KEY volume",
+        summary: "Key sound volume.",
         link: MEMO,
     },
     ChannelDoc {
         code: "99",
         title: "99 TEXT",
-        summary: "值引用 #TEXTxx / #SONGxx。",
+        summary: "Values reference #TEXTxx / #SONGxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "A0",
         title: "A0 JUDGE",
-        summary: "判定覆盖；值为 base36 判定等级。",
+        summary: "Judge override; the value is a Base36 judge level.",
         link: MEMO,
     },
     ChannelDoc {
         code: "A1",
         title: "A1 BGA ARGB BASE",
-        summary: "BGA 基础层 ARGB。",
+        summary: "BGA base layer ARGB.",
         link: MEMO,
     },
     ChannelDoc {
         code: "A2",
         title: "A2 BGA ARGB LAYER",
-        summary: "BGA 叠加层 ARGB。",
+        summary: "BGA overlay layer ARGB.",
         link: MEMO,
     },
     ChannelDoc {
         code: "A3",
         title: "A3 BGA ARGB LAYER2",
-        summary: "第二层 BGA ARGB。",
+        summary: "Second BGA layer ARGB.",
         link: MEMO,
     },
     ChannelDoc {
         code: "A4",
         title: "A4 BGA ARGB POOR",
-        summary: "MISS 层 ARGB。",
+        summary: "MISS layer ARGB.",
         link: MEMO,
     },
     ChannelDoc {
         code: "A5",
         title: "A5 BGA KEYBOUND",
-        summary: "BGA 按键绑定。",
+        summary: "BGA key binding.",
         link: MEMO,
     },
     ChannelDoc {
         code: "A6",
         title: "A6 OPTION",
-        summary: "值引用 #CHANGEOPTIONxx。",
+        summary: "Values reference #CHANGEOPTIONxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "SC",
         title: "SC SCROLL",
-        summary: "滚动速度倍率；值引用 #SCROLLxx。",
+        summary: "Scroll speed multiplier; values reference #SCROLLxx.",
         link: MEMO,
     },
     ChannelDoc {
         code: "SP",
         title: "SP SPEED",
-        summary: "视觉音符间距；值引用 #SPEEDxx。",
+        summary: "Visual note spacing; values reference #SPEEDxx.",
         link: MEMO,
     },
 ];
 
-/// 查找头部命令说明。
+/// Look up the description for a header command.
 #[must_use]
 pub fn header_doc(command: &str) -> Option<&'static HeaderDoc> {
     let raw_command = command.trim_start_matches(['#', '%']);
@@ -695,13 +697,13 @@ pub fn header_doc(command: &str) -> Option<&'static HeaderDoc> {
         .max_by_key(|doc| doc.command.len())
 }
 
-/// 返回全部头部命令说明。
+/// Return all header command descriptions.
 #[must_use]
 pub const fn header_completions() -> &'static [HeaderDoc] {
     HEADER_DOCS
 }
 
-/// 查找通道说明。
+/// Look up the description for a channel.
 #[must_use]
 pub fn channel_doc(code: &str) -> Option<ChannelDoc> {
     let normalized = code.trim().to_ascii_uppercase();
@@ -714,13 +716,13 @@ pub fn channel_doc(code: &str) -> Option<ChannelDoc> {
     note_channel_doc(&normalized)
 }
 
-/// 返回全部通道说明。
+/// Return all channel descriptions.
 #[must_use]
 pub const fn channel_completions() -> &'static [ChannelDoc] {
     CHANNEL_DOCS
 }
 
-/// 音符通道组说明。
+/// Description for a note channel group.
 const fn note_channel_doc(code: &str) -> Option<ChannelDoc> {
     let bytes = code.as_bytes();
     let &[first, second] = bytes else {
@@ -730,14 +732,26 @@ const fn note_channel_doc(code: &str) -> Option<ChannelDoc> {
         return None;
     }
     let (title, summary) = match first {
-        b'1' => ("1P 可见音符", "1P 可见音符；值引用 #WAVxx。"),
-        b'2' => ("2P 可见音符", "2P 可见音符；值引用 #WAVxx。"),
-        b'3' => ("1P 不可见音符", "1P 不可见音符；值引用 #WAVxx。"),
-        b'4' => ("2P 不可见音符", "2P 不可见音符；值引用 #WAVxx。"),
-        b'5' => ("1P 长音符", "1P 长音符；值引用 #WAVxx。"),
-        b'6' => ("2P 长音符", "2P 长音符；值引用 #WAVxx。"),
-        b'D' => ("1P 地雷", "1P 地雷；值引用 #WAVxx。"),
-        b'E' => ("2P 地雷", "2P 地雷；值引用 #WAVxx。"),
+        b'1' => (
+            "1P visible notes",
+            "1P visible notes; values reference #WAVxx.",
+        ),
+        b'2' => (
+            "2P visible notes",
+            "2P visible notes; values reference #WAVxx.",
+        ),
+        b'3' => (
+            "1P invisible notes",
+            "1P invisible notes; values reference #WAVxx.",
+        ),
+        b'4' => (
+            "2P invisible notes",
+            "2P invisible notes; values reference #WAVxx.",
+        ),
+        b'5' => ("1P long notes", "1P long notes; values reference #WAVxx."),
+        b'6' => ("2P long notes", "2P long notes; values reference #WAVxx."),
+        b'D' => ("1P mines", "1P mines; values reference #WAVxx."),
+        b'E' => ("2P mines", "2P mines; values reference #WAVxx."),
         _ => return None,
     };
     Some(ChannelDoc {

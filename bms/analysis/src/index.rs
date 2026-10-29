@@ -1,36 +1,36 @@
-//! 资源定义与引用索引。
+//! Resource definition and reference indices.
 
 use bmsrs_bms_syntax::{TextRange, TextSize};
 
-/// 资源种类。
+/// Resource kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SymbolKind {
-    /// WAV / EXWAV。
+    /// WAV / EXWAV.
     Wav,
-    /// BMP / EXBMP。
+    /// BMP / EXBMP.
     Bmp,
-    /// BGA / @BGA / SWBGA / ARGB。
+    /// BGA / @BGA / SWBGA / ARGB.
     Bga,
-    /// BPM / EXBPM。
+    /// BPM / EXBPM.
     Bpm,
-    /// STOP。
+    /// STOP.
     Stop,
-    /// SCROLL。
+    /// SCROLL.
     Scroll,
-    /// SPEED。
+    /// SPEED.
     Speed,
-    /// EXRANK。
+    /// EXRANK.
     ExRank,
-    /// CHANGEOPTION。
+    /// CHANGEOPTION.
     ChangeOption,
-    /// TEXT / SONG。
+    /// TEXT / SONG.
     Text,
-    /// SEEK。
+    /// SEEK.
     Seek,
 }
 
 impl SymbolKind {
-    /// 返回中文标签。
+    /// Return the English label.
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
@@ -49,21 +49,21 @@ impl SymbolKind {
     }
 }
 
-/// 一个资源定义。
+/// A resource definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolDefinition {
-    /// 资源种类。
+    /// Resource kind.
     kind: SymbolKind,
-    /// 规范化 ID（大写）。
+    /// Normalized ID (uppercase).
     id: String,
-    /// 整行范围。
+    /// Whole-line range.
     range: TextRange,
-    /// 命令名 token 范围。
+    /// Command-name token range.
     name_range: TextRange,
 }
 
 impl SymbolDefinition {
-    /// 构造定义。
+    /// Construct a definition.
     pub(crate) const fn new(
         kind: SymbolKind,
         id: String,
@@ -78,90 +78,90 @@ impl SymbolDefinition {
         }
     }
 
-    /// 返回资源种类。
+    /// Return the resource kind.
     #[must_use]
     pub const fn kind(&self) -> SymbolKind {
         self.kind
     }
 
-    /// 返回 ID。
+    /// Return the ID.
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
     }
 
-    /// 返回整行范围。
+    /// Return the whole-line range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
 
-    /// 返回命令名范围。
+    /// Return the command-name range.
     #[must_use]
     pub const fn name_range(&self) -> TextRange {
         self.name_range
     }
 }
 
-/// 一个资源引用。
+/// A resource reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolReference {
-    /// 资源种类。
+    /// Resource kind.
     kind: SymbolKind,
-    /// 规范化 ID（大写）。
+    /// Normalized ID (uppercase).
     id: String,
-    /// 引用 token 范围。
+    /// Reference token range.
     range: TextRange,
 }
 
 impl SymbolReference {
-    /// 构造引用。
+    /// Construct a reference.
     pub(crate) const fn new(kind: SymbolKind, id: String, range: TextRange) -> Self {
         Self { kind, id, range }
     }
 
-    /// 返回资源种类。
+    /// Return the resource kind.
     #[must_use]
     pub const fn kind(&self) -> SymbolKind {
         self.kind
     }
 
-    /// 返回 ID。
+    /// Return the ID.
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
     }
 
-    /// 返回引用范围。
+    /// Return the reference range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
 }
 
-/// 定义与引用索引。
+/// Definition and reference index.
 #[derive(Debug, Clone, Default)]
 pub struct SymbolIndex {
-    /// 定义列表。
+    /// Definition list.
     definitions: Vec<SymbolDefinition>,
-    /// 引用列表。
+    /// Reference list.
     references: Vec<SymbolReference>,
 }
 
 impl SymbolIndex {
-    /// 返回所有定义。
+    /// Return all definitions.
     #[must_use]
     pub fn definitions(&self) -> &[SymbolDefinition] {
         &self.definitions
     }
 
-    /// 返回所有引用。
+    /// Return all references.
     #[must_use]
     pub fn references(&self) -> &[SymbolReference] {
         &self.references
     }
 
-    /// 查找指定种类与 ID 的定义。
+    /// Look up definitions with the given kind and ID.
     pub fn definitions_for(
         &self,
         kind: SymbolKind,
@@ -172,7 +172,7 @@ impl SymbolIndex {
         })
     }
 
-    /// 查找指定种类与 ID 的引用。
+    /// Look up references with the given kind and ID.
     pub fn references_for(
         &self,
         kind: SymbolKind,
@@ -183,13 +183,13 @@ impl SymbolIndex {
         })
     }
 
-    /// 判断是否存在定义。
+    /// Return whether a definition exists.
     #[must_use]
     pub fn has_definition(&self, kind: SymbolKind, id: &str) -> bool {
         self.definitions_for(kind, id).next().is_some()
     }
 
-    /// 查找指定偏移处的定义。
+    /// Look up the definition at the given offset.
     #[must_use]
     pub fn definition_at(&self, offset: TextSize) -> Option<&SymbolDefinition> {
         self.definitions
@@ -197,7 +197,7 @@ impl SymbolIndex {
             .find(|definition| contains(definition.name_range, offset))
     }
 
-    /// 查找指定偏移处的引用。
+    /// Look up the reference at the given offset.
     #[must_use]
     pub fn reference_at(&self, offset: TextSize) -> Option<&SymbolReference> {
         self.references
@@ -205,18 +205,18 @@ impl SymbolIndex {
             .find(|reference| contains(reference.range, offset))
     }
 
-    /// 追加定义。
+    /// Append a definition.
     pub(crate) fn push_definition(&mut self, definition: SymbolDefinition) {
         self.definitions.push(definition);
     }
 
-    /// 追加引用。
+    /// Append a reference.
     pub(crate) fn push_reference(&mut self, reference: SymbolReference) {
         self.references.push(reference);
     }
 }
 
-/// 判断范围是否包含偏移。
+/// Return whether a range contains an offset.
 fn contains(range: TextRange, offset: TextSize) -> bool {
     range.start() <= offset && offset < range.end()
 }
