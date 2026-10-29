@@ -6,7 +6,8 @@ on:
   pull_request:
     branches: [main]
 
-# 同一分支的新 push 取消尚未完成的旧检查，避免重复消耗 runner
+# Cancel incomplete old checks on a new push to the same branch so runner time
+# is not wasted.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -28,8 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install system headers
-        # kira/cpal 的 Linux 后端依赖 alsa-sys（需要 ALSA 头文件）；kira 0.12.5
-        # 起依赖树带进 libdbus-sys（需要 D-Bus 头文件）。runner 镜像默认不带
+        # The Linux backend of kira/cpal depends on alsa-sys (needs ALSA headers);
+        # since kira 0.12.5 the dependency tree pulls in libdbus-sys (needs D-Bus
+        # headers). The runner image does not include them by default.
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev libdbus-1-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -39,7 +41,8 @@ jobs:
       - name: Restore cargo registry
         uses: actions/cache@v6
         with:
-          # registry 缓存键与 release-plz-pr.yml 完全一致，两侧互相复用
+          # The registry cache key matches release-plz-pr.yml exactly, so the two
+          # workflows reuse each other's cache.
           path: |
             ~/.cargo/registry
             ~/.cargo/git
@@ -49,7 +52,8 @@ jobs:
       - name: Restore cargo target
         uses: actions/cache@v6
         with:
-          # deps/ 与 .fingerprint/：依赖产物与编译指纹，命中后跳过依赖重编
+          # deps/ and .fingerprint/: dependency artifacts and build fingerprints;
+          # a hit skips recompiling dependencies.
           path: |
             target/debug/deps
             target/debug/.fingerprint
@@ -123,8 +127,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-binstall
-        # 与 release-plz-pr.yml 同一安装脚本；cargo-deny 锁 minor（0.20），
-        # 与 release-plz 锁 cargo-semver-checks@0.48 的口径一致
+        # Same install script as release-plz-pr.yml; cargo-deny is pinned to minor
+        # 0.20, consistent with release-plz pinning cargo-semver-checks@0.48.
         run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
       - name: Restore cargo registry
         uses: actions/cache@v6
@@ -138,8 +142,8 @@ jobs:
       - name: Restore advisory database
         uses: actions/cache@v6
         with:
-          # cargo-deny 的 OSV/advisory-db 缓存；命中后每次运行做增量更新。
-          # 路径与 deny.toml 的 db-path 保持一致
+          # OSV/advisory-db cache for cargo-deny; a hit still gets incremental
+          # updates on each run. The path matches deny.toml's db-path.
           path: ~/.cargo/advisory-db
           key: rust-advisory-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
@@ -153,8 +157,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      # 工具链版本须与 workspace.package.rust-version 同步；guard 式
-      # let-chain（if_let_guard）于 Rust 1.95.0 稳定化
+      # The toolchain version must stay in sync with
+      # workspace.package.rust-version; guard-style let-chains (if_let_guard)
+      # stabilized in Rust 1.95.0.
       - uses: dtolnay/rust-toolchain@1.95
       - name: Install system headers
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libasound2-dev libdbus-1-dev
@@ -178,6 +183,7 @@ jobs:
           key: rust-target-msrv-${{ runner.os }}-${{ env.RUST_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             rust-target-msrv-${{ runner.os }}-${{ env.RUST_VERSION }}-
-      # resolver "3" 是 rust-version 感知的：依赖把 MSRV 抬过声明值时在这
-      # 里解析失败，拦住会破坏 MSRV 用户的升级
+      # resolver "3" is rust-version aware: if a dependency raises the MSRV above
+      # the declared value, resolution fails here, blocking upgrades that would
+      # break MSRV users.
       - run: cargo check --workspace --all-targets --quiet
