@@ -93,3 +93,16 @@ repos:
         language: system
         types: [rust]
         exclude: ^(.*/)?(tests|benches|examples)/.*$
+
+  # Reject Han characters in Rust comments and in #[expect(..., reason = "...")]
+  # strings. String literals are deliberately not checked because BMS fixtures
+  # contain legitimate Japanese and Chinese chart text (for example
+  # `#TITLE テスト`). Inline trailing comments and assertion messages are left
+  # to review; the hook covers full-line comments and expect reasons.
+  - repo: local
+    hooks:
+      - id: no-cjk-in-comments
+        name: no CJK characters in Rust comments or expect reasons
+        entry: bash -c '! rg --pcre2 -n "^\s*//.*\p{Han}|reason\s*=\s*\"[^\"]*\p{Han}" "$@"' _
+        language: system
+        types: [rust]

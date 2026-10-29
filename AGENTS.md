@@ -79,6 +79,7 @@ Hooks are configured in `.pre-commit-config.yaml`:
 | `no-comment-decorations` | decorative comment blocks | remove decorations such as `// ===` and `// ---` |
 | `no-confusable-unicode` | confusable Unicode characters | replace them with ASCII equivalents |
 | `no-module-level-expect-allow` | module-level `#![expect]/#[allow]` | use function-level `#[expect(..., reason = "...")]` |
+| `no-cjk-in-comments` | Han characters in full-line Rust comments or `expect` reasons | translate the comment; string fixtures are not checked |
 
 ### Manual
 
@@ -150,6 +151,9 @@ not to the skill documents themselves.
 - Doc comments (`///`, `//!`) and implementation comments (`//`) are written in
   English; BMS/bmson domain terms follow the original wording in the bms/bmson
   skills, and code identifiers stay in backticks
+- The `no-cjk-in-comments` hook enforces this for full-line comments and
+  `#[expect(..., reason = "...")]` strings; inline trailing comments and test
+  assertion messages are covered by review
 - Standard rustdoc section headings (`# Errors`, `# Panics`, `# Examples`, etc.)
   remain in English
 
