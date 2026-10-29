@@ -1,10 +1,11 @@
-//! BMS 通道消息数据的结构化类型。
+//! Structured types for BMS channel message data.
 //!
-//! 本模块定义从 `#xxxYY:values` 行中提取的事件类型，以及同时持有原始
-//! 拼接值与已解析事件向量的 [`Messages`] 容器。
+//! This module defines the event types extracted from `#xxxYY:values` lines and
+//! the [`Messages`] container that holds both the raw concatenated values and
+//! the parsed event vectors.
 
-// usize→u32 截断是安全的：BMS 每个通道每小节的值数 <4B。
-// 见 event_pos 辅助函数。
+// The usize to u32 truncation is safe: BMS has fewer than 4B values per channel
+// per measure. See the event_pos helper.
 
 use std::collections::BTreeMap;
 
@@ -14,31 +15,35 @@ use bmsrs_bms_values::{
     SpeedIndex, StopIndex, WavIndex, base36_digit_value,
 };
 
-// 位置
+// Position
 
-/// BMS 小节内的位置，以分数 `numer / denom` 表示。
+/// A position within a BMS measure, represented by the fraction
+/// `numer / denom`.
 ///
-/// 对于一个小节内有 N 个值的通道，第 i 个值（从 0 开始）对应
-/// `numer = i`、`denom = N`。
+/// For a channel with N values in a measure, the i-th value (zero-based)
+/// corresponds to `numer = i` and `denom = N`.
 ///
-/// 字段私有，仅可通过 [`Position::new`] 构造——这保证 `denom > 0` 不变式
-/// 在类型层面成立，外部代码无法绕过。
+/// The fields are private and can only be constructed through
+/// [`Position::new`], which guarantees the `denom > 0` invariant at the type
+/// level so external code cannot bypass it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
-    /// 小节编号（0–999）。
+    /// Measure number (0-999).
     measure: u16,
-    /// 分子（此对象在小节内的索引）。
+    /// Numerator (the object's index within the measure).
     numer: u32,
-    /// 分母（此通道在此小节中的对象总数）。
+    /// Denominator (the total number of objects for this channel in this
+    /// measure).
     denom: u32,
 }
 
 impl Position {
-    /// 创建一个新位置。
+    /// Create a new position.
     ///
     /// # Panics
     ///
-    /// 若 `denom == 0` 则 panic——分母为零的位置无意义。
+    /// Panics when `denom == 0`; a position with a zero denominator is
+    /// meaningless.
     #[inline]
     #[must_use]
     pub fn new(measure: u16, numer: u32, denom: u32) -> Self {
@@ -50,30 +55,32 @@ impl Position {
         }
     }
 
-    /// 返回小节编号（0–999）。
+    /// Return the measure number (0-999).
     #[inline]
     #[must_use]
     pub const fn measure(self) -> u16 {
         self.measure
     }
 
-    /// 返回分子（此对象在小节内的索引）。
+    /// Return the numerator (the object's index within the measure).
     #[inline]
     #[must_use]
     pub const fn numer(self) -> u32 {
         self.numer
     }
 
-    /// 返回分母（此通道在此小节中的对象总数）。
+    /// Return the denominator (the total number of objects for this channel in
+    /// this measure).
     ///
-    /// 保证 `> 0`——由 [`Position::new`] 在构造时校验。
+    /// Guaranteed to be greater than 0; validated by [`Position::new`] at
+    /// construction.
     #[inline]
     #[must_use]
     pub const fn denom(self) -> u32 {
         self.denom
     }
 
-    /// 返回小节内的小数位置，即 `numer / denom`。
+    /// Return the fractional position within the measure, `numer / denom`.
     #[inline]
     #[must_use]
     pub fn fraction(self) -> f64 {
@@ -83,271 +90,290 @@ impl Position {
 
 // BGM
 
-/// 一个 BGM（背景音乐）音符 —— 通道 `01`。
+/// A BGM (background music) note on channel `01`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BgmEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 指向 `#WAV` 表的引用。
+    /// Reference to the `#WAV` table.
     pub wav_id: WavIndex,
 }
 
-// 可玩音符
+// Playable notes
 
-/// 可玩音符是否在游玩区域可见。
+/// Whether a playable note is visible in the play area.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyType {
-    /// 可见音符（通道 `11`–`19`、`21`–`29`）。
+    /// Visible note (channels `11`-`19`, `21`-`29`).
     Visible,
-    /// 不可见 / "key" 音符（通道 `31`–`39`、`41`–`49`）。
+    /// Invisible or "key" note (channels `31`-`39`, `41`-`49`).
     Invisible,
 }
 
-/// 一个可玩音符（通道 `11`–`1Z`、`21`–`2Z`、`31`–`3Z`、`41`–`4Z`）。
+/// A playable note (channels `11`-`1Z`, `21`-`2Z`, `31`-`3Z`, `41`-`4Z`).
 ///
-/// 扩展通道（`1A`–`1Z` 等，pomu2 系）解码出 `lane` 10–35。
+/// Extended channels (`1A`-`1Z` and so on, pomu2 family) decode to `lane`
+/// 10-35.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NoteEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 玩家编号（1 或 2）。
+    /// Player number (1 or 2).
     pub player: u8,
-    /// 轨道 / 按键编号（1–9 标准；10–35 为扩展通道）。
+    /// Lane / key number (1-9 standard; 10-35 for extended channels).
     pub lane: u8,
-    /// 音符是否可见或不可见。
+    /// Whether the note is visible or invisible.
     pub key_type: KeyType,
-    /// 指向 `#WAV` 表的引用。
+    /// Reference to the `#WAV` table.
     pub wav_id: WavIndex,
 }
 
-// 长音
+// Long notes
 
-/// 一个长音 / charge-note（通道 `51`–`5Z`、`61`–`6Z`）。
+/// A long note or charge note (channels `51`-`5Z`, `61`-`6Z`).
 ///
-/// 扩展通道（`5A`–`5Z` 等，pomu2 系）解码出 `lane` 10–35。
+/// Extended channels (`5A`-`5Z` and so on, pomu2 family) decode to `lane`
+/// 10-35.
 ///
-/// 长音类型（LN / CN / HCN）由谱面级的
-/// [`LnType`](bmsrs_bms_values::LnType) 与 [`LnMode`](bmsrs_bms_values::LnMode)
-/// 头部命令决定，而非按事件存储。
+/// The long-note type (LN / CN / HCN) is determined by the chart-level
+/// [`LnType`](bmsrs_bms_values::LnType) and [`LnMode`](bmsrs_bms_values::LnMode) header
+/// commands, not stored per event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongNoteEvent {
-    /// 小节内的位置（按住的起点）。
+    /// Position within the measure (the start of the hold).
     pub position: Position,
-    /// 玩家编号（1 或 2）。
+    /// Player number (1 or 2).
     pub player: u8,
-    /// 轨道 / 按键编号（1–9 标准；10–35 为扩展通道）。
+    /// Lane / key number (1-9 standard; 10-35 for extended channels).
     pub lane: u8,
-    /// 指向 `#WAV` 表的引用。
+    /// Reference to the `#WAV` table.
     pub wav_id: WavIndex,
 }
 
-// 地雷
+// Mines
 
-/// 一个地雷音符（通道 `D1`–`D9`、`E1`–`E9`）。
+/// A mine note (channels `D1`-`D9`, `E1`-`E9`).
 ///
-/// `raw_value` 为地雷通道 2-char 值的 base36 解码结果。
-/// 伤害计算（`base36 / 2.0`、`ZZ` = 即死）由 processor 负责。
+/// `raw_value` is the Base36 decoding of the mine channel's 2-character value.
+/// Damage calculation (`base36 / 2.0`, `ZZ` means instant death) belongs to the
+/// processor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MineEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 玩家编号（1 或 2）。
+    /// Player number (1 or 2).
     pub player: u8,
-    /// 轨道 / 按键编号（1–9）。
+    /// Lane / key number (1-9).
     pub lane: u8,
-    /// base36 解码值（`Some(1295)` = `"ZZ"`，`None` = 解码失败）。
+    /// Base36-decoded value (`Some(1295)` means `"ZZ"`, `None` means decoding
+    /// failed).
     pub raw_value: Option<u16>,
 }
 
-// BPM 变更
+// BPM changes
 
-/// BPM 变更事件的值。
+/// Value of a BPM change event.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BpmValue {
-    /// 绝对 BPM 值（通道 `03`）。
+    /// Absolute BPM value (channel `03`).
     Absolute(f64),
-    /// 指向 `#BPMxx` 定义的引用（通道 `08`）。
+    /// Reference to a `#BPMxx` definition (channel `08`).
     Reference(BpmIndex),
 }
 
-/// 一个 BPM 变更事件（通道 `03`、`08`）。
+/// A BPM change event (channels `03`, `08`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct BpmChange {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 新的 BPM 值或引用。
+    /// New BPM value or reference.
     pub value: BpmValue,
 }
 
-// 停止
+// Stops
 
-/// 一个引用 `#STOPxx` 定义的停止 / 暂停事件（通道 `09`）。
+/// A stop or pause event referencing a `#STOPxx` definition (channel `09`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StopEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 指向 `#STOP` 表的引用。
+    /// Reference to the `#STOP` table.
     pub stop_id: StopIndex,
 }
 
-// 滚动
+// Scroll
 
-/// 一个滚动速度倍率事件（通道 `SC`）。
+/// A scroll speed multiplier event (channel `SC`).
 ///
-/// 引用 `#SCROLLxx` 定义。
+/// References a `#SCROLLxx` definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScrollEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 指向 `#SCROLL` 表的引用。
+    /// Reference to the `#SCROLL` table.
     pub scroll_id: ScrollIndex,
 }
 
-/// 一个视觉音符间距关键帧事件（通道 `SP`）。
+/// A visual note spacing keyframe event (channel `SP`).
 ///
-/// 引用 `#SPEEDxx` 定义。关键帧之间的间距因子通过线性插值计算。
+/// References a `#SPEEDxx` definition. Spacing factors between keyframes are
+/// computed by linear interpolation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpeedEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 指向 `#SPEED` 表的引用。
+    /// Reference to the `#SPEED` table.
     pub speed_id: SpeedIndex,
 }
 
-// BGA 事件
+// BGA events
 
-/// BMS BGA 图层。
+/// BMS BGA layer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BmsBgaLayer {
-    /// 基础 / 主背景（通道 `04`）。
+    /// Base / main background (channel `04`).
     Base,
-    /// 未命中 / POOR 表现图层（通道 `06`）。
+    /// Miss / POOR presentation layer (channel `06`).
     Poor,
-    /// 叠加在主 BGA 之上的覆盖图层（通道 `07`）。
+    /// Overlay layer on top of the main BGA (channel `07`).
     Layer,
-    /// 第二覆盖图层（通道 `0A`）。
+    /// Second overlay layer (channel `0A`).
     Layer2,
 }
 
-/// 一个 BGA 显示事件（通道 `04`、`06`、`07`、`0A`）。
+/// A BGA display event (channels `04`, `06`, `07`, `0A`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BgaEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 此事件所针对的 BGA 图层。
+    /// BGA layer targeted by this event.
     pub layer: BmsBgaLayer,
-    /// 指向 `#BMP` 表的引用。
+    /// Reference to the `#BMP` table.
     pub bmp_id: BmpIndex,
 }
 
-// 小节长度
+// Measure length
 
-/// 一个小节长度变更（通道 `02`）。
+/// A measure length change (channel `02`).
 ///
-/// 该值是相对于标准 4/4 小节的比值：
-/// - `1.0` = 4/4（标准）
-/// - `0.75` = 3/4
-/// - `2.0` = 8/4
-/// - `0.015625` = 1/64
+/// The value is a ratio relative to a standard 4/4 measure:
+/// - `1.0` means 4/4 (standard)
+/// - `0.75` means 3/4
+/// - `2.0` means 8/4
+/// - `0.015625` means 1/64
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MeasureLength {
-    /// 小节编号。
+    /// Measure number.
     pub measure: u16,
-    /// 长度比值（1.0 = 标准 4/4 小节）。
+    /// Length ratio (1.0 is a standard 4/4 measure).
     pub length_ratio: f64,
 }
 
-// 基于头部的定位停止
+// Position-based stop from a header
 
-/// 一个基于位置的停止事件（`#STP` 头部命令）。
+/// A position-based stop event (the `#STP` header command).
 ///
-/// 与引用 `#STOPxx` 定义的通道 `09` 停止不同，`#STP` 内联指定精确的
-/// 位置与时长。位置使用 1000 作为分母（小节的 1/1000）。
+/// Unlike channel `09` stops that reference `#STOPxx` definitions, `#STP`
+/// specifies the exact position and duration inline. Positions use 1000 as the
+/// denominator (1/1000 of a measure).
 #[derive(Debug, Clone, PartialEq)]
 pub struct StpEvent {
-    /// 小节内的位置。
+    /// Position within the measure.
     pub position: Position,
-    /// 停止时长（毫秒）。
+    /// Stop duration in milliseconds.
     pub duration_ms: f64,
 }
 
-/// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
+/// Merged data for non-event channels (used only for deferred parsing of BMS
+/// engine-specific events).
 ///
-/// 由最终化阶段在匹配到非事件通道时填充，处理器（`bmsrs-bms-processor`）
-/// 读取此数据转换为 `EventKind::Custom`。
+/// Filled during finalization when a non-event channel is matched; the
+/// processor (`bmsrs-bms-processor`) reads this data and converts it to
+/// `EventKind::Custom`.
 ///
-/// **归一化保证**：`values` 中的每个 2-char 索引已按 `base` 归一化
-/// （Base36 模式下大写，Base62 模式下保留原始大小写）。
-/// 处理器查表时无需再次归一化。
+/// **Normalization guarantee**: every 2-character index in `values` has already
+/// been normalized with `base` (uppercase in Base36 mode, original case
+/// preserved in Base62 mode). The processor does not need to normalize again
+/// when looking up definitions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NonEventData {
-    /// 小节号。
+    /// Measure number.
     pub measure: u16,
-    /// 通道类型。
+    /// Channel type.
     pub channel: BmsChannel,
-    /// 已按 `base` 归一化的 2-char 索引列表（`"00"` 保留以供位置计算）。
+    /// List of 2-character indices normalized with `base` (`"00"` is kept for
+    /// position calculation).
     pub values: Vec<BmsIndex>,
 }
 
-// 消息容器
+// Message container
 
-/// 原始与已解析通道消息数据的容器。
+/// Container for raw and parsed channel message data.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Messages {
-    /// 按（小节 → 通道）存储的原始值字符串，保留各行独立。
+    /// Raw value strings stored by (measure, channel), preserving each line
+    /// separately.
     ///
-    /// 同一 `(measure, channel)` 的多行作为 `Vec` 中的独立条目按文件
-    /// 顺序存储。在 [`finalize`](Self::finalize) 期间，非 BGM 通道会被
-    /// **按位置合并**（后续行覆盖先前的非 `00` 位置），而 BGM 行则独立
-    /// 处理以支持多声部。
+    /// Multiple lines for the same `(measure, channel)` are stored as separate
+    /// entries in a `Vec`, in file order. During [`finalize`](Self::finalize),
+    /// non-BGM channels are **merged by position** (later lines override
+    /// earlier non-`00` positions), while BGM lines are processed independently
+    /// to support polyphony.
     pub raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
 
-    /// 从通道 `01` 解析出的 BGM 事件。
+    /// BGM events parsed from channel `01`.
     pub bgm_events: Vec<BgmEvent>,
-    /// 从通道 `11`–`1Z`、`21`–`2Z`、`31`–`3Z`、`41`–`4Z` 解析出的可玩
-    /// 音符事件（含 pomu2 系扩展通道 `1A`–`1Z` 等，lane 10–35）。
+    /// Playable note events parsed from channels `11`-`1Z`, `21`-`2Z`,
+    /// `31`-`3Z`, and `41`-`4Z` (including pomu2-family extended channels such
+    /// as `1A`-`1Z`, with lanes 10-35).
     pub note_events: Vec<NoteEvent>,
-    /// 从通道 `51`–`5Z`、`61`–`6Z` 解析出的长音事件
-    ///（含扩展通道 `5A`–`5Z` 等，lane 10–35）。
+    /// Long-note events parsed from channels `51`-`5Z` and `61`-`6Z` (including
+    /// extended channels such as `5A`-`5Z`, with lanes 10-35).
     pub long_note_events: Vec<LongNoteEvent>,
-    /// 从通道 `D1`–`D9`、`E1`–`E9` 解析出的地雷事件。
+    /// Mine events parsed from channels `D1`-`D9` and `E1`-`E9`.
     pub mine_events: Vec<MineEvent>,
-    /// 从通道 `03`、`08` 解析出的 BPM 变更事件。
+    /// BPM change events parsed from channels `03` and `08`.
     pub bpm_changes: Vec<BpmChange>,
-    /// 从通道 `09` 解析出的停止事件。
+    /// Stop events parsed from channel `09`.
     pub stop_events: Vec<StopEvent>,
-    /// 从通道 `SC` 解析出的滚动速度事件。
+    /// Scroll speed events parsed from channel `SC`.
     pub scroll_events: Vec<ScrollEvent>,
-    /// 从通道 `SP` 解析出的视觉音符间距关键帧事件。
+    /// Visual note spacing keyframe events parsed from channel `SP`.
     pub speed_events: Vec<SpeedEvent>,
-    /// 从通道 `04`–`07` 解析出的 BGA 显示事件。
+    /// BGA display events parsed from channels `04`-`07`.
     pub bga_events: Vec<BgaEvent>,
-    /// 从通道 `02` 解析出的小节长度变更。
+    /// Measure length changes parsed from channel `02`.
     pub measure_lengths: Vec<MeasureLength>,
-    /// 基于头部命令的位置停止（`#STP`）。
+    /// Position-based stops from the `#STP` header command.
     pub stp_events: Vec<StpEvent>,
 
-    /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
+    /// Merged data for non-event channels (used only for deferred parsing of
+    /// BMS engine-specific events).
     ///
-    /// 每个条目包含小节号、通道类型与已归一化的单值列表，由
-    /// `finalize_merged` 在匹配到非事件通道时填充。处理器（`bmsrs-bms-processor`）
-    /// 读取此数据转换为 `EventKind::Custom`。
-    /// 所有 2-char 索引值已按 `base` 归一化。
+    /// Each entry contains the measure number, channel type, and a list of
+    /// normalized single values; `finalize_merged` fills it when a non-event
+    /// channel is matched. The processor (`bmsrs-bms-processor`) reads this data and
+    /// converts it to `EventKind::Custom`. Every 2-character index has been
+    /// normalized with `base`.
     ///
     pub non_event_data: Vec<NonEventData>,
 
-    /// 通道值解析警告（finalize 时收集；重复调用先清空）。
+    /// Channel value parse warnings (collected during finalize; cleared first on
+    /// repeated calls).
     ///
-    /// 值形状合法但不满足该通道解析规则的 2-char 值（如 ch03 要求
-    /// 十六进制而值含非十六进制字符）被跳过并在此记录。引用缺失类
-    /// 警告（WAV/BPM/STOP 键未定义）归 processor 层的 `ProcessWarning`。
+    /// 2-character values whose shape is valid but do not satisfy that channel's
+    /// parse rule (for example, ch03 requires hexadecimal and the value contains
+    /// a non-hexadecimal character) are skipped and recorded here.
+    /// Missing-reference warnings (undefined WAV/BPM/STOP keys) belong to the
+    /// processor layer's `ProcessWarning`.
     pub warnings: Vec<ChannelValueWarning>,
 }
 
-/// 将枚举索引 `i` 转换为 [`Position`]，集中处理 `usize → u32` 截断期望。
+/// Convert the enumerated index `i` into a [`Position`], centralizing the
+/// `usize` to `u32` truncation expectation.
 ///
-/// BMS 每通道每小节的内容数量（对象行数 × 每行值数）在实际谱面中
-/// 远小于 `u32::MAX`，截断是安全的。
+/// The number of values per channel per measure (object lines times values per
+/// line) is far below `u32::MAX` in real charts, so truncation is safe.
 #[expect(
     clippy::cast_possible_truncation,
     reason = "BMS per-channel per-measure value count fits in u32"
@@ -357,12 +383,12 @@ fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
 }
 
 impl Messages {
-    /// 将一条消息的值追加到 `raw` 存储。
+    /// Append one message's value to the `raw` store.
     ///
-    /// 同一 `(measure, channel)` 的每一行作为内部 `Vec` 的独立条目存储，
-    /// 保留文件顺序。在接收全部消息后调用
-    /// [`finalize`](Self::finalize)；它将按位置合并非 BGM 通道，然后
-    /// 解析事件。
+    /// Each line for the same `(measure, channel)` is stored as a separate entry
+    /// in the inner `Vec`, preserving file order. Call
+    /// [`finalize`](Self::finalize) after receiving every message; it merges
+    /// non-BGM channels by position and then parses events.
     pub fn concat_raw(&mut self, msg: &bmsrs_bms_values::BmsMessage) {
         self.raw
             .entry(msg.track())
@@ -372,27 +398,32 @@ impl Messages {
             .push(msg.body.clone());
     }
 
-    /// 从原始多行存储中完成事件解析的最终化。
+    /// Finalize event parsing from the raw multi-line store.
     ///
-    /// 必须在通过 [`concat_raw`](Self::concat_raw) 添加**全部**通道消息
-    /// 之后调用。对于每个 `(measure, channel)`：
+    /// Must be called after **all** channel messages have been added through
+    /// [`concat_raw`](Self::concat_raw). For each `(measure, channel)`:
     ///
-    /// - **BGM**（`ch01`）：每行独立处理，产生带各行分母的事件（支持
-    ///   多声部）。
-    /// - **`ch02`**（小节长度）：仅使用**最后一**行（类标量通道最后胜出）。
-    /// - **`ch03`**（通过十六进制变更 BPM）：与其他可玩通道一样进行
-    ///   按位置合并。`"00"` 条目被过滤掉（休止 = 无 BPM 变更）。
-    /// - **所有其他通道**（含 `chA6` 选项）：所有行在解析前通过
-    ///   `merge_channel` 进行**按位置合并**，遵循后续行覆盖非 `"00"`
-    ///   位置而 `"00"` 保留的规格规则。
+    /// - **BGM** (`ch01`): each line is processed independently, producing
+    ///   events with that line's denominator (supports polyphony).
+    /// - **`ch02`** (measure length): only the **last** line is used (last-wins
+    ///   scalar-like channel).
+    /// - **`ch03`** (BPM change via hexadecimal): merged by position like other
+    ///   playable channels. `"00"` entries are filtered out (a rest means no BPM
+    ///   change).
+    /// - **Every other channel** (including `chA6` options): all lines are
+    ///   **merged by position** through `merge_channel` before parsing,
+    ///   following the specification rule that later lines override non-`"00"`
+    ///   positions while `"00"` preserves them.
     ///
-    /// 先清除已有解析结果再重新解析，因此可安全重复调用。
+    /// Existing parse results are cleared before re-parsing, so repeated calls
+    /// are safe.
     ///
-    /// `base` 控制索引归一化：在标准 Base36 模式下索引被转为大写以进行
-    /// 不区分大小写的查找；在 Base62 模式下保留原始大小写。
+    /// `base` controls index normalization: in standard Base36 mode indices are
+    /// uppercased for case-insensitive lookup; in Base62 mode the original case
+    /// is preserved.
     pub fn finalize(&mut self, base: BmsBase) {
-        // 取出 raw 与头部来源的 stp_events，整体重置消息解析结果，
-        // 使 finalize 可安全重复调用。
+        // Take raw and header-sourced stp_events, then reset message parse
+        // results so finalize can be called repeatedly.
         let raw = std::mem::take(&mut self.raw);
         let stp_events = std::mem::take(&mut self.stp_events);
         *self = Self::default();
@@ -407,7 +438,7 @@ impl Messages {
         self.stp_events = stp_events;
     }
 
-    /// 将单个通道的多行数据分派到对应的最终化方法。
+    /// Dispatch one channel's multi-line data to the corresponding finalizer.
     fn finalize_channel(
         &mut self,
         channel: BmsChannel,
@@ -416,16 +447,16 @@ impl Messages {
         base: BmsBase,
     ) {
         match channel {
-            // BGM：每行独立（多声部）。
+            // BGM: each line independently (polyphony).
             BmsChannel::Bgm => self.finalize_bgm_lines(lines, measure, base),
-            // 小节长度 / 选项：最后一行胜出。
+            // Measure length: last line wins.
             BmsChannel::MeasureLength => self.finalize_measure_length_line(lines, measure),
-            // 所有其他通道：按位置合并后解析事件。
+            // Every other channel: merge by position, then parse events.
             _ => self.finalize_merged(channel, lines, measure, base),
         }
     }
 
-    /// 处理 BGM 通道的最终化：每行独立处理（多声部）。
+    /// Finalize the BGM channel: process each line independently (polyphony).
     #[expect(
         clippy::cast_possible_truncation,
         reason = "BMS measure value count fits in u32"
@@ -438,14 +469,14 @@ impl Messages {
         }
     }
 
-    /// 处理小节长度通道的最终化：仅使用最后一行。
+    /// Finalize the measure length channel: use only the last line.
     fn finalize_measure_length_line(&mut self, lines: &[String], measure: u16) {
         if let Some(last) = lines.last() {
             self.push_measure_length(last, measure);
         }
     }
 
-    /// 处理其他通道的最终化：按位置合并后按事件类型分发。
+    /// Finalize other channels: merge by position, then dispatch by event type.
     #[expect(
         clippy::cast_possible_truncation,
         reason = "BMS measure value count fits in u32"
@@ -476,8 +507,10 @@ impl Messages {
             BmsChannel::Scroll => self.push_scroll_full(&merged, context),
             BmsChannel::Speed => self.push_speed_full(&merged, context),
             BmsChannel::Note(note_ch) => self.dispatch_note_channel(&merged, note_ch, context),
-            // 非事件通道 —— 保留已归一化的数据供处理器转换为 BmsCustomEvent。
-            // 所有 2-char 值在此按 base 归一化，消除 processor 的重复归一化（F1）。
+            // Non-event channels: keep normalized data for the processor to
+            // convert into BmsCustomEvent. Every 2-character value is
+            // normalized by base here, eliminating duplicate normalization in
+            // the processor (F1).
             BmsChannel::BgaBaseOpacity
             | BmsChannel::BgaLayerOpacity
             | BmsChannel::BgaLayer2Opacity
@@ -501,24 +534,27 @@ impl Messages {
                     values,
                 });
             }
-            // BGM 与 MeasureLength 在此不可达（已在 finalize_channel
-            // 的早期分支中处理），保留分支以满足 exhaustiveness。
+            // BGM and MeasureLength are unreachable here (handled by early
+            // branches in finalize_channel); the arms remain for exhaustiveness.
             BmsChannel::Bgm | BmsChannel::MeasureLength => {}
         }
     }
 }
 
 impl Messages {
-    /// 使用按位置合并语义合并同一 `(measure, channel)` 的多条 BMS 消息行。
+    /// Merge multiple BMS message lines for the same `(measure, channel)` using
+    /// position-merge semantics.
     ///
-    /// - 行按**文件顺序**处理（后续行 = 更高优先级）。
-    /// - 某位置上的非 `"00"` 值会**覆盖**原有值。
-    /// - `"00"` 值**保留**现有值（无操作）。
+    /// - Lines are processed in **file order** (later lines have higher
+    ///   priority).
+    /// - A non-`"00"` value at a position **overrides** the existing value.
+    /// - A `"00"` value **preserves** the existing value (no-op).
     ///
-    /// 最终分辨率（对象总数）为所有行计数的**最大值**。每行的值按比例映射
-    /// 到此网格上：`dest_position = src_position × max_count / line_count`。
+    /// The final resolution (total object count) is the **maximum** count across
+    /// lines. Each line's values are mapped proportionally onto that grid:
+    /// `dest_position = src_position * max_count / line_count`.
     ///
-    /// 空输入返回空字符串。
+    /// Empty input returns an empty string.
     #[must_use]
     #[expect(
         clippy::indexing_slicing,
@@ -529,7 +565,7 @@ impl Messages {
             return String::new();
         }
 
-        // 将每行解析为 2 字符值块。
+        // Parse each line into 2-character value chunks.
         let parsed: Vec<Vec<&str>> = lines
             .iter()
             .map(|line| {
@@ -539,30 +575,30 @@ impl Messages {
             })
             .collect();
 
-        // 查找最大计数（最终分辨率）。
+        // Find the maximum count (final resolution).
         let max_count = parsed.iter().map(Vec::len).max().unwrap_or(1);
         if max_count == 0 {
             return String::new();
         }
 
-        // 以最大分辨率初始化结果缓冲区，全部为 "00"。
+        // Initialize the result buffer at the maximum resolution, all "00".
         let mut result: Vec<&str> = vec!["00"; max_count];
 
-        // 按文件顺序处理各行。后续行优先级更高，
-        // 但 "00" 为无操作（保留现有值）。
+        // Process lines in file order. Later lines take priority, but "00" is a
+        // no-op (keeps the existing value).
         for line_vals in &parsed {
             let line_count = line_vals.len();
             if line_count == 0 {
                 continue;
             }
-            // 将此行网格上的每个位置映射到最大网格上。
+            // Map each position on this line's grid to the maximum grid.
             for (j, val) in line_vals.iter().enumerate() {
                 let dest = j * max_count / line_count;
                 if *val != "00" {
-                    // dest < max_count 由构造保证
+                    // dest < max_count is guaranteed by construction.
                     result[dest] = *val;
                 }
-                // "00" → 跳过（保留现有值）
+                // "00" means skip (keep the existing value).
             }
         }
 
@@ -570,15 +606,16 @@ impl Messages {
     }
 }
 
-/// 将合并后的通道值字符串按 `base` 归一化为 2-char 索引列表。
+/// Normalize a merged channel value string into a list of 2-character indices
+/// according to `base`.
 ///
-/// 每个通过 [`BodyCells::including_zero`] 解析出的 2-char 块
-/// 都经 [`BmsIndex::try_from`] 构造后调用 [`BmsIndex::normalize`]
-/// 按指定进制归一化。
+/// Every 2-character chunk parsed by [`BodyCells::including_zero`] is
+/// constructed through [`BmsIndex::try_from`] and then normalized with
+/// [`BmsIndex::normalize`] for the given base.
 ///
-/// `BodyCells` 保证产出的是 2-char base62 片段，
-/// [`BmsIndex::try_from`] 对它们总是成功；`filter_map` 保守处理，
-/// 理论上不会过滤任何值。
+/// `BodyCells` guarantees 2-character Base62 chunks, so
+/// [`BmsIndex::try_from`] always succeeds for them; `filter_map` is a
+/// conservative guard that should never filter a value in theory.
 fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<BmsIndex> {
     BodyCells::including_zero(merged)
         .filter_map(|cell| {
@@ -589,35 +626,36 @@ fn normalize_merged_values(merged: &str, base: BmsBase) -> Vec<BmsIndex> {
         .collect()
 }
 
-// 内部解析辅助函数
+// Internal parse helpers
 
-/// 将地雷通道的 2-char 值解码为 base36 数值。
+/// Decode a mine channel's 2-character value into a Base36 number.
 ///
-/// 地雷伤害值始终为 base36，不受 `#BASE 62` 影响
-///（见 BMS base62 规范 `bms/ext/base62-format.md` L127-129）。
+/// Mine damage values are always Base36 and are not affected by `#BASE 62` (see
+/// the BMS Base62 specification, `bms/ext/base62-format.md` lines 127-129).
 ///
-/// `"00"` 已由上层 [`BodyCells::non_zero`] 过滤，不会进入此函数。
-/// 返回 `None` 表示原始值无法解码——processor 以默认伤害值处理。
+/// `"00"` has already been filtered out by [`BodyCells::non_zero`] upstream and
+/// never reaches this function. `None` means the raw value could not be decoded;
+/// the processor uses the default damage value.
 fn decode_mine_raw(val: &str) -> Option<u16> {
     let upper = val.to_ascii_uppercase();
     BmsBase::Base36.decode(&upper)
 }
 
-/// 单个（小节，通道）正文解析的共享上下文。
+/// Shared context for parsing one (measure, channel) body.
 #[derive(Clone, Copy, Debug)]
 struct ChannelContext {
-    /// 小节号。
+    /// Measure number.
     measure: u16,
-    /// 正文的完整单元数。
+    /// Total number of cells in the body.
     total_objects: u32,
-    /// 索引归一化使用的进制基数。
+    /// Radix base used for index normalization.
     base: BmsBase,
-    /// 原始通道类型，用于警告。
+    /// Original channel type, used for warnings.
     channel: BmsChannel,
 }
 
 impl ChannelContext {
-    /// 构造上下文。
+    /// Construct the context.
     const fn new(measure: u16, total_objects: u32, base: BmsBase, channel: BmsChannel) -> Self {
         Self {
             measure,
@@ -628,7 +666,7 @@ impl ChannelContext {
     }
 }
 
-/// 将正文单元逐个交给 `make`，失败值记入警告。
+/// Feed body cells to `make` one by one; failures are recorded as warnings.
 fn parse_indexed<T>(
     context: ChannelContext,
     cells: BodyCells<'_>,
@@ -650,7 +688,7 @@ fn parse_indexed<T>(
 }
 
 impl Messages {
-    /// 从完整拼接的值中解析 BGM 事件（ch 01）。
+    /// Parse BGM events from the full concatenated values (ch 01).
     fn push_bgm_full(&mut self, values: &str, context: ChannelContext) {
         parse_indexed(
             context,
@@ -667,10 +705,11 @@ impl Messages {
         );
     }
 
-    /// 从原始值解析小节长度变更（ch 02）。
+    /// Parse a measure length change from the raw value (ch 02).
     ///
-    /// 该值是相对于 4/4 的比值：`1.0` = 4/4，`0.75` = 3/4，
-    /// `2.0` = 8/4。非数值或零值被静默忽略（小节默认为 4/4）。
+    /// The value is a ratio relative to 4/4: `1.0` means 4/4, `0.75` means 3/4,
+    /// and `2.0` means 8/4. Non-numeric or zero values are silently ignored
+    /// (the measure defaults to 4/4).
     fn push_measure_length(&mut self, values: &str, measure: u16) {
         if let Ok(ratio) = values.trim().parse::<f64>()
             && ratio > 0.0
@@ -683,10 +722,11 @@ impl Messages {
         }
     }
 
-    /// 从十六进制值解析绝对 BPM 变更（ch 03）。
+    /// Parse absolute BPM changes from hexadecimal values (ch 03).
     ///
-    /// `"00"` 值表示休止（无 BPM 变更），按 BMS 规格被**跳过** —— 将
-    /// `BpmValue::Absolute(0.0)` 传递到下游会导致计时轨除以零。
+    /// A `"00"` value means a rest (no BPM change) and is **skipped** per the
+    /// BMS specification: passing `BpmValue::Absolute(0.0)` downstream would
+    /// make the timing track divide by zero.
     fn push_bpm_absolute_full(&mut self, values: &str, context: ChannelContext) {
         parse_indexed(
             context,
@@ -694,7 +734,7 @@ impl Messages {
             &mut self.bpm_changes,
             &mut self.warnings,
             |position, value| {
-                // 通道 03 的值为十六进制整数（01-FF）
+                // Channel 03 values are hexadecimal integers (01-FF).
                 let bpm_val = u8::from_str_radix(value, 16).ok()?;
                 Some(BpmChange {
                     position,
@@ -704,7 +744,7 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析 BPM 引用变更（ch 08）。
+    /// Parse BPM reference changes from the full concatenated values (ch 08).
     fn push_bpm_reference_full(&mut self, values: &str, context: ChannelContext) {
         parse_indexed(
             context,
@@ -721,7 +761,7 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析停止事件（ch 09）。
+    /// Parse stop events from the full concatenated values (ch 09).
     fn push_stop_full(&mut self, values: &str, context: ChannelContext) {
         parse_indexed(
             context,
@@ -738,7 +778,7 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析滚动事件（ch SC）。
+    /// Parse scroll events from the full concatenated values (ch SC).
     fn push_scroll_full(&mut self, values: &str, context: ChannelContext) {
         parse_indexed(
             context,
@@ -755,7 +795,7 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析速度关键帧事件（ch SP）。
+    /// Parse speed keyframe events from the full concatenated values (ch SP).
     fn push_speed_full(&mut self, values: &str, context: ChannelContext) {
         parse_indexed(
             context,
@@ -772,7 +812,7 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析 BGA 显示事件（ch 04–07）。
+    /// Parse BGA display events from the full concatenated values (ch 04-07).
     fn push_bga_full(&mut self, values: &str, layer: BmsBgaLayer, context: ChannelContext) {
         parse_indexed(
             context,
@@ -790,10 +830,11 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析可玩音符事件（ch 11–49）。
+    /// Parse playable note events from the full concatenated values
+    /// (ch 11-49).
     ///
-    /// WAV 索引为 `"00"` 的条目会被过滤掉 —— 它们表示"无音符"
-    ///（静音步）位置，不应产生事件。
+    /// Entries whose WAV index is `"00"` are filtered out: they mean "no note"
+    /// (a silent step) and should not produce an event.
     fn push_playable_full(
         &mut self,
         values: &str,
@@ -820,11 +861,12 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析长音事件（ch 51–69）。
+    /// Parse long-note events from the full concatenated values (ch 51-69).
     ///
-    /// 保留 `"00"` 条目——LNTYPE 2 (MGQ) 中 `"00"` 是释放标记，
-    /// 由 `pair_lntype2` 使用。`pair_lntype1` 内部也会过滤 `"00"`，
-    /// 因此统一保留，让 LN 配对函数按模式自行处理。
+    /// `"00"` entries are kept: in LNTYPE 2 (MGQ), `"00"` is the release marker
+    /// used by `pair_lntype2`. `pair_lntype1` filters `"00"` internally as well,
+    /// so they are kept uniformly and the LN pairing function handles them by
+    /// mode.
     fn push_long_note_full(&mut self, values: &str, player: u8, lane: u8, context: ChannelContext) {
         parse_indexed(
             context,
@@ -843,10 +885,11 @@ impl Messages {
         );
     }
 
-    /// 从完整拼接的值中解析地雷事件（ch D1–E9）。
+    /// Parse mine events from the full concatenated values (ch D1-E9).
     ///
-    /// 双字符索引解码为 base36 数值存入 `raw_value`；伤害计算由
-    /// processor 负责。`"00"` 条目被 [`BodyCells::non_zero`] 过滤。
+    /// The two-character index is decoded to a Base36 number and stored in
+    /// `raw_value`; damage calculation belongs to the processor. `"00"` entries
+    /// are filtered by [`BodyCells::non_zero`].
     fn push_mine_full(&mut self, values: &str, player: u8, lane: u8, context: ChannelContext) {
         parse_indexed(
             context,
@@ -864,29 +907,32 @@ impl Messages {
         );
     }
 
-    /// 将音符通道分发到对应的处理器。
+    /// Dispatch a note channel to the corresponding handler.
     ///
-    /// 从 [`finalize`](Self::finalize) 调用。通道字节经 Base36 解码第二
-    /// 字符得到 `lane`（`'1'`–`'9'` → 1–9，`'A'`–`'Z'` → 10–35），
-    /// 第一字符决定玩家侧与音符种类（可见 / 不可见 / 长音 / 地雷）。
+    /// Called from [`finalize`](Self::finalize). The second channel byte is
+    /// Base36-decoded to obtain `lane` (`'1'`-`'9'` for 1-9, `'A'`-`'Z'` for
+    /// 10-35); the first byte determines the player side and note kind (visible,
+    /// invisible, long note, or mine).
     ///
-    /// `lane == 0`（预留通道 `"10"`/`"20"`/...）被过滤——虽然
-    /// [`classify_channel`](bmsrs_bms_values::classify_channel) 已将这些归为
-    /// `Unknown`，此处再次过滤作为防御。
+    /// `lane == 0` (reserved channels `"10"`, `"20"`, and so on) is filtered
+    /// out; although [`classify_channel`](bmsrs_bms_values::classify_channel) already
+    /// classifies these as `Unknown`, filtering again here is defensive.
     ///
-    /// 地雷通道 `D1`–`D9` / `E1`–`E9` 仅 lane 1–9 有效——扩展范围
-    ///（如假设性的 `DA`）不产生 `MineEvent`。
+    /// Mine channels `D1`-`D9` and `E1`-`E9` are valid only for lanes 1-9;
+    /// extended ranges (such as a hypothetical `DA`) do not produce a
+    /// `MineEvent`.
     fn dispatch_note_channel(&mut self, values: &str, ch: ChannelIndex, context: ChannelContext) {
         let bytes = ch.as_bytes();
-        // classify_channel 仅对 2 字节通道返回 Note 变体；1 字节通道
-        //（如 `"1"` = Bgm）走非 Note 分支。此处要求 2 字节以安全索引。
+        // classify_channel returns the Note variant only for 2-byte channels;
+        // 1-byte channels (such as `"1"` for Bgm) take the non-Note branch.
+        // Require 2 bytes here for safe indexing.
         let &[first, second] = bytes else {
             return;
         };
 
-        // 预留通道 `"10"`/`"20"`/... 的 lane 为 0，过滤。
-        // `base36_digit_value` 返回 `Option<u16>`，lane 值 0–35 在 u8 范围内，
-        // `try_from` 总是成功。
+        // Reserved channels `"10"`, `"20"`, and so on have lane 0; filter them.
+        // `base36_digit_value` returns `Option<u16>`; lane values 0-35 fit in
+        // u8, so `try_from` always succeeds.
         let Some(lane_u16) = base36_digit_value(second) else {
             return;
         };
@@ -908,11 +954,12 @@ impl Messages {
             b'4' => self.push_playable_full(values, 2, lane, KeyType::Invisible, context),
             b'5' => self.push_long_note_full(values, 1, lane, context),
             b'6' => self.push_long_note_full(values, 2, lane, context),
-            // 地雷通道仅 lane 1–9 有效；`classify_channel` 已确保进入此
-            // 分支的 D/E 通道 second ∈ '1'..='9'，此处显式拒绝扩展 lane。
+            // Mine channels are valid only for lanes 1-9; `classify_channel`
+            // already ensures that D/E channels reaching this branch have
+            // second in '1'..='9'. Extended lanes are rejected explicitly here.
             b'D' if lane <= 9 => self.push_mine_full(values, 1, lane, context),
             b'E' if lane <= 9 => self.push_mine_full(values, 2, lane, context),
-            _ => { /* 非音符第一字符 —— 仅保留在 raw 中 */ }
+            _ => { /* Non-note first byte: kept only in raw. */ }
         }
     }
 }
@@ -923,11 +970,11 @@ mod tests {
 
     #[test]
     fn merge_channel_basic_example() {
-        // 来自 memo/03 的规格示例：
-        //   #00113:11111111   (4 个值)
-        //   #00113:0022332255224400  (8 个值)
-        //   #00113:0066        (2 个值)
-        //   结果：1122332266224400
+        // Specification example from memo/03:
+        //   #00113:11111111   (4 values)
+        //   #00113:0022332255224400  (8 values)
+        //   #00113:0066        (2 values)
+        //   Result: 1122332266224400
         let lines = vec![
             "11111111".to_owned(),
             "0022332255224400".to_owned(),
@@ -944,14 +991,15 @@ mod tests {
 
     #[test]
     fn merge_channel_00_preserves_earlier() {
-        // 当第 2 行在该位置为 "00" 时，第 1 行的非 00 值被保留。
+        // When line 2 has "00" at that position, line 1's non-00 value is
+        // preserved.
         let lines = vec!["11".to_owned(), "00".to_owned()];
         assert_eq!(Messages::merge_bodies(&lines), "11");
     }
 
     #[test]
     fn merge_channel_later_overwrites_non_00() {
-        // 后续行的非 00 值覆盖先前的非 00 值。
+        // A later line's non-00 value overrides the earlier non-00 value.
         let lines = vec!["11".to_owned(), "22".to_owned()];
         assert_eq!(Messages::merge_bodies(&lines), "22");
     }

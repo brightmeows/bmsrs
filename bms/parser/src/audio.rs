@@ -1,21 +1,22 @@
-//! 音频资源定义。
+//! Audio resource definitions.
 //!
-//! 对应分词器的 [`BmsHeaderResDefAudio`]。
+//! Corresponds to the tokenizer's [`BmsHeaderResDefAudio`].
 
 use std::collections::BTreeMap;
 
 use bmsrs_bms_values::{BmsBase, BmsHeaderResDefAudio, ExWavParams, WavCmdParams, WavIndex};
 
-/// `#EXWAV` 的 owned 参数（tokenizer 的 `ExWavParams` 的 owned 对应）。
+/// Owned parameters for `#EXWAV` (the owned counterpart of the tokenizer's
+/// `ExWavParams`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedExWavParams {
-    /// 声像。
+    /// Pan.
     pub pan: Option<i32>,
-    /// 音量衰减。
+    /// Volume attenuation.
     pub volume: Option<i32>,
-    /// 频率。
+    /// Frequency.
     pub frequency: Option<u32>,
-    /// 文件名。
+    /// File name.
     pub filename: String,
 }
 
@@ -30,30 +31,30 @@ impl From<&ExWavParams> for OwnedExWavParams {
     }
 }
 
-/// 音频资源定义。
+/// Audio resource definitions.
 ///
-/// 索引定义使用 `BTreeMap`；标量字段使用 `Option`。
+/// Indexed definitions use `BTreeMap`; scalar fields use `Option`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Audio {
-    /// 音效 / BGM 文件定义（`#WAV`、`#EXWAV`）。
+    /// Sound-effect and BGM file definitions (`#WAV`, `#EXWAV`).
     pub wav_files: BTreeMap<WavIndex, String>,
-    /// 按索引存储的 `#EXWAV` 效果参数（pan/volume/frequency）。
+    /// `#EXWAV` effect parameters by index (pan, volume, frequency).
     pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
-    /// 音频播放命令（`#WAVCMD`）。
+    /// Audio playback command (`#WAVCMD`).
     pub wav_cmd: Option<WavCmdParams>,
-    /// CD 音轨引用（`#CDDA`）。
+    /// CD track reference (`#CDDA`).
     pub cdda: Option<String>,
-    /// MIDI 文件引用（`#MIDIFILE`）。
+    /// MIDI file reference (`#MIDIFILE`).
     pub midifile: Option<String>,
-    /// 音频文件查找的目录前缀（`#PATH_WAV`）。
+    /// Directory prefix for audio file lookup (`#PATH_WAV`).
     pub path_wav: Option<String>,
 }
 
 impl Audio {
-    /// 将一个音频资源头部命令应用到此结构体。
+    /// Apply one audio resource header command to this structure.
     ///
-    /// 索引键（`WavIndex`）使用 `base` 归一化，以便在标准（Base36）
-    /// BMS 文件中进行不区分大小写的比较。
+    /// Index keys (`WavIndex`) are normalized with `base` for case-insensitive
+    /// comparison in standard (Base36) BMS files.
     pub fn apply(&mut self, header: &BmsHeaderResDefAudio, base: BmsBase) {
         match header {
             BmsHeaderResDefAudio::Wav { id, filename } => {

@@ -1,6 +1,6 @@
-//! 游玩行为字段。
+//! Gameplay behavior fields.
 //!
-//! 对应分词器的 [`BmsHeaderGameplay`]。
+//! Corresponds to the tokenizer's [`BmsHeaderGameplay`].
 
 use std::collections::BTreeMap;
 
@@ -9,47 +9,47 @@ use bmsrs_bms_values::{
     PlayerMode, Rank,
 };
 
-/// 游玩行为设置。
+/// Gameplay behavior settings.
 ///
-/// 标量字段使用最后胜出语义；索引字段使用 `BTreeMap`（按 ID 最后
-/// 胜出）。
+/// Scalar fields use last-wins semantics; indexed fields use `BTreeMap`
+/// (last-wins per ID).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Gameplay {
-    /// 游戏模式（`#PLAYER`）。
+    /// Game mode (`#PLAYER`).
     pub player: Option<PlayerMode>,
-    /// 判定难度（`#RANK`）。
+    /// Judgment difficulty (`#RANK`).
     pub rank: Option<Rank>,
-    /// 以百分比表示的精细判定难度（`#DEFEXRANK`）。
+    /// Fine-grained judgment difficulty as a percentage (`#DEFEXRANK`).
     pub def_ex_rank: Option<f64>,
-    /// 血量槽最大增量（`#TOTAL`）。
+    /// Maximum life gauge increase (`#TOTAL`).
     pub total: Option<f64>,
-    /// 主音量百分比（`#VOLWAV`）。
+    /// Master volume percentage (`#VOLWAV`).
     pub vol_wav: Option<f64>,
-    /// 长音记法（`#LNTYPE`）。
+    /// Long-note notation (`#LNTYPE`).
     pub ln_type: Option<LnType>,
-    /// 用作长音终止标记的 WAV 索引（`#LNOBJ`）。
+    /// WAV index used as a long-note terminator marker (`#LNOBJ`).
     pub ln_obj: Option<LnObjIndex>,
-    /// 强制 LN / CN / HCN 模式（`#LNMODE`）。
+    /// Forced LN / CN / HCN mode (`#LNMODE`).
     pub ln_mode: Option<LnMode>,
-    /// 索引命令的进制基数（`#BASE`）。
+    /// Radix base for indexed commands (`#BASE`).
     pub base: Option<BmsBase>,
-    /// 按位置的判定宽度覆盖（`#EXRANKxx`）。
+    /// Per-position judgment width overrides (`#EXRANKxx`).
     pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
-    /// 动态选项变更定义（`#CHANGEOPTIONxx`）。
+    /// Dynamic option change definitions (`#CHANGEOPTIONxx`).
     pub change_option_defs: BTreeMap<ChangeOptionIndex, String>,
-    /// 八度 / 折叠点标志（`#OCT` / `#FP` / `#OCT/FP`）。
+    /// Octave / fold-point flag (`#OCT` / `#FP` / `#OCT/FP`).
     pub oct_fp: Option<bool>,
-    /// 引擎特有的选项字符串（`#OPTION`）。
+    /// Engine-specific option string (`#OPTION`).
     pub option: Option<String>,
 }
 
 impl Gameplay {
-    /// 将一个游玩头部命令应用到此结构体。
+    /// Apply one gameplay header command to this structure.
     ///
-    /// 索引键（[`ExRankIndex`]、[`ChangeOptionIndex`]）使用 `base` 归一化，
-    /// 以便在标准 BMS 中进行不区分大小写的比较——与
-    /// [`Timing`](crate::timing::Timing) / [`Visual`](crate::visual::Visual)
-    /// 的归一化契约保持一致。
+    /// Index keys ([`ExRankIndex`], [`ChangeOptionIndex`]) are normalized with
+    /// `base` for case-insensitive comparison in standard BMS, matching the
+    /// normalization contract of [`Timing`](crate::timing::Timing) and
+    /// [`Visual`](crate::visual::Visual).
     pub fn apply(&mut self, header: &BmsHeaderGameplay, base: BmsBase) {
         match header {
             BmsHeaderGameplay::Player(m) => self.player = Some(*m),

@@ -1,4 +1,4 @@
-//! CST -> `Bms` 测试。
+//! CST to `Bms` tests.
 
 use bmsrs_bms_parser::Bms;
 use bmsrs_bms_syntax::SourceFile;

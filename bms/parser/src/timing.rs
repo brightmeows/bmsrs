@@ -1,39 +1,39 @@
-//! 计时定义与全局标量。
+//! Timing definitions and global scalars.
 //!
-//! 对应分词器的 [`BmsHeaderTiming`]。基于位置（position-based）的计时
-//! 事件（BPM 变更、停止、滚动……）存放在
-//! [`Messages`](crate::messages::Messages) 中，与通道事件并列，以共享
-//! 相同的位置模型。
+//! Corresponds to the tokenizer's [`BmsHeaderTiming`]. Position-based timing
+//! events (BPM changes, stops, scroll, and so on) live in
+//! [`Messages`](crate::messages::Messages), alongside channel events, so they
+//! share the same position model.
 
 use std::collections::BTreeMap;
 
 use bmsrs_bms_values::{BmsBase, BmsHeaderTiming, BpmIndex, ScrollIndex, SpeedIndex, StopIndex};
 
-/// 计时定义与全局标量。
+/// Timing definitions and global scalars.
 ///
-/// 标量字段（`bpm`、`base_bpm`）使用最后胜出语义；索引定义
-///（`bpm_defs`、`stop_defs`……）使用 `BTreeMap`。
+/// Scalar fields (`bpm`, `base_bpm`) use last-wins semantics; indexed
+/// definitions (`bpm_defs`, `stop_defs`, and so on) use `BTreeMap`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Timing {
-    /// 全局初始 BPM（`#BPM`）。
+    /// Global initial BPM (`#BPM`).
     pub bpm: Option<f64>,
-    /// 用于自动 HI-SPEED 的参考 BPM（`#BASEBPM`）。
+    /// Reference BPM for automatic HI-SPEED (`#BASEBPM`).
     pub base_bpm: Option<f64>,
-    /// 扩展 BPM 定义（`#BPMxx`、`#EXBPMxx`）。
+    /// Extended BPM definitions (`#BPMxx`, `#EXBPMxx`).
     pub bpm_defs: BTreeMap<BpmIndex, f64>,
-    /// 停止序列定义（`#STOPxx`）。
+    /// Stop sequence definitions (`#STOPxx`).
     pub stop_defs: BTreeMap<StopIndex, f64>,
-    /// 滚动速度倍率定义（`#SCROLLxx`）。
+    /// Scroll speed multiplier definitions (`#SCROLLxx`).
     pub scroll_defs: BTreeMap<ScrollIndex, f64>,
-    /// 视觉音符间距定义（`#SPEEDxx`）。
+    /// Visual note spacing definitions (`#SPEEDxx`).
     pub speed_defs: BTreeMap<SpeedIndex, f64>,
 }
 
 impl Timing {
-    /// 将一个计时头部命令应用到此结构体。
+    /// Apply one timing header command to this structure.
     ///
-    /// 索引键（`BpmIndex`、`StopIndex` 等）使用 `base` 归一化，以便在
-    /// 标准 BMS 中进行不区分大小写的比较。
+    /// Index keys (`BpmIndex`, `StopIndex`, and so on) are normalized with
+    /// `base` for case-insensitive comparison in standard BMS.
     pub fn apply(&mut self, header: &BmsHeaderTiming, base: BmsBase) {
         match header {
             BmsHeaderTiming::Bpm(v) => self.bpm = Some(*v),
@@ -55,10 +55,10 @@ impl Timing {
                 self.speed_defs.insert(nid, *value);
             }
             BmsHeaderTiming::Stp { .. } => {
-                // `#STP` 是基于位置的停止；它存储在
-                // `Messages::stp_events` 中而非此处，因为它使用与
-                // 通道事件相同的位置模型。
-                // 调用方负责将其路由到那里。
+                // `#STP` is a position-based stop; it lives in
+                // `Messages::stp_events` instead of here because it uses the
+                // same position model as channel events.
+                // The caller is responsible for routing it there.
             }
         }
     }

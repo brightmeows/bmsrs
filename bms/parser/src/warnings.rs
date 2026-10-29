@@ -1,24 +1,26 @@
-//! 通道值解析警告。
+//! Channel value parse warnings.
 
 use bmsrs_bms_values::BmsChannel;
 
-/// 通道值无法解析为该通道要求的类型。
+/// A channel value cannot be parsed as the type required by that channel.
 ///
-/// 由 [`Messages::finalize`](crate::Messages::finalize) 在解析通道事件时
-/// 收集：值形状（2-char Base62 块）合法但不满足该通道的解析规则
-/// （如 ch03 要求十六进制而值含非十六进制字符）。事件被跳过，警告
-/// 携带定位信息供谱面作者排查。
+/// Collected by [`Messages::finalize`](crate::Messages::finalize) while parsing
+/// channel events: the value shape (a 2-character Base62 chunk) is valid but
+/// does not satisfy that channel's parse rule (for example, ch03 requires
+/// hexadecimal and the value contains a non-hexadecimal character). The event
+/// is skipped, and the warning carries location information for the charter.
 ///
-/// 引用缺失类警告（WAV/BPM/STOP 键未定义）由 processor 层的
-/// `ProcessWarning` 承载；值损坏类由本类型承载，processor 经
-/// `ProcessWarning::UnparsableValue` 透传。
+/// Missing-reference warnings (undefined WAV/BPM/STOP keys) are carried by the
+/// processor layer's `ProcessWarning`; corrupted-value warnings are carried by
+/// this type and forwarded by the processor as
+/// `ProcessWarning::UnparsableValue`.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("unparsable channel value \"{value}\" (channel {channel:?}) at measure {measure}")]
 pub struct ChannelValueWarning {
-    /// 小节号。
+    /// Measure number.
     pub measure: u16,
-    /// 通道类型。
+    /// Channel type.
     pub channel: BmsChannel,
-    /// 无法解析的原始 2-char 值。
+    /// Original 2-character value that could not be parsed.
     pub value: String,
 }

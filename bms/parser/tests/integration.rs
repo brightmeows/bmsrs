@@ -1,7 +1,8 @@
-//! `bmsrs-bms-parser` 的集成测试。
+//! Integration tests for `bmsrs-bms-parser`.
 //!
-//! 这些测试仅通过公开 API 消费 crate，与外部消费者的使用方式完全一致。
-//! 整管线入口（`from_text`）已移至 `bmsrs` facade，其测试随迁。
+//! These tests consume the crate only through its public API, exactly as
+//! external consumers would. The whole-pipeline entry point (`from_text`) has
+//! moved to the `bmsrs` facade, and its tests moved with it.
 
 use bmsrs_bms_parser::BmsBgaLayer;
 use bmsrs_bms_parser::*;
@@ -10,28 +11,28 @@ use bmsrs_bms_parser::{
     Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 
-/// 辅助函数：将 BMS 字符串解析为 `Bms`（默认 C = &str）。
+/// Helper: parse a BMS string into `Bms` (default C = &str).
 fn parse(input: &str) -> Bms {
     let source = bmsrs_bms_syntax::SourceFile::parse(input);
     Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
-/// 辅助函数：使用 `C = String` 解析，验证拥有字符串管道工作正常。
+/// Helper: parse with `C = String` to verify the owned-string pipeline works.
 fn parse_string(input: &str) -> Bms {
     let source = bmsrs_bms_syntax::SourceFile::parse(input);
     Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
-// 重新导出可访问性
+// Re-export accessibility
 
-/// 验证所有关键类型均可通过公开重新导出访问。
+/// Verify that every key type is reachable through the public re-exports.
 #[test]
 fn event_types_accessible() {
-    // 位置
+    // Position
     let pos = Position::new(1, 0, 4);
     let _frac = pos.fraction();
 
-    // 事件类型可构造
+    // Event types are constructible
     let _bgm = BgmEvent {
         position: pos,
         wav_id: "01".parse().unwrap(),
@@ -82,7 +83,7 @@ fn event_types_accessible() {
     };
 }
 
-/// 子结构体类型可访问。
+/// Sub-structure types are accessible.
 #[test]
 fn sub_struct_types_accessible() {
     let _meta = Metadata::default();
@@ -94,7 +95,7 @@ fn sub_struct_types_accessible() {
     let _msgs = Messages::default();
 }
 
-/// 拥有型参数类型可访问。
+/// Owned parameter types are accessible.
 #[test]
 fn owned_param_types_accessible() {
     let _ex = OwnedExBmpParams {
@@ -117,9 +118,9 @@ fn owned_param_types_accessible() {
     };
 }
 
-// 完整 BMS 头部解析
+// Full BMS header parsing
 
-/// 解析一个覆盖所有主要类别的真实 BMS 头部段。
+/// Parse a realistic BMS header section covering every major category.
 #[test]
 fn full_header_parse() {
     let bms = parse(
@@ -155,7 +156,7 @@ fn full_header_parse() {
 ",
     );
 
-    // 元数据
+    // Metadata
     assert_eq!(bms.metadata.title.as_deref(), Some("My Song"));
     assert_eq!(bms.metadata.subtitle.as_deref(), Some("(short ver.)"));
     assert_eq!(bms.metadata.artist.as_deref(), Some("composer"));
@@ -167,7 +168,7 @@ fn full_header_parse() {
     assert_eq!(bms.metadata.url.as_deref(), Some("https://example.com"));
     assert_eq!(bms.metadata.email.as_deref(), Some("user@example.com"));
 
-    // 游玩
+    // Gameplay
     assert_eq!(bms.gameplay.player, Some(PlayerMode::Single));
     assert_eq!(bms.gameplay.rank, Some(Rank::Normal));
     assert_eq!(bms.gameplay.def_ex_rank, Some(3.0));
@@ -178,11 +179,11 @@ fn full_header_parse() {
     assert_eq!(bms.gameplay.ln_mode, Some(LnMode::Ln));
     assert_eq!(bms.gameplay.base, Some(BmsBase::Base36));
 
-    // 计时
+    // Timing
     assert_eq!(bms.timing.bpm, Some(180.0));
     assert_eq!(bms.timing.base_bpm, Some(180.0));
 
-    // 显示
+    // Display
     assert_eq!(bms.display.stage_file.as_deref(), Some("stage.png"));
     assert_eq!(bms.display.banner.as_deref(), Some("banner.bmp"));
     assert_eq!(bms.display.back_bmp.as_deref(), Some("bg.png"));
@@ -191,7 +192,7 @@ fn full_header_parse() {
     assert_eq!(bms.display.difficulty, Some("3".parse().unwrap()));
     assert_eq!(bms.display.preview.as_deref(), Some("preview.ogg"));
 
-    // 无消息，无回退
+    // No messages, no fallback
     assert!(bms.messages.raw.is_empty());
     assert_eq!(
         bms.fallback_headers,
@@ -199,7 +200,7 @@ fn full_header_parse() {
     );
 }
 
-// 此前被丢弃的头部命令存储
+// Storage for header commands that were previously dropped
 
 #[test]
 fn dropped_audio_headers_stored() {
@@ -243,13 +244,13 @@ fn dropped_visual_headers_stored() {
 
     let id01: BmpIndex = "01".try_into().unwrap();
 
-    // BMP 已存储
+    // BMP is stored
     assert_eq!(
         bms.visual.bmp_files.get(&id01).map(String::as_str),
         Some("bg.bmp")
     );
 
-    // EXBMP —— 拥有型参数
+    // EXBMP: owned parameters
     let ex = bms.visual.ex_bmp_defs.get(&id01);
     assert!(ex.is_some());
     assert_eq!(ex.unwrap().filename, "overlay.png");
@@ -263,7 +264,7 @@ fn dropped_visual_headers_stored() {
     // ExtChr
     assert_eq!(bms.visual.ext_chr.as_deref(), Some("extra"));
 
-    // 视频
+    // Video
     assert_eq!(bms.visual.video_fps, Some(30.0));
     assert_eq!(bms.visual.video_colors, Some(16.0));
     assert_eq!(bms.visual.video_dly, Some(1.5));
@@ -280,7 +281,7 @@ fn stp_header_stored_as_event() {
     assert!((ev.duration_ms - 500.0).abs() < f64::EPSILON);
 }
 
-// 消息通道解析
+// Message channel parsing
 
 #[test]
 fn bgm_messages_parsed() {
@@ -289,7 +290,7 @@ fn bgm_messages_parsed() {
     assert_eq!(bms.messages.bgm_events[0].wav_id, "AA".parse().unwrap());
     assert_eq!(bms.messages.bgm_events[1].wav_id, "BB".parse().unwrap());
     assert_eq!(bms.messages.bgm_events[2].wav_id, "CC".parse().unwrap());
-    // 位置
+    // Position
     assert_eq!(bms.messages.bgm_events[0].position.numer(), 0);
     assert_eq!(bms.messages.bgm_events[0].position.denom(), 3);
     assert_eq!(bms.messages.bgm_events[2].position.numer(), 2);
@@ -298,7 +299,7 @@ fn bgm_messages_parsed() {
 #[test]
 fn note_messages_parsed() {
     let bms = parse("#00111:1122\n#00121:3344\n#00131:5566");
-    // 1P 可见（ch 11）
+    // 1P visible (ch 11)
     assert_eq!(bms.messages.note_events.len(), 6);
     let visible_1p = bms
         .messages
@@ -308,7 +309,7 @@ fn note_messages_parsed() {
         .count();
     assert_eq!(visible_1p, 2);
 
-    // 2P 可见（ch 21）
+    // 2P visible (ch 21)
     let visible_2p = bms
         .messages
         .note_events
@@ -317,7 +318,7 @@ fn note_messages_parsed() {
         .count();
     assert_eq!(visible_2p, 2);
 
-    // 1P 不可见（ch 31）
+    // 1P invisible (ch 31)
     let invisible_1p = bms
         .messages
         .note_events
@@ -332,7 +333,7 @@ fn long_note_messages_parsed() {
     let bms = parse("#00151:0102\n#00161:0304");
     assert_eq!(bms.messages.long_note_events.len(), 4);
 
-    // 1P 长音
+    // 1P long note
     let ln_1p = bms
         .messages
         .long_note_events
@@ -341,7 +342,7 @@ fn long_note_messages_parsed() {
         .count();
     assert_eq!(ln_1p, 2);
 
-    // 2P 长音
+    // 2P long note
     let ln_2p = bms
         .messages
         .long_note_events
@@ -364,11 +365,11 @@ fn mine_messages_parsed() {
 #[test]
 fn timing_messages_parsed() {
     let bms = parse("#00103:7F\n#00108:05\n");
-    // 绝对 BPM
+    // Absolute BPM
     assert_eq!(bms.messages.bpm_changes.len(), 2);
     let abs_bpm = &bms.messages.bpm_changes[0];
     assert!(matches!(abs_bpm.value, BpmValue::Absolute(v) if (v - 127.0).abs() < f64::EPSILON));
-    // BPM 引用
+    // BPM reference
     let ref_bpm = &bms.messages.bpm_changes[1];
     assert!(matches!(&ref_bpm.value, BpmValue::Reference(id) if id.as_str() == "05"));
 }
@@ -435,25 +436,25 @@ fn measure_length_fractional() {
     assert!((bms.messages.measure_lengths[0].length_ratio - 0.75).abs() < f64::EPSILON);
 }
 
-// 消息拼接
+// Message concatenation
 
 #[test]
 fn bgm_multi_line_polyphony() {
-    // BGM 行独立存储（支持多声部）。
+    // BGM lines are stored independently (polyphony support).
     let bms = parse("#00101:AABB\n#00101:CCDD");
     let ch = BmsChannel::from_raw("01").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
         Some(&vec!["AABB".to_owned(), "CCDD".to_owned()])
     );
-    // 每行 BGM 独立：2+2 = 共 4 个事件。
+    // Each BGM line is independent: 2 + 2 = 4 events total.
     assert_eq!(bms.messages.bgm_events.len(), 4);
-    // 第 1 行：事件位于 (0/2, 1/2)
+    // Line 1: events at (0/2, 1/2).
     assert_eq!(bms.messages.bgm_events[0].position.numer(), 0);
     assert_eq!(bms.messages.bgm_events[0].position.denom(), 2);
     assert_eq!(bms.messages.bgm_events[1].position.numer(), 1);
     assert_eq!(bms.messages.bgm_events[1].position.denom(), 2);
-    // 第 2 行：事件位于 (0/2, 1/2)
+    // Line 2: events at (0/2, 1/2).
     assert_eq!(bms.messages.bgm_events[2].position.numer(), 0);
     assert_eq!(bms.messages.bgm_events[2].position.denom(), 2);
     assert_eq!(bms.messages.bgm_events[3].position.numer(), 1);
@@ -467,15 +468,16 @@ fn different_channels_independent() {
     assert_eq!(bms.messages.note_events.len(), 1);
 }
 
-// 边界情况
+// Edge cases
 
 #[test]
 fn note_channel_merge_two_lines() {
-    // 非 BGM 通道按位置合并。
-    // 通道 11 上两行：第 1 行（2 个值），第 2 行（2 个值）。
-    // 合并后：后续行覆盖非 00，00 保留。
+    // Non-BGM channels are merged by position.
+    // Two lines on channel 11: line 1 (2 values), line 2 (2 values).
+    // After merging: later lines override non-00 positions; 00 is preserved.
     let bms = parse("#00111:1100\n#00111:0022");
-    // 通道 11 → 玩家 1、按键 1、可见。两个事件（位置 0 和 1）。
+    // Channel 11 means player 1, key 1, visible. Two events (positions 0 and
+    // 1).
     assert_eq!(bms.messages.note_events.len(), 2);
     assert_eq!(bms.messages.note_events[0].wav_id, "11".try_into().unwrap());
     assert_eq!(bms.messages.note_events[1].wav_id, "22".try_into().unwrap());
@@ -485,14 +487,16 @@ fn note_channel_merge_two_lines() {
 
 #[test]
 fn note_channel_merge_different_division() {
-    // 行的细分不同时合并。
-    // 通道 11：第 1 行 = 4 个值，第 2 行 = 2 个值（位置 0 为 00，
-    // 位置 1 为 66）。
-    // 最大计数 = 4。
-    //   第 1 行："AA0000BB" → 位置 0=AA, 1=00, 2=00, 3=BB
-    //   第 2 行："0066" 展开为 4：位置 0=00(保留), 位置 2=66(覆盖)
-    //   合并后："AA0066BB"
-    // 过滤 "00" 后：AA(pos0/num0)、66(pos2/num2)、BB(pos3/num3) 的事件。
+    // Merging lines with different subdivisions.
+    // Channel 11: line 1 has 4 values, line 2 has 2 values (position 0 is 00,
+    // position 1 is 66).
+    // Maximum count = 4.
+    //   Line 1: "AA0000BB" gives positions 0=AA, 1=00, 2=00, 3=BB.
+    //   Line 2: "0066" expands to 4: position 0=00 (preserved), position 2=66
+    //   (override).
+    //   Merged: "AA0066BB".
+    // After filtering "00": events for AA (pos0/num0), 66 (pos2/num2), and BB
+    // (pos3/num3).
     let bms = parse("#00111:AA0000BB\n#00111:0066");
     assert_eq!(bms.messages.note_events.len(), 3);
     assert_eq!(bms.messages.note_events[0].wav_id, "AA".try_into().unwrap());
@@ -506,7 +510,7 @@ fn note_channel_merge_different_division() {
 #[test]
 fn empty_input() {
     let bms = parse("");
-    // 全部为默认值 —— 无 panic
+    // All defaults: no panic.
     assert!(bms.metadata.title.is_none());
     assert!(bms.gameplay.player.is_none());
     assert!(bms.timing.bpm.is_none());
@@ -531,7 +535,7 @@ fn unknown_header_fallback() {
 #[test]
 fn unknown_channel_stays_raw() {
     let bms = parse("#001FF:1122");
-    // 通道 FF 未知 —— 仅在 raw 中，无事件
+    // Channel FF is unknown: only in raw, no events.
     assert_eq!(
         bms.messages.bgm_events,
         [] as [bmsrs_bms_parser::BgmEvent; 0]
@@ -550,7 +554,7 @@ fn unknown_channel_stays_raw() {
 #[test]
 fn empty_message_values() {
     let bms = parse("#00111:");
-    // 值为空 —— 无事件，但 raw 中有一个空字符串条目
+    // Empty value: no events, but raw holds one empty-string entry.
     assert_eq!(
         bms.messages.note_events,
         [] as [bmsrs_bms_parser::NoteEvent; 0]
@@ -564,13 +568,13 @@ fn empty_message_values() {
 
 #[test]
 fn headers_without_values() {
-    // 无值的头部命令不应导致错误
+    // A header command without a value must not cause an error.
     let bms = parse("#TITLE\n#ARTIST\n");
     assert_eq!(bms.metadata.title.as_deref(), Some(""));
     assert_eq!(bms.metadata.artist.as_deref(), Some(""));
 }
 
-// 交错头部命令与消息
+// Interleaved header commands and messages
 
 #[test]
 fn mixed_headers_and_messages() {
@@ -590,10 +594,10 @@ fn mixed_headers_and_messages() {
     assert_eq!(bms.timing.bpm, Some(180.0));
     assert_eq!(bms.audio.wav_files.len(), 2);
     assert_eq!(bms.gameplay.player, Some(PlayerMode::Couple));
-    assert_eq!(bms.messages.note_events.len(), 6); // ch11 的 4 个 + ch21 的 2 个
+    assert_eq!(bms.messages.note_events.len(), 6); // 4 from ch11 plus 2 from ch21.
 }
 
-// 资源定义集成测试
+// Resource definition integration tests
 
 #[test]
 fn wav_and_bpm_defs() {
@@ -617,7 +621,7 @@ fn wav_and_bpm_defs() {
     assert_eq!(bms.timing.stop_defs.get(&stp1), Some(&192.0));
 }
 
-// Bms 默认值
+// Bms defaults
 
 #[test]
 fn default_bms_is_empty() {
@@ -633,13 +637,14 @@ fn default_bms_is_empty() {
 
 // F4: non_event_data merge behavior tests
 
-/// 多通道的 `non_event_data` 合并（同一小节内不同非事件通道）。
+/// `non_event_data` merging across channels (different non-event channels in
+/// the same measure).
 #[test]
 fn non_event_data_multi_channel_preserves_all() {
-    // BgaBaseOpacity (ch 0B) 与 BgmVolume (ch 97) 在同一小节
+    // BgaBaseOpacity (ch 0B) and BgmVolume (ch 97) in the same measure.
     let bms = parse("#0010B:11223344\n#00197:AABB");
     assert_eq!(bms.messages.non_event_data.len(), 2);
-    // BgaBaseOpacity 条目
+    // BgaBaseOpacity entry
     let opacity = bms
         .messages
         .non_event_data
@@ -647,7 +652,7 @@ fn non_event_data_multi_channel_preserves_all() {
         .find(|d| d.values.iter().map(BmsIndex::as_str).collect::<String>() == "11223344");
     assert!(opacity.is_some());
     assert_eq!(opacity.unwrap().measure, 1);
-    // BgmVolume 条目
+    // BgmVolume entry
     let volume = bms
         .messages
         .non_event_data
@@ -657,7 +662,7 @@ fn non_event_data_multi_channel_preserves_all() {
     assert_eq!(volume.unwrap().measure, 1);
 }
 
-/// `non_event_data` 跨小节合并。
+/// `non_event_data` merging across measures.
 #[test]
 fn non_event_data_cross_measure_preserves_all() {
     let bms = parse("#0010B:1122\n#0020B:3344");
@@ -684,16 +689,16 @@ fn non_event_data_cross_measure_preserves_all() {
     );
 }
 
-/// `non_event_data` 在 `Bms::from_flat_tokens` 后正确填充。
+/// `non_event_data` is filled correctly after `Bms::from_flat_tokens`.
 #[test]
 fn non_event_data_populated_after_parse() {
     let bms = parse("#WAV01 kick.wav\n#0010B:0102\n#TITLE test\n");
-    // non_event_data 不应为空
+    // non_event_data must not be empty.
     assert_ne!(
         bms.messages.non_event_data,
         [] as [bmsrs_bms_parser::NonEventData; 0]
     );
-    // 验证 BgaBaseOpacity (ch 0B) 的数据
+    // Verify the BgaBaseOpacity (ch 0B) data.
     let entry = &bms.messages.non_event_data[0];
     assert_eq!(entry.measure, 1);
     assert_eq!(
@@ -706,18 +711,20 @@ fn non_event_data_populated_after_parse() {
     );
 }
 
-// F5: merge_channel 不同分辨率集成测试
+// F5: merge_channel integration test with different resolutions
 
-/// `merge_channel` 在不同分辨率行合并时产生正确事件位置。
+/// `merge_channel` produces correct event positions when merging lines with
+/// different resolutions.
 #[test]
 fn merge_channel_different_resolution_merges_correctly() {
-    // 第 1 行：4 个值（11223344）
-    // 第 2 行：6 个值（00 00 00 00 55 66）
-    // max 分辨率 = 6
-    // 第 1 行映射到 6：0→11, 1→22, 3→33, 4→44
-    // 第 2 行映射到 6：4→55(覆盖44), 5→66
-    // 合并结果："112200335566"
-    // 过滤 00 后的事件：11(pos0), 22(pos1), 33(pos3), 55(pos4), 66(pos5) → 5 个事件
+    // Line 1: 4 values (11223344).
+    // Line 2: 6 values (00 00 00 00 55 66).
+    // Maximum resolution = 6.
+    // Line 1 maps to 6: 0=11, 1=22, 3=33, 4=44.
+    // Line 2 maps to 6: 4=55 (overrides 44), 5=66.
+    // Merged result: "112200335566".
+    // Events after filtering 00: 11 (pos0), 22 (pos1), 33 (pos3), 55 (pos4),
+    // 66 (pos5), for 5 events.
     let bms = parse("#00111:11223344\n#00111:000000005566");
     assert_eq!(bms.messages.note_events.len(), 5);
     assert_eq!(bms.messages.note_events[0].wav_id, "11".try_into().unwrap());
@@ -725,7 +732,7 @@ fn merge_channel_different_resolution_merges_correctly() {
     assert_eq!(bms.messages.note_events[2].wav_id, "33".try_into().unwrap());
     assert_eq!(bms.messages.note_events[3].wav_id, "55".try_into().unwrap());
     assert_eq!(bms.messages.note_events[4].wav_id, "66".try_into().unwrap());
-    // 验证位置基于 max 分辨率（6）
+    // Verify positions are based on the max resolution (6).
     assert_eq!(bms.messages.note_events[0].position.denom(), 6);
     assert_eq!(bms.messages.note_events[0].position.numer(), 0);
     assert_eq!(bms.messages.note_events[1].position.numer(), 1);
@@ -734,7 +741,7 @@ fn merge_channel_different_resolution_merges_correctly() {
     assert_eq!(bms.messages.note_events[4].position.numer(), 5);
 }
 
-/// 验证解析器在 `C = String` 时正确收敛。
+/// Verify the parser converges correctly with `C = String`.
 #[test]
 fn parse_with_string_container() {
     let bms = parse_string(
@@ -759,9 +766,9 @@ fn parse_with_string_container() {
 
 #[test]
 fn base62_wav_indices_case_sensitive() {
-    // 在 Base62 模式下，WAVAA 与 WAVaa 是不同的索引。
+    // In Base62 mode, WAVAA and WAVaa are distinct indices.
     let bms = parse("#BASE 62\n#WAVAA kick.wav\n#WAVaa snare.wav\n#WAVaA hat.wav\n");
-    // 三者应分别存储。
+    // All three should be stored separately.
     assert_eq!(bms.audio.wav_files.len(), 3);
     let aa: WavIndex = "AA".parse().unwrap();
     let a_lower: WavIndex = "aa".parse().unwrap();
@@ -782,7 +789,7 @@ fn base62_wav_indices_case_sensitive() {
 
 #[test]
 fn base36_wav_indices_case_insensitive() {
-    // 标准模式（无 #BASE 62）：AA 与 aa 映射到同一索引（最后胜出）。
+    // Standard mode (no #BASE 62): AA and aa map to the same index (last wins).
     let bms = parse("#WAVAA kick.wav\n#WAVaa snare.wav\n");
     assert_eq!(bms.audio.wav_files.len(), 1);
     let idx: WavIndex = "AA".parse().unwrap();
@@ -794,8 +801,8 @@ fn base36_wav_indices_case_insensitive() {
 
 #[test]
 fn bmspec_bpm_basic() {
-    // 等价于 bmspec-1-05-BPM：#BPM 60, #00003:0078 → 对象位于 3s。
-    // 解析器层：验证 BPM 变更被正确解析。
+    // Equivalent to bmspec-1-05-BPM: #BPM 60, #00003:0078, object at 3s.
+    // Parser layer: verify the BPM change is parsed correctly.
     let bms = parse("#BPM 60\n#00003:0078");
     assert_eq!(bms.timing.bpm, Some(60.0));
     assert_eq!(bms.messages.bpm_changes.len(), 1);
@@ -807,20 +814,21 @@ fn bmspec_bpm_basic() {
 
 #[test]
 fn bmspec_bpm_extended() {
-    // 等价于 bmspec-1-05：#BPM 60, #BPM01 120, #00008:0001 → 对象位于 3s。
-    // 验证 BPM 定义与通道引用。
+    // Equivalent to bmspec-1-05: #BPM 60, #BPM01 120, #00008:0001, object at 3s.
+    // Verify the BPM definition and channel reference.
     let bms = parse("#BPM 60\n#BPM01 120\n#00008:0001");
     assert_eq!(bms.timing.bpm, Some(60.0));
     let bpm1: BpmIndex = "01".parse().unwrap();
     assert_eq!(bms.timing.bpm_defs.get(&bpm1), Some(&120.0));
-    // #00008:0001 产生 1 个事件："00" 为休止（跳过），
-    // "01"（指向 BPM01=120 的引用）。
+    // #00008:0001 produces 1 event: "00" is a rest (skipped), and "01" is a
+    // reference to BPM01=120.
     assert_eq!(bms.messages.bpm_changes.len(), 1);
 }
 
 #[test]
 fn bmspec_stop_basic() {
-    // 等价于 bmspec-1-06：#BPM 60, #STOP11 96, #00109:0011 → 停止事件。
+    // Equivalent to bmspec-1-06: #BPM 60, #STOP11 96, #00109:0011 gives a stop
+    // event.
     let bms = parse("#BPM 60\n#STOP11 96\n#00111:01000200\n#00109:00110000");
     let stop1: StopIndex = "11".parse().unwrap();
     assert_eq!(bms.timing.stop_defs.get(&stop1), Some(&96.0));
@@ -828,7 +836,7 @@ fn bmspec_stop_basic() {
 
 #[test]
 fn bmspec_scroll_basic() {
-    // 等价于 bmspec-3：#SCROLL02 0.5, #001SC:02 → 滚动速度 = 0.5。
+    // Equivalent to bmspec-3: #SCROLL02 0.5, #001SC:02 gives scroll speed 0.5.
     let bms = parse("#SCROLL02 0.5\n#001SC:02");
     let idx: ScrollIndex = "02".parse().unwrap();
     assert!((bms.timing.scroll_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
@@ -837,7 +845,7 @@ fn bmspec_scroll_basic() {
 
 #[test]
 fn bmspec_speed_without_channel() {
-    // 等价于 bmspec-6：#SPEED01 0.5 但无 #001SP → 无速度事件。
+    // Equivalent to bmspec-6: #SPEED01 0.5 but no #001SP gives no speed event.
     let bms = parse("#SPEED01 0.5\n");
     let idx: SpeedIndex = "01".parse().unwrap();
     assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
@@ -849,8 +857,8 @@ fn bmspec_speed_without_channel() {
 
 #[test]
 fn bmspec_speed_with_channel() {
-    // 等价于 bmspec-6：#SPEED01 0.5, #001SP:0001 → 速度事件。
-    // "00" 被过滤（无操作位置），仅保留 "01"。
+    // Equivalent to bmspec-6: #SPEED01 0.5, #001SP:0001 gives a speed event.
+    // "00" is filtered (no-op position); only "01" is kept.
     let bms = parse("#SPEED01 0.5\n#001SP:0001");
     assert_eq!(bms.messages.speed_events.len(), 1);
     let idx: SpeedIndex = "01".parse().unwrap();
@@ -859,18 +867,19 @@ fn bmspec_speed_with_channel() {
 
 #[test]
 fn bmspec_timesig_positioning() {
-    // 等价于 bmspec-1-04：#00102:0.750, #00111:0104 → 对象位置。
+    // Equivalent to bmspec-1-04: #00102:0.750, #00111:0104 gives object
+    // positions.
     let bms = parse("#00102:0.750\n#00111:0104");
     assert_eq!(bms.messages.measure_lengths.len(), 1);
     assert!((bms.messages.measure_lengths[0].length_ratio - 0.75).abs() < f64::EPSILON);
     assert_eq!(bms.messages.measure_lengths[0].measure, 1);
-    // 验证音符已解析：2 个事件（01 和 04）。
+    // Verify the notes are parsed: 2 events (01 and 04).
     assert_eq!(bms.messages.note_events.len(), 2);
 }
 
-// 测试改编自 `lib.rs` 的 `#[cfg(test)] mod tests`（仅公开 API）。
-// 4 个使用 `crate::messages::merge_channel` 的 `merge_channel` 测试
-// 保留在源文件内联中，不在此重复。
+// Tests adapted from the `#[cfg(test)] mod tests` in `lib.rs` (public API only).
+// The four `merge_channel` tests that use `crate::messages::merge_channel` stay
+// inline in the source file and are not duplicated here.
 
 #[test]
 fn header_override_last_wins() {
@@ -1104,7 +1113,7 @@ fn video_dly_stored() {
     assert_eq!(bms.visual.video_dly, Some(1.5));
 }
 
-// 隐式副标题
+// Implicit subtitle
 
 #[test]
 fn implicit_subtitle_hyphen_splits() {
@@ -1194,7 +1203,7 @@ fn implicit_subtitle_no_separator_noop() {
 
 #[test]
 fn implicit_subtitle_priority_hyphen_wins() {
-    // `-` 优先级最高，应优先于 `()` 匹配
+    // `-` has the highest priority and should match before `()`.
     let mut meta = Metadata {
         title: Some("a(b)-c-".into()),
         ..Default::default()
@@ -1228,7 +1237,7 @@ fn implicit_subtitle_whitespace_trimmed() {
 
 #[test]
 fn implicit_subtitle_from_parse_then_call_splits_title() {
-    // 解析后手动调用
+    // Called manually after parsing.
     let bms = parse("#TITLE song<ver2>\n");
     let mut meta = bms.metadata;
     meta.parse_implicit_subtitle();
