@@ -54,7 +54,7 @@ use thiserror::Error;
 pub use crate::error::ProcessWarning;
 
 use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsChannel, BmsLayout, DscOctFp, Pms, PmsBme, PmsLayout};
+use crate::layout::{Bme, BmsLayout, ChannelPos, DscOctFp, Pms, PmsBme, PmsLayout};
 
 use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
 use crate::position::MeasureTable;
@@ -406,7 +406,7 @@ impl BmsConverter<'_> {
                          audio: Option<AudioIndex>,
                          ev: &mut Vec<BmsEvent>| {
             if let Some((note_side, note_lane)) =
-                BmsChannel::new(side, lane).and_then(L::map_channel)
+                ChannelPos::new(side, lane).and_then(L::map_channel)
             {
                 ev.push(Event::new(
                     tick,

@@ -1,6 +1,6 @@
 //! BMS 模式族布局：使用 [`BmsLayout`] 进行通道到轨道的映射。
 //!
-//! 每个族表示为一个零大小 newtype，将解码后的 [`BmsChannel`]
+//! 每个族表示为一个零大小 newtype，将解码后的 [`ChannelPos`]
 //! `(player, lane)` 对映射到 `(NoteSide, Lane)` 位置。
 //!
 //! 族**不**携带按键数：一张谱面是 5K 还是 7K 取决于其音符实际使用的
@@ -18,15 +18,15 @@ use bmsrs_chart::mode::{Lane, NoteSide};
 /// 无需额外检查。轨道值为解码后的数字（1–35），**而非**原始通道字节。
 /// 已校验的 BMS `(player, lane)` 通道对。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BmsChannel {
+pub struct ChannelPos {
     /// 玩家编号（1 或 2）。
     player: u8,
     /// 轨道编号（1–35；1–9 为标准通道，10–35 为扩展通道）。
     lane: u8,
 }
 
-impl BmsChannel {
-    /// 从解码后的 `(player, lane)` 创建新的 `BmsChannel`。
+impl ChannelPos {
+    /// 从解码后的 `(player, lane)` 创建新的 `ChannelPos`。
     ///
     /// 若 `player` 不为 1 或 2，或 `lane` 不在 1–35 范围内，返回 `None`。
     #[must_use]
@@ -60,14 +60,14 @@ impl BmsChannel {
     }
 }
 
-/// BMS 侧映射：将 [`BmsChannel`] 解码为 `(NoteSide, Lane)` 位置对，若
+/// BMS 侧映射：将 [`ChannelPos`] 解码为 `(NoteSide, Lane)` 位置对，若
 /// 通道应被丢弃则返回 `None`。
 ///
 /// 音符种类（普通 / 长音 / 地雷 / 不可见）由处理器在此映射之后设置。
 pub trait BmsLayout {
     /// 将解码后的 BMS 通道映射到音符的位置。
     #[must_use]
-    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)>;
+    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)>;
 }
 
 /// 从调用处已知 ≥ 1 的值构造 `NonZeroU8`。
@@ -84,7 +84,7 @@ const fn nz(n: u8) -> Option<NonZeroU8> {
 pub struct Bme;
 
 impl BmsLayout for Bme {
-    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
+    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -110,7 +110,7 @@ impl BmsLayout for Bme {
 pub struct Nanasi;
 
 impl BmsLayout for Nanasi {
-    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
+    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -136,7 +136,7 @@ impl BmsLayout for Nanasi {
 pub struct Pms;
 
 impl BmsLayout for Pms {
-    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
+    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let key = match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => Lane::Key(nz(1)?),
             (1, 2) => Lane::Key(nz(2)?),
@@ -162,7 +162,7 @@ impl BmsLayout for Pms {
 pub struct PmsBme;
 
 impl BmsLayout for PmsBme {
-    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
+    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -241,7 +241,7 @@ fn check_pms_channel(player: u8, lane: u8, std: &mut bool, bme: &mut bool) {
 pub struct DscOctFp;
 
 impl BmsLayout for DscOctFp {
-    fn map_channel(ch: BmsChannel) -> Option<(NoteSide, Lane)> {
+    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         Some(match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => (NoteSide::P1, Lane::Key(nz(1)?)),
             (1, 2) => (NoteSide::P1, Lane::Key(nz(2)?)),

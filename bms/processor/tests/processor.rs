@@ -5,14 +5,14 @@ use std::path::Path;
 
 use bms_parser::{BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position};
 use bms_parser::{BpmIndex, LnObjIndex};
-use bms_processor::layout::{Bme, BmsChannel, BmsLayout as _, DscOctFp, Nanasi, Pms, PmsBme};
+use bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{EventKind, NoteKind};
 
-/// 在测试中构造有效 [`BmsChannel`] 的简写。
-fn ch(player: u8, lane: u8) -> BmsChannel {
-    BmsChannel::new(player, lane).unwrap_or_else(|| panic!("invalid BMS channel"))
+/// 在测试中构造有效 [`ChannelPos`] 的简写。
+fn ch(player: u8, lane: u8) -> ChannelPos {
+    ChannelPos::new(player, lane).unwrap_or_else(|| panic!("invalid BMS channel"))
 }
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -632,14 +632,14 @@ fn all_layouts_map_extended_channel_lane_10() {
 
 #[test]
 fn bms_channel_rejects_invalid_input() {
-    assert_eq!(BmsChannel::new(3, 1), None);
-    assert_eq!(BmsChannel::new(0, 1), None);
-    assert_eq!(BmsChannel::new(1, 0), None);
+    assert_eq!(ChannelPos::new(3, 1), None);
+    assert_eq!(ChannelPos::new(0, 1), None);
+    assert_eq!(ChannelPos::new(1, 0), None);
     // lane 10 现已支持（扩展通道 `1A`–`1Z` 等）。
-    assert!(BmsChannel::new(1, 10).is_some());
-    assert!(BmsChannel::new(1, 35).is_some());
+    assert!(ChannelPos::new(1, 10).is_some());
+    assert!(ChannelPos::new(1, 35).is_some());
     // 上限：lane 36+ 仍无效。
-    assert!(BmsChannel::new(1, 36).is_none());
+    assert!(ChannelPos::new(1, 36).is_none());
 }
 
 #[test]
