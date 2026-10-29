@@ -19,7 +19,8 @@ thiserror.workspace = true
 
 [dev-dependencies]
 bmsrs-bms-syntax.workspace = true
-# facade 是工作区根 crate，不在 workspace.dependencies 中，用字面路径。
+# The facade is the workspace root crate and is not in workspace.dependencies,
+# so use a literal path.
 bmsrs = { path = "../.." }
 bmsrs-player.workspace = true
 
