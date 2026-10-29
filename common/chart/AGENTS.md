@@ -12,6 +12,7 @@
 |------|------|------|
 | Tick | `u64` | 所有事件位置、停止时长、LN 时长 |
 | Time | `Duration` | `AudioAsset.start`、`Chart::duration()` |
+| 音乐时间 | `Duration` | `TimingTrack::tick_to_musical_duration`，不含 STOP 暂停；音频切片使用 |
 
 `resolution` 定义每四分音符的 tick 数（默认 240）。
 
@@ -69,6 +70,8 @@ Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 | `ChartData::validate()` | 先检查事件有序，再检查音符/BGM 音频索引与 BGA 资源索引；`UnsortedEvents` 是独立错误 |
 | `judge_multiplier` / `life_multiplier` | `Option<f64>`；`None` = 来源未指定，`Some(1.0)` = 标准 |
 | `ChartInfo.key_count` | 可玩按键总数；`None` = 未提供或无法推断 |
+| `ChartInfo.subartists` / `title_image` | 对齐 BMSON v2 的谱面级归属；BMS 的 `#SUBARTIST` 也映射到 `subartists` |
+| `TimingTrack::tick_to_musical_duration` | 与 `tick_to_duration` 的区别是排除 STOP 暂停，供音频切片使用 |
 | `BgaResource.crop` | 源裁剪矩形与目标偏移（BMS `#BGA`/`#@BGA`）。`None` = 整图。BMSON 不区分裁剪，恒为 `None` |
 | `BgaResource` 无 `id` | `bga_resources` 的向量下标就是唯一资源 id；事件用 `BgaResourceId` 引用 |
 | `ChartInfo.video` | 背景视频（BMS `#VIDEOFILE`/`#MOVIE`）。BMSON 无此概念，恒为 `None` |

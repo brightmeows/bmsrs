@@ -76,6 +76,24 @@ fn stop_before_target_adds_pause_time() {
 }
 
 #[test]
+fn musical_duration_excludes_stop_pause() {
+    let timing = TimingTrack::new(
+        120.0,
+        vec![],
+        vec![StopEvent {
+            tick: 240,
+            duration: 240,
+        }],
+        RES,
+    )
+    .unwrap();
+
+    let result = timing.tick_to_musical_duration(480);
+
+    assert_eq!(result, Duration::from_secs(1));
+}
+
+#[test]
 fn stop_at_target_tick_excludes_pause() {
     let timing = TimingTrack::new(
         120.0,

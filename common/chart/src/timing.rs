@@ -251,25 +251,13 @@ impl TimingTrack {
     /// 使用预计算段执行 O(log n) 二分查找。
     #[must_use]
     #[expect(
-        clippy::cast_precision_loss,
-        reason = "tick values fit in f64 mantissa for practical chart lengths"
-    )]
-    #[expect(
         clippy::indexing_slicing,
         reason = "idx from saturating_sub on partition_point, always valid"
     )]
     pub fn tick_to_duration(&self, tick: u64) -> Duration {
-        let res = self.resolution as f64;
+        let base = self.base_seconds_at_tick(tick);
 
-        // 1. BPM 段查找得到基准时间。
-        let idx = self
-            .bpm_segments
-            .partition_point(|s| s.start_tick <= tick)
-            .saturating_sub(1);
-        let seg = &self.bpm_segments[idx];
-        let base = seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm.abs();
-
-        // 2. 目标脉冲之前（不含）的累积停止暂停。
+        // 目标脉冲之前（不含）的累积停止暂停。
         let stop_idx = self.stop_cumsum.partition_point(|(t, _)| *t < tick);
         let pause = if stop_idx > 0 {
             self.stop_cumsum[stop_idx - 1].1
@@ -278,6 +266,36 @@ impl TimingTrack {
         };
 
         safe_from_secs_f64(base + pause)
+    }
+
+    /// 将脉冲位置换算为不含 STOP 暂停的音乐时间。
+    ///
+    /// 与 [`tick_to_duration`](Self::tick_to_duration) 的区别是排除
+    /// 目标脉冲之前所有 STOP 的暂停时长。音频切片使用本方法计算
+    /// `AudioAsset.start` 与 `duration`，因为 STOP 期间音频暂停，
+    /// 不应在源文件中跳过暂停对应的片段。
+    #[must_use]
+    pub fn tick_to_musical_duration(&self, tick: u64) -> Duration {
+        safe_from_secs_f64(self.base_seconds_at_tick(tick))
+    }
+
+    /// 返回 `tick` 处不含 STOP 暂停的基准秒数。
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "tick values fit in f64 mantissa for practical chart lengths"
+    )]
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "idx from saturating_sub on partition_point, always valid"
+    )]
+    fn base_seconds_at_tick(&self, tick: u64) -> f64 {
+        let res = self.resolution as f64;
+        let idx = self
+            .bpm_segments
+            .partition_point(|s| s.start_tick <= tick)
+            .saturating_sub(1);
+        let seg = &self.bpm_segments[idx];
+        seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm.abs()
     }
 
     /// 将实际时间 [`Duration`] 换算为最近的脉冲位置。

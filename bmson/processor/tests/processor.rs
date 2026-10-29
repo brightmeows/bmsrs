@@ -10,7 +10,7 @@ use bmson_def::{
     MineChannel, MineNote, ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
 };
 use bmson_processor::layout::{Beat, GenericLayout, Pms};
-use bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor};
+use bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor, ProcessError};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{
     BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteRole,
@@ -227,12 +227,144 @@ fn process_up_note_sets_release_role() -> TestResult {
 }
 
 #[test]
+fn beatoraja_ln_mode_overrides_ln_type_hint() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("ln.wav"),
+        note_events: vec![NoteEvent {
+            x: 1,
+            y: 0,
+            l: 240,
+            c: false,
+            t: Some(bmson_def::LnMode::Cn),
+            up: None,
+            ln_type_hint: Some(LnType::Hcn),
+            ln_judge_hint: None,
+            ln_life_hint: None,
+            vol: None,
+            pan: None,
+        }],
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+    let hint = chart.data.events.iter().find_map(|event| {
+        if let EventKind::Note { ext, .. } = &event.kind {
+            ext.ln_type_hint
+        } else {
+            None
+        }
+    });
+
+    assert_eq!(hint, Some(LnTypeHint::Cn));
+    Ok(())
+}
+
+#[test]
 fn process_beat_mode_sets_key_count() -> TestResult {
     let bmson = make_simple_bmson();
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     assert_eq!(chart.chart.key_count, Some(7));
+    Ok(())
+}
+
+#[test]
+fn process_maps_subartists_and_title_image_to_chart_info() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_info.subartists = vec!["music:Composer"];
+    bmson.chart_info.title_image = Some(Path::new("title.png"));
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+
+    assert_eq!(chart.chart.subartists, vec!["music:Composer"]);
+    assert_eq!(chart.chart.title_image.as_deref(), Some("title.png"));
+    Ok(())
+}
+
+#[test]
+fn process_rejects_parent_directory_path() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("../evil.wav"),
+        note_events: vec![],
+    });
+
+    let result = BmsonProcessor::process::<Beat>(&bmson);
+
+    assert!(matches!(
+        result,
+        Err(ProcessError::UnsafePath {
+            reason: "parent directory traversal",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn process_rejects_absolute_path() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("/etc/passwd"),
+        note_events: vec![],
+    });
+
+    let result = BmsonProcessor::process::<Beat>(&bmson);
+
+    assert!(matches!(
+        result,
+        Err(ProcessError::UnsafePath {
+            reason: "absolute path",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn process_rejects_nul_path() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("bad\0.wav"),
+        note_events: vec![],
+    });
+
+    let result = BmsonProcessor::process::<Beat>(&bmson);
+
+    assert!(matches!(
+        result,
+        Err(ProcessError::UnsafePath {
+            reason: "NUL byte",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn process_normalizes_backslash_path() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: Path::new("snd\\kick.wav"),
+        note_events: vec![NoteEvent {
+            x: 1,
+            y: 0,
+            l: 0,
+            c: false,
+            t: None,
+            up: None,
+            ln_type_hint: None,
+            ln_judge_hint: None,
+            ln_life_hint: None,
+            vol: None,
+            pan: None,
+        }],
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
+
+    assert_eq!(
+        chart.data.audio_assets[0].path.as_ref(),
+        Path::new("snd/kick.wav")
+    );
     Ok(())
 }
 
@@ -931,7 +1063,6 @@ fn note_ext_fields() {
     let ext = BmsonNoteExt {
         vol: Some(-50),
         pan: Some(100),
-        ln_mode: Some(2),
         ln_type_hint: Some(LnTypeHint::Cn),
         ln_judge_hint: Some(LnJudgeHint::Ticks),
         ln_life_hint: Some(LnLifeHint::Normal),

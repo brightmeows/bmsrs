@@ -107,8 +107,6 @@ pub struct SongInfo {
     pub artist: String,
     /// 乐曲流派。
     pub genre: String,
-    /// 其他贡献者（例如 `["music:composer", "chart:charter"]`）。
-    pub subartists: Vec<String>,
 }
 
 /// 谱面级元数据与资源 —— 对应 BMSON v2 的 `ChartInfo`。
@@ -120,6 +118,10 @@ pub struct ChartInfo {
     pub chart_name: String,
     /// 数值难度等级（beat 模式通常为 1–12）。
     pub level: u64,
+    /// 其他贡献者（例如 `["music:composer", "chart:charter"]`）。
+    pub subartists: Vec<String>,
+    /// 标题图片路径（歌曲开始前显示）。
+    pub title_image: Option<String>,
     /// 背景图片路径（游玩时显示）。
     pub back_image: Option<String>,
     /// 过场图片路径（加载时显示）。

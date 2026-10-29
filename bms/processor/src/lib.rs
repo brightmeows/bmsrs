@@ -979,13 +979,6 @@ impl BmsConverter<'_> {
                 title: self.bms.metadata.title.clone().unwrap_or_default(),
                 artist: self.bms.metadata.artist.clone().unwrap_or_default(),
                 genre: self.bms.metadata.genre.clone().unwrap_or_default(),
-                subartists: self
-                    .bms
-                    .metadata
-                    .sub_artist
-                    .as_deref()
-                    .map(|s| vec![s.to_owned()])
-                    .unwrap_or_default(),
             },
             ChartInfo {
                 subtitle: self.bms.metadata.subtitle.clone().unwrap_or_default(),
@@ -996,6 +989,14 @@ impl BmsConverter<'_> {
                     .map(|l| format!("{l:.0}"))
                     .unwrap_or_default(),
                 level: self.bms.display.play_level.map_or(0, |l| l as u64),
+                subartists: self
+                    .bms
+                    .metadata
+                    .sub_artist
+                    .as_deref()
+                    .map(|s| vec![s.to_owned()])
+                    .unwrap_or_default(),
+                title_image: None,
                 back_image: self.bms.display.back_bmp.clone(),
                 eyecatch_image: self.bms.display.stage_file.clone(),
                 banner_image: self.bms.display.banner.clone(),

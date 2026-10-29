@@ -91,7 +91,6 @@ fn chart_song_info_default() {
     assert_eq!(info.title, "");
     assert_eq!(info.artist, "");
     assert_eq!(info.genre, "");
-    assert_eq!(info.subartists, [] as [std::string::String; 0]);
 }
 
 #[test]
@@ -100,6 +99,8 @@ fn chart_info_default() {
     assert_eq!(info.subtitle, "");
     assert_eq!(info.chart_name, "");
     assert_eq!(info.level, 0);
+    assert_eq!(info.subartists, [] as [std::string::String; 0]);
+    assert!(info.title_image.is_none());
     assert_eq!(info.bga_resources, [] as [bmsrs_chart::BgaResource; 0]);
 }
 
