@@ -299,3 +299,42 @@ fn roundtrip_tick_to_duration_and_back() {
         );
     }
 }
+
+#[test]
+fn invalid_bpm_changes_are_dropped() {
+    let timing = TimingTrack::new(
+        120.0,
+        vec![
+            BpmChange {
+                tick: 0,
+                bpm: f64::NAN,
+            },
+            BpmChange {
+                tick: 480,
+                bpm: 200.0,
+            },
+        ],
+        vec![],
+        RES,
+    )
+    .unwrap();
+    assert_eq!(timing.bpm_changes().len(), 1);
+}
+
+#[test]
+fn bpm_at_tick_skips_invalid_changes() {
+    let timing = TimingTrack::new(
+        120.0,
+        vec![
+            BpmChange { tick: 0, bpm: 0.0 },
+            BpmChange {
+                tick: 480,
+                bpm: 200.0,
+            },
+        ],
+        vec![],
+        RES,
+    )
+    .unwrap();
+    assert!((timing.bpm_at_tick(0) - 120.0).abs() < 1e-9);
+}

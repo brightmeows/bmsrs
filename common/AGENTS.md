@@ -45,7 +45,7 @@ flowchart LR
 | 决策 | 理由 |
 |------|------|
 | `BmsLayout` 与 `BmsonLayout` 不统一为单一 trait | 输入维度本质不同：BMS 为已验证的 `(player, lane)` 对，BMSON 为一维 `x`；两格式独立演进，统一只会引入泛型间接层 |
-| 两侧 `ProcessError::InvalidBpm` 不上提到共享 crate | 共享收益仅一个枚举变体，代价是错误类型跨 crate 耦合 |
+| 两侧 `ProcessError` 各自定义，不合并 | 只共用 `TimingTrackError`（`#[from]` 透传）；BMSON 另有 `InvalidKeyCount`，合并会把格式特有错误拖进共享类型 |
 | `TimingTrack` 正查段与逆查段各自累计时间 | 同一数学变换的两份实现（`new` 与 `merge_inv`）；若出现第三种时间畸变事件（如渐变 BPM），先重判再写第三遍 |
 
 ## 测试

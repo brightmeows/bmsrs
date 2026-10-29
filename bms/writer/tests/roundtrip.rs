@@ -6,6 +6,7 @@
 use bms_parser::Bms;
 use bms_parser::parse_message_line;
 use bms_syntax::SourceFile;
+use proptest::prelude::*;
 
 use bms_writer::BmsWriter;
 
@@ -48,6 +49,41 @@ fn merged_channel_positions_preserve_nonzero_overwrite_semantics() {
         .find(|l| l.starts_with("#00111:"))
         .expect("note line should survive rewrite");
     assert_eq!(line, "#00111:1122");
+}
+
+#[test]
+fn unequal_length_lines_merge_by_fractional_position() {
+    let text = "#00113:11111111\n#00113:0022332255224400\n#00113:0066\n";
+    let bms = parse(text);
+    let written = BmsWriter::write(&bms);
+    let line = written
+        .lines()
+        .find(|l| l.starts_with("#00113:"))
+        .expect("note line should survive rewrite");
+    assert_eq!(line, "#00113:1122332266224400");
+}
+
+proptest! {
+    #[test]
+    fn multi_line_roundtrip_preserves_semantics(
+        bodies in prop::collection::vec(
+            prop::collection::vec("[0-9A-Z]{2}", 1..=8),
+            1..=3,
+        )
+    ) {
+        let mut text = String::new();
+        for cells in &bodies {
+            text.push_str("#00113:");
+            text.push_str(&cells.concat());
+            text.push('\n');
+        }
+        let mut before = parse(&text);
+        let written = BmsWriter::write(&before);
+        let mut after = parse(&written);
+        before.messages.raw.clear();
+        after.messages.raw.clear();
+        prop_assert_eq!(before, after);
+    }
 }
 
 #[test]

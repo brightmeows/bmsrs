@@ -20,7 +20,9 @@ type BmsChart = Chart<(), BmsCustomEvent>;
 /// 管道辅助：BMS 原文 → `Chart<(), BmsCustomEvent>`。
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn process(bms_text: &str) -> BmsChart {
-    BmsProcessor::process::<Bme>(&parse_bms(bms_text)).expect("process should succeed")
+    BmsProcessor::process::<Bme>(&parse_bms(bms_text))
+        .expect("process should succeed")
+        .chart
 }
 
 /// 用随机值 1 解析 BMS 文本。
@@ -531,7 +533,9 @@ fn process_with_cf(bms_text: &str) -> BmsChart {
     let source = SourceFile::parse(bms_text);
     let bms = Bms::from_cst(&source.source_file(), |_| 0).bms;
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
-    BmsProcessor::process::<Bme>(&bms).expect("process should succeed")
+    BmsProcessor::process::<Bme>(&bms)
+        .expect("process should succeed")
+        .chart
 }
 
 /// bmspec-4-RANDOM: SETRANDOM 固定值选择分支。

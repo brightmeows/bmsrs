@@ -245,16 +245,7 @@ impl<'a> From<Bmson<'a>> for RootBmson<'a> {
                         .notes
                         .into_iter()
                         .map(|mut note| {
-                            // 与 v0 路径对称：将 per-note 't'（LnMode）回填到
-                            // 'ln_type_hint'（LnType），使 beatoraja 扩展的 per-note
-                            // LN 类型在升版后同时保留两种表示。
-                            if note.ln_type_hint.is_none() {
-                                note.ln_type_hint = note.t.map(|t| match t {
-                                    crate::LnMode::Ln => crate::LnType::Ln,
-                                    crate::LnMode::Cn => crate::LnType::Cn,
-                                    crate::LnMode::Hcn => crate::LnType::Hcn,
-                                });
-                            }
+                            crate::common::backfill_ln_type_hint(&mut note);
                             note
                         })
                         .collect(),

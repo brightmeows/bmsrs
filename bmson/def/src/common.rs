@@ -335,6 +335,15 @@ pub struct NoteEvent {
     pub pan: Option<i8>,
 }
 
+/// 将 per-note `t`（`LnMode`）回填为 `ln_type_hint`（`LnType`）。
+///
+/// 仅在 `ln_type_hint` 未设置时回填，保留显式值。v0 与 v1 升版共用。
+pub fn backfill_ln_type_hint(note: &mut NoteEvent) {
+    if note.ln_type_hint.is_none() {
+        note.ln_type_hint = note.t.map(crate::ln_mode_to_type_hint);
+    }
+}
+
 impl NoteEvent {
     /// 如果此音符是 BGM 音符（不可玩）则返回 `true`。
     #[must_use]

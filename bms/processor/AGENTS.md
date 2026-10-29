@@ -96,7 +96,7 @@ tick = measure_starts[measure] + numer * measure_len / denom
 ### Always
 
 - 新事件类型在 `BmsConverter` 的 `collect_*` 方法中注册 + 在 `BmsProcessor::process` 中调用
-- 更新 `Event::tick()` match 表达式以包含新变体
+- 新增 `EventKind` 变体时，在 `bmsrs-chart` 同步 `priority` 与 `map_custom`/`map_ext`
 
 ### Ask
 

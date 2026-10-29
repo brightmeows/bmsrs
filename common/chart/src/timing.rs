@@ -79,6 +79,8 @@ impl TimingTrack {
     }
 
     /// 返回 BPM 变更事件切片。
+    ///
+    /// 无效 BPM 变更在构造时被丢弃，返回值只包含生效变更。
     #[must_use]
     pub fn bpm_changes(&self) -> &[BpmChange] {
         &self.bpm_changes
@@ -109,9 +111,9 @@ pub struct BpmChange {
 impl BpmChange {
     /// 判断 BPM 值是否有效（有限且非零）。
     ///
-    /// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在消费点被跳过，保持
-    /// 上一个有效 BPM 不变——与 beatoraja 行为一致。计时轨构造与两侧
-    /// processor 共用本谓词，保证计时轨与统一事件流的过滤语义一致。
+    /// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在计时轨构造时被丢弃，
+    /// 并保持上一个有效 BPM 不变——与 beatoraja 行为一致。两侧 processor
+    /// 也共用本谓词，保证计时轨与统一事件流的过滤语义一致。
     #[must_use]
     pub const fn is_valid(bpm: f64) -> bool {
         bpm.is_finite() && bpm != 0.0
@@ -175,6 +177,9 @@ impl TimingTrack {
 
         // 在构造时一次性排序，避免下游 clone+sort。
         bpm_changes.sort_by_key(|bc| bc.tick);
+        // 无效 BPM 变更在存储前丢弃，使 bpm_changes() 与 bpm_at_tick
+        // 看到的集合一致；bpm_segments 仍按同一集合构建。
+        bpm_changes.retain(|bc| BpmChange::is_valid(bc.bpm));
         stops.sort_by_key(|s| s.tick);
 
         // Build BPM segments
@@ -189,9 +194,6 @@ impl TimingTrack {
         let mut current_bpm = init_bpm;
 
         for bc in &bpm_changes {
-            if !BpmChange::is_valid(bc.bpm) {
-                continue;
-            }
             if bc.tick > current_tick {
                 current_seconds += (bc.tick - current_tick) as f64 / res * 60.0 / current_bpm.abs();
                 current_tick = bc.tick;
@@ -318,9 +320,11 @@ impl TimingTrack {
     }
 
     /// 返回 `tick` 处生效的 BPM。
+    ///
+    /// 委托 [`BpmLookup`]，与构造前的轻量查询共用同一实现。
     #[must_use]
     pub fn bpm_at_tick(&self, tick: u64) -> f64 {
-        segment_bpm_at_tick(&self.bpm_segments, tick)
+        BpmLookup::new(self.init_bpm, &self.bpm_changes).bpm_at_tick(tick)
     }
 }
 
@@ -492,9 +496,6 @@ fn merge_inv(
         }
         match ev {
             TimingEvent::Bpm(b) => {
-                if !BpmChange::is_valid(b) {
-                    continue;
-                }
                 cur_bpm = b;
                 inv.push(InvSeg {
                     sec_lo: cur_sec,

@@ -345,14 +345,7 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
                         .notes
                         .into_iter()
                         .map(|mut note| {
-                            // 将 v0 't' 字段 → v2 'ln_type_hint'（如果尚未设置）。
-                            if note.ln_type_hint.is_none() {
-                                note.ln_type_hint = note.t.map(|t| match t {
-                                    LnMode::Ln => crate::LnType::Ln,
-                                    LnMode::Cn => crate::LnType::Cn,
-                                    LnMode::Hcn => crate::LnType::Hcn,
-                                });
-                            }
+                            crate::common::backfill_ln_type_hint(&mut note);
                             note
                         })
                         .collect(),

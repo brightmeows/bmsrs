@@ -81,7 +81,7 @@ fn process_basic_note() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let notes: Vec<_> = chart
         .data
@@ -123,7 +123,7 @@ fn process_key7_note_lands_on_key_seven() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let notes: Vec<_> = chart
         .data
@@ -155,7 +155,7 @@ fn process_negative_bpm_is_accepted() {
     bms.timing.bpm = Some(-120.0);
     let result = BmsProcessor::process::<Bme>(&bms);
     assert!(result.is_ok());
-    let chart = result.unwrap();
+    let chart = result.unwrap().chart;
     // BPM 绝对值 = 120，因此 240 ticks = 0.5s。
     assert_eq!(
         chart.data.timing.tick_to_duration(240),
@@ -174,7 +174,7 @@ fn process_nan_bpm_change_never_enters_event_stream() {
         value: BpmValue::Absolute(f64::NAN),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
     let has_bpm_event = chart
         .data
         .events
@@ -192,7 +192,7 @@ fn process_nan_bpm_change_produces_warning() {
         value: BpmValue::Absolute(f64::NAN),
     });
 
-    let (_, warnings) = BmsProcessor::process_with_warnings::<Bme>(&bms).unwrap();
+    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
     // NaN 不可 assert_eq，用 matches! 检查变体与值。
     assert!(matches!(
         warnings.as_slice(),
@@ -212,7 +212,7 @@ fn process_bgm_events_mapped() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let bgm: Vec<_> = chart
         .data
@@ -238,7 +238,7 @@ fn process_metadata_from_headers() {
     bms.metadata.artist = Some("Test Artist".to_owned());
     bms.metadata.genre = Some("Test Genre".to_owned());
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     assert_eq!(chart.song.title, "Test Song");
     assert_eq!(chart.song.artist, "Test Artist");
@@ -269,7 +269,7 @@ fn process_default_uses_bme_and_maps_both_sides() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_default(&bms).unwrap();
+    let chart = BmsProcessor::process_default(&bms).unwrap().chart;
 
     let positions: Vec<(NoteSide, Lane)> = chart
         .data
@@ -314,7 +314,7 @@ fn process_lnobj_produces_long_note() {
         wav_id: "02".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let lns: Vec<_> = chart
         .data
@@ -356,7 +356,7 @@ fn lnobj_preserves_long_note_channel_events_as_normal() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let normals: Vec<_> = chart
         .data
@@ -388,7 +388,7 @@ fn process_bpm_change_reference_resolved() {
         value: BpmValue::Reference(bpm_id),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     assert_eq!(chart.data.timing.bpm_changes().len(), 1);
     assert!((chart.data.timing.bpm_changes()[0].bpm - 200.0).abs() < 1e-9);
@@ -416,7 +416,7 @@ fn process_bpm_changes_dedup_preserves_mid_change() {
         value: BpmValue::Reference(bpm_id),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     // 小节 0 的 3/4 处（tick 720）应回到 BPM 120。
     assert!((chart.data.timing.bpm_at_tick(720) - 120.0).abs() < 1e-9);
@@ -427,7 +427,7 @@ fn process_bar_lines_generated() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let bar_lines: Vec<_> = chart
         .data
@@ -455,7 +455,7 @@ fn process_invisible_note_mapped() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let notes: Vec<_> = chart
         .data
@@ -568,7 +568,7 @@ fn lnobj_end_marker_plays_bgm() {
         wav_id: "FF".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     // 从谱面收集 BGM 事件。
     let bgm_ticks: Vec<_> = chart
@@ -609,7 +609,7 @@ fn lnobj_bgm_no_event_for_unmatched_lno() {
         wav_id: "FF".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let bgm_count = chart
         .data
@@ -637,7 +637,7 @@ fn dedup_adjacent_same_bpm() {
         value: BpmValue::Absolute(140.0),
     });
 
-    let chart = BmsProcessor::process_default(&bms).unwrap();
+    let chart = BmsProcessor::process_default(&bms).unwrap().chart;
     let bpm_events: Vec<_> = chart.data.timing.bpm_changes().to_vec();
     assert_eq!(bpm_events.len(), 2);
     assert!((bpm_events[0].bpm - 120.0).abs() < f64::EPSILON);

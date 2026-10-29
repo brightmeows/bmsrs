@@ -77,11 +77,20 @@ type BmsEvent = Event<(), BmsCustomEvent>;
 /// 将 [`Bms`] 转换为 [`Chart`] 的零大小处理器。
 pub struct BmsProcessor;
 
+/// BMS 处理结果。
+#[derive(Debug)]
+pub struct Processed {
+    /// 处理得到的谱面。
+    pub chart: Chart<(), BmsCustomEvent>,
+    /// 处理过程中收集的可恢复警告。
+    pub warnings: Vec<ProcessWarning>,
+}
+
 /// BMS 谱面的默认节拍分辨率（每四分音符的脉冲数）。
 const RESOLUTION: u64 = 240;
 
 impl BmsProcessor {
-    /// 使用显式模式族布局处理 BMS 谱面，并收集处理警告。
+    /// 使用显式模式族布局处理 BMS 谱面，并返回处理警告。
     ///
     /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
     /// 位置。可用族见 `layout` 模块。
@@ -90,9 +99,7 @@ impl BmsProcessor {
     ///
     /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
     /// [`ProcessError::Timing`]。
-    pub fn process_with_warnings<L>(
-        bms: &Bms,
-    ) -> Result<(Chart<(), BmsCustomEvent>, Vec<ProcessWarning>), ProcessError>
+    pub fn process<L>(bms: &Bms) -> Result<Processed, ProcessError>
     where
         L: BmsLayout,
     {
@@ -187,30 +194,14 @@ impl BmsProcessor {
             .collect();
         warnings.extend(conv.warnings);
 
-        Ok((
-            Chart {
+        Ok(Processed {
+            chart: Chart {
                 song,
                 chart: chart_info,
                 data,
             },
             warnings,
-        ))
-    }
-
-    /// 使用显式模式族布局处理 BMS 谱面。
-    ///
-    /// 布局类型决定每个 BMS `(player, lane)` 通道字节如何解码为音符
-    /// 位置。可用族见 `layout` 模块。
-    ///
-    /// # Errors
-    ///
-    /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
-    /// [`ProcessError::Timing`]。
-    pub fn process<L>(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError>
-    where
-        L: BmsLayout,
-    {
-        Self::process_with_warnings::<L>(bms).map(|(chart, _)| chart)
+        })
     }
 
     /// 使用自动检测的 PMS 变体布局处理 BMS 谱面。
@@ -221,7 +212,7 @@ impl BmsProcessor {
     ///
     /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
     /// [`ProcessError::Timing`]。
-    pub fn process_pms(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
+    pub fn process_pms(bms: &Bms) -> Result<Processed, ProcessError> {
         match PmsLayout::detect(bms) {
             PmsLayout::Standard => Self::process::<Pms>(bms),
             PmsLayout::BmeType => Self::process::<PmsBme>(bms),
@@ -241,7 +232,7 @@ impl BmsProcessor {
     ///
     /// 若计时轨构造失败（初始 BPM 缺失或为零/非有限值），返回
     /// [`ProcessError::Timing`]。
-    pub fn process_default(bms: &Bms) -> Result<Chart<(), BmsCustomEvent>, ProcessError> {
+    pub fn process_default(bms: &Bms) -> Result<Processed, ProcessError> {
         Self::process::<Bme>(bms)
     }
 }

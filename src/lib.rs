@@ -149,11 +149,17 @@ pub mod bms {
     }
 
     /// BMS 语义层——类型化 header/message 与 `Bms` 模型。
+    ///
+    /// `Bms` 与 `Messages` 的规范路径。值类型（`WavIndex` 等）的规范
+    /// 路径是 [`values`]；此处 re-export 仅为 parser
+    /// 使用者的便利别名。
     pub mod parser {
         pub use bms_parser::*;
     }
 
     /// 单行语法与类型化值——header/message、索引与解析。
+    ///
+    /// 值类型的规范路径。
     pub mod values {
         pub use bms_values::*;
     }

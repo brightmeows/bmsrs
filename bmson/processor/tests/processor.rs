@@ -90,7 +90,7 @@ fn process_basic_note() -> TestResult {
         }],
     });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let notes: Vec<_> = chart
         .data
@@ -165,7 +165,7 @@ fn process_beat_layout_maps_both_sides() -> TestResult {
         ],
     });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let note_positions: Vec<_> = chart
         .data
@@ -215,7 +215,7 @@ fn process_pms_layout_single_player() -> TestResult {
             .collect(),
     });
 
-    let chart = BmsonProcessor::process::<Pms>(&bmson)?;
+    let chart = BmsonProcessor::process::<Pms>(&bmson)?.chart;
 
     let sides: Vec<_> = chart
         .data
@@ -263,7 +263,7 @@ fn process_generic_layout_n_keys() -> TestResult {
             .collect(),
     });
 
-    let chart = BmsonProcessor::process_nkeys(&bmson, 5)?;
+    let chart = BmsonProcessor::process_nkeys(&bmson, 5)?.chart;
 
     let positions: Vec<_> = chart
         .data
@@ -295,7 +295,7 @@ fn process_default_other_mode_hint_produces_warning() -> TestResult {
     // 规范外的扩展提示回退 Beat 布局，且回退本身必须可观测。
     let mut bmson = make_simple_bmson();
     bmson.chart_data.mode_hint = ModeHint::Other("somewhere-new".to_owned());
-    let (_, warnings) = BmsonProcessor::process_default_with_warnings(&bmson)?;
+    let warnings = BmsonProcessor::process_default(&bmson)?.warnings;
     assert_eq!(
         warnings,
         vec![BmsonProcessWarning::UnknownModeHint {
@@ -326,7 +326,7 @@ fn process_default_routes_by_mode_hint() -> TestResult {
             pan: None,
         }],
     });
-    let chart_beat = BmsonProcessor::process_default(&bmson_beat)?;
+    let chart_beat = BmsonProcessor::process_default(&bmson_beat)?.chart;
     assert!(chart_beat.data.events.iter().any(|e| matches!(
         &e.kind,
         EventKind::Note {
@@ -354,7 +354,7 @@ fn process_default_routes_by_mode_hint() -> TestResult {
             pan: None,
         }],
     });
-    let chart_pms = BmsonProcessor::process_default(&bmson_pms)?;
+    let chart_pms = BmsonProcessor::process_default(&bmson_pms)?.chart;
     assert!(chart_pms.data.events.iter().any(|e| matches!(
         &e.kind,
         EventKind::Note {
@@ -374,7 +374,7 @@ fn process_bpm_events() -> TestResult {
         .bpm_events
         .push(BpmEvent { y: 960, bpm: 180.0 });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let bpm_evts: Vec<_> = chart
         .data
@@ -402,7 +402,7 @@ fn process_stop_events() -> TestResult {
         duration: 192,
     });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let stop_evts: Vec<_> = chart
         .data
@@ -432,7 +432,7 @@ fn scroll_events_converts_negative_values() -> TestResult {
         .scroll_events
         .push(bmson_def::ScrollEvent { y: 960, rate: -0.5 });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let scroll_evts: Vec<_> = chart
         .data
@@ -461,7 +461,7 @@ fn key_channels_produces_invisible_notes() -> TestResult {
         notes: vec![KeyNote { x: 1, y: 0 }, KeyNote { x: 2, y: 480 }],
     });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let invisible_notes: Vec<_> = chart
         .data
@@ -507,7 +507,7 @@ fn mine_channels_produces_damage_notes() -> TestResult {
         ],
     });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let mine_notes: Vec<_> = chart
         .data
@@ -541,7 +541,7 @@ fn process_scroll_events() -> TestResult {
         .scroll_events
         .push(bmson_def::ScrollEvent { y: 1920, rate: 2.0 });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let scroll_evts: Vec<_> = chart
         .data
@@ -574,7 +574,7 @@ fn process_bga_events() -> TestResult {
         poor_events: vec![BGAEvent { y: 960, id: 1 }],
     };
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let bga_evts: Vec<_> = chart
         .data
@@ -619,7 +619,7 @@ fn process_long_note() -> TestResult {
         }],
     });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let lns: Vec<_> = chart
         .data
@@ -679,7 +679,7 @@ fn process_bgm_note_skips_playable_pulse() -> TestResult {
         ],
     });
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let event_count = chart
         .data
@@ -720,7 +720,7 @@ fn process_nan_bpm_returns_error() {
 #[test]
 fn metadata_transferred() -> TestResult {
     let bmson = make_simple_bmson();
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     assert_eq!(chart.song.title, "Test");
     assert_eq!(chart.song.artist, "Test Artist");
@@ -733,7 +733,7 @@ fn metadata_transferred() -> TestResult {
 #[test]
 fn bar_lines_auto_generated() -> TestResult {
     let bmson = make_simple_bmson();
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
     let bars: Vec<_> = chart
         .data
@@ -794,7 +794,7 @@ fn bar_lines_from_explicit_lines() -> TestResult {
         bmson_def::BarLine { y: 1920 },
     ]);
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
     let bars: Vec<_> = chart
         .data
         .events
@@ -830,7 +830,7 @@ fn chart_level_ln_hints_propagate() -> TestResult {
     bmson.chart_data.ln_judge_hint = bmson_def::LnJudge::Ticks;
     bmson.chart_data.ln_life_hint = bmson_def::LnLife::Ticks;
 
-    let chart = BmsonProcessor::process::<Beat>(&bmson)?;
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
     assert_eq!(chart.data.ln_type_hint, LnTypeHint::Cn);
     assert_eq!(chart.data.ln_judge_hint, LnJudgeHint::Ticks);
     assert_eq!(chart.data.ln_life_hint, LnLifeHint::Ticks);

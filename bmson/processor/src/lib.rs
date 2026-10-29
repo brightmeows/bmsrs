@@ -86,33 +86,27 @@ pub enum ProcessError {
 /// [`process_default`](Self::process_default) 从 `mode_hint` 中自动选择。
 pub struct BmsonProcessor;
 
+/// BMSON 处理结果。
+#[derive(Debug)]
+pub struct Processed {
+    /// 处理得到的谱面。
+    pub chart: Chart<BmsonNoteExt>,
+    /// 处理过程中收集的可恢复警告。
+    pub warnings: Vec<BmsonProcessWarning>,
+}
+
 impl BmsonProcessor {
-    /// 使用无状态模式族布局处理 BMSON 谱面。
+    /// 使用无状态模式族布局处理 BMSON 谱面，并返回处理警告。
     ///
     /// # Errors
     ///
     /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
     /// [`ProcessError::Timing`]。
-    pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Chart<BmsonNoteExt>, ProcessError>
+    pub fn process<L>(bmson: &bmson_def::Bmson<'_>) -> Result<Processed, ProcessError>
     where
         L: BmsonLayout,
     {
         Self::process_body(bmson, &|x| L::map_x(x))
-    }
-
-    /// 使用无状态模式族布局处理 BMSON 谱面，并收集处理警告。
-    ///
-    /// # Errors
-    ///
-    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
-    /// [`ProcessError::Timing`]。
-    pub fn process_with_warnings<L>(
-        bmson: &bmson_def::Bmson<'_>,
-    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError>
-    where
-        L: BmsonLayout,
-    {
-        Self::process_body_with_warnings(bmson, &|x| L::map_x(x))
     }
 
     /// 使用 generic-nkeys 布局处理 BMSON 谱面。
@@ -127,23 +121,9 @@ impl BmsonProcessor {
     pub fn process_nkeys(
         bmson: &bmson_def::Bmson<'_>,
         keys: u8,
-    ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
+    ) -> Result<Processed, ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
-    }
-
-    /// 使用 generic-nkeys 布局处理 BMSON 谱面，并收集处理警告。
-    ///
-    /// # Errors
-    ///
-    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
-    /// [`ProcessError::Timing`]。
-    pub fn process_nkeys_with_warnings(
-        bmson: &bmson_def::Bmson<'_>,
-        keys: u8,
-    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
-        let layout = GenericLayout { keys };
-        Self::process_body_with_warnings(bmson, &|x| layout.map_x(x))
     }
 
     /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族。
@@ -151,8 +131,8 @@ impl BmsonProcessor {
     /// `beat-*` 与 `dj-*` 提示映射到 [`Beat`]；`popn-*` 映射到 [`Pms`]；
     /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；
     /// 规范外的扩展提示（[`ModeHint::Other`](bmson_def::ModeHint::Other)）
-    /// 回退到 [`Beat`]（BMSON 默认值），需感知回退时请改用
-    /// [`process_default_with_warnings`](Self::process_default_with_warnings)。
+    /// 回退到 [`Beat`]（BMSON 默认值），回退警告记录在
+    /// [`Processed::warnings`] 中。
     ///
     /// # Errors
     ///
@@ -162,41 +142,26 @@ impl BmsonProcessor {
     ///   （[`Lane::Key`] 的索引上限），返回
     ///   [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
     ///   被静默丢弃）。
-    pub fn process_default(
-        bmson: &bmson_def::Bmson<'_>,
-    ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
-        Self::process_default_with_warnings(bmson).map(|(chart, _)| chart)
-    }
-
-    /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族，并收集处理警告。
-    ///
-    /// 与 [`process_default`](Self::process_default) 相同的分发逻辑；
-    /// `mode_hint` 为规范外的扩展提示时回退到 [`Beat`] 布局，并产生
-    /// [`BmsonProcessWarning::UnknownModeHint`]。
-    ///
-    /// # Errors
-    ///
-    /// 与 [`process_default`](Self::process_default) 相同。
-    pub fn process_default_with_warnings(
-        bmson: &bmson_def::Bmson<'_>,
-    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
+    pub fn process_default(bmson: &bmson_def::Bmson<'_>) -> Result<Processed, ProcessError> {
         match &bmson.chart_data.mode_hint {
             bmson_def::ModeHint::Popn5k | bmson_def::ModeHint::Popn9k => {
-                Self::process_with_warnings::<Pms>(bmson)
+                Self::process::<Pms>(bmson)
             }
             bmson_def::ModeHint::Generic(n) => {
                 let keys = u8::try_from(*n).map_err(|_e| ProcessError::InvalidKeyCount(*n))?;
                 if keys == 0 {
                     return Err(ProcessError::InvalidKeyCount(*n));
                 }
-                Self::process_nkeys_with_warnings(bmson, keys)
+                Self::process_nkeys(bmson, keys)
             }
             bmson_def::ModeHint::Other(hint) => {
-                let (chart, mut warnings) = Self::process_with_warnings::<Beat>(bmson)?;
-                warnings.push(BmsonProcessWarning::UnknownModeHint { hint: hint.clone() });
-                Ok((chart, warnings))
+                let mut processed = Self::process::<Beat>(bmson)?;
+                processed
+                    .warnings
+                    .push(BmsonProcessWarning::UnknownModeHint { hint: hint.clone() });
+                Ok(processed)
             }
-            _ => Self::process_with_warnings::<Beat>(bmson),
+            _ => Self::process::<Beat>(bmson),
         }
     }
 
@@ -204,15 +169,7 @@ impl BmsonProcessor {
     fn process_body(
         bmson: &bmson_def::Bmson<'_>,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    ) -> Result<Chart<BmsonNoteExt>, ProcessError> {
-        Self::process_body_with_warnings(bmson, decode).map(|(chart, _)| chart)
-    }
-
-    /// 与 [`process_body`] 相同，但返回处理过程中收集的警告。
-    fn process_body_with_warnings(
-        bmson: &bmson_def::Bmson<'_>,
-        decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    ) -> Result<(Chart<BmsonNoteExt>, Vec<BmsonProcessWarning>), ProcessError> {
+    ) -> Result<Processed, ProcessError> {
         let bmson_data = &bmson.chart_data;
 
         let timing = build_timing(bmson_data)?;
@@ -269,14 +226,14 @@ impl BmsonProcessor {
         };
         data.sort_events();
 
-        Ok((
-            Chart {
+        Ok(Processed {
+            chart: Chart {
                 song: song_info,
                 chart: chart_info,
                 data,
             },
-            conv.warnings,
-        ))
+            warnings: conv.warnings,
+        })
     }
 }
 
