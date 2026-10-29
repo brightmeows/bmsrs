@@ -1,65 +1,79 @@
-# bms/ — BMS 格式解析管道
+# bms/: BMS format parsing pipeline
 
-## 定位
+## Role
 
-BMS（Be-Music Script）格式解析管道。`.bms` 原始字节经文档层与四阶段解析管道转换为格式无关的 `Chart<T>`。
+Pipeline for parsing the BMS (Be-Music Script) format. Raw `.bms` bytes pass
+through the document layer and a four-stage parsing pipeline into a
+format-agnostic `Chart<T>`.
 
-## 管道
+## Pipeline
 
 ```mermaid
 flowchart LR
     Raw[".bms bytes"] --> Src[bmsrs-bms-source]
-    Src -->|解码文本| Syn[bmsrs-bms-syntax]
+    Src -->|decoded text| Syn[bmsrs-bms-syntax]
     Syn -->|CST| Par[bmsrs-bms-parser]
     Par --> Proc[bmsrs-bms-processor]
     Proc --> Chart["Chart&lt;T&gt;"]
     Syn --> Analysis[bmsrs-bms-analysis]
 ```
 
-| 阶段 | Crate | 职责 |
-|------|-------|------|
-| 0 源文本 | `bmsrs-bms-source` | 原始字节 → 编码/行/trivia/编辑；不做语义分类 |
-| 1 值层 | `bmsrs-bms-values` | 单行文本 → 类型化 header/message、索引与值 |
-| 2 语法 | `bmsrs-bms-syntax` | 解码文本 → rowan CST；词法、容错解析、控制流查询 |
-| 3 语义 | `bmsrs-bms-parser` | CST → `Bms`；聚合与保真模型 |
-| — 派生 | `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro，无运行时逻辑 |
-| 4 转换 | `bmsrs-bms-processor` | `Bms` → `Chart` |
-| 5 分析 | `bmsrs-bms-analysis` | 诊断、符号索引与编辑器数据 |
+| Stage | Crate | Responsibility |
+|-------|-------|----------------|
+| 0 source text | `bmsrs-bms-source` | raw bytes to encoding, lines, trivia, and editing; no semantic classification |
+| 1 values | `bmsrs-bms-values` | single-line text to typed headers/messages, indices, and values |
+| 2 syntax | `bmsrs-bms-syntax` | decoded text to rowan CST; lexing, error-tolerant parsing, control-flow queries |
+| 3 semantics | `bmsrs-bms-parser` | CST to `Bms`; aggregate and faithful model |
+| derivation | `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro, no runtime logic |
+| 4 conversion | `bmsrs-bms-processor` | `Bms` to `Chart` |
+| 5 analysis | `bmsrs-bms-analysis` | diagnostics, symbol index, and editor data |
 
-## 设计原则
+## Design principles
 
-| 原则 | 含义 |
-|------|------|
-| 分层不越界 | values 不做整文件、syntax 不做语义值、parser 不展开控制流、processor 不引入 I/O |
-| 整文件循环只有一份 | 分行、注释状态机、编码与行尾都在 `bmsrs-bms-source`；CST 只处理解码文本 |
-| 值类型 owned | 单行入口不借用输入，字符串字段统一使用 `String`；跨层传递无需生命周期参数 |
-| 模式族解耦 | 键位映射通过零大小类型实现 `BmsLayout` trait，不在 `Chart` 中存储模式信息 |
+| Principle | Meaning |
+|-----------|---------|
+| Layers do not cross boundaries | values does no whole-file work, syntax does no semantic values, parser does no control-flow expansion, processor introduces no I/O |
+| Exactly one whole-file loop | line splitting, the comment state machine, encoding, and line endings all live in `bmsrs-bms-source`; the CST processes only decoded text |
+| Value types are owned | single-line entry points do not borrow input; string fields uniformly use `String`, so cross-layer passing needs no lifetime parameters |
+| Mode families decoupled | key mapping is implemented through zero-sized types implementing the `BmsLayout` trait; mode information is not stored in `Chart` |
 
-## 职责判据
+## Responsibility criteria
 
-核心原则：**`Bms` 保真映射**——`Bms` 字段是 BMS 文件内容的直接结构化表示，不存需要计算或语义解释才能得到的派生值。
+Core principle: **`Bms` is a faithful mapping**. `Bms` fields are a direct
+structured representation of BMS file content and do not store derived values
+that require computation or semantic interpretation.
 
-| 层 | 做什么 | 判据 |
-|----|--------|------|
-| tokenizer | 语法 + 单行值解释 + 局部引用校验 | 单行内可独立完成 |
-| parser | 为 `Bms` 保真必需的跨命令处理 | 不做就无法保真还原文件 |
-| processor | `Bms` → `Chart` 的信息损失型转换 | 涉及合并 / 引用解析 / 查表 |
+| Layer | Does | Criterion |
+|-------|------|-----------|
+| tokenizer | syntax, single-line value interpretation, local reference validation | can be done within one line |
+| parser | cross-command processing required for `Bms` fidelity | without it, the file cannot be faithfully reconstructed |
+| processor | lossy `Bms` to `Chart` conversion | involves merging, reference resolution, or table lookup |
 
-**tokenizer 局部引用校验**三层：id 格式（字符集 + 长度，已由 `BmsIndex::FromStr` 覆盖）、id 范围（某些命令的 id 须落在特定段）、多字段局部一致性（同一命令内字段间关联）。
+**Tokenizer local reference validation** has three levels: id format (character
+set and length, already covered by `BmsIndex::FromStr`), id range (some command
+ids must fall in specific segments), and multi-field local consistency
+(relationships between fields within one command).
 
-**parser 跨命令边界**：
+**Parser cross-command boundary**:
 
-- ✅ 保真必需：同小节同通道多行合并、`#BASE` 预扫描、索引归一化
-- ❌ 转换性质：`#BGA`/`#BMP` 优先级、引用解析、def 表查表——归 processor
+- Required for fidelity: merging multiple lines with the same measure and
+  channel, `#BASE` pre-scanning, index normalization.
+- Conversion concerns: `#BGA`/`#BMP` priority, reference resolution, and def
+  table lookup belong to the processor.
 
-**派生值禁止**：`Bms` 字段须能经 roundtrip 还原出原 BMS 文件。若字段值由其他字段计算或语义解释得到（如 `damage = base36 / 2`），改存原始字面值，派生计算移 processor。
+**Derived values are forbidden**: `Bms` fields must be able to reconstruct the
+original BMS file through a roundtrip. If a field value is computed from other
+fields or obtained through semantic interpretation (such as `damage = base36 /
+2`), store the raw literal value instead and move the derivation to the
+processor.
 
-## 领域术语
+## Domain terminology
 
-BMS 命令、通道映射、头部字段等术语参照 **bms skill**（`~/.agents/skills/bms/`）。
-该 skill 是索引——具体命令语义须查阅其 `memo/`、`ext/`、`bmse/`、`test/` 子目录。
+BMS commands, channel mappings, and header fields follow the **bms skill**
+(`~/.agents/skills/bms/`). The skill is an index; look up specific command
+semantics in its `memo/`, `ext/`, `bmse/`, and `test/` subdirectories.
 
-## 测试
+## Tests
 
 ```bash
 cargo test -p bmsrs-bms-source
@@ -68,11 +82,12 @@ cargo test -p bmsrs-bms-syntax
 cargo test -p bmsrs-bms-parser
 cargo test -p bmsrs-bms-processor
 cargo test -p bmsrs-bms-analysis
-# bmsrs-bms-values-derive 通过 bmsrs-bms-values 的 roundtrip 测试间接验证
+# bmsrs-bms-values-derive is tested indirectly through bmsrs-bms-values roundtrips.
 ```
 
-## 域级约束
+## Domain constraints
 
 ### Never
 
-- 在 BMS 管道 crate 中引入 `serde` / 序列化依赖——序列化属于 bmson 域
+- Add `serde` or serialization dependencies to BMS pipeline crates;
+  serialization belongs to the bmson domain.
