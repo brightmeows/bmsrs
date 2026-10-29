@@ -1,34 +1,35 @@
-//! 预计算的 SPEED 关键帧插值缓存。
+//! Precomputed SPEED keyframe interpolation cache.
 //!
-//! [`SpeedCache`] 存储已排序的 SPEED 关键帧，在查询时对相邻关键帧
-//! 之间的间距值进行线性插值。
+//! [`SpeedCache`] stores sorted SPEED keyframes and linearly interpolates
+//! spacing values between adjacent keyframes at query time.
 
 use bmsrs_chart::{CustomEvent, Event, EventKind, NoteExt};
 
-/// SPEED 关键帧：脉冲位置与间距倍率。
+/// SPEED keyframe: tick position and spacing multiplier.
 #[derive(Clone, Copy, Debug)]
 struct SpeedKeyframe {
-    /// 关键帧的绝对脉冲位置。
+    /// Absolute tick position of the keyframe.
     tick: u64,
-    /// 此关键帧处的间距倍率。
+    /// Spacing multiplier at this keyframe.
     rate: f64,
 }
 
-/// SPEED 间距插值缓存。
+/// SPEED spacing interpolation cache.
 ///
-/// 构建时从 [`EventKind::Speed`] 事件收集关键帧。`spacing_at(tick)` 在
-/// 相邻关键帧之间执行线性插值；若查询位置在首个关键帧之前，返回 `1.0`
-/// （默认间距值）。
+/// Keyframes are collected from [`EventKind::Speed`] events at construction.
+/// `spacing_at(tick)` linearly interpolates between adjacent keyframes; before
+/// the first keyframe it returns `1.0` (the default spacing).
 pub struct SpeedCache {
-    /// 按 tick 升序排列的关键帧。
+    /// Keyframes sorted ascending by tick.
     keyframes: Vec<SpeedKeyframe>,
 }
 
 impl SpeedCache {
-    /// 从已排序事件列表构建缓存。
+    /// Build the cache from a sorted event list.
     ///
-    /// 仅遍历 `Speed` 变体，跳过其他事件类型。
-    /// 输入 `events` 必须按 [`Event::tick`] 升序排列（由谱面保证）。
+    /// Only `Speed` variants are visited; other event types are skipped. The
+    /// input `events` must be sorted ascending by [`Event::tick`] (guaranteed by
+    /// the chart).
     pub fn build<T: NoteExt, C: CustomEvent>(events: &[Event<T, C>]) -> Self {
         let keyframes: Vec<SpeedKeyframe> = events
             .iter()
@@ -46,13 +47,13 @@ impl SpeedCache {
         Self { keyframes }
     }
 
-    /// 返回 `tick` 处的插值间距倍率。
+    /// Return the interpolated spacing multiplier at `tick`.
     ///
-    /// 无关键帧或查询在首个关键帧之前 → 返回 `1.0`。
-    /// 查询在最后一个关键帧之后 → 返回最后一个关键帧的间距。
-    /// 两关键帧之间 → 线性插值。
+    /// With no keyframes or a query before the first keyframe, returns `1.0`.
+    /// After the last keyframe it returns the last keyframe's spacing. Between
+    /// two keyframes it performs linear interpolation.
     pub fn spacing_at(&self, tick: u64) -> f64 {
-        // 空关键帧表：默认间距 1.0。
+        // Empty keyframe table: default spacing 1.0.
         let Some(first) = self.keyframes.first() else {
             return 1.0;
         };
@@ -60,25 +61,28 @@ impl SpeedCache {
             return 1.0;
         }
 
-        // 找出首个 tick > 查询位置的关键帧。
+        // Find the first keyframe with tick > query position.
         let next_idx = self.keyframes.partition_point(|k| k.tick <= tick);
         if next_idx == 0 {
             return 1.0;
         }
         if next_idx >= self.keyframes.len() {
-            // keyframes 非空（已由 first() 确认第一个元素存在）。
+            // keyframes is non-empty (first() already confirmed an element).
             #[expect(clippy::unwrap_used, reason = "keyframes confirmed non-empty above")]
             return self.keyframes.last().unwrap().rate;
         }
 
-        // keyframes[next_idx - 1] 与 keyframes[next_idx] 皆存在：
-        // next_idx > 0（上方的 == 0 分支），next_idx < len（上方的 >= len 分支）。
+        // Both keyframes[next_idx - 1] and keyframes[next_idx] exist:
+        // next_idx > 0 (the == 0 branch above) and next_idx < len (the >= len
+        // branch above).
         //
-        // 直接索引比 .get().unwrap() 更清晰且不需要额外 expect。
+        // Direct indexing is clearer than .get().unwrap() and needs no extra
+        // expect.
         #[expect(clippy::indexing_slicing, reason = "bounds confirmed by checks above")]
         let (prev, next) = (&self.keyframes[next_idx - 1], &self.keyframes[next_idx]);
-        // 同一脉冲上的多个 SPEED 关键帧（畸形输入）会导致除零产生 NaN；
-        // 此时不插值，直接取后插入关键帧的值（与“后者覆盖前者”语义一致）。
+        // Multiple SPEED keyframes at the same tick (malformed input) would
+        // divide by zero and produce NaN; skip interpolation and take the later
+        // keyframe's value (matching "later overrides earlier").
         if next.tick == prev.tick {
             return next.rate;
         }
@@ -132,8 +136,8 @@ mod tests {
 
     #[test]
     fn interpolation_between_keyframes() {
-        // 关键帧：tick 0 at 0.5, tick 960 at 1.5
-        // tick 480: midpoint, expected 1.0
+        // Keyframes: tick 0 at 0.5, tick 960 at 1.5.
+        // Tick 480 is the midpoint, expected 1.0.
         let events = make_speed_events(&[(0, 0.5), (960, 1.5)]);
         let cache = SpeedCache::build(&events);
         assert!((cache.spacing_at(0) - 0.5).abs() < 1e-9);
@@ -143,8 +147,9 @@ mod tests {
 
     #[test]
     fn duplicate_tick_speed_events_no_nan() {
-        // 畸形输入：两个 SPEED 关键帧位于同一脉冲。插值分母为零，
-        // 必须避免 NaN（返回后插入关键帧的值）。
+        // Malformed input: two SPEED keyframes at the same tick. The
+        // interpolation denominator is zero, so NaN must be avoided (return the
+        // later keyframe's value).
         let events = make_speed_events(&[(480, 0.5), (480, 1.5), (960, 1.0)]);
         let cache = SpeedCache::build(&events);
         let result = cache.spacing_at(720);
@@ -153,21 +158,22 @@ mod tests {
 
     #[test]
     fn bmspec_6_multiple_speed_interpolation() {
-        // 模拟 bmspec-6 多值场景：
+        // Simulate the bmspec-6 multi-value scenario:
         // SPEED01=0.5 at tick 960 (beat 4)
         // SPEED02=1.5 at tick 1440 (beat 6)
         // SPEED03=1.0 at tick 1920 (beat 8)
         let events = make_speed_events(&[(960, 0.5), (1440, 1.5), (1920, 1.0)]);
         let cache = SpeedCache::build(&events);
         assert!((cache.spacing_at(960) - 0.5).abs() < 1e-9, "keyframe 01");
-        // keyframe 01→02 插值: tick 1200 位于 960 与 1440 的中点
+        // Interpolation from keyframe 01 to 02: tick 1200 is the midpoint of 960
+        // and 1440.
         // 0.5 + (1.5 - 0.5) * 0.5 = 1.0
         assert!(
             (cache.spacing_at(1200) - 1.0).abs() < 1e-9,
             "interpolation midpoint"
         );
         assert!((cache.spacing_at(1440) - 1.5).abs() < 1e-9, "keyframe 02");
-        // beat 7 = tick 1680: 75% between 1440(1.5) and 1920(1.0)
+        // Beat 7 = tick 1680: 75% between 1440 (1.5) and 1920 (1.0).
         // 1.5 + (1.0 - 1.5) * (1680-1440)/(1920-1440) = 1.5 + (-0.5 * 0.5) = 1.25
         assert!(
             (cache.spacing_at(1680) - 1.25).abs() < 1e-9,

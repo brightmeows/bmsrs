@@ -3,7 +3,7 @@ use bmsrs_chart::{
     NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
 };
 
-/// 测试用的默认参数事件类型。
+/// Default-parameter event type for tests.
 type Evt = Event<()>;
 
 pub fn make_chart(events: Vec<Evt>) -> Chart {

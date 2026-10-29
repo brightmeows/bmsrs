@@ -1,12 +1,13 @@
-//! Player 热路径基准测试。
+//! Player hot-path benchmarks.
 //!
-//! 量化以下操作的耗时，为优化决策提供数据（而非猜测）：
+//! Quantifies the cost of the following operations to support optimization
+//! decisions with data instead of guesswork:
 //!
-//! - `TimingTrack::duration_to_tick` —— `O(log n)` 二分
-//! - `TimingTrack::tick_to_duration` —— `O(log n)` 二分
-//! - `Player::advance` —— 播放循环每帧调用
+//! - `TimingTrack::duration_to_tick`: `O(log n)` binary search
+//! - `TimingTrack::tick_to_duration`: `O(log n)` binary search
+//! - `Player::advance`: called every frame by the playback loop
 //!
-//! 运行：`cargo bench -p bmsrs-player`
+//! Run: `cargo bench -p bmsrs-player`
 #![expect(clippy::unwrap_used, reason = "bench code")]
 #![expect(clippy::expect_used, reason = "bench code")]
 
@@ -21,17 +22,17 @@ use bmsrs_player::Player;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
-/// 默认节拍分辨率（每四分音符的脉冲数）。
+/// Default beat resolution (ticks per quarter note).
 const RESOLUTION: u64 = 240;
-/// 第一个常规按键（1P 侧），用 `NonZeroU8::MIN` 避免 `unwrap`。
+/// First regular key on the 1P side, using `NonZeroU8::MIN` to avoid `unwrap`.
 const KEY1: NonZeroU8 = NonZeroU8::MIN;
-/// 每帧增量（约 60 FPS）。
+/// Per-frame delta (about 60 FPS).
 const FRAME: Duration = Duration::from_nanos(16_666_667);
 
-/// 构建一个含 `n` 个音符、若干 BPM 变更与停止的谱面。
+/// Build a chart with `n` notes, several BPM changes, and stops.
 ///
-/// 模拟真实谱面密度：每拍约一个音符，每隔固定间隔插入 BPM 变更与停止，
-/// 使计时轨非平凡。
+/// Simulates real chart density: about one note per beat, with BPM changes and
+/// stops inserted at fixed intervals to make the timing track non-trivial.
 #[expect(
     clippy::cast_precision_loss,
     reason = "indices fit in f64 for benchmark sizes"
@@ -40,7 +41,7 @@ fn build_chart(n: usize) -> Chart {
     let mut events = Vec::with_capacity(n + n / 50 + 4);
 
     for i in 0..n {
-        let tick = (i as u64) * RESOLUTION; // 每拍一个音符
+        let tick = (i as u64) * RESOLUTION; // One note per beat.
         events.push(Event::new(
             tick,
             EventKind::Note {
@@ -54,7 +55,7 @@ fn build_chart(n: usize) -> Chart {
         ));
     }
 
-    // 每隔 50 个音符插入一次 BPM 变更。
+    // Insert a BPM change every 50 notes.
     let mut bpm_changes = Vec::new();
     for i in (0..n).step_by(50) {
         let tick = (i as u64) * RESOLUTION;
@@ -63,7 +64,7 @@ fn build_chart(n: usize) -> Chart {
         bpm_changes.push(BpmChange { tick, bpm });
     }
 
-    // 每隔 100 个音符插入一次停止。
+    // Insert a stop every 100 notes.
     let mut stops = Vec::new();
     for i in (0..n).step_by(100) {
         let tick = (i as u64) * RESOLUTION;
@@ -101,10 +102,10 @@ fn build_chart(n: usize) -> Chart {
     }
 }
 
-/// 基准：`TimingTrack::duration_to_tick`（`O(log n)` 二分）。
+/// Benchmark: `TimingTrack::duration_to_tick` (`O(log n)` binary search).
 ///
-/// 目标取谱面 90% 处的时刻，使逆查找扫描处理绝大多数事件
-/// （反映后期游玩中每帧的最坏情况）。
+/// Target the moment at 90% of the chart so the inverse lookup covers most
+/// events (reflecting the worst case per frame late in play).
 fn bench_timing_track_duration_to_tick(c: &mut Criterion) {
     let mut group = c.benchmark_group("duration_to_tick / timing_track [O(log n)]");
     for &n in &[500usize, 2000, 8000] {
@@ -119,7 +120,7 @@ fn bench_timing_track_duration_to_tick(c: &mut Criterion) {
     group.finish();
 }
 
-/// 基准：`TimingTrack::tick_to_duration`（`O(log n)` 二分）。
+/// Benchmark: `TimingTrack::tick_to_duration` (`O(log n)` binary search).
 fn bench_timing_cache_tick_to_duration(c: &mut Criterion) {
     let mut group = c.benchmark_group("tick_to_duration / timing_track [O(log n)]");
     for &n in &[500usize, 2000, 8000] {
@@ -133,9 +134,10 @@ fn bench_timing_cache_tick_to_duration(c: &mut Criterion) {
     group.finish();
 }
 
-/// 基准：`Player::advance`（播放循环每帧调用）。
+/// Benchmark: `Player::advance` (called every frame by the playback loop).
 ///
-/// 预先将 player seek 到谱面 90% 处，测量后期游玩中每帧的最坏情况。
+/// Seeks the player to 90% of the chart first, measuring the worst case per frame
+/// late in play.
 fn bench_player_advance(c: &mut Criterion) {
     let mut group = c.benchmark_group("player::advance (per-frame)");
     for &n in &[500usize, 2000, 8000] {
@@ -151,14 +153,15 @@ fn bench_player_advance(c: &mut Criterion) {
     group.finish();
 }
 
-/// 构建一个 BGM 远多于 Note 的高密度谱面（模拟真实 BMS：每个按键音都是 BGM）。
+/// Build a dense chart with far more BGM than notes (simulating real BMS, where
+/// every key sound is also BGM).
 ///
-/// `bgm_per_beat` 控制每拍的 BGM 数。用于量化 AOS 下从含大量 BGM 的
-/// 时间窗过滤 Note 事件的成本。
+/// `bgm_per_beat` controls the BGM count per beat. Used to quantify the cost of
+/// filtering Note events out of a window containing many BGM events under AOS.
 fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
     let mut events = Vec::with_capacity(n_notes * (1 + bgm_per_beat) + 4);
 
-    // 每拍一个 Note。
+    // One Note per beat.
     for i in 0..n_notes {
         let tick = (i as u64) * RESOLUTION;
         events.push(Event::new(
@@ -174,7 +177,7 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         ));
     }
 
-    // 每拍 bgm_per_beat 个 BGM（均布于拍内）。
+    // `bgm_per_beat` BGM events per beat (evenly distributed within the beat).
     for i in 0..n_notes {
         let beat_start = (i as u64) * RESOLUTION;
         for j in 0..bgm_per_beat {
@@ -203,14 +206,16 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
     }
 }
 
-/// 基准：`Player::events_in_range` / `notes_in_range`（渲染层每帧查询）。
+/// Benchmark: `Player::events_in_range` / `notes_in_range` (per-frame renderer
+/// queries).
 ///
-/// 量化 AOS（当前统一 `Vec<Event>`）下，从含大量 BGM 的时间窗中
-/// 过滤 Note 事件的实际成本，为是否需要 AOS→SOA 分桶提供数据。
+/// Quantifies the real cost of filtering Note events out of a window containing
+/// many BGM events under AOS (the current unified `Vec<Event>`), providing data
+/// for deciding whether AOS-to-SOA bucketing is needed.
 fn bench_player_events_in_range(c: &mut Criterion) {
     let mut group = c.benchmark_group("player::events_in_range");
     for &n in &[2000usize, 8000] {
-        // 标准谱面（无 BGM）。
+        // Standard chart (no BGM).
         let chart = build_chart(n);
         let mid_tick = chart.data.last_tick() / 2;
         let seek_target = chart.data.timing.tick_to_duration(mid_tick);
@@ -230,8 +235,9 @@ fn bench_player_events_in_range(c: &mut Criterion) {
         });
     }
 
-    // BGM 密集场景：每拍 10 个 BGM（Note:BGM = 1:10），模拟真实 BMS。
-    // 固定 2000 个 Note，窗口内含约 20 Note + 200 BGM。
+    // BGM-dense scenario: 10 BGM events per beat (Note:BGM = 1:10), simulating
+    // real BMS. Fixed 2000 notes; the window contains about 20 notes and 200 BGM
+    // events.
     let chart = build_dense_chart(2000, 10);
     let mid_tick = chart.data.last_tick() / 2;
     let seek_target = chart.data.timing.tick_to_duration(mid_tick);

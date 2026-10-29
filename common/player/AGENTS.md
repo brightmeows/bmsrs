@@ -1,54 +1,57 @@
 # bmsrs-player
 
-## 定位
+## Role
 
-`Chart<T>` 的纯仿真层。提供基于时间的查询接口，用于游戏渲染和调度。
+Pure simulation layer for `Chart<T>`. Provides time-based query APIs for game
+rendering and scheduling.
 
-**无 I/O、渲染、判定、计分。**
+**No I/O, rendering, judging, or scoring.**
 
-## 时间 API
+## Time API
 
-所有公开时间参数使用 `Duration`：
+Every public time parameter uses `Duration`:
 
-| 方法 | 作用 |
-|------|------|
-| `Player::new(chart)` | 先排序事件再校验 `ChartData`，返回 `Result` |
-| `advance(Duration)` | 纯累加播放时间（O(1)），脉冲按需派生 |
-| `seek(Duration)` | 跳到指定位置 |
-| `current_time() -> Duration` | 当前播放位置（状态本身）|
-| `current_tick() -> u64` | 当前脉冲位置（从时间派生，O(log n)）|
+| Method | Purpose |
+|--------|---------|
+| `Player::new(chart)` | sorts events, then validates `ChartData`; returns `Result` |
+| `advance(Duration)` | pure playback-time accumulation (O(1)); ticks derived on demand |
+| `seek(Duration)` | jump to a given position |
+| `current_time() -> Duration` | current playback position (the state itself) |
+| `current_tick() -> u64` | current tick position (derived from time, O(log n)) |
 
-## 查询
+## Queries
 
-| 查询类型 | 作用 |
-|----------|------|
-| 音符 | `events_in_range` + 调用方 kind 过滤；`notes_for_judgement` 预置判定相关过滤（Normal/Long）|
-| BGM/音频 | 时间轴上的音频触发 |
-| BGA（三层） | Base / Layer / Layer2 动画事件 |
-| 视觉效果 | Bar line、scroll/speed 变化 |
+| Query type | Purpose |
+|------------|---------|
+| Notes | `events_in_range` plus caller-side kind filtering; `notes_for_judgement` applies the judgment-relevant filter (Normal/Long) |
+| BGM/audio | audio triggers on the timeline |
+| BGA (three layers) | Base / Layer / Layer2 animation events |
+| Visual effects | bar lines, scroll/speed changes |
 
-见 `Player` impl 块。
+See the `Player` impl block.
 
-## 非显而易见的规则
+## Non-obvious rules
 
-| 规则 | 说明 |
-|------|------|
-| Duration 是唯一时间接口 | 外部不暴露 tick，转换在内部 |
-| 播放器无判定 | 判定逻辑由上层（渲染器/UI）实现 |
-| 时间驱动状态机 | `current_time` 是唯一状态字段；`current_tick()` 每次派生。停止段内多个时刻对应同一脉冲，`tick → time` 不单射——以 tick 为状态会让帧步进的小步 `advance` 永久卡在 stop 内 |
-| STOP 期间语义 | `current_tick()` 停住；`current_time()` 继续流逝。需“暂停前”时刻语义时用 `current_tick` 经 `tick_to_duration` 换算 |
+| Rule | Explanation |
+|------|-------------|
+| Duration is the only time interface | ticks are not exposed externally; conversion happens inside |
+| The player does not judge | judging logic belongs to the upper layer (renderer/UI) |
+| Time-driven state machine | `current_time` is the only state field; `current_tick()` is derived every time. Many instants inside a stop map to the same tick, so `tick` to `time` is not injective; using ticks as state would make small per-frame `advance` steps get stuck inside a stop forever |
+| Semantics during STOP | `current_tick()` freezes; `current_time()` keeps flowing. For "before the pause" semantics, convert `current_tick` through `tick_to_duration` |
 
-## 性能基准
+## Performance benchmarks
 
-热路径基准（`benches/player.rs`）量化播放循环每帧调用的耗时，
-为计时查询与查询路径的复杂度优化提供数据支撑。
+The hot-path benchmarks (`benches/player.rs`) quantify the per-frame cost of the
+playback loop, providing data for optimizing timing queries and query paths.
 
 ```bash
-cargo bench -p bmsrs-player --bench player -- --quick  # 快速估算
+cargo bench -p bmsrs-player --bench player -- --quick  # quick estimate
 ```
 
-覆盖 `duration_to_tick`、`tick_to_duration`、`advance`、`events_in_range`。
+Coverage: `duration_to_tick`, `tick_to_duration`, `advance`, and
+`events_in_range`.
 
-> **性能相关变更必须用基准验证**，不要凭 big-O 推理下结论——
-> O(log² n) 的大常数因子在典型谱面上可能比 O(n) 更慢，
-> 唯有实测能区分。
+> **Performance-related changes must be verified with benchmarks**; do not
+> conclude from big-O reasoning. A large constant factor in O(log^2 n) can be
+> slower than O(n) on typical charts, and only measurement can tell the
+> difference.

@@ -1,9 +1,10 @@
-//! 音乐游戏谱面的纯仿真层。
+//! Pure simulation layer for music game charts.
 //!
-//! [`Player<T, C>`] 包装一个 [`Chart<T, C>`]，提供基于时间的查询接口，
-//! 供游戏渲染与调度使用。它是纯仿真层，无 I/O、渲染、判定或计分。
+//! [`Player<T, C>`] wraps a [`Chart<T, C>`] and provides a time-based query
+//! interface for game rendering and scheduling. It is a pure simulation layer
+//! with no I/O, rendering, judging, or scoring.
 //!
-//! # 用法
+//! # Usage
 //!
 //! ```
 //! use std::num::NonZeroU8;
@@ -62,38 +63,43 @@ use bmsrs_chart::{
 use crate::scroll_cache::ScrollCache;
 use crate::speed_cache::SpeedCache;
 
-/// 跟踪 [`Chart`] 播放进度的有状态仿真器。
+/// Stateful simulator that tracks playback progress through a [`Chart`].
 ///
-/// 播放器维护当前播放时间（实际时间），提供对给定范围内音符、BGM 与
-/// 视觉事件的查询。脉冲位置按需从播放时间派生；所有时间推进均以实际
-/// 时间 [`Duration`] 表示。
+/// The player keeps the current playback time (wall-clock time) and provides
+/// queries for notes, BGM, and visual events in a given range. Tick positions
+/// are derived from playback time on demand; all time advancement is expressed
+/// as wall-clock [`Duration`].
 ///
-/// 时间驱动的原因：停止（STOP）段内多个时刻对应同一脉冲，`tick → time`
-/// 不再单射——以脉冲为状态会让帧循环的小步 `advance` 永久卡在停止段
-/// 内。以时间为状态、脉冲为派生量后，`advance` 是纯累加，任何步长都能
-/// 穿过停止段。
+/// Why time-driven: many instants inside a STOP segment map to the same tick, so
+/// `tick` to `time` is no longer injective; using ticks as state would make
+/// small per-frame `advance` steps get stuck inside a stop forever. With time as
+/// state and ticks as a derived value, `advance` is pure accumulation, and any
+/// step size can cross a stop segment.
 ///
-/// 播放器是纯仿真层：无音频播放、渲染、输入处理、判定或计分。
+/// The player is a pure simulation layer: no audio playback, rendering, input
+/// handling, judging, or scoring.
 pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// 正在播放的谱面。
+    /// Chart being played.
     chart: Chart<T, C>,
-    /// 预计算的滚动速度缓存，用于 O(log n) 查询。
+    /// Precomputed scroll speed cache for O(log n) queries.
     scroll_cache: ScrollCache,
-    /// 预计算的 SPEED 间距插值缓存。
+    /// Precomputed SPEED spacing interpolation cache.
     speed_cache: SpeedCache,
-    /// 当前播放时间（唯一状态字段；脉冲位置按需派生）。
+    /// Current playback time (the only state field; tick positions are derived
+    /// on demand).
     current_time: Duration,
 }
 
 impl<T: NoteExt, C: CustomEvent> Player<T, C> {
-    /// 由谱面创建一个新播放器，从脉冲 0 开始。
+    /// Create a new player from a chart, starting at tick 0.
     ///
-    /// 内部自动校验谱面数据并排序事件——调用方无需预处理。
+    /// Validates the chart data and sorts events internally; callers need no
+    /// preprocessing.
     ///
     /// # Errors
     ///
-    /// 若谱面不合法（`ChartData` 不变量或 BGA 资源引用越界），
-    /// 返回 [`ChartDataError`]。
+    /// Returns [`ChartDataError`] when the chart is invalid (a `ChartData`
+    /// invariant fails or a BGA resource reference is out of range).
     pub fn new(mut chart: Chart<T, C>) -> Result<Self, ChartDataError> {
         chart.data.sort_events();
         chart.validate()?;
@@ -108,93 +114,95 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         })
     }
 
-    // 时间控制
+    // Time control
 
-    /// 按实际时间增量 `delta` 推进播放。
+    /// Advance playback by a wall-clock delta.
     ///
-    /// 播放时间纯累加 `delta`（O(1)，溢出钳位到 [`Duration::MAX`]）；
-    /// 脉冲位置在 [`Self::current_tick`] 处按需派生。停止（STOP）期间
-    /// 脉冲不推进，但播放时间继续流逝。帧循环中小步 `advance` 可以
-    /// 穿过停止段——无需单步跨过整个停止时长。
+    /// Playback time accumulates `delta` directly (O(1); overflow clamps to
+    /// [`Duration::MAX`]); tick positions are derived on demand in
+    /// [`Self::current_tick`]. During a STOP, ticks do not advance but playback
+    /// time keeps flowing. Small per-frame `advance` steps can cross a stop
+    /// segment without needing a single step over the whole stop duration.
     pub const fn advance(&mut self, delta: Duration) {
         self.current_time = self.current_time.saturating_add(delta);
     }
 
-    /// 跳转到指定的绝对实际时间。
+    /// Seek to an absolute wall-clock time.
     pub const fn seek(&mut self, target: Duration) {
         self.current_time = target;
     }
 
-    /// 将播放重置到脉冲 0。
+    /// Reset playback to tick 0.
     pub const fn reset(&mut self) {
         self.current_time = Duration::ZERO;
     }
 
-    // 时间查询
+    // Time queries
 
-    /// 当前播放位置（脉冲）。
+    /// Current playback position in ticks.
     ///
-    /// 从当前播放时间派生（O(log n) 二分）。停止期间本值停住，而
-    /// [`Self::current_time`] 继续流逝。
+    /// Derived from the current playback time (O(log n) binary search). This
+    /// value stops during a stop while [`Self::current_time`] keeps flowing.
     #[must_use]
     pub fn current_tick(&self) -> u64 {
         self.chart.data.timing.duration_to_tick(self.current_time)
     }
 
-    /// 以实际时间 [`Duration`] 表示的当前播放位置。
+    /// Current playback position as wall-clock [`Duration`].
     ///
-    /// 停止期间本值继续流逝（与脉冲位置解耦）；如需“暂停前”的时刻
-    /// 语义，用 [`Self::current_tick`] 经
-    /// [`Self::tick_to_duration`](Self::tick_to_duration) 换算。
+    /// This value keeps flowing during a stop (decoupled from tick position); for
+    /// "before the pause" semantics, convert [`Self::current_tick`] through
+    /// [`Self::tick_to_duration`](Self::tick_to_duration).
     #[must_use]
     pub const fn current_time(&self) -> Duration {
         self.current_time
     }
 
-    /// 将脉冲位置换算为实际时间 [`Duration`]。
+    /// Convert a tick position into wall-clock [`Duration`].
     ///
-    /// 委托给
-    /// [`TimingTrack::tick_to_duration`](bmsrs_chart::TimingTrack::tick_to_duration)。
-    /// 内部使用 O(log n) 二分查找。
+    /// Delegates to
+    /// [`TimingTrack::tick_to_duration`](bmsrs_chart::TimingTrack::tick_to_duration).
+    /// Uses an O(log n) binary search internally.
     #[must_use]
     pub fn tick_to_duration(&self, tick: u64) -> Duration {
         self.chart.data.timing.tick_to_duration(tick)
     }
 
-    /// 将实际时间 [`Duration`] 换算为最接近的脉冲位置。
+    /// Convert wall-clock [`Duration`] into the nearest tick position.
     ///
-    /// 委托给
-    /// [`TimingTrack::duration_to_tick`](bmsrs_chart::TimingTrack::duration_to_tick)。
-    /// 内部使用 O(log n) 二分查找。
+    /// Delegates to
+    /// [`TimingTrack::duration_to_tick`](bmsrs_chart::TimingTrack::duration_to_tick).
+    /// Uses an O(log n) binary search internally.
     #[must_use]
     pub fn duration_to_tick(&self, duration: Duration) -> u64 {
         self.chart.data.timing.duration_to_tick(duration)
     }
 
-    /// 谱面总时长。
+    /// Total chart duration.
     #[must_use]
     pub fn duration(&self) -> Duration {
         self.chart.data.duration()
     }
 
-    /// 播放位置处的当前 BPM。
+    /// Current BPM at the playback position.
     #[must_use]
     pub fn current_bpm(&self) -> f64 {
         self.chart.data.timing.bpm_at_tick(self.current_tick())
     }
 
-    // 事件查询
+    // Event queries
 
-    /// 计算可见时间窗口对应的脉冲范围。
+    /// Compute the tick range corresponding to a visible time window.
     ///
-    /// `reaction` 为判定线下方的可见历史时长，`lookahead` 为判定线上方的
-    /// 预见未来时长。返回 `(start_tick, end_tick)`，可直接传给
-    /// [`events_in_range`](Self::events_in_range)。
+    /// `reaction` is the visible history duration below the judgment line, and
+    /// `lookahead` is the preview duration above it. Returns
+    /// `(start_tick, end_tick)`, which can be passed directly to
+    /// [`events_in_range`](Self::events_in_range).
     ///
-    /// 内部执行两次
+    /// Performs two
     /// [`TimingTrack::duration_to_tick`](bmsrs_chart::TimingTrack::duration_to_tick)
-    /// （O(log n)），
-    /// 封装了 `current_time ± duration → tick` 的换算逻辑。
+    /// calls (O(log n)), encapsulating the `current_time +/- duration` to tick
+    /// conversion.
     #[must_use]
     pub fn visible_tick_range(&self, reaction: Duration, lookahead: Duration) -> (u64, u64) {
         let current = self.current_time();
@@ -204,9 +212,9 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         (timing.duration_to_tick(start), timing.duration_to_tick(end))
     }
 
-    /// 返回 `range` 范围内的全部事件。
+    /// Return all events in `range`.
     ///
-    /// 事件按脉冲升序排列（由谱面保证）。
+    /// Events are sorted ascending by tick (guaranteed by the chart).
     #[expect(
         clippy::indexing_slicing,
         reason = "indices from partition_point on same vector"
@@ -217,7 +225,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         &self.chart.data.events[start..end]
     }
 
-    /// 返回 `range` 范围内 Note 事件的迭代器。
+    /// Return an iterator over Note events in `range`.
     pub fn notes_in_range(
         &self,
         range: impl RangeBounds<u64>,
@@ -227,10 +235,10 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             .filter(|e| matches!(e.kind, EventKind::Note { .. }))
     }
 
-    /// 返回 `range` 范围内与判定相关的 Note 事件的迭代器。
+    /// Return an iterator over judgment-relevant Note events in `range`.
     ///
-    /// 与判定相关的音符为普通音符与长音（不含不可见音符与地雷，
-    /// 它们的处理方式不同）。
+    /// Judgment-relevant notes are normal notes and long notes (excluding
+    /// invisible notes and mines, which are handled differently).
     pub fn notes_for_judgement(
         &self,
         range: impl RangeBounds<u64>,
@@ -246,67 +254,68 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         })
     }
 
-    /// 返回音频素材表。
+    /// Return the audio asset table.
     #[must_use]
     pub fn audio_assets(&self) -> &[AudioAsset] {
         &self.chart.data.audio_assets
     }
 
-    // 视觉查询
+    // Visual queries
 
-    /// 返回 `tick` 处的滚动速度倍率。
+    /// Return the scroll speed multiplier at `tick`.
     ///
-    /// 若同一脉冲上存在多个滚动事件，取最后一个生效。
-    /// 若此前未发生任何滚动事件，返回 `1.0`。
+    /// When several scroll events share a tick, the last one wins. When no
+    /// scroll event has occurred yet, returns `1.0`.
     ///
-    /// 使用预计算的滚动速度缓存，查询复杂度为 O(log n)。
+    /// Uses the precomputed scroll speed cache; query complexity is O(log n).
     #[must_use]
     pub fn scroll_rate_at(&self, tick: u64) -> f64 {
         self.scroll_cache.rate_at(tick)
     }
 
-    /// 返回 `tick` 处的累积滚动位置（以节拍为单位）。
+    /// Return the cumulative scroll position at `tick`, in beats.
     ///
-    /// 位置 = 滚动速度对时间的积分。默认无 SCROLL 事件时，
-    /// 位置 = `tick / resolution`（标准节拍对齐）。
+    /// Position is the integral of scroll speed over time. With no SCROLL events,
+    /// position is `tick / resolution` (standard beat alignment).
     #[must_use]
     pub fn scroll_position_at(&self, tick: u64) -> f64 {
         self.scroll_cache.position_at(tick)
     }
 
-    /// 返回 `tick` 处的 SPEED 插值间距倍率。
+    /// Return the interpolated SPEED spacing multiplier at `tick`.
     ///
-    /// 在相邻 `EventKind::Speed` 关键帧之间执行线性插值。
-    /// 首个关键帧之前 → `1.0`；最后一个之后 → 最后一个关键帧的值。
+    /// Performs linear interpolation between adjacent `EventKind::Speed`
+    /// keyframes. Before the first keyframe it is `1.0`; after the last it is the
+    /// last keyframe's value.
     #[must_use]
     pub fn spacing_at(&self, tick: u64) -> f64 {
         self.speed_cache.spacing_at(tick)
     }
 
-    /// 返回 BGA 资源。
+    /// Return the BGA resources.
     #[must_use]
     pub fn bga_resources(&self) -> &[BgaResource] {
         &self.chart.chart.bga_resources
     }
 
-    // 谱面访问
+    // Chart access
 
-    /// 借用底层谱面。
+    /// Borrow the underlying chart.
     #[must_use]
     pub const fn chart(&self) -> &Chart<T, C> {
         &self.chart
     }
 
-    /// 消费播放器并返回谱面。
+    /// Consume the player and return the chart.
     #[must_use]
     pub fn into_chart(self) -> Chart<T, C> {
         self.chart
     }
 
-    // 私有辅助
+    // Private helpers
 
-    /// 将 [`RangeBounds<u64>`] 映射为 `self.chart.data.events` 中的
-    /// `(起始下标, 结束下标)`。
+    /// Map [`RangeBounds<u64>`] to `(start index, end index)` in
+    /// `self.chart.data.events`.
     fn event_range_indices(&self, range: impl RangeBounds<u64>) -> (usize, usize) {
         let start_tick = match range.start_bound() {
             Bound::Included(t) => *t,
