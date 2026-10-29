@@ -1,108 +1,108 @@
-//! CST 的 token 与节点种类。
+//! Token and node kinds for the CST.
 
-/// BMS CST 的 token 与节点种类。
+/// Token and node kinds for the BMS CST.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u16)]
 pub enum SyntaxKind {
-    /// 空白。
+    /// Whitespace.
     Whitespace,
-    /// 行终止符。
+    /// Line terminator.
     Newline,
-    /// 注释。
+    /// Comment.
     Comment,
-    /// `#` 前缀。
+    /// `#` prefix.
     Hash,
-    /// `%` 前缀。
+    /// `%` prefix.
     Percent,
-    /// 头部命令名。
+    /// Header command name.
     CommandName,
-    /// 头部命令值。
+    /// Header command value.
     Value,
-    /// 小节号。
+    /// Measure number.
     Measure,
-    /// 通道号。
+    /// Channel number.
     Channel,
-    /// 通道行冒号。
+    /// Channel line colon.
     Colon,
-    /// 通道体中的两字符值。
+    /// Two-character value in a channel body.
     BodyChunk,
-    /// 普通文本。
+    /// Plain text.
     Text,
-    /// 无法归类的字符。
+    /// A character that could not be classified.
     ErrorToken,
 
-    /// 文档根节点。
+    /// Document root node.
     SourceFile,
-    /// 头部命令行。
+    /// Header command line.
     HeaderLine,
-    /// 通道数据行。
+    /// Channel data line.
     MessageLine,
-    /// 注释行。
+    /// Comment line.
     CommentLine,
-    /// 空白行。
+    /// Blank line.
     BlankLine,
-    /// 普通文本行。
+    /// Plain text line.
     TextLine,
-    /// 解析失败的行。
+    /// A line that failed to parse.
     ErrorLine,
-    /// 头部命令节点。
+    /// Header command node.
     HeaderCommand,
-    /// 头部值节点。
+    /// Header value node.
     HeaderValue,
-    /// 通道行头节点。
+    /// Channel line header node.
     MessageHeader,
-    /// 通道体节点。
+    /// Channel body node.
     MessageBody,
 
-    /// `#RANDOM` 块。
+    /// `#RANDOM` block.
     RandomBlock,
-    /// `#IF` 互斥链。
+    /// `#IF` mutually exclusive chain.
     RandomChain,
-    /// 互斥链中的单个分支。
+    /// A single branch in a mutually exclusive chain.
     RandomBranch,
-    /// `#RANDOM` / `#SETRANDOM` 指令。
+    /// `#RANDOM` / `#SETRANDOM` directive.
     RandomDirective,
-    /// `#IF` 指令。
+    /// `#IF` directive.
     IfDirective,
-    /// `#ELSEIF` 指令。
+    /// `#ELSEIF` directive.
     ElseIfDirective,
-    /// `#ELSE` 指令。
+    /// `#ELSE` directive.
     ElseDirective,
-    /// `#ENDIF` 指令。
+    /// `#ENDIF` directive.
     EndIfDirective,
-    /// `#ENDRANDOM` 指令。
+    /// `#ENDRANDOM` directive.
     EndRandomDirective,
 
-    /// `#SWITCH` 块。
+    /// `#SWITCH` block.
     SwitchBlock,
-    /// `#SWITCH` 的单个 case。
+    /// A single `#SWITCH` case.
     SwitchCase,
-    /// `#SWITCH` / `#SETSWITCH` 指令。
+    /// `#SWITCH` / `#SETSWITCH` directive.
     SwitchDirective,
-    /// `#CASE` 指令。
+    /// `#CASE` directive.
     CaseDirective,
-    /// `#SKIP` 指令。
+    /// `#SKIP` directive.
     SkipDirective,
-    /// `#DEF` 指令。
+    /// `#DEF` directive.
     DefDirective,
-    /// `#ENDSW` 指令。
+    /// `#ENDSW` directive.
     EndSwDirective,
 
-    /// 通用错误节点。
+    /// Generic error node.
     ErrorNode,
-    /// 自定义头部前缀（非 `#` / `%`）。
+    /// Custom header prefix (neither `#` nor `%`).
     Prefix,
-    /// 未知种类，仅用于 `kind_from_raw` 的兜底。
+    /// Unknown kind; only used as the fallback in `kind_from_raw`.
     Unknown,
 }
 
 impl SyntaxKind {
-    /// 转换为 rowan 的原始种类。
+    /// Convert to a rowan raw kind.
     pub(crate) const fn raw(self) -> rowan::SyntaxKind {
         rowan::SyntaxKind(self as u16)
     }
 
-    /// 从 rowan 原始种类还原。
+    /// Reconstruct from a rowan raw kind.
     pub(crate) const fn from_raw(raw: rowan::SyntaxKind) -> Self {
         match raw.0 {
             0 => Self::Whitespace,
@@ -151,13 +151,13 @@ impl SyntaxKind {
         }
     }
 
-    /// 是否是 trivia。
+    /// Return whether this kind is trivia.
     #[must_use]
     pub const fn is_trivia(self) -> bool {
         matches!(self, Self::Whitespace | Self::Comment | Self::Newline)
     }
 
-    /// 是否是控制流指令节点。
+    /// Return whether this is a control-flow directive node.
     #[must_use]
     pub const fn is_directive(self) -> bool {
         matches!(

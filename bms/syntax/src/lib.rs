@@ -1,14 +1,17 @@
-//! BMS 语法层。
+//! BMS syntax layer.
 //!
-//! 本 crate 在解码后的文本上构建 rowan CST：
+//! This crate builds a rowan CST over decoded text:
 //!
-//! - **无损**：所有字符都进入 token，`SyntaxNode::text()` 可以还原输入。
-//! - **容错**：非法行与控制流结构错误不中断解析，错误以诊断和
-//!   `ErrorLine` / `ErrorNode` 表示。
-//! - **控制流嵌套**：`#RANDOM` / `#SWITCH` 块成为 CST 节点，分支选择由
-//!   后续查询完成。
+//! - **Lossless**: every character enters a token, so `SyntaxNode::text()` can
+//!   reconstruct the input.
+//! - **Error-tolerant**: invalid lines and malformed control flow do not stop
+//!   parsing; errors are reported as diagnostics and as `ErrorLine` /
+//!   `ErrorNode`.
+//! - **Nested control flow**: `#RANDOM` / `#SWITCH` blocks become CST nodes;
+//!   branch selection is performed by later queries.
 //!
-//! 语义值（`BmsHeader` / `BmsMessage`）与 `Bms` 模型由 `bmsrs-bms-parser` 负责。
+//! Semantic values (`BmsHeader` / `BmsMessage`) and the `Bms` model belong to
+//! `bmsrs-bms-parser`.
 
 mod ast;
 mod language;
@@ -25,10 +28,10 @@ pub use rowan::{TextRange, TextSize};
 pub use select::{BlockDecision, BranchSelection};
 pub use syntax_kind::SyntaxKind;
 
-/// 语法解析选项。
+/// Syntax parsing options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseOptions {
-    /// 允许的头部命令前缀字符；默认 `['#', '%']`。
+    /// Allowed header command prefix characters; defaults to `['#', '%']`.
     pub header_prefixes: Vec<char>,
 }
 

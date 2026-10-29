@@ -1,33 +1,33 @@
-//! CST 的类型化包装。
+//! Typed wrappers over the CST.
 
 use rowan::{TextRange, TextSize};
 
 use crate::{LineKind, Parse, ParseOptions, SyntaxKind, SyntaxNode, SyntaxToken};
 
-/// 文档根节点。
+/// Document root node.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceFile(pub(crate) SyntaxNode);
 
 impl SourceFile {
-    /// 解析文本并返回 CST。
+    /// Parse text and return the CST.
     #[must_use]
     pub fn parse(text: &str) -> Parse {
         Self::parse_with(text, &ParseOptions::default())
     }
 
-    /// 使用选项解析文本。
+    /// Parse text with options.
     #[must_use]
     pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
         crate::parser::parse_with(text, options)
     }
 
-    /// 从无损文档解析。
+    /// Parse from a lossless document.
     #[must_use]
     pub fn parse_document(document: &bmsrs_bms_source::Document) -> Parse {
         Self::parse(&document.to_text())
     }
 
-    /// 从无损文档按选项解析。
+    /// Parse from a lossless document with options.
     #[must_use]
     pub fn parse_document_with(
         document: &bmsrs_bms_source::Document,
@@ -36,36 +36,37 @@ impl SourceFile {
         Self::parse_with(&document.to_text(), options)
     }
 
-    /// 把节点包装为文档根；种类不匹配时返回 `None`。
+    /// Wrap a node as the document root; returns `None` when the kind does not
+    /// match.
     #[must_use]
     pub fn cast(node: SyntaxNode) -> Option<Self> {
         (node.kind() == SyntaxKind::SourceFile).then_some(Self(node))
     }
 
-    /// 返回底层节点。
+    /// Return the underlying node.
     #[must_use]
     pub const fn syntax(&self) -> &SyntaxNode {
         &self.0
     }
 
-    /// 深度优先迭代所有行。
+    /// Iterate over all lines depth-first.
     pub fn lines(&self) -> impl Iterator<Item = Line> {
         self.0.descendants().filter_map(Line::cast)
     }
 
-    /// 返回指定偏移处的 token。
+    /// Return the token at the given offset.
     #[must_use]
     pub fn token_at_offset(&self, offset: TextSize) -> Option<SyntaxToken> {
         self.0.token_at_offset(offset).right_biased()
     }
 }
 
-/// 一行（或控制流指令行）。
+/// A line (or control-flow directive line).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Line(SyntaxNode);
 
 impl Line {
-    /// 把节点包装为行；种类不匹配时返回 `None`。
+    /// Wrap a node as a line; returns `None` when the kind does not match.
     #[must_use]
     pub fn cast(node: SyntaxNode) -> Option<Self> {
         let is_line = matches!(
@@ -91,19 +92,19 @@ impl Line {
         is_line.then_some(Self(node))
     }
 
-    /// 返回底层节点。
+    /// Return the underlying node.
     #[must_use]
     pub const fn syntax(&self) -> &SyntaxNode {
         &self.0
     }
 
-    /// 返回节点文本范围。
+    /// Return the node's text range.
     #[must_use]
     pub fn range(&self) -> TextRange {
         self.0.text_range()
     }
 
-    /// 返回行分类。
+    /// Return the line classification.
     #[must_use]
     pub fn kind(&self) -> LineKind {
         match self.0.kind() {
@@ -116,7 +117,7 @@ impl Line {
         }
     }
 
-    /// 是否是控制流指令行。
+    /// Return whether this is a control-flow directive line.
     #[must_use]
     pub fn is_directive(&self) -> bool {
         matches!(
@@ -135,31 +136,31 @@ impl Line {
         )
     }
 
-    /// 返回头部命令名。
+    /// Return the header command name.
     #[must_use]
     pub fn command_name(&self) -> Option<SyntaxToken> {
         self.token(SyntaxKind::CommandName)
     }
 
-    /// 返回头部命令值。
+    /// Return the header command value.
     #[must_use]
     pub fn value(&self) -> Option<SyntaxToken> {
         self.token(SyntaxKind::Value)
     }
 
-    /// 返回小节号。
+    /// Return the measure number.
     #[must_use]
     pub fn measure(&self) -> Option<SyntaxToken> {
         self.token(SyntaxKind::Measure)
     }
 
-    /// 返回通道号。
+    /// Return the channel number.
     #[must_use]
     pub fn channel(&self) -> Option<SyntaxToken> {
         self.token(SyntaxKind::Channel)
     }
 
-    /// 迭代通道体的 chunk。
+    /// Iterate over the chunks of the channel body.
     pub fn body_chunks(&self) -> impl Iterator<Item = SyntaxToken> {
         self.0
             .children_with_tokens()
@@ -167,9 +168,10 @@ impl Line {
             .filter(|token| token.kind() == SyntaxKind::BodyChunk)
     }
 
-    /// 返回去掉前后 trivia 后的内容文本。
+    /// Return the content text with leading and trailing trivia removed.
     ///
-    /// 行内空白（命令与值之间）会保留，前后空白、注释与行终止符被去掉。
+    /// Inline whitespace between a command and its value is preserved; leading
+    /// and trailing whitespace, comments, and the line terminator are removed.
     #[must_use]
     pub fn content_text(&self) -> Option<String> {
         let tokens: Vec<_> = self
@@ -188,7 +190,7 @@ impl Line {
         )
     }
 
-    /// 返回指定种类的直接子 token。
+    /// Return the direct child token of the given kind.
     fn token(&self, kind: SyntaxKind) -> Option<SyntaxToken> {
         self.0
             .children_with_tokens()

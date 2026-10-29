@@ -1,4 +1,4 @@
-//! CST 解析测试。
+//! CST parsing tests.
 
 use bmsrs_bms_syntax::{LineKind, ParseOptions, SourceFile, SyntaxKind};
 

@@ -1,8 +1,8 @@
-//! 控制流选择测试。
+//! Control-flow selection tests.
 
 use bmsrs_bms_syntax::{Line, SourceFile};
 
-/// 提取选中行的 `#TITLE` 值。
+/// Extract the `#TITLE` values from the selected lines.
 fn titles(lines: &[Line]) -> Vec<String> {
     lines
         .iter()

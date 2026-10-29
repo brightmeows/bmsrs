@@ -1,4 +1,4 @@
-//! 容错解析：把行 token 组装为 rowan CST。
+//! Error-tolerant parsing: assemble line tokens into a rowan CST.
 
 use rowan::{GreenNode, GreenNodeBuilder, TextRange, TextSize};
 
@@ -6,28 +6,28 @@ use crate::ast::SourceFile;
 use crate::lexer::{LineData, LineKind, lex};
 use crate::{ParseOptions, SyntaxKind};
 
-/// 诊断类别。
+/// Diagnostic category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticKind {
-    /// 语法错误。
+    /// Syntax error.
     Syntax,
-    /// 控制流结构错误。
+    /// Control-flow structure error.
     ControlFlow,
 }
 
-/// 一条解析诊断。
+/// A parse diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    /// 文本范围。
+    /// Text range.
     range: TextRange,
-    /// 诊断消息。
+    /// Diagnostic message.
     message: String,
-    /// 诊断类别。
+    /// Diagnostic category.
     kind: DiagnosticKind,
 }
 
 impl Diagnostic {
-    /// 构造诊断。
+    /// Construct a diagnostic.
     fn new(range: TextRange, message: impl Into<String>, kind: DiagnosticKind) -> Self {
         Self {
             range,
@@ -36,115 +36,115 @@ impl Diagnostic {
         }
     }
 
-    /// 返回文本范围。
+    /// Return the text range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
 
-    /// 返回诊断消息。
+    /// Return the diagnostic message.
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
     }
 
-    /// 返回诊断类别。
+    /// Return the diagnostic category.
     #[must_use]
     pub const fn kind(&self) -> DiagnosticKind {
         self.kind
     }
 }
 
-/// 一次解析的结果。
+/// The result of one parse.
 #[derive(Debug, Clone)]
 pub struct Parse {
-    /// 绿色树。
+    /// Green tree.
     green: GreenNode,
-    /// 诊断列表。
+    /// Diagnostic list.
     errors: Vec<Diagnostic>,
 }
 
 impl Parse {
-    /// 返回文档根节点。
+    /// Return the document root node.
     #[must_use]
     pub fn source_file(&self) -> SourceFile {
         SourceFile(self.syntax())
     }
 
-    /// 返回新建的红色根节点。
+    /// Return a fresh red root node.
     #[must_use]
     pub fn syntax(&self) -> crate::SyntaxNode {
         crate::SyntaxNode::new_root(self.green.clone())
     }
 
-    /// 返回诊断列表。
+    /// Return the diagnostic list.
     #[must_use]
     pub fn errors(&self) -> &[Diagnostic] {
         &self.errors
     }
 }
 
-/// CST 条目。
+/// A CST item.
 enum Item<'a> {
-    /// 普通行。
+    /// Plain line.
     Line(LineData<'a>),
-    /// `#RANDOM` 块。
+    /// `#RANDOM` block.
     Random(RandomBlock<'a>),
-    /// `#SWITCH` 块。
+    /// `#SWITCH` block.
     Switch(SwitchBlock<'a>),
 }
 
-/// `#RANDOM` 块。
+/// A `#RANDOM` block.
 struct RandomBlock<'a> {
-    /// 块起始指令。
+    /// Block opening directive.
     directive: LineData<'a>,
-    /// 指令与分支之外的条目。
+    /// Items outside the directive and branches.
     body: Vec<Item<'a>>,
-    /// 互斥链。
+    /// Mutually exclusive chains.
     chains: Vec<RandomChain<'a>>,
-    /// `#ENDRANDOM`。
+    /// `#ENDRANDOM`.
     end: Option<LineData<'a>>,
 }
 
-/// `#IF` 互斥链。
+/// A `#IF` mutually exclusive chain.
 struct RandomChain<'a> {
-    /// 分支列表。
+    /// Branch list.
     branches: Vec<RandomBranch<'a>>,
-    /// `#ENDIF`。
+    /// `#ENDIF`.
     end: Option<LineData<'a>>,
 }
 
-/// 互斥链中的单个分支。
+/// A single branch in a mutually exclusive chain.
 struct RandomBranch<'a> {
-    /// 分支起始指令。
+    /// Branch opening directive.
     directive: LineData<'a>,
-    /// 分支内容。
+    /// Branch body.
     body: Vec<Item<'a>>,
 }
 
-/// `#SWITCH` 块。
+/// A `#SWITCH` block.
 struct SwitchBlock<'a> {
-    /// 块起始指令。
+    /// Block opening directive.
     directive: LineData<'a>,
-    /// case 之外的条目。
+    /// Items outside the cases.
     body: Vec<Item<'a>>,
-    /// case 列表。
+    /// Case list.
     cases: Vec<SwitchCase<'a>>,
-    /// `#ENDSW`。
+    /// `#ENDSW`.
     end: Option<LineData<'a>>,
 }
 
-/// `#SWITCH` 的单个 case。
+/// A single `#SWITCH` case.
 struct SwitchCase<'a> {
-    /// case 起始指令。
+    /// Case opening directive.
     directive: LineData<'a>,
-    /// case 内容。
+    /// Case body.
     body: Vec<Item<'a>>,
-    /// `#SKIP`。
+    /// `#SKIP`.
     skip: Option<LineData<'a>>,
 }
 
-/// 解析文本，构建 CST。
+/// Parse text and build the CST.
 pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
     let lines = lex(text, options);
     let mut errors = Vec::new();
@@ -162,7 +162,7 @@ pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
     }
 }
 
-/// 收集词法层的错误行。
+/// Collect error lines from the lexer.
 fn collect_lex_errors(lines: &[LineData<'_>], errors: &mut Vec<Diagnostic>) {
     for line in lines {
         if line.kind == LineKind::Error {
@@ -183,7 +183,7 @@ fn collect_lex_errors(lines: &[LineData<'_>], errors: &mut Vec<Diagnostic>) {
     }
 }
 
-/// 解析一段行范围。
+/// Parse a range of lines.
 fn parse_items<'a>(
     lines: &[LineData<'a>],
     start: usize,
@@ -200,7 +200,7 @@ fn parse_items<'a>(
     items
 }
 
-/// 解析单个条目。
+/// Parse one item.
 fn parse_item<'a>(
     lines: &[LineData<'a>],
     index: usize,
@@ -229,7 +229,7 @@ fn parse_item<'a>(
     }
 }
 
-/// 构造空行，仅用于越界兜底。
+/// Build an empty line; only used as an out-of-bounds fallback.
 const fn empty_line<'a>() -> LineData<'a> {
     LineData {
         kind: LineKind::Blank,
@@ -239,7 +239,7 @@ const fn empty_line<'a>() -> LineData<'a> {
     }
 }
 
-/// 解析一个 `#RANDOM` 块。
+/// Parse one `#RANDOM` block.
 fn parse_random<'a>(
     lines: &[LineData<'a>],
     start: usize,
@@ -271,7 +271,7 @@ fn parse_random<'a>(
     )
 }
 
-/// 解析 `#RANDOM` 内部。
+/// Parse the inside of a `#RANDOM` block.
 fn parse_random_inner<'a>(
     lines: &[LineData<'a>],
     start: usize,
@@ -370,7 +370,7 @@ fn parse_random_inner<'a>(
     (body, chains)
 }
 
-/// 关闭当前互斥链。
+/// Close the current mutually exclusive chain.
 fn close_chain<'a>(
     chains: &mut Vec<RandomChain<'a>>,
     current_chain: &mut Option<RandomChain<'a>>,
@@ -391,7 +391,7 @@ fn close_chain<'a>(
     }
 }
 
-/// 解析一个 `#SWITCH` 块。
+/// Parse one `#SWITCH` block.
 fn parse_switch<'a>(
     lines: &[LineData<'a>],
     start: usize,
@@ -423,7 +423,7 @@ fn parse_switch<'a>(
     )
 }
 
-/// 解析 `#SWITCH` 内部。
+/// Parse the inside of a `#SWITCH` block.
 fn parse_switch_inner<'a>(
     lines: &[LineData<'a>],
     start: usize,
@@ -476,7 +476,7 @@ fn parse_switch_inner<'a>(
     (body, cases)
 }
 
-/// 找到匹配的块结束行。
+/// Find the matching block end line.
 fn find_end(
     lines: &[LineData<'_>],
     start: usize,
@@ -503,7 +503,7 @@ fn find_end(
     None
 }
 
-/// 把条目追加到当前分支或块体。
+/// Append an item to the current branch or block body.
 fn push_item<'a>(body: &mut Vec<Item<'a>>, branch: &mut Option<RandomBranch<'a>>, item: Item<'a>) {
     if let Some(current) = branch {
         current.body.push(item);
@@ -512,7 +512,7 @@ fn push_item<'a>(body: &mut Vec<Item<'a>>, branch: &mut Option<RandomBranch<'a>>
     }
 }
 
-/// 追加一条错误行。
+/// Append an error line.
 fn push_error<'a>(
     body: &mut Vec<Item<'a>>,
     branch: &mut Option<RandomBranch<'a>>,
@@ -523,7 +523,7 @@ fn push_error<'a>(
     push_item(body, branch, Item::Line(error_line(line, message, errors)));
 }
 
-/// 把一行标记为错误并记录诊断。
+/// Mark a line as an error and record a diagnostic.
 fn error_line<'a>(
     line: &LineData<'a>,
     message: &str,
@@ -539,7 +539,7 @@ fn error_line<'a>(
     error
 }
 
-/// 迭代构建 CST。
+/// Build the CST iteratively.
 fn build_items(builder: &mut GreenNodeBuilder<'_>, items: &[Item<'_>]) {
     for item in items {
         match item {
@@ -550,7 +550,7 @@ fn build_items(builder: &mut GreenNodeBuilder<'_>, items: &[Item<'_>]) {
     }
 }
 
-/// 构建普通行。
+/// Build a plain line node.
 fn build_line(builder: &mut GreenNodeBuilder<'_>, line: &LineData<'_>) {
     let kind = match line.kind {
         LineKind::Blank => SyntaxKind::BlankLine,
@@ -563,7 +563,7 @@ fn build_line(builder: &mut GreenNodeBuilder<'_>, line: &LineData<'_>) {
     build_node(builder, line, kind);
 }
 
-/// 构建带 token 的节点。
+/// Build a node from a line and its tokens.
 fn build_node(builder: &mut GreenNodeBuilder<'_>, line: &LineData<'_>, kind: SyntaxKind) {
     builder.start_node(kind.raw());
     for token in &line.tokens {
@@ -572,7 +572,7 @@ fn build_node(builder: &mut GreenNodeBuilder<'_>, line: &LineData<'_>, kind: Syn
     builder.finish_node();
 }
 
-/// 构建 `#RANDOM` 块。
+/// Build a `#RANDOM` block.
 fn build_random(builder: &mut GreenNodeBuilder<'_>, block: &RandomBlock<'_>) {
     builder.start_node(SyntaxKind::RandomBlock.raw());
     build_node(builder, &block.directive, SyntaxKind::RandomDirective);
@@ -596,7 +596,7 @@ fn build_random(builder: &mut GreenNodeBuilder<'_>, block: &RandomBlock<'_>) {
     builder.finish_node();
 }
 
-/// 构建 `#SWITCH` 块。
+/// Build a `#SWITCH` block.
 fn build_switch(builder: &mut GreenNodeBuilder<'_>, block: &SwitchBlock<'_>) {
     builder.start_node(SyntaxKind::SwitchBlock.raw());
     build_node(builder, &block.directive, SyntaxKind::SwitchDirective);
@@ -616,7 +616,7 @@ fn build_switch(builder: &mut GreenNodeBuilder<'_>, block: &SwitchBlock<'_>) {
     builder.finish_node();
 }
 
-/// 返回分支指令的节点种类。
+/// Return the node kind for a branch directive.
 fn branch_kind(line: &LineData<'_>) -> SyntaxKind {
     if is_command(line, "IF") {
         SyntaxKind::IfDirective
@@ -627,7 +627,7 @@ fn branch_kind(line: &LineData<'_>) -> SyntaxKind {
     }
 }
 
-/// 返回 case 指令的节点种类。
+/// Return the node kind for a case directive.
 fn case_kind(line: &LineData<'_>) -> SyntaxKind {
     if is_command(line, "DEF") {
         SyntaxKind::DefDirective
@@ -636,37 +636,37 @@ fn case_kind(line: &LineData<'_>) -> SyntaxKind {
     }
 }
 
-/// 返回行的文本范围。
+/// Return the line's text range.
 fn line_range(line: &LineData<'_>) -> TextRange {
     TextRange::new(text_size(line.start), text_size(line.end))
 }
 
-/// 把字节偏移转为 `TextSize`。
+/// Convert a byte offset to `TextSize`.
 fn text_size(offset: usize) -> TextSize {
     TextSize::from(u32::try_from(offset).unwrap_or(u32::MAX))
 }
 
-/// 是否是 `#RANDOM` / `#SETRANDOM`。
+/// Whether this is `#RANDOM` or `#SETRANDOM`.
 fn is_random_open(line: &LineData<'_>) -> bool {
     is_command(line, "RANDOM") || is_command(line, "SETRANDOM") || is_command(line, "RONDAM")
 }
 
-/// 是否是 `#ENDRANDOM`。
+/// Whether this is `#ENDRANDOM`.
 fn is_end_random(line: &LineData<'_>) -> bool {
     is_command(line, "ENDRANDOM")
 }
 
-/// 是否是 `#SWITCH` / `#SETSWITCH`。
+/// Whether this is `#SWITCH` or `#SETSWITCH`.
 fn is_switch_open(line: &LineData<'_>) -> bool {
     is_command(line, "SWITCH") || is_command(line, "SETSWITCH")
 }
 
-/// 是否是 `#ENDSW`。
+/// Whether this is `#ENDSW`.
 fn is_end_switch(line: &LineData<'_>) -> bool {
     is_command(line, "ENDSW") || is_command(line, "ENDSWITCH")
 }
 
-/// 是否是任意控制流指令。
+/// Whether this is any control-flow directive.
 fn is_control_directive(line: &LineData<'_>) -> bool {
     [
         "RANDOM",
@@ -690,7 +690,7 @@ fn is_control_directive(line: &LineData<'_>) -> bool {
     .any(|command| is_command(line, command))
 }
 
-/// 判断命令名是否匹配。
+/// Return whether the command name matches.
 fn is_command(line: &LineData<'_>, command: &str) -> bool {
     line.command_name()
         .is_some_and(|name| name.eq_ignore_ascii_case(command))

@@ -1,21 +1,22 @@
-//! 控制流选择的边角语义回归。
+//! Regression tests for edge-case control-flow selection semantics.
 //!
-//! 覆盖旧控制流实现中选择测试仍适用于 CST 的语义：
-//! `#ELSEIF` 首匹配、`#ELSE`/`#DEF` 兜底、`#SKIP` fall-through、多块、
-//! 嵌套、0 值与深嵌套。
+//! Covers selection semantics that still apply to the CST after the old
+//! control-flow implementation: `#ELSEIF` first match, `#ELSE` / `#DEF`
+//! fallback, `#SKIP` fall-through, multiple blocks, nesting, zero values, and
+//! deep nesting.
 
 use bmsrs_bms_syntax::{Line, SourceFile};
 
-/// 按顺序返回预设随机值的测试 RNG。
+/// Test RNG that returns preset random values in order.
 struct SequenceRng {
-    /// 预设值。
+    /// Preset values.
     values: Vec<u64>,
-    /// 当前索引。
+    /// Current index.
     index: usize,
 }
 
 impl SequenceRng {
-    /// 构造预设序列。
+    /// Construct a preset sequence.
     fn new(values: &[u64]) -> Self {
         Self {
             values: values.to_vec(),
@@ -23,7 +24,7 @@ impl SequenceRng {
         }
     }
 
-    /// 返回下一个值；序列耗尽时返回 1。
+    /// Return the next value; returns 1 when the sequence is exhausted.
     fn next(&mut self, max: u64) -> u64 {
         let value = self.values.get(self.index).copied().unwrap_or(1);
         self.index = self.index.saturating_add(1);
@@ -31,12 +32,12 @@ impl SequenceRng {
     }
 }
 
-/// 解析为 CST。
+/// Parse into a CST.
 fn file(text: &str) -> SourceFile {
     SourceFile::parse(text).source_file()
 }
 
-/// 提取选中行中的 WAV 文件名。
+/// Extract WAV file names from the selected lines.
 fn wavs(lines: &[Line]) -> Vec<String> {
     lines
         .iter()
@@ -49,7 +50,7 @@ fn wavs(lines: &[Line]) -> Vec<String> {
         .collect()
 }
 
-/// 返回第一个决策的 `(value, selected_index)`。
+/// Return the first decision as `(value, selected_index)`.
 fn first_decision(selection: &bmsrs_bms_syntax::BranchSelection) -> (u64, usize) {
     selection.decisions().first().map_or((0, 0), |decision| {
         (decision.value(), decision.selected_index())
