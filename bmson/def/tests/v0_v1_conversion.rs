@@ -1,10 +1,10 @@
-//! bmson v0/v1 ↔ v2（根）版本间转换的集成测试。
+//! Integration tests for conversion between bmson v0/v1 and v2 (root).
 
 use std::path::Path;
 
 use bmsrs_bmson_def::*;
 
-// v1 转换测试
+// v1 conversion tests
 
 fn make_v1_bmson() -> v1::Bmson<'static> {
     v1::Bmson {
@@ -118,7 +118,7 @@ fn v1_with_null_arrays_handled() {
     assert_eq!(v1.stop_events, [] as [bmsrs_bmson_def::StopEvent; 0]);
 }
 
-// v0 转换测试
+// v0 conversion tests
 
 fn make_v0_bmson() -> v0::Bmson<'static> {
     v0::Bmson {
@@ -272,7 +272,7 @@ fn v0_bar_line_k_dropped_when_converting_to_root() {
     let v0_bar = v0::BarLine { y: 960, k: Some(0) };
     let root_bar: BarLine = bmsrs_bmson_def::BarLine { y: 960 };
     assert_eq!(root_bar.y, v0_bar.y);
-    // k 字段只存在于 v0
+    // The k field exists only in v0.
 }
 
 #[test]

@@ -1,12 +1,12 @@
-//! bmsrs-bmson-def 类型的序列化 / 反序列化往返测试。
+//! Serialization and deserialization roundtrip tests for bmsrs-bmson-def types.
 //!
-//! 验证 serde JSON 往返转换产生语义等价的结果。
+//! Verify that serde JSON roundtrips produce semantically equivalent results.
 
 use std::path::Path;
 
 use bmsrs_bmson_def::*;
 
-/// 构建一个简单的 v2 谱面供测试使用。
+/// Build a simple v2 chart for tests.
 fn make_test_bmson() -> Bmson<'static> {
     Bmson {
         version: "2.0.0",
@@ -193,7 +193,7 @@ fn bga_header_roundtrip() {
 
 #[test]
 fn bga_header_alias_id() {
-    // v0 使用大写 "ID"，应被 alias 处理。
+    // v0 uses uppercase "ID", handled by the alias.
     let json = r#"{"ID": 2, "name": "layer.png"}"#;
     let header: BGAHeader = serde_json::from_str(json).unwrap();
     assert_eq!(header.id, 2);
@@ -227,7 +227,8 @@ fn mode_hint_roundtrip() {
 
 #[test]
 fn mode_hint_generic_k_alias() {
-    // 遗留 "generic-5k" 格式（而非 "generic-5keys"）也应被接受。
+    // The legacy "generic-5k" format (rather than "generic-5keys") should also
+    // be accepted.
     let json = "\"generic-5k\"";
     let hint: ModeHint = serde_json::from_str(json).unwrap();
     assert_eq!(hint, ModeHint::Generic(5));
@@ -277,7 +278,7 @@ fn chart_data_ln_hints_roundtrip() {
     assert_eq!(bmson.chart_data.ln_judge_hint, LnJudge::Ticks);
     assert_eq!(bmson.chart_data.ln_life_hint, LnLife::Ticks);
 
-    // 往返序列化
+    // Roundtrip serialization.
     let json_out = serde_json::to_string(&bmson).unwrap();
     let back: Bmson = serde_json::from_str(&json_out).unwrap();
     assert_eq!(back.chart_data.ln_type_hint, LnType::Cn);

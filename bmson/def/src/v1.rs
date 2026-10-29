@@ -1,20 +1,19 @@
-//! **bmson v1.0.0** —— 扁平 schema。
+//! **bmson v1.0.0**: flat schema.
 //!
-//! 此模块对应 v1.0.0 规范，其中 `Bmson` 是一个扁平对象，同时包含元数据
-//! 和谱面数据。
+//! This module corresponds to the v1.0.0 specification, where `Bmson` is a flat
+//! object containing both metadata and chart data.
 //!
-//! # 转换
+//! # Conversion
 //!
-//! [`Bmson`] ↔ [`crate::Bmson`] 通过 [`From`]。
+//! [`Bmson`] and [`crate::Bmson`] convert through [`From`].
 //!
-//! v1 → 根（v2）将 [`BmsonInfo`] 拆分到 [`crate::SongInfo`]、
-//! [`crate::ChartInfo`] 和 [`crate::ChartData`]。
-//! 根 → v1 将它们合并回去。
+//! v1 to root (v2) splits [`BmsonInfo`] into [`crate::SongInfo`],
+//! [`crate::ChartInfo`], and [`crate::ChartData`]. Root to v1 merges them back.
 //!
 //! # Serde
 //!
-//! 顶层类型使用 v1 特有的字段名（`info`、`sound_channels` / `notes`
-//! 作为根键）。叶节点类型从根模块复用。
+//! Top-level types use v1-specific field names (`info`, `sound_channels`, and
+//! `notes` as root keys). Leaf types are reused from the root module.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -23,7 +22,7 @@ use crate::{
     BGA, BarLine, BpmEvent, KeyChannel, LnMode, MineChannel, ModeHint, ScrollEvent, StopEvent,
 };
 
-/// v1.0.0 schema 中的顶层 bmson 对象。
+/// Top-level bmson object in the v1.0.0 schema.
 ///
 /// ```json
 /// {
@@ -39,92 +38,95 @@ use crate::{
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Bmson<'a> {
-    /// bmson 格式版本（应为 `"1.0.0"`）。
+    /// bmson format version (should be `"1.0.0"`).
     #[serde(borrow)]
     pub version: &'a str,
 
-    /// 元数据对象。
+    /// Metadata object.
     pub info: BmsonInfo<'a>,
 
-    /// 小节线位置。`None` → 4/4 自动生成，`Some([])` → 无小节线。
+    /// Barline positions. `None` auto-generates 4/4; `Some([])` means no
+    /// barlines.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lines: Option<Vec<BarLine>>,
 
-    /// BPM 变更事件（规范允许为 null；null 视为空）。
+    /// BPM change events (the specification allows null; null is treated as
+    /// empty).
     #[serde(default, deserialize_with = "crate::null_to_default")]
     pub bpm_events: Vec<BpmEvent>,
 
-    /// 停止（暂停）事件（规范允许为 null；null 视为空）。
+    /// Stop (pause) events (the specification allows null; null is treated as
+    /// empty).
     #[serde(default, deserialize_with = "crate::null_to_default")]
     pub stop_events: Vec<StopEvent>,
 
-    /// 音频通道（v1 在每个通道内使用 `notes`）。
+    /// Sound channels (v1 uses `notes` inside each channel).
     #[serde(default)]
     pub sound_channels: Vec<SoundChannel<'a>>,
 
-    /// 背景动画数据。
+    /// Background animation data.
     pub bga: BGA<'a>,
 
-    /// 滚动速度事件。
+    /// Scroll speed events.
     #[serde(default)]
     pub scroll_events: Vec<ScrollEvent>,
-    /// 地雷通道。
+    /// Mine channels.
     #[serde(default)]
     pub mine_channels: Vec<MineChannel<'a>>,
-    /// 不可见按键通道。
+    /// Invisible key channels.
     #[serde(default)]
     pub key_channels: Vec<KeyChannel<'a>>,
 }
 
-/// v1 schema 中的元数据对象。
+/// Metadata object in the v1 schema.
 ///
-/// 包含乐曲和此具体谱面的所有信息。
+/// Contains all information about the song and this specific chart.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BmsonInfo<'a> {
-    /// 乐曲标题。
+    /// Song title.
     #[serde(borrow)]
     pub title: &'a str,
 
-    /// 副标题（默认 `""`）。
+    /// Subtitle (default `""`).
     #[serde(borrow, default)]
     pub subtitle: &'a str,
 
-    /// 主要艺术家。
+    /// Main artist.
     #[serde(borrow)]
     pub artist: &'a str,
 
-    /// 其他贡献者（`["key:value", ...]`）。
+    /// Other contributors (`["key:value", ...]`).
     #[serde(default, deserialize_with = "crate::null_to_default")]
     pub subartists: Vec<&'a str>,
 
-    /// 流派。
+    /// Genre.
     #[serde(borrow)]
     pub genre: &'a str,
 
-    /// 游戏模式提示（默认 `"beat-7k"`）。
+    /// Game mode hint (default `"beat-7k"`).
     #[serde(default)]
     pub mode_hint: ModeHint,
 
-    /// 谱面名称 / 难度标签（默认 `""`）。
+    /// Chart name / difficulty label (default `""`).
     #[serde(borrow, default)]
     pub chart_name: &'a str,
 
-    /// 数值难度等级。
+    /// Numeric difficulty level.
     pub level: u64,
 
-    /// 初始 BPM。
+    /// Initial BPM.
     pub init_bpm: f64,
 
-    /// 判定窗口（0–100 量表，默认 100）。
+    /// Judgment window (0-100 scale, default 100).
     #[serde(default = "default_100")]
     pub judge_rank: f64,
 
-    /// 血量槽充能量（0–100 量表，默认 100）。
+    /// Life gauge charge amount (0-100 scale, default 100).
     #[serde(default = "default_100")]
     pub total: f64,
 
-    /// 背景图片（游玩时）。
+    /// Background image (during gameplay).
     #[serde(
         default,
         deserialize_with = "crate::de_opt_path",
@@ -132,7 +134,7 @@ pub struct BmsonInfo<'a> {
     )]
     pub back_image: Option<&'a Path>,
 
-    /// 过场图 eyecatch（加载界面）。
+    /// Eyecatch image (loading screen).
     #[serde(
         default,
         deserialize_with = "crate::de_opt_path",
@@ -140,7 +142,7 @@ pub struct BmsonInfo<'a> {
     )]
     pub eyecatch_image: Option<&'a Path>,
 
-    /// 横幅图片（选曲/结算界面）。
+    /// Banner image (song selection and result screens).
     #[serde(
         default,
         deserialize_with = "crate::de_opt_path",
@@ -148,7 +150,7 @@ pub struct BmsonInfo<'a> {
     )]
     pub banner_image: Option<&'a Path>,
 
-    /// 预览音频路径。
+    /// Preview audio path.
     #[serde(
         default,
         deserialize_with = "crate::de_opt_path",
@@ -156,8 +158,8 @@ pub struct BmsonInfo<'a> {
     )]
     pub preview_music: Option<&'a Path>,
 
-    /// 游玩开始前显示的标题图片。
-    /// 等价于 OADX+ 皮肤系统中的 `#BACKBMP`。
+    /// Title image shown before gameplay starts. Equivalent to `#BACKBMP` in the
+    /// OADX+ skin system.
     #[serde(
         default,
         deserialize_with = "crate::de_opt_path",
@@ -165,34 +167,34 @@ pub struct BmsonInfo<'a> {
     )]
     pub title_image: Option<&'a Path>,
 
-    /// 节拍分辨率（默认 240）。
+    /// Beat resolution (default 240).
     #[serde(
         default = "crate::default_resolution",
         deserialize_with = "crate::deserialize_resolution_nonzero"
     )]
     pub resolution: u64,
 
-    /// 长音类型 —— beatoraja 扩展（JSON 中为 `lnType`）。
+    /// Long-note type, a beatoraja extension (JSON key `lnType`).
     #[serde(alias = "lnType", default, skip_serializing_if = "Option::is_none")]
     pub ln_type: Option<LnMode>,
 }
 
-/// `#[serde(default)]` 在 `resolution` 等字段上使用的默认值 100.0。
+/// Default value 100.0 used by `#[serde(default)]` on fields such as `judge_rank`.
 const fn default_100() -> f64 {
     100.0
 }
 
-/// v1 schema 中的音频通道。
+/// Sound channel in the v1 schema.
 ///
-/// 与 [`crate::SoundChannel`] 相同，区别在于音符字段为
-/// `notes`（v1 约定）而非 `note_events`（v2）。
+/// Same as [`crate::SoundChannel`], except the note field is `notes` (v1
+/// convention) rather than `note_events` (v2).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "'de: 'a"))]
 pub struct SoundChannel<'a> {
-    /// 音频文件名。
+    /// Audio file name.
     #[serde(deserialize_with = "crate::de_path")]
     pub name: &'a Path,
-    /// 引用此音频文件的音符。
+    /// Notes referencing this audio file.
     #[serde(rename = "notes")]
     pub notes: Vec<crate::NoteEvent>,
 }
@@ -290,7 +292,7 @@ impl<'a> From<RootBmson<'a>> for Bmson<'a> {
             ln_type: match root.chart_data.ln_type_hint {
                 crate::LnType::Cn => Some(crate::LnMode::Cn),
                 crate::LnType::Hcn => Some(crate::LnMode::Hcn),
-                crate::LnType::Ln => None, // 默认 Ln，无需序列化
+                crate::LnType::Ln => None, // Ln is the default; no need to serialize.
             },
         };
 
