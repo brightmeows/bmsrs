@@ -1,10 +1,10 @@
-# bms-values
+# bmsrs-bms-values
 
 ## 定位
 
 BMS 单行语法与类型化值：header/message、索引类型、单行解析与编码。
-不持有整文件循环，也不构建 CST；`bms-syntax` 负责整文件结构，
-`bms-parser` 负责 CST → `Bms`，`bms-analysis` 直接复用本 crate 的值类型。
+不持有整文件循环，也不构建 CST；`bmsrs-bms-syntax` 负责整文件结构，
+`bmsrs-bms-parser` 负责 CST → `Bms`，`bmsrs-bms-analysis` 直接复用本 crate 的值类型。
 
 ## 关键边界
 
@@ -35,7 +35,7 @@ BMS 单行语法与类型化值：header/message、索引类型、单行解析�
 ## 测试
 
 ```bash
-cargo test -p bms-values
+cargo test -p bmsrs-bms-values
 ```
 
 覆盖：命令匹配、值解析、索引、通道分类、单行 roundtrip、derive。
@@ -57,4 +57,4 @@ cargo test -p bms-values
 
 - 在这里做整文件分词、编码检测或控制流展开
 - 解析跨命令引用（WAV/BMP 引用语义归 processor）
-- 引入 `bms-syntax` / `bms-parser` 依赖，保持本 crate 单向被依赖
+- 引入 `bmsrs-bms-syntax` / `bmsrs-bms-parser` 依赖，保持本 crate 单向被依赖

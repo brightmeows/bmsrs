@@ -6,15 +6,15 @@
 //!
 //! 节拍（beat）换算：1 beat = resolution（240）个脉冲。
 
-use bms_parser::Bms;
-use bms_processor::BmsProcessor;
-use bms_processor::custom_event::BmsCustomEvent;
-use bms_processor::layout::Bme;
-use bms_syntax::SourceFile;
+use bmsrs_bms_parser::Bms;
+use bmsrs_bms_processor::BmsProcessor;
+use bmsrs_bms_processor::custom_event::BmsCustomEvent;
+use bmsrs_bms_processor::layout::Bme;
+use bmsrs_bms_syntax::SourceFile;
 use bmsrs_chart::{Chart, EventKind, NoteKind};
 use bmsrs_player::Player;
 
-/// bms-processor 返回的 chart 类型。
+/// bmsrs-bms-processor 返回的 chart 类型。
 type BmsChart = Chart<(), BmsCustomEvent>;
 
 /// 管道辅助：BMS 原文 → `Chart<(), BmsCustomEvent>`。
@@ -667,10 +667,10 @@ fn bmspec_1_08_wav_references() {
          #WAVAA zz.ogg\n",
     );
 
-    let wav01: bms_parser::WavIndex = "01".parse().unwrap();
-    let wav_zz: bms_parser::WavIndex = "ZZ".parse().unwrap();
-    let wav_aa: bms_parser::WavIndex = "AA".parse().unwrap();
-    let wav02: bms_parser::WavIndex = "02".parse().unwrap();
+    let wav01: bmsrs_bms_parser::WavIndex = "01".parse().unwrap();
+    let wav_zz: bmsrs_bms_parser::WavIndex = "ZZ".parse().unwrap();
+    let wav_aa: bmsrs_bms_parser::WavIndex = "AA".parse().unwrap();
+    let wav02: bmsrs_bms_parser::WavIndex = "02".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav01).map(String::as_str),

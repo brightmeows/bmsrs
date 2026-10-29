@@ -1,6 +1,6 @@
 //! 控制流选择测试。
 
-use bms_syntax::{Line, SourceFile};
+use bmsrs_bms_syntax::{Line, SourceFile};
 
 /// 提取选中行的 `#TITLE` 值。
 fn titles(lines: &[Line]) -> Vec<String> {

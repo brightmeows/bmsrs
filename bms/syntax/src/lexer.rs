@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use bms_source::ScanState;
+use bmsrs_bms_source::ScanState;
 
 use crate::{ParseOptions, SyntaxKind};
 

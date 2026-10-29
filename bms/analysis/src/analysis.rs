@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use bms_syntax::{Line, LineKind, Parse, ParseOptions, SourceFile, TextRange, TextSize};
-use bms_values::{BmsChannel, BodyCells, parse_header_line, parse_message_line};
+use bmsrs_bms_syntax::{Line, LineKind, Parse, ParseOptions, SourceFile, TextRange, TextSize};
+use bmsrs_bms_values::{BmsChannel, BodyCells, parse_header_line, parse_message_line};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};
@@ -36,8 +36,8 @@ impl Analysis {
             .iter()
             .map(|error| {
                 let severity = match error.kind() {
-                    bms_syntax::DiagnosticKind::Syntax => Severity::Error,
-                    bms_syntax::DiagnosticKind::ControlFlow => Severity::Warning,
+                    bmsrs_bms_syntax::DiagnosticKind::Syntax => Severity::Error,
+                    bmsrs_bms_syntax::DiagnosticKind::ControlFlow => Severity::Warning,
                 };
                 AnalysisDiagnostic::new(error.range(), severity, error.message(), None)
             })
@@ -67,7 +67,7 @@ impl Analysis {
 
     /// 返回新建的红色根节点。
     #[must_use]
-    pub fn syntax(&self) -> bms_syntax::SyntaxNode {
+    pub fn syntax(&self) -> bmsrs_bms_syntax::SyntaxNode {
         self.parse.syntax()
     }
 

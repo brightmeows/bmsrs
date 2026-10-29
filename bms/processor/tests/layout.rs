@@ -1,7 +1,7 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bms_parser::{Bms, KeyType, LongNoteEvent, MineEvent, NoteEvent, Position};
-use bms_processor::layout::PmsLayout;
+use bmsrs_bms_parser::{Bms, KeyType, LongNoteEvent, MineEvent, NoteEvent, Position};
+use bmsrs_bms_processor::layout::PmsLayout;
 
 #[test]
 fn detect_standard_pms_from_player2_channels() {

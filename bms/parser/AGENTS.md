@@ -1,23 +1,23 @@
-# bms-parser
+# bmsrs-bms-parser
 
 ## 定位
 
 BMS 语义层：rowan CST → 结构化 `Bms` 模型。类型化单行语法
-（`BmsHeader` / `BmsMessage` / 索引类型）在 `bms-values`；控制流分支选择
-由 `bms-syntax::SourceFile::select_lines` 完成。
+（`BmsHeader` / `BmsMessage` / 索引类型）在 `bmsrs-bms-values`；控制流分支选择
+由 `bmsrs-bms-syntax::SourceFile::select_lines` 完成。
 
 ## 设计哲学
 
 **`Bms` 保真映射。** `Bms` 字段是 BMS 文件内容的直接结构化表示，不存需要计算或语义解释才能得到的派生值。域级判据见 `bms/AGENTS.md` 职责判据。
 
-`BgaEvent.layer` 使用本 crate 的 `BmsBgaLayer`；`bms-parser` 不依赖
-`bmsrs-chart`，图层到 `bmsrs_chart::BgaLayer` 的映射由 `bms-processor`
+`BgaEvent.layer` 使用本 crate 的 `BmsBgaLayer`；`bmsrs-bms-parser` 不依赖
+`bmsrs-chart`，图层到 `bmsrs_chart::BgaLayer` 的映射由 `bmsrs-bms-processor`
 负责。
 
 | 不做什么 | 理由 |
 |----------|------|
 | 值解释（路径、URL、邮箱） | 字符串原样保留 |
-| 控制流展开 | 由 `bms-syntax` 的 `select_lines` 处理 |
+| 控制流展开 | 由 `bmsrs-bms-syntax` 的 `select_lines` 处理 |
 | 派生值计算 | 归 processor（如伤害 = base36/2、引用→绝对值） |
 | 引用-定义配对解析 | `Bms` 保真存引用形态（如 `BpmValue::Reference`）；查表归 processor |
 
@@ -49,7 +49,7 @@ BMS 语义层：rowan CST → 结构化 `Bms` 模型。类型化单行语法
 | 状态 | 变体 | 存储策略 |
 |------|------|----------|
 | 存储 | Metadata, Gameplay, Timing, Display, Audio, Visual, `Fallback` | Option(最后胜出) / BTreeMap(按 ID) |
-| 跳过 | ControlFlow | 由 `bms-syntax::select_lines` 处理 |
+| 跳过 | ControlFlow | 由 `bmsrs-bms-syntax::select_lines` 处理 |
 
 ### 消息通道处理策略
 

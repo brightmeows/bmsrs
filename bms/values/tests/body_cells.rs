@@ -1,6 +1,6 @@
 //! `BodyCells` 公开 API 测试。
 
-use bms_values::BodyCells;
+use bmsrs_bms_values::BodyCells;
 
 #[test]
 fn all_includes_zero() {

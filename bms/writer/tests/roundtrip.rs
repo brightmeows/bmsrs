@@ -3,12 +3,12 @@
 //! 生成器写出的文本重新解析后须与原 `Bms` 模型语义等价——
 //! 这是兜底重写档的验证底线。
 
-use bms_parser::Bms;
-use bms_parser::parse_message_line;
-use bms_syntax::SourceFile;
+use bmsrs_bms_parser::Bms;
+use bmsrs_bms_parser::parse_message_line;
+use bmsrs_bms_syntax::SourceFile;
 use proptest::prelude::*;
 
-use bms_writer::BmsWriter;
+use bmsrs_bms_writer::BmsWriter;
 
 /// 解析 BMS 文本为 `Bms`，忽略分词警告。
 fn parse(text: &str) -> Bms {
@@ -121,6 +121,6 @@ fn encode_body_roundtrips_via_parse() {
         .expect("is message");
     assert_eq!(
         line.body,
-        bms_parser::BmsMessage::encode_body(["01", "02", "03"])
+        bmsrs_bms_parser::BmsMessage::encode_body(["01", "02", "03"])
     );
 }

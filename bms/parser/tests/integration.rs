@@ -1,24 +1,24 @@
-//! `bms-parser` 的集成测试。
+//! `bmsrs-bms-parser` 的集成测试。
 //!
 //! 这些测试仅通过公开 API 消费 crate，与外部消费者的使用方式完全一致。
 //! 整管线入口（`from_text`）已移至 `bmsrs` facade，其测试随迁。
 
-use bms_parser::BmsBgaLayer;
-use bms_parser::*;
-use bms_parser::{
+use bmsrs_bms_parser::BmsBgaLayer;
+use bmsrs_bms_parser::*;
+use bmsrs_bms_parser::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
     Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 
 /// 辅助函数：将 BMS 字符串解析为 `Bms`（默认 C = &str）。
 fn parse(input: &str) -> Bms {
-    let source = bms_syntax::SourceFile::parse(input);
+    let source = bmsrs_bms_syntax::SourceFile::parse(input);
     Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
 /// 辅助函数：使用 `C = String` 解析，验证拥有字符串管道工作正常。
 fn parse_string(input: &str) -> Bms {
-    let source = bms_syntax::SourceFile::parse(input);
+    let source = bmsrs_bms_syntax::SourceFile::parse(input);
     Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
@@ -532,8 +532,14 @@ fn unknown_header_fallback() {
 fn unknown_channel_stays_raw() {
     let bms = parse("#001FF:1122");
     // 通道 FF 未知 —— 仅在 raw 中，无事件
-    assert_eq!(bms.messages.bgm_events, [] as [bms_parser::BgmEvent; 0]);
-    assert_eq!(bms.messages.note_events, [] as [bms_parser::NoteEvent; 0]);
+    assert_eq!(
+        bms.messages.bgm_events,
+        [] as [bmsrs_bms_parser::BgmEvent; 0]
+    );
+    assert_eq!(
+        bms.messages.note_events,
+        [] as [bmsrs_bms_parser::NoteEvent; 0]
+    );
     let ch = BmsChannel::from_raw("FF").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
@@ -545,7 +551,10 @@ fn unknown_channel_stays_raw() {
 fn empty_message_values() {
     let bms = parse("#00111:");
     // 值为空 —— 无事件，但 raw 中有一个空字符串条目
-    assert_eq!(bms.messages.note_events, [] as [bms_parser::NoteEvent; 0]);
+    assert_eq!(
+        bms.messages.note_events,
+        [] as [bmsrs_bms_parser::NoteEvent; 0]
+    );
     let ch = BmsChannel::from_raw("11").unwrap();
     assert_eq!(
         bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
@@ -682,7 +691,7 @@ fn non_event_data_populated_after_parse() {
     // non_event_data 不应为空
     assert_ne!(
         bms.messages.non_event_data,
-        [] as [bms_parser::NonEventData; 0]
+        [] as [bmsrs_bms_parser::NonEventData; 0]
     );
     // 验证 BgaBaseOpacity (ch 0B) 的数据
     let entry = &bms.messages.non_event_data[0];
@@ -791,8 +800,8 @@ fn bmspec_bpm_basic() {
     assert_eq!(bms.timing.bpm, Some(60.0));
     assert_eq!(bms.messages.bpm_changes.len(), 1);
     match bms.messages.bpm_changes[0].value {
-        bms_parser::BpmValue::Absolute(v) => assert!((v - 120.0).abs() < f64::EPSILON),
-        bms_parser::BpmValue::Reference(_) => panic!("expected absolute BPM"),
+        bmsrs_bms_parser::BpmValue::Absolute(v) => assert!((v - 120.0).abs() < f64::EPSILON),
+        bmsrs_bms_parser::BpmValue::Reference(_) => panic!("expected absolute BPM"),
     }
 }
 
@@ -832,7 +841,10 @@ fn bmspec_speed_without_channel() {
     let bms = parse("#SPEED01 0.5\n");
     let idx: SpeedIndex = "01".parse().unwrap();
     assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
-    assert_eq!(bms.messages.speed_events, [] as [bms_parser::SpeedEvent; 0]);
+    assert_eq!(
+        bms.messages.speed_events,
+        [] as [bmsrs_bms_parser::SpeedEvent; 0]
+    );
 }
 
 #[test]

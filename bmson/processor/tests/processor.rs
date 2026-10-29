@@ -1,16 +1,16 @@
-//! `bmson-processor` 的集成测试。
+//! `bmsrs-bmson-processor` 的集成测试。
 
 #![expect(clippy::panic_in_result_fn, reason = "test helpers and assertions")]
 
 use std::num::NonZeroU8;
 use std::path::Path;
 
-use bmson_def::{
+use bmsrs_bmson_def::{
     BGA, BGAEvent, BGAHeader, BpmEvent, ChartData, ChartInfo, KeyChannel, KeyNote, LnType,
     MineChannel, MineNote, ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
 };
-use bmson_processor::layout::{Beat, GenericLayout, Pms};
-use bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor, ProcessError};
+use bmsrs_bmson_processor::layout::{Beat, GenericLayout, Pms};
+use bmsrs_bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor, ProcessError};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{
     BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteRole,
@@ -30,8 +30,8 @@ const fn key(n: u8) -> Lane {
 }
 
 /// 构建一个简单的 v2 BMSON 谱面供测试使用。
-fn make_simple_bmson() -> bmson_def::Bmson<'static> {
-    bmson_def::Bmson {
+fn make_simple_bmson() -> bmsrs_bmson_def::Bmson<'static> {
+    bmsrs_bmson_def::Bmson {
         version: "2.0.0",
         song_info: SongInfo {
             title: "Test",
@@ -53,8 +53,8 @@ fn make_simple_bmson() -> bmson_def::Bmson<'static> {
         chart_data: ChartData {
             mode_hint: ModeHint::Beat7k,
             ln_type_hint: LnType::Ln,
-            ln_judge_hint: bmson_def::LnJudge::Normal,
-            ln_life_hint: bmson_def::LnLife::Normal,
+            ln_judge_hint: bmsrs_bmson_def::LnJudge::Normal,
+            ln_life_hint: bmsrs_bmson_def::LnLife::Normal,
             init_bpm: 140.0,
             resolution: 240,
             judge_multiplier: 1.0,
@@ -236,7 +236,7 @@ fn beatoraja_ln_mode_overrides_ln_type_hint() -> TestResult {
             y: 0,
             l: 240,
             c: false,
-            t: Some(bmson_def::LnMode::Cn),
+            t: Some(bmsrs_bmson_def::LnMode::Cn),
             up: None,
             ln_type_hint: Some(LnType::Hcn),
             ln_judge_hint: None,
@@ -678,10 +678,10 @@ fn scroll_events_converts_negative_values() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson
         .scroll_events
-        .push(bmson_def::ScrollEvent { y: 0, rate: -1.0 });
+        .push(bmsrs_bmson_def::ScrollEvent { y: 0, rate: -1.0 });
     bmson
         .scroll_events
-        .push(bmson_def::ScrollEvent { y: 960, rate: -0.5 });
+        .push(bmsrs_bmson_def::ScrollEvent { y: 960, rate: -0.5 });
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
@@ -790,7 +790,7 @@ fn process_scroll_events() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson
         .scroll_events
-        .push(bmson_def::ScrollEvent { y: 1920, rate: 2.0 });
+        .push(bmsrs_bmson_def::ScrollEvent { y: 1920, rate: 2.0 });
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
@@ -1040,9 +1040,9 @@ fn generic_layout_mapping() {
 fn bar_lines_from_explicit_lines() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.lines = Some(vec![
-        bmson_def::BarLine { y: 0 },
-        bmson_def::BarLine { y: 960 },
-        bmson_def::BarLine { y: 1920 },
+        bmsrs_bmson_def::BarLine { y: 0 },
+        bmsrs_bmson_def::BarLine { y: 960 },
+        bmsrs_bmson_def::BarLine { y: 1920 },
     ]);
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
@@ -1074,9 +1074,9 @@ fn note_ext_fields() {
 #[test]
 fn chart_level_ln_hints_propagate() -> TestResult {
     let mut bmson = make_simple_bmson();
-    bmson.chart_data.ln_type_hint = bmson_def::LnType::Cn;
-    bmson.chart_data.ln_judge_hint = bmson_def::LnJudge::Ticks;
-    bmson.chart_data.ln_life_hint = bmson_def::LnLife::Ticks;
+    bmson.chart_data.ln_type_hint = bmsrs_bmson_def::LnType::Cn;
+    bmson.chart_data.ln_judge_hint = bmsrs_bmson_def::LnJudge::Ticks;
+    bmson.chart_data.ln_life_hint = bmsrs_bmson_def::LnLife::Ticks;
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
     assert_eq!(chart.data.ln_type_hint, LnTypeHint::Cn);

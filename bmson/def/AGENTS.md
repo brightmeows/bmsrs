@@ -1,4 +1,4 @@
-# bmson-def
+# bmsrs-bmson-def
 
 ## 定位
 
@@ -13,7 +13,7 @@ bmson JSON 格式类型定义（v0/v1/v2）。
 | `lib.rs`（根） | v2 版本的特有类型（`Bmson` v2、`SongInfo`、`ChartInfo`、`ChartData`）——在 crate 根定义，无需独立 mod |
 
 `v0` 和 `v1` 是**独立模块**——各有自己的 `Bmson`、`BmsonInfo`、`SoundChannel`。
-从 `bmson_def::v0` 或 `bmson_def::v1` 导入。
+从 `bmsrs_bmson_def::v0` 或 `bmsrs_bmson_def::v1` 导入。
 
 ## 版本检测
 
@@ -29,7 +29,7 @@ bmson JSON 格式类型定义（v0/v1/v2）。
 ## 示例
 
 ```bash
-cargo run --example bmson_parser -p bmson-def
+cargo run --example bmson_parser -p bmsrs-bmson-def
 ```
 
 ## 非显而易见的规则

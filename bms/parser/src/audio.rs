@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_values::{BmsBase, BmsHeaderResDefAudio, ExWavParams, WavCmdParams, WavIndex};
+use bmsrs_bms_values::{BmsBase, BmsHeaderResDefAudio, ExWavParams, WavCmdParams, WavIndex};
 
 /// `#EXWAV` 的 owned 参数（tokenizer 的 `ExWavParams` 的 owned 对应）。
 #[derive(Debug, Clone, PartialEq, Eq)]

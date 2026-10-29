@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_values::{
+use bmsrs_bms_values::{
     BmsBase, BmsHeaderGameplay, ChangeOptionIndex, ExRankIndex, LnMode, LnObjIndex, LnType,
     PlayerMode, Rank,
 };

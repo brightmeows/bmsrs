@@ -1,5 +1,5 @@
 [package]
-name = "bms-analysis"
+name = "bmsrs-bms-analysis"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,8 +13,8 @@ rust-version.workspace = true
 readme.workspace = true
 
 [dependencies]
-bms-syntax.workspace = true
-bms-values.workspace = true
+bmsrs-bms-syntax.workspace = true
+bmsrs-bms-values.workspace = true
 
 [lints]
 workspace = true

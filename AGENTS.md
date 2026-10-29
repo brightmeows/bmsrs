@@ -11,15 +11,15 @@ BMS（Be-Music Script）/ BMSON 谱面格式解析、转换与模拟播放的 Ru
 
 ```mermaid
 flowchart LR
-    BMS[".bms file"] --> Src[bms-source]
-    Src -->|解码文本| Syn[bms-syntax]
-    Syn -->|CST| Par[bms-parser]
-    Par --> BProc[bms-processor]
-    Par --> Writer[bms-writer]
-    Syn --> Analysis[bms-analysis]
+    BMS[".bms file"] --> Src[bmsrs-bms-source]
+    Src -->|解码文本| Syn[bmsrs-bms-syntax]
+    Syn -->|CST| Par[bmsrs-bms-parser]
+    Par --> BProc[bmsrs-bms-processor]
+    Par --> Writer[bmsrs-bms-writer]
+    Syn --> Analysis[bmsrs-bms-analysis]
 
-    BMSON[".bmson file"] --> BDef[bmson-def]
-    BDef --> BMProc[bmson-processor]
+    BMSON[".bmson file"] --> BDef[bmsrs-bmson-def]
+    BDef --> BMProc[bmsrs-bmson-processor]
 
     BProc --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
     BMProc --> Chart
@@ -30,22 +30,22 @@ flowchart LR
 
 | Crate | 定位 | 输入 → 输出 |
 |-------|------|-------------|
-| `bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
-| `bms-syntax` | BMS 语法层：rowan CST、词法、容错解析与控制流查询 | `&str` → `SourceFile` |
-| `bms-values` | BMS 单行语法与类型化值：header/message、索引与解析 | `&str`（单行）→ 类型化值 |
-| `bms-parser` | BMS 语义层：CST → `Bms` 模型 | CST → `Bms` |
-| `bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
-| `bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
-| `bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
-| `bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
-| `bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
-| `bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
+| `bmsrs-bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
+| `bmsrs-bms-syntax` | BMS 语法层：rowan CST、词法、容错解析与控制流查询 | `&str` → `SourceFile` |
+| `bmsrs-bms-values` | BMS 单行语法与类型化值：header/message、索引与解析 | `&str`（单行）→ 类型化值 |
+| `bmsrs-bms-parser` | BMS 语义层：CST → `Bms` 模型 | CST → `Bms` |
+| `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
+| `bmsrs-bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
+| `bmsrs-bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
+| `bmsrs-bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
+| `bmsrs-bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
+| `bmsrs-bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
 | `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
 | `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
 | `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
 
 `bms-lsp` 已拆到独立仓库：<https://github.com/brightmeows/bms-lsp>。
-它通过 git `rev` 依赖本仓库的 `bms-analysis` 与 `bms-syntax`，不再随本工作区构建。
+它通过 git `rev` 依赖本仓库的 `bmsrs-bms-analysis` 与 `bmsrs-bms-syntax`，不再随本工作区构建。
 
 外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
 
@@ -109,7 +109,7 @@ Git worktree 统一放在 `.worktrees/` 目录下。
 
 公开操作通过类型的关联函数暴露（结构体或零大小 `*Builder`），**禁止**自由函数作为公开 API。
 例外：facade 的整管线入口（`bms::from_text` / `bms::from_bytes`）与低层纯函数
-（`bms-source` 的行/编码工具）可以保留自由函数；它们没有可挂靠的领域类型，
+（`bmsrs-bms-source` 的行/编码工具）可以保留自由函数；它们没有可挂靠的领域类型，
 包装成 builder 只会增加调用成本。
 仅当 API 有可配置参数时使用 `*Builder`；无状态时直接用结构体方法。
 私有操作**建议**同样按上述模式设计（挂在类型上而非自由函数），尤其当多个函数共享同一组参数或逻辑上属于同一转换过程时；但不强制——纯函数式辅助、无共享状态的简单工具函数保留为自由函数即可。
@@ -158,7 +158,7 @@ Git worktree 统一放在 `.worktrees/` 目录下。
 | BMS `#BPM 0` | 返回 `ZeroBpm`，不回退 130 | 需要支持“不滚动”谱面时 |
 | BMS `#PLAYER` | 被忽略，`Bme` 覆盖 5K/7K/10K/14K | 需要按 `#PLAYER` 自动分族时 |
 | BGM 分层 | BGM 事件保持独立，只有可判定音符融合 `NoteAudio` | 出现需要融合 BGM 分层的真实谱面时 |
-| processor 语义警告的范围 | 没有 `TextRange`；编辑器路径用 `bms-analysis` 重算 | LSP 需要把语义警告定位到原文时 |
+| processor 语义警告的范围 | 没有 `TextRange`；编辑器路径用 `bmsrs-bms-analysis` 重算 | LSP 需要把语义警告定位到原文时 |
 
 ### 版本发布
 

@@ -3,9 +3,9 @@
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
-use bms_source::{Document, TextDecodeError};
-use bms_syntax::{BranchSelection, LineKind, ParseOptions, SourceFile, TextRange, TextSize};
-use bms_values::{BmsToken, BmsTokenizeError, parse_header_line, parse_message_line};
+use bmsrs_bms_source::{Document, TextDecodeError};
+use bmsrs_bms_syntax::{BranchSelection, LineKind, ParseOptions, SourceFile, TextRange, TextSize};
+use bmsrs_bms_values::{BmsToken, BmsTokenizeError, parse_header_line, parse_message_line};
 
 use crate::Bms;
 
@@ -177,7 +177,7 @@ fn build_selected(
 }
 
 /// 收集 CST 语法诊断。
-fn syntax_warnings(parse: &bms_syntax::Parse, file: &SourceFile) -> Vec<CstWarning> {
+fn syntax_warnings(parse: &bmsrs_bms_syntax::Parse, file: &SourceFile) -> Vec<CstWarning> {
     let lines: Vec<_> = file.lines().enumerate().collect();
     parse
         .errors()

@@ -430,7 +430,7 @@ pub enum DetectedVersion {
 ///
 /// ```rust
 /// let json = r#"{"version":"2.0.0","song_info":{}}"#;
-/// assert_eq!(bmson_def::DetectedVersion::detect(json).unwrap(), bmson_def::DetectedVersion::V2);
+/// assert_eq!(bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(), bmsrs_bmson_def::DetectedVersion::V2);
 /// ```
 ///
 /// # Errors

@@ -3,7 +3,7 @@
 //! BMS 在小节内使用分数位置。每个小节有一个可配置长度（相对标准 4/4 拍
 //! 小节的比率）。本模块构建累计脉冲表，将 [`Position`] 转换为绝对脉冲。
 
-use bms_parser::Position;
+use bmsrs_bms_parser::Position;
 
 /// 将小节号映射到累计脉冲位置的表。
 ///
@@ -24,7 +24,7 @@ impl MeasureTable {
     /// `length_ratio` 为 BMS `#xxx02` 值（`1.0` = 4/4 拍）。
     pub(crate) fn new(
         max_measure: u16,
-        measure_lengths: &[bms_parser::MeasureLength],
+        measure_lengths: &[bmsrs_bms_parser::MeasureLength],
         resolution: u64,
     ) -> Self {
         let ticks_per_measure = resolution * 4;
@@ -98,7 +98,7 @@ impl MeasureTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bms_parser::MeasureLength;
+    use bmsrs_bms_parser::MeasureLength;
 
     const RES: u64 = 240;
 

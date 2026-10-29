@@ -1,14 +1,14 @@
 //! BMS → `Chart` 转换处理器。
 //!
 //! [`BmsProcessor`] 通过应用 [`BmsLayout`] 模式族（例如 [`Bme`]、`Pms`、
-//! `Nanasi`）将 `bms_parser::Bms` 转换为格式无关的 `Chart`。
+//! `Nanasi`）将 `bmsrs_bms_parser::Bms` 转换为格式无关的 `Chart`。
 //!
 //! 模式族与 [`BmsLayout`] trait 位于本 crate 的 `layout` 模块中。
 //!
 //! # 管道
 //!
 //! ```text
-//! bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<(), NoCustomEvent>
+//! bmsrs_bms_parser::Bms → BmsProcessor::process::<L>(bms) → Chart<(), NoCustomEvent>
 //! ```
 //!
 //! # 模式族
@@ -38,11 +38,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use bms_parser::{
+use bmsrs_bms_parser::{
     Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
     OwnedExWavParams, PlayerMode, Rank, SeekIndex, WavCmdParams, WavIndex,
 };
-use bms_parser::{Bms, BpmValue, Gameplay, KeyType};
+use bmsrs_bms_parser::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
     ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
@@ -363,7 +363,7 @@ impl BmsConverter<'_> {
                 consumed,
             );
         }
-        if self.bms.gameplay.ln_type == Some(bms_parser::LnType::Type2) {
+        if self.bms.gameplay.ln_type == Some(bmsrs_bms_parser::LnType::Type2) {
             return (
                 pair_lntype2(&self.bms.messages.long_note_events, self.table),
                 HashSet::new(),
@@ -532,7 +532,7 @@ impl BmsConverter<'_> {
 
     /// 收集 LNOBJ 终点标记的 BGM 事件。
     ///
-    /// 按 BMS 规范，当 [`#LNOBJ`](bms_parser::BmsHeaderGameplay::LnObj)
+    /// 按 BMS 规范，当 [`#LNOBJ`](bmsrs_bms_parser::BmsHeaderGameplay::LnObj)
     /// 终点标记经过判定线时，其 WAV 文件作为 BGM 播放。此函数遍历
     /// [`pair_lnobj`] 返回的 `consumed` 音符索引，为每个终点标记生成一个
     /// BGM 事件。
@@ -651,7 +651,7 @@ impl BmsConverter<'_> {
                 // 值通道（0B-0E, 97, 98）使用十六进制（01-FF）；
                 // 索引通道（99, A0, A1-A5, A6, 05）使用 Base36 索引。
                 // 所有值已在 parser 层按 base 归一化，查表无需再次归一化。
-                let tick = self.table.position_to_tick(bms_parser::Position::new(
+                let tick = self.table.position_to_tick(bmsrs_bms_parser::Position::new(
                     item.measure,
                     i as u32,
                     total,

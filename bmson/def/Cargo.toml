@@ -1,5 +1,5 @@
 [package]
-name = "bmson-def"
+name = "bmsrs-bmson-def"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

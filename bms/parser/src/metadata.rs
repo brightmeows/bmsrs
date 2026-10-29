@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bms_values::{BmsHeaderMetadata, TextIndex};
+use bmsrs_bms_values::{BmsHeaderMetadata, TextIndex};
 
 /// 乐曲 / 谱面识别元数据。
 ///

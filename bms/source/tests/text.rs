@@ -1,6 +1,6 @@
 //! 完整文本与选中行渲染测试。
 
-use bms_source::{Document, DocumentOptions, SourceEncoding, TextDecodeError};
+use bmsrs_bms_source::{Document, DocumentOptions, SourceEncoding, TextDecodeError};
 
 /// 用指定编码编码文本。
 fn encode(text: &str, encoding: &'static encoding_rs::Encoding) -> Vec<u8> {

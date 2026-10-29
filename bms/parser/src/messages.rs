@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 
 use crate::warnings::ChannelValueWarning;
-use bms_values::{
+use bmsrs_bms_values::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BodyCells, BpmIndex, ChannelIndex, ScrollIndex,
     SpeedIndex, StopIndex, WavIndex, base36_digit_value,
 };
@@ -127,7 +127,7 @@ pub struct NoteEvent {
 /// 扩展通道（`5A`–`5Z` 等，pomu2 系）解码出 `lane` 10–35。
 ///
 /// 长音类型（LN / CN / HCN）由谱面级的
-/// [`LnType`](bms_values::LnType) 与 [`LnMode`](bms_values::LnMode)
+/// [`LnType`](bmsrs_bms_values::LnType) 与 [`LnMode`](bmsrs_bms_values::LnMode)
 /// 头部命令决定，而非按事件存储。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongNoteEvent {
@@ -273,7 +273,7 @@ pub struct StpEvent {
 
 /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
 ///
-/// 由最终化阶段在匹配到非事件通道时填充，处理器（`bms-processor`）
+/// 由最终化阶段在匹配到非事件通道时填充，处理器（`bmsrs-bms-processor`）
 /// 读取此数据转换为 `EventKind::Custom`。
 ///
 /// **归一化保证**：`values` 中的每个 2-char 索引已按 `base` 归一化
@@ -330,7 +330,7 @@ pub struct Messages {
     /// 非事件通道的合并数据（仅用于 BMS 引擎特定事件的延迟解析）。
     ///
     /// 每个条目包含小节号、通道类型与已归一化的单值列表，由
-    /// `finalize_merged` 在匹配到非事件通道时填充。处理器（`bms-processor`）
+    /// `finalize_merged` 在匹配到非事件通道时填充。处理器（`bmsrs-bms-processor`）
     /// 读取此数据转换为 `EventKind::Custom`。
     /// 所有 2-char 索引值已按 `base` 归一化。
     ///
@@ -363,7 +363,7 @@ impl Messages {
     /// 保留文件顺序。在接收全部消息后调用
     /// [`finalize`](Self::finalize)；它将按位置合并非 BGM 通道，然后
     /// 解析事件。
-    pub fn concat_raw(&mut self, msg: &bms_values::BmsMessage) {
+    pub fn concat_raw(&mut self, msg: &bmsrs_bms_values::BmsMessage) {
         self.raw
             .entry(msg.track())
             .or_default()
@@ -871,7 +871,7 @@ impl Messages {
     /// 第一字符决定玩家侧与音符种类（可见 / 不可见 / 长音 / 地雷）。
     ///
     /// `lane == 0`（预留通道 `"10"`/`"20"`/...）被过滤——虽然
-    /// [`classify_channel`](bms_values::classify_channel) 已将这些归为
+    /// [`classify_channel`](bmsrs_bms_values::classify_channel) 已将这些归为
     /// `Unknown`，此处再次过滤作为防御。
     ///
     /// 地雷通道 `D1`–`D9` / `E1`–`E9` 仅 lane 1–9 有效——扩展范围

@@ -1,8 +1,8 @@
-# bms-analysis
+# bmsrs-bms-analysis
 
 ## 定位
 
-BMS 分析层：在 `bms-syntax` 的 CST 上产出编辑器数据。不依赖 LSP 类型，
+BMS 分析层：在 `bmsrs-bms-syntax` 的 CST 上产出编辑器数据。不依赖 LSP 类型，
 协议适配由独立仓库 `bms-lsp` 负责。
 
 ## 产出
@@ -37,7 +37,7 @@ BMS 分析层：在 `bms-syntax` 的 CST 上产出编辑器数据。不依赖 LS
 ## 测试
 
 ```bash
-cargo test -p bms-analysis
+cargo test -p bmsrs-bms-analysis
 ```
 
 覆盖：定义/引用索引、缺失引用、重复定义、BGA→BMP 回退、控制流诊断、
