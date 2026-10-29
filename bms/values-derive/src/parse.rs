@@ -1,28 +1,28 @@
-//! `#[bms_token("...")]` 属性字符串的解析器。
+//! Parser for the `#[bms_token("...")]` attribute string.
 //!
-//! 支持的模板模式：
-//! - `"#TITLE {}"` —— 非索引，匿名 value
-//! - `"#TITLE {value}"` —— 非索引，命名 value
-//! - `"#BPM{id} {value}"` —— 索引，带 id + value
-//! - `"#BPM{} {}"` —— 索引，匿名 id + 匿名 value
-//! - `"#ELSE"` —— 无 value
-//! - `"%URL {}"` —— 非索引，带 `%` 前缀
-//! - `"#TEXT {text}"`（别名） —— 同一变体上的多个属性
-//! - `"#BASE 62"` —— 非索引，字面值（无占位符）
+//! Supported template patterns:
+//! - `"#TITLE {}"`: non-indexed, anonymous value
+//! - `"#TITLE {value}"`: non-indexed, named value
+//! - `"#BPM{id} {value}"`: indexed, with id and value
+//! - `"#BPM{} {}"`: indexed, anonymous id and anonymous value
+//! - `"#ELSE"`: no value
+//! - `"%URL {}"`: non-indexed, `%` prefix
+//! - `"#TEXT {text}"` (alias): multiple attributes on the same variant
+//! - `"#BASE 62"`: non-indexed, literal value (no placeholder)
 
 use std::fmt;
 
-/// 模板中的占位符是命名还是匿名。
+/// Whether a placeholder in the template is named or anonymous.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Placeholder {
-    /// 命名占位符，如 `{value}`、`{id}` 或 `{filename}`。
+    /// Named placeholder, such as `{value}`, `{id}`, or `{filename}`.
     Named(String),
-    /// 匿名占位符 `{}`，绑定到匿名字段位置。
+    /// Anonymous placeholder `{}`, bound to the anonymous field position.
     Unnamed,
 }
 
 impl Placeholder {
-    /// 若为命名占位符，返回其名称。
+    /// Return the name when this is a named placeholder.
     #[must_use]
     pub const fn name(&self) -> Option<&str> {
         match self {
@@ -31,64 +31,67 @@ impl Placeholder {
         }
     }
 
-    /// 当为命名占位符时返回 `true`。
+    /// Return `true` when this is a named placeholder.
     #[must_use]
     pub const fn is_named(&self) -> bool {
         matches!(self, Self::Named(_))
     }
 }
 
-/// 单个 `#[bms_token("...")]` 属性解析后的表示。
+/// Parsed representation of a single `#[bms_token("...")]` attribute.
 #[derive(Debug, Clone)]
 pub struct BmsTokenTemplate {
-    /// 前缀字符（`#` 或 `%`）。
+    /// Prefix character (`#` or `%`).
     pub prefix: char,
-    /// 命令名，已转为大写（如 `"TITLE"`、`"BPM"`、`"URL"`）。
+    /// Command name, uppercased (such as `"TITLE"`, `"BPM"`, `"URL"`).
     pub command: String,
-    /// 若为 `Some`，表示这是一个索引命令（如 `#BPM{id}`），该值是索引期望
-    /// 引用的字段。
+    /// When `Some`, this is an indexed command (such as `#BPM{id}`), and the
+    /// value is the field the index is expected to reference.
     pub id_field: Option<Placeholder>,
-    /// 若为 `Some`，表示该命令带占位符值（命名或匿名）。
+    /// When `Some`, the command has a placeholder value (named or anonymous).
     pub value_field: Option<Placeholder>,
-    /// 若为 `Some`，表示该命令带固定字面值（如 `#BASE 62` 中的 `"62"`）。
-    /// 与 `value_field` 互斥。
+    /// When `Some`, the command has a fixed literal value (such as `"62"` in
+    /// `#BASE 62`). Mutually exclusive with `value_field`.
     pub value_literal: Option<String>,
 }
 
 impl BmsTokenTemplate {
-    /// 当命令部分含有索引占位符时返回 `true`。
+    /// Return `true` when the command part contains an index placeholder.
     #[must_use]
     pub const fn is_indexed(&self) -> bool {
         self.id_field.is_some()
     }
 
-    /// 当该命令期望一个值（占位符或字面值）时返回 `true`。
+    /// Return `true` when the command expects a value (placeholder or
+    /// literal).
     #[must_use]
     pub const fn has_value(&self) -> bool {
         self.value_field.is_some() || self.value_literal.is_some()
     }
 
-    /// 当该命令使用固定字面值时返回 `true`。
+    /// Return `true` when the command uses a fixed literal value.
     #[cfg(test)]
     #[must_use]
     pub const fn is_literal_value(&self) -> bool {
         self.value_literal.is_some()
     }
 
-    /// 当命令部分的索引占位符为匿名（`{}`）时返回 `true`。
+    /// Return `true` when the index placeholder in the command part is
+    /// anonymous (`{}`).
     #[must_use]
     pub fn is_unnamed_id(&self) -> bool {
         self.id_field.as_ref().is_some_and(|p| !p.is_named())
     }
 
-    /// 当值部分的占位符为匿名（`{}`）时返回 `true`。
+    /// Return `true` when the placeholder in the value part is anonymous
+    /// (`{}`).
     #[must_use]
     pub fn is_unnamed_value(&self) -> bool {
         self.value_field.as_ref().is_some_and(|p| !p.is_named())
     }
 
-    /// 返回 id 占位符的实际字段名。
-    /// 命名占位符返回其名称；匿名占位符返回 `"id"`。
+    /// Return the actual field name of the id placeholder. Named placeholders
+    /// return their name; anonymous placeholders return `"id"`.
     #[must_use]
     pub fn id_field_name(&self) -> &str {
         self.id_field
@@ -97,8 +100,8 @@ impl BmsTokenTemplate {
             .unwrap_or("id")
     }
 
-    /// 返回 value 占位符的实际字段名。
-    /// 命名占位符返回其名称；匿名占位符返回 `"value"`。
+    /// Return the actual field name of the value placeholder. Named
+    /// placeholders return their name; anonymous placeholders return `"value"`.
     #[must_use]
     pub fn value_field_name(&self) -> &str {
         self.value_field
@@ -108,10 +111,10 @@ impl BmsTokenTemplate {
     }
 }
 
-/// 解析模板字符串时可能发生的错误。
+/// Error that can occur while parsing a template string.
 #[derive(Debug)]
 pub struct TemplateParseError {
-    /// 出错原因的人类可读描述。
+    /// Human-readable description of the failure.
     pub message: &'static str,
 }
 
@@ -121,24 +124,26 @@ impl fmt::Display for TemplateParseError {
     }
 }
 
-/// 将单个 `#[bms_token("...")]` 属性解析为 `BmsTokenTemplate`。
+/// Parse a single `#[bms_token("...")]` attribute into a `BmsTokenTemplate`.
 ///
 /// # Errors
 ///
-/// 当属性内容无法解析为合法模板字符串时返回 `syn::Error`。
+/// Returns `syn::Error` when the attribute content is not a valid template
+/// string.
 pub fn parse_bms_token_attr(attr: &syn::Attribute) -> syn::Result<BmsTokenTemplate> {
     let lit: syn::LitStr = attr.parse_args()?;
     parse_template_str(&lit.value()).map_err(|e| syn::Error::new_spanned(attr, e))
 }
 
-/// 将原始模板字符串解析为 `BmsTokenTemplate`。
+/// Parse a raw template string into a `BmsTokenTemplate`.
 ///
-/// 这是模板解析的唯一真源 —— derive 宏与构建脚本都调用此函数，
-/// 确保两者不会产生分歧。
+/// This is the single source of truth for template parsing: the derive macro
+/// and the build script both call it, so the two cannot diverge.
 ///
 /// # Errors
 ///
-/// 当字符串不符合期望的模板格式时返回 `TemplateParseError`。
+/// Returns `TemplateParseError` when the string does not match the expected
+/// template format.
 #[expect(
     clippy::string_slice,
     reason = "BMS token templates are ASCII-only; indexing at byte boundaries is safe"
@@ -169,17 +174,19 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
         });
     }
 
-    // 在第一个空格处分割，将命令部分与值部分分开。
+    // Split at the first whitespace to separate the command part from the
+    // value part.
     let split_pos = rest.find(char::is_whitespace);
     let (command_part, value_part) =
         split_pos.map_or((rest, ""), |pos| (&rest[..pos], rest[pos..].trim()));
 
     let has_value = !value_part.is_empty();
 
-    // 从命令部分提取命令基名与可选的 id 占位符。
+    // Extract the command base name and optional id placeholder from the
+    // command part.
     let (command, id_field) = extract_command_and_id(command_part)?;
 
-    // 从值部分提取 value 字段占位符或字面值。
+    // Extract the value field placeholder or literal from the value part.
     let (value_field, value_literal) = if has_value {
         match extract_value_part(value_part) {
             Ok(ValuePart::Placeholder(placeholder)) => (Some(placeholder), None),
@@ -199,15 +206,16 @@ pub fn parse_template_str(s: &str) -> Result<BmsTokenTemplate, TemplateParseErro
     })
 }
 
-/// 从模板的命令部分提取命令名与可选的 `{...}` 占位符。
+/// Extract the command name and optional `{...}` placeholder from the command
+/// part of a template.
 ///
-/// `"TITLE"` → `("TITLE", None)`
-/// `"BPM{id}"` → `("BPM", Some(Placeholder::Named("id")))`
-/// `"BPM{}"` → `("BPM", Some(Placeholder::Unnamed))`
+/// `"TITLE"` gives `("TITLE", None)`
+/// `"BPM{id}"` gives `("BPM", Some(Placeholder::Named("id")))`
+/// `"BPM{}"` gives `("BPM", Some(Placeholder::Unnamed))`
 ///
 /// # Errors
 ///
-/// 当花括号格式错误时返回 `TemplateParseError`。
+/// Returns `TemplateParseError` when the braces are malformed.
 #[expect(
     clippy::string_slice,
     reason = "BMS command parts are ASCII-only; indexing at byte boundaries is safe"
@@ -237,23 +245,23 @@ fn extract_command_and_id(part: &str) -> Result<(String, Option<Placeholder>), T
     }
 }
 
-/// 模板中值部分的解码结果。
+/// Decoded result of the value part of a template.
 enum ValuePart {
-    /// 占位符，如 `{}`、`{value}` 或 `{filename}`。
+    /// Placeholder, such as `{}`, `{value}`, or `{filename}`.
     Placeholder(Placeholder),
-    /// 字面字符串，如 `#BASE 62` 中的 `62`。
+    /// Literal string, such as `62` in `#BASE 62`.
     Literal(String),
 }
 
-/// 从模板的值部分提取占位符或字面值。
+/// Extract the placeholder or literal from the value part of a template.
 ///
-/// `"{}"` → `ValuePart::Placeholder(Placeholder::Unnamed)`
-/// `"{value}"` → `ValuePart::Placeholder(Placeholder::Named("value"))`
-/// `"62"` → `ValuePart::Literal("62")`
+/// `"{}"` gives `ValuePart::Placeholder(Placeholder::Unnamed)`
+/// `"{value}"` gives `ValuePart::Placeholder(Placeholder::Named("value"))`
+/// `"62"` gives `ValuePart::Literal("62")`
 ///
 /// # Errors
 ///
-/// 当值部分为空时返回 `TemplateParseError`。
+/// Returns `TemplateParseError` when the value part is empty.
 #[expect(
     clippy::string_slice,
     reason = "BMS token value parts are ASCII-only; indexing at byte boundaries is safe"
