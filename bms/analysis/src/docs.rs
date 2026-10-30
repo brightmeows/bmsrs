@@ -1,9 +1,8 @@
 //! English descriptions for header commands and channels.
 //!
 //! This table is a manually maintained summary; the authoritative source is the
-//! bms skill (`~/.agents/skills/bms/`) and the BMS command memo it points to.
-//! Check the skill before changing a summary to avoid drifting from the
-//! specification.
+//! BMS command memo at <https://hitkey.nekokan.dyndns.info/cmdsJP.htm>. Check
+//! the memo before changing a summary to avoid drifting from the specification.
 
 /// Description of a header command.
 #[derive(Debug, Clone, Copy)]
