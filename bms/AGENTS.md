@@ -67,12 +67,6 @@ fields or obtained through semantic interpretation (such as `damage = base36 /
 2`), store the raw literal value instead and move the derivation to the
 processor.
 
-## Domain terminology
-
-BMS commands, channel mappings, and header fields follow the **bms skill**
-(`~/.agents/skills/bms/`). The skill is an index; look up specific command
-semantics in its `memo/`, `ext/`, `bmse/`, and `test/` subdirectories.
-
 ## Tests
 
 ```bash

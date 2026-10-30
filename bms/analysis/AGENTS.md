@@ -15,9 +15,9 @@ repository.
 | `header_doc()` | English header command descriptions, matched by command prefix (`WAV01` gives `WAV`) |
 | `channel_doc()` | English channel descriptions, including note-channel groups |
 
-`docs.rs` is a manually maintained summary; the authoritative source is the bms
-skill. Check the skill before changing it; do not treat it as the specification
-text.
+`docs.rs` is a manually maintained summary; the BMS command memo linked from
+each entry is authoritative. Check the memo before changing a summary; do not
+treat `docs.rs` as the specification text.
 
 ## Index rules
 

@@ -37,12 +37,6 @@ processor can handle them.
 | Mode families decoupled | `BmsonLayout` zero-sized types decouple key mapping; `mode_hint` decides dispatch |
 | Audio pre-slicing | `SoundChannel` is pre-sliced at startup into an array of `AudioAsset`s, looked up by index at runtime |
 
-## Domain terminology
-
-BMSON fields and schema version differences follow the **bmson skill**
-(`~/.agents/skills/bmson/`). The skill is an index; look up specific field
-semantics in its `spec/` and `ext/` subdirectories.
-
 ## Tests
 
 ```bash

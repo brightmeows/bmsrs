@@ -79,7 +79,7 @@ Hooks are configured in `.pre-commit-config.yaml`:
 | `no-comment-decorations` | decorative comment blocks | remove decorations such as `// ===` and `// ---` |
 | `no-confusable-unicode` | confusable Unicode characters | replace them with ASCII equivalents |
 | `no-module-level-expect-allow` | module-level `#![expect]/#[allow]` | use function-level `#[expect(..., reason = "...")]` |
-| `no-cjk-in-comments` | Han characters in full-line Rust comments or `expect` reasons | translate the comment; string fixtures are not checked |
+| `no-cjk-in-comments` | CJK characters in full-line `//` or `/* ... */` Rust comments or `expect` reasons | translate the comment; string fixtures are not checked |
 
 ### Manual
 
@@ -131,29 +131,17 @@ set or belong to the same conversion process. This is a recommendation, not a
 requirement: pure helpers and simple stateless utilities may remain free
 functions.
 
-### Development skills
-
-The project references the following skills during development (personal
-configuration, not part of the repository):
-
-| Skill | Source repository | Purpose |
-|-------|-------------------|---------|
-| `bms` / `bmson` | <https://github.com/brightmeows/bms-skills> | BMS/bmson format specifications and domain terminology |
-| `rust-meta-cognition` | <https://github.com/brightmeows/rust-meta-skills> | routing for Rust design and compilation problems |
-
-When citing their content, link to the original sources the skills point to,
-not to the skill documents themselves.
-
 ### Comment style
 
 - Public items use `///`; modules use `//!` (enforced by clippy)
 - `//` is for implementation notes, not documentation
 - Doc comments (`///`, `//!`) and implementation comments (`//`) are written in
-  English; BMS/bmson domain terms follow the original wording in the bms/bmson
-  skills, and code identifiers stay in backticks
-- The `no-cjk-in-comments` hook enforces this for full-line comments and
-  `#[expect(..., reason = "...")]` strings; inline trailing comments and test
-  assertion messages are covered by review
+  English; BMS/bmson commands and fields keep their canonical names, and code
+  identifiers stay in backticks
+- The `no-cjk-in-comments` hook enforces this for full-line `//` and
+  `/* ... */` comments and `#[expect(..., reason = "...")]` strings (plain or
+  raw); inline trailing comments and test assertion messages are covered by
+  review
 - Standard rustdoc section headings (`# Errors`, `# Panics`, `# Examples`, etc.)
   remain in English
 
