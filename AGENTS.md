@@ -131,6 +131,20 @@ set or belong to the same conversion process. This is a recommendation, not a
 requirement: pure helpers and simple stateless utilities may remain free
 functions.
 
+### Development references
+
+The following skills are maintained outside this repository and are not part of
+it. This root file is the only place in the repository that names them;
+crate-level AGENTS.md files and source comments stay self-contained.
+
+| Skill | Source repository | Purpose |
+|-------|-------------------|---------|
+| `bms` / `bmson` | <https://github.com/brightmeows/bms-skills> | BMS/bmson format specifications and terminology lookup |
+| `rust-meta-cognition` | <https://github.com/brightmeows/rust-meta-skills> | routing for Rust design and compilation problems |
+
+When citing their content, link to the original sources the skills point to,
+not to the skill documents themselves.
+
 ### Comment style
 
 - Public items use `///`; modules use `//!` (enforced by clippy)
