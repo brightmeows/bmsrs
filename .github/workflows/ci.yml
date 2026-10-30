@@ -23,6 +23,20 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all --check
 
+  hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install pre-commit==4.7.0
+      # The cargo hooks run in their own jobs; SKIP keeps this job to the
+      # ripgrep-based rules so a comment or Unicode rule cannot slip through
+      # when a local hook was bypassed.
+      - run: SKIP=cargo-fmt,cargo-clippy,cargo-doc pre-commit run --all-files --show-diff-on-failure
+
   clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
