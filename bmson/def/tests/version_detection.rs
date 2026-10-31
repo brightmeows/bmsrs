@@ -1,5 +1,7 @@
 #![expect(missing_docs, reason = "integration tests")]
 
+use std::path::Path;
+
 use bmsrs_bmson_def::{DetectedVersion, ModeHint};
 
 #[test]
@@ -142,6 +144,44 @@ fn from_slice_v0_negative_bpm_error() {
     let v0: bmsrs_bmson_def::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
     let err: Result<bmsrs_bmson_def::Bmson<'_>, _> = v0.try_into();
     assert!(err.is_err());
+}
+
+#[test]
+fn v0_accepts_snake_case_top_level_keys() {
+    // Editors may mix camelCase and snake_case; the top-level arrays accept
+    // both spellings (stopEvents/stopNotes already do).
+    let json = r#"{
+        "info": { "title": "T", "artist": "A", "genre": "G", "level": 1, "initBPM": 120.0 },
+        "bpm_events": [{ "y": 960, "v": 180.0 }],
+        "sound_channels": [{ "name": "kick.wav", "notes": [] }],
+        "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
+    }"#;
+    let v0: bmsrs_bmson_def::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
+    assert_eq!(v0.bpm_notes.len(), 1);
+    assert_eq!(v0.bpm_notes[0].y, 960);
+    assert_eq!(v0.sound_channels.len(), 1);
+    assert_eq!(v0.sound_channels[0].name, Path::new("kick.wav"));
+}
+
+#[test]
+fn v0_serialization_still_writes_camel_case() {
+    // The canonical v0 output keeps camelCase keys even though snake_case is
+    // accepted on input.
+    let json = r#"{
+        "info": { "title": "T", "artist": "A", "genre": "G", "level": 1, "initBPM": 120.0 },
+        "bpm_events": [],
+        "sound_channels": [],
+        "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
+    }"#;
+    let v0: bmsrs_bmson_def::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
+    let out = serde_json::to_string(&v0).unwrap();
+    assert!(out.contains("\"bpmNotes\""), "canonical key is camelCase");
+    assert!(
+        out.contains("\"soundChannel\""),
+        "canonical key is camelCase"
+    );
+    assert!(!out.contains("\"bpm_events\""));
+    assert!(!out.contains("\"sound_channels\""));
 }
 
 #[test]
