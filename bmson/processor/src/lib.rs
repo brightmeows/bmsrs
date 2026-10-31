@@ -1,23 +1,23 @@
-//! BMSON → `Chart` 转换处理器。
+//! BMSON to `Chart` conversion processor.
 //!
-//! [`BmsonProcessor`] 将一个 `bmsrs_bmson_def::Bmson`（v2 根 schema）转换为
-//! 格式无关的 `Chart<BmsonNoteExt>`，转换时套用一个 [`BmsonLayout`] 模式族
-//! （[`Beat`]、[`Pms`]，或用于 n-keys 的 [`GenericLayout`]）。
+//! [`BmsonProcessor`] converts a `bmsrs_bmson_def::Bmson` (v2 root schema) into a
+//! format-agnostic `Chart<BmsonNoteExt>` by applying a [`BmsonLayout`] mode
+//! family ([`Beat`], [`Pms`], or [`GenericLayout`] for n-keys).
 //!
-//! 模式族与 [`BmsonLayout`] trait 位于 [`layout`] 模块中。
+//! Mode families and the [`BmsonLayout`] trait live in the [`layout`] module.
 //!
-//! # 管道
+//! # Pipeline
 //!
 //! ```text
-//! bmsrs_bmson_def::Bmson → BmsonProcessor::process(bmson, layout) → Chart<BmsonNoteExt>
+//! bmsrs_bmson_def::Bmson -> BmsonProcessor::process(bmson, layout) -> Chart<BmsonNoteExt>
 //! ```
 //!
-//! 对于 v0/v1 文件，请先通过 `Bmson::from` 转换为根 schema。
+//! For v0/v1 files, convert to the root schema through `Bmson::from` first.
 //!
-//! # 切片
+//! # Slicing
 //!
-//! 每个 `bmsrs_bmson_def::SoundChannel` 会在每个唯一的音符脉冲处切片为预计算的
-//! `AudioAsset`（详见内部 `slice` 模块）。
+//! Each `bmsrs_bmson_def::SoundChannel` is sliced into precomputed `AudioAsset`s at
+//! every unique note tick (see the internal `slice` module).
 
 mod error;
 mod slice;
@@ -43,71 +43,77 @@ use crate::layout::{Beat, BmsonLayout, GenericLayout, Pms};
 
 use crate::slice::slice_channel;
 
-/// BMSON 格式的每音符扩展数据。
+/// Per-note extension data for the BMSON format.
 ///
-/// 携带来自 `bmsrs_bmson_def::NoteEvent` 的可选字段，这些字段不属于核心谱面模型。
+/// Carries optional fields from `bmsrs_bmson_def::NoteEvent` that are not part of the
+/// core chart model.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BmsonNoteExt {
-    /// 音符音量（百分比，DJ.NEXT 扩展）。
+    /// Note volume (percentage, DJ.NEXT extension).
     pub vol: Option<i8>,
-    /// 音符声像（pan，DJ.NEXT 扩展）。
+    /// Note pan (DJ.NEXT extension).
     pub pan: Option<i8>,
-    /// 每音符的 LN 类型提示；beatoraja `t` 与 bmson v2
-    /// `ln_type_hint` 都归并到这里，`t` 优先。
+    /// Per-note LN type hint; both beatoraja `t` and bmson v2 `ln_type_hint`
+    /// merge here, with `t` taking priority.
     pub ln_type_hint: Option<LnTypeHint>,
-    /// 每音符的 LN 判定提示覆盖（bmson v2）。
+    /// Per-note LN judgment hint override (bmson v2).
     pub ln_judge_hint: Option<LnJudgeHint>,
-    /// 每音符的 LN 血量提示覆盖（bmson v2）。
+    /// Per-note LN life hint override (bmson v2).
     pub ln_life_hint: Option<LnLifeHint>,
 }
 
 impl NoteExt for BmsonNoteExt {}
 
-/// BMSON 处理过程中可能出现的错误。
+/// Errors that can occur while processing BMSON.
 #[derive(Debug, Error)]
 pub enum ProcessError {
-    /// 计时轨构造失败（初始 BPM 无效或 resolution 为零）。
+    /// Timing track construction failed (invalid initial BPM or zero
+    /// resolution).
     ///
-    /// 透传 [`TimingTrackError`]，不再在边界上降维翻译——此前
-    /// `ZeroResolution` 被译成 `InvalidBpm(0.0)`，报误导性错误。
+    /// Forwards [`TimingTrackError`] instead of translating it at the boundary:
+    /// `ZeroResolution` used to be translated into `InvalidBpm(0.0)`, producing
+    /// a misleading error.
     #[error(transparent)]
     Timing(#[from] TimingTrackError),
-    /// `generic-nkeys` 模式的按键数必须为正且在 `u8` 范围内
-    /// （[`Lane::Key`] 的索引上限）。
+    /// The `generic-nkeys` mode key count must be positive and within `u8`
+    /// (the index bound of [`Lane::Key`]).
     #[error("generic-nkeys key count must be in 1..=255, got {0}")]
     InvalidKeyCount(u64),
-    /// 谱面引用了不安全的资源路径。
+    /// The chart references an unsafe resource path.
     #[error("unsafe resource path \"{path}\": {reason}")]
     UnsafePath {
-        /// 原始路径。
+        /// Original path.
         path: String,
-        /// 拒绝原因。
+        /// Rejection reason.
         reason: &'static str,
     },
 }
 
-/// 将 [`bmsrs_bmson_def::Bmson`] 转换为 [`Chart<BmsonNoteExt>`] 的零大小处理器。
+/// Zero-sized processor that converts [`bmsrs_bmson_def::Bmson`] into
+/// [`Chart<BmsonNoteExt>`].
 ///
-/// 调用 [`process`](Self::process) 时传入一个模式族布局，或调用
-/// [`process_default`](Self::process_default) 从 `mode_hint` 中自动选择。
+/// Call [`process`](Self::process) with a mode-family layout, or
+/// [`process_default`](Self::process_default) to choose automatically from
+/// `mode_hint`.
 pub struct BmsonProcessor;
 
-/// BMSON 处理结果。
+/// BMSON processing result.
 #[derive(Debug)]
 pub struct Processed {
-    /// 处理得到的谱面。
+    /// Chart produced by processing.
     pub chart: Chart<BmsonNoteExt>,
-    /// 处理过程中收集的可恢复警告。
+    /// Recoverable warnings collected during processing.
     pub warnings: Vec<BmsonProcessWarning>,
 }
 
 impl BmsonProcessor {
-    /// 使用无状态模式族布局处理 BMSON 谱面，并返回处理警告。
+    /// Process a BMSON chart with a stateless mode-family layout and return
+    /// processing warnings.
     ///
     /// # Errors
     ///
-    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
-    /// [`ProcessError::Timing`]。
+    /// Returns [`ProcessError::Timing`] when timing track construction fails
+    /// (invalid initial BPM or zero resolution).
     pub fn process<L>(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<Processed, ProcessError>
     where
         L: BmsonLayout,
@@ -115,15 +121,16 @@ impl BmsonProcessor {
         Self::process_body(bmson, &|x| L::map_x(x))
     }
 
-    /// 使用 generic-nkeys 布局处理 BMSON 谱面。
+    /// Process a BMSON chart with the generic-nkeys layout.
     ///
-    /// 这是唯一有状态的布局族——当模式提示为 `generic-nkeys` 时，请直接调用
-    /// 本方法，而不是 [`process`](Self::process)。
+    /// This is the only stateful layout family; when the mode hint is
+    /// `generic-nkeys`, call this method directly instead of
+    /// [`process`](Self::process).
     ///
     /// # Errors
     ///
-    /// 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
-    /// [`ProcessError::Timing`]。
+    /// Returns [`ProcessError::Timing`] when timing track construction fails
+    /// (invalid initial BPM or zero resolution).
     pub fn process_nkeys(
         bmson: &bmsrs_bmson_def::Bmson<'_>,
         keys: u8,
@@ -132,22 +139,23 @@ impl BmsonProcessor {
         Self::process_body(bmson, &|x| layout.map_x(x))
     }
 
-    /// 处理 BMSON 谱面，根据 `mode_hint` 选择模式族。
+    /// Process a BMSON chart, choosing the mode family from `mode_hint`.
     ///
-    /// `beat-*` 与 `dj-*` 提示映射到 [`Beat`]；`popn-*` 映射到 [`Pms`]；
-    /// `generic-nkeys` 映射到 [`GenericLayout`]（使用给定的按键数）；
-    /// 规范外的扩展提示（[`ModeHint::Other`](bmsrs_bmson_def::ModeHint::Other)）
-    /// 回退到 [`Beat`]（BMSON 默认值），回退警告记录在
-    /// [`Processed::warnings`] 中。
+    /// `beat-*` and `dj-*` hints map to [`Beat`]; `popn-*` maps to [`Pms`];
+    /// `generic-nkeys` maps to [`GenericLayout`] with the given key count;
+    /// non-standard extension hints
+    /// ([`ModeHint::Other`](bmsrs_bmson_def::ModeHint::Other)) fall back to [`Beat`]
+    /// (the BMSON default), with a fallback warning recorded in
+    /// [`Processed::warnings`].
     ///
     /// # Errors
     ///
-    /// - 若计时轨构造失败（初始 BPM 无效或 resolution 为零），返回
-    ///   [`ProcessError::Timing`]。
-    /// - 若 `mode_hint` 为 `generic-nkeys` 但按键数为 0 或超过 255
-    ///   （[`Lane::Key`] 的索引上限），返回
-    ///   [`ProcessError::InvalidKeyCount`]（否则所有音符因空键位映射
-    ///   被静默丢弃）。
+    /// - Returns [`ProcessError::Timing`] when timing track construction fails
+    ///   (invalid initial BPM or zero resolution).
+    /// - Returns [`ProcessError::InvalidKeyCount`] when `mode_hint` is
+    ///   `generic-nkeys` but the key count is 0 or above 255 (the index bound of
+    ///   [`Lane::Key`]); otherwise every note would be dropped silently by the
+    ///   empty key mapping.
     pub fn process_default(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<Processed, ProcessError> {
         match &bmson.chart_data.mode_hint {
             bmsrs_bmson_def::ModeHint::Popn5k | bmsrs_bmson_def::ModeHint::Popn9k => {
@@ -171,7 +179,7 @@ impl BmsonProcessor {
         }
     }
 
-    /// 自定义解码逻辑的公开入口（内部使用）。
+    /// Public entry point for custom decode logic (internal use).
     fn process_body(
         bmson: &bmsrs_bmson_def::Bmson<'_>,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
@@ -243,62 +251,63 @@ impl BmsonProcessor {
     }
 }
 
-/// BMSON → [`Chart`] 转换上下文。
+/// BMSON to [`Chart`] conversion context.
 ///
-/// 持有源文档 [`bmsrs_bmson_def::Bmson`]、解码函数与预计算的计时缓存，
-/// 同时拥有 `audio_assets` 和 `events` 两个累加缓冲区，使各转换步骤
-/// 以 `&mut self` 方法组织而非自由函数 + `&mut` 参数。仅供
-/// [`BmsonProcessor::process_body`] 内部使用。
+/// Holds the source document [`bmsrs_bmson_def::Bmson`], the decode function, and the
+/// precomputed timing cache, along with `audio_assets` and `events` accumulator
+/// buffers, so conversion steps are organized as `&mut self` methods rather than
+/// free functions with `&mut` parameters. Used only inside
+/// [`BmsonProcessor::process_body`].
 struct BmsonConverter<'a> {
-    /// 源 BMSON 文档。
+    /// Source BMSON document.
     bmson: &'a bmsrs_bmson_def::Bmson<'a>,
-    /// 通道解码函数（`x` → `(side, lane)`）。
+    /// Channel decode function (`x` to `(side, lane)`).
     decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
-    /// 预计算的计时缓存。
+    /// Precomputed timing cache.
     timing: TimingTrack,
-    /// BMSON BGA 原始 id → 稠密资源下标映射。
+    /// BMSON BGA raw-id to dense resource-index mapping.
     bga_ids: &'a BTreeMap<u64, BgaResourceId>,
-    /// 正在构建的音频素材向量。
+    /// Audio asset vector being built.
     audio_assets: Vec<AudioAsset>,
-    /// 正在构建的事件向量。
+    /// Event vector being built.
     events: Vec<Event<BmsonNoteExt>>,
-    /// 处理过程中收集的可恢复警告。
+    /// Recoverable warnings collected during processing.
     warnings: Vec<BmsonProcessWarning>,
 }
 
-/// 同一 `(side, lane, tick)` 上等待融合的音符。
+/// A note waiting to be merged at the same `(side, lane, tick)`.
 struct LayeredNote {
-    /// 音符位置。
+    /// Note position.
     lane: Lane,
-    /// 音符种类；分层长音取第一个长度。
+    /// Note kind; layered long notes use the first length.
     kind: NoteKind,
-    /// 释放音角色；任一层为 `up: true` 时取 `Release`。
+    /// Release role; any layer with `up: true` makes it `Release`.
     role: NoteRole,
-    /// 音频层。
+    /// Audio layers.
     audio: Vec<AudioIndex>,
-    /// 第一层的格式扩展。
+    /// Format extension from the first layer.
     ext: BmsonNoteExt,
 }
 
-/// 待合并的单个可判定音符。
+/// A single judgeable note waiting to be merged.
 struct PendingNote {
-    /// 玩家侧。
+    /// Player side.
     side: NoteSide,
-    /// 轨道。
+    /// Lane.
     lane: Lane,
-    /// 脉冲位置。
+    /// Tick position.
     tick: u64,
-    /// 音符种类。
+    /// Note kind.
     kind: NoteKind,
-    /// 游玩角色。
+    /// Play role.
     role: NoteRole,
-    /// 音频索引。
+    /// Audio index.
     audio: Option<AudioIndex>,
-    /// 格式扩展。
+    /// Format extension.
     ext: BmsonNoteExt,
 }
 
-/// 把 `Lane` 编码为可排序的键，避免给核心类型加 `Ord`。
+/// Encode `Lane` into a sortable key without adding `Ord` to the core type.
 const fn lane_key(lane: Lane) -> (u8, u8) {
     match lane {
         Lane::Key(key) => (0, key.get()),
@@ -308,7 +317,7 @@ const fn lane_key(lane: Lane) -> (u8, u8) {
     }
 }
 
-/// 合并一个可判定音符到分层表。
+/// Merge one judgeable note into the layered table.
 fn merge_layered_note(
     notes: &mut BTreeMap<(NoteSide, u8, u8, u64), LayeredNote>,
     warnings: &mut Vec<BmsonProcessWarning>,
@@ -358,8 +367,8 @@ fn merge_layered_note(
 }
 
 impl BmsonConverter<'_> {
-    /// 收集 BPM 变更事件。
-    /// 值为 0 的 BPM 变更被跳过并生成警告。
+    /// Collect BPM change events. BPM changes with value 0 are skipped with a
+    /// warning.
     fn collect_bpm_events(&mut self) {
         for e in &self.bmson.chart_data.bpm_events {
             if e.bpm == 0.0 {
@@ -371,7 +380,7 @@ impl BmsonConverter<'_> {
         }
     }
 
-    /// 收集停止事件。
+    /// Collect stop events.
     fn collect_stop_events(&mut self) {
         self.events.extend(
             self.bmson
@@ -382,7 +391,7 @@ impl BmsonConverter<'_> {
         );
     }
 
-    /// 收集 SCROLL 事件。
+    /// Collect SCROLL events.
     fn collect_scroll_events(&mut self) {
         self.events.extend(
             self.bmson
@@ -392,11 +401,11 @@ impl BmsonConverter<'_> {
         );
     }
 
-    /// 收集 BGA 事件（三层：Base / Layer / Poor）。
+    /// Collect BGA events (three layers: Base / Layer / Poor).
     ///
-    /// `resource_id` 经 [`BmsonConverter::bga_ids`] 重编号为稠密下标；
-    /// 引用 `bga_header` 中不存在 id 的事件被跳过（与 BMS 侧查表未命中
-    /// 行为一致）。
+    /// `resource_id` is renumbered to a dense index through
+    /// [`BmsonConverter::bga_ids`]; events referencing an id absent from
+    /// `bga_header` are skipped (matching the BMS-side lookup-miss behavior).
     fn collect_bga_events(&mut self) {
         let bga = &self.bmson.chart_info.bga;
         for (layer, events) in [
@@ -414,7 +423,7 @@ impl BmsonConverter<'_> {
         }
     }
 
-    /// 从小节线定义或 4/4 默认值构建小节线事件。
+    /// Build barline events from the barline definitions or the 4/4 default.
     fn build_bar_lines(&mut self) {
         let last_tick = self.events.iter().map(Event::tick).max().unwrap_or(0);
         self.events.extend(build_bar_lines(
@@ -423,7 +432,7 @@ impl BmsonConverter<'_> {
             last_tick,
         ));
     }
-    /// 处理音频通道：切片、创建音符/BGM 事件。
+    /// Process sound channels: slice and create note/BGM events.
     #[expect(
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
@@ -505,7 +514,8 @@ impl BmsonConverter<'_> {
         Ok(())
     }
 
-    /// 处理地雷通道：每个通道贡献一个整文件 `AudioAsset` 和地雷音符。
+    /// Process mine channels: each channel contributes one whole-file
+    /// `AudioAsset` and its mine notes.
     #[expect(
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
@@ -542,7 +552,7 @@ impl BmsonConverter<'_> {
         Ok(())
     }
 
-    /// 处理按键（不可见）通道：结构与地雷通道相同。
+    /// Process key (invisible) channels: same structure as mine channels.
     #[expect(
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
@@ -578,10 +588,11 @@ impl BmsonConverter<'_> {
     }
 }
 
-/// 将 BMSON 资源路径规范化为安全的相对路径。
+/// Normalize a BMSON resource path into a safe relative path.
 ///
-/// 拒绝绝对路径、Windows 盘符/UNC 前缀、`..` 父目录引用、NUL 与空路径；
-/// 把反斜杠规范成正斜杠，使 Windows 风格路径在 Unix 上也能解析。
+/// Rejects absolute paths, Windows drive/UNC prefixes, `..` parent references,
+/// NUL bytes, and empty paths; normalizes backslashes to forward slashes so
+/// Windows-style paths also resolve on Unix.
 fn normalize_path(path: &Path) -> Result<PathBuf, ProcessError> {
     let raw = path.to_string_lossy();
     if raw.contains('\0') {
@@ -638,19 +649,19 @@ fn normalize_path(path: &Path) -> Result<PathBuf, ProcessError> {
     Ok(safe)
 }
 
-/// 规范化可选路径并转为 `String`。
+/// Normalize an optional path and convert it to `String`.
 fn normalize_optional_path(option: Option<&Path>) -> Result<Option<String>, ProcessError> {
     option
         .map(|raw| normalize_path(raw).map(|safe| safe.to_string_lossy().into_owned()))
         .transpose()
 }
 
-/// 从 BMSON 谱面数据构建 [`TimingTrack`]。
+/// Build a [`TimingTrack`] from BMSON chart data.
 ///
 /// # Errors
 ///
-/// 若 `data.init_bpm` 无效（零或非有限值），返回
-/// [`TimingTrackError::InvalidBpm`]。
+/// Returns [`TimingTrackError::InvalidBpm`] when `data.init_bpm` is invalid
+/// (zero or non-finite).
 fn build_timing(data: &bmsrs_bmson_def::ChartData<'_>) -> Result<TimingTrack, TimingTrackError> {
     TimingTrack::new(
         data.init_bpm,
@@ -660,7 +671,7 @@ fn build_timing(data: &bmsrs_bmson_def::ChartData<'_>) -> Result<TimingTrack, Ti
     )
 }
 
-/// 从 BMSON [`NoteEvent`](bmsrs_bmson_def::NoteEvent) 构建 [`BmsonNoteExt`]。
+/// Build [`BmsonNoteExt`] from a BMSON [`NoteEvent`](bmsrs_bmson_def::NoteEvent).
 fn build_note_ext(ne: &bmsrs_bmson_def::NoteEvent) -> BmsonNoteExt {
     BmsonNoteExt {
         vol: ne.vol,
@@ -674,25 +685,25 @@ fn build_note_ext(ne: &bmsrs_bmson_def::NoteEvent) -> BmsonNoteExt {
     }
 }
 
-/// 将 beatoraja `t` 的 LN 模式转换为格式无关提示。
+/// Convert beatoraja `t` LN mode into a format-agnostic hint.
 const fn ln_mode_to_hint(m: bmsrs_bmson_def::LnMode) -> LnTypeHint {
     match m {
         bmsrs_bmson_def::LnMode::Cn => LnTypeHint::Cn,
         bmsrs_bmson_def::LnMode::Hcn => LnTypeHint::Hcn,
-        _ => LnTypeHint::Ln, // Ln + #[non_exhaustive] fallback
+        _ => LnTypeHint::Ln, // Ln plus #[non_exhaustive] fallback.
     }
 }
 
-/// 将 `bmsrs_bmson_def::LnType` 转换为格式无关的 [`LnTypeHint`]。
+/// Convert `bmsrs_bmson_def::LnType` into the format-agnostic [`LnTypeHint`].
 const fn ln_type_to_hint(lt: bmsrs_bmson_def::LnType) -> LnTypeHint {
     match lt {
         bmsrs_bmson_def::LnType::Cn => LnTypeHint::Cn,
         bmsrs_bmson_def::LnType::Hcn => LnTypeHint::Hcn,
-        _ => LnTypeHint::Ln, // Ln + #[non_exhaustive] fallback
+        _ => LnTypeHint::Ln, // Ln plus #[non_exhaustive] fallback.
     }
 }
 
-/// 将 `bmsrs_bmson_def::LnJudge` 转换为格式无关的 [`LnJudgeHint`]。
+/// Convert `bmsrs_bmson_def::LnJudge` into the format-agnostic [`LnJudgeHint`].
 const fn ln_judge_to_hint(lj: bmsrs_bmson_def::LnJudge) -> LnJudgeHint {
     match lj {
         bmsrs_bmson_def::LnJudge::Ticks => LnJudgeHint::Ticks,
@@ -700,7 +711,7 @@ const fn ln_judge_to_hint(lj: bmsrs_bmson_def::LnJudge) -> LnJudgeHint {
     }
 }
 
-/// 将 `bmsrs_bmson_def::LnLife` 转换为格式无关的 [`LnLifeHint`]。
+/// Convert `bmsrs_bmson_def::LnLife` into the format-agnostic [`LnLifeHint`].
 const fn ln_life_to_hint(ll: bmsrs_bmson_def::LnLife) -> LnLifeHint {
     match ll {
         bmsrs_bmson_def::LnLife::Ticks => LnLifeHint::Ticks,
@@ -708,12 +719,12 @@ const fn ln_life_to_hint(ll: bmsrs_bmson_def::LnLife) -> LnLifeHint {
     }
 }
 
-/// 建立 BMSON BGA 原始 id 到稠密下标的映射。
+/// Build the mapping from BMSON BGA raw ids to dense indices.
 ///
-/// `resource_id == bga_resources` 下标的不变量由本映射保证：`bga_header`
-/// 的 id 可能稀疏或巨大，重编号后渲染器可安全按索引取资源表。
-/// 重复的原始 id 以最后一次出现者生效（与 schema 注释一致，insert
-/// 覆盖）。
+/// This mapping guarantees the invariant that `resource_id` equals the index
+/// into `bga_resources`: `bga_header` ids may be sparse or huge, and renumbering
+/// lets renderers safely index the resource table. Duplicate raw ids use the
+/// last occurrence (consistent with the schema note, since insert overwrites).
 fn build_bga_id_map(bga: &bmsrs_bmson_def::BGA<'_>) -> BTreeMap<u64, BgaResourceId> {
     bga.bga_header
         .iter()
@@ -728,7 +739,7 @@ fn build_bga_id_map(bga: &bmsrs_bmson_def::BGA<'_>) -> BTreeMap<u64, BgaResource
         .collect()
 }
 
-/// 从 BMSON 乐曲信息构建 [`SongInfo`]。
+/// Build [`SongInfo`] from BMSON song information.
 fn build_song_info(bmson: &bmsrs_bmson_def::Bmson<'_>) -> SongInfo {
     SongInfo {
         title: bmson.song_info.title.to_owned(),
@@ -737,7 +748,7 @@ fn build_song_info(bmson: &bmsrs_bmson_def::Bmson<'_>) -> SongInfo {
     }
 }
 
-/// 从 BMSON 谱面信息构建 [`ChartInfo`]。
+/// Build [`ChartInfo`] from BMSON chart information.
 fn build_chart_info(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<ChartInfo, ProcessError> {
     let bga = &bmson.chart_info.bga;
     let bga_resources: Vec<BgaResource> = bga
@@ -746,7 +757,8 @@ fn build_chart_info(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<ChartInfo, Pro
         .map(|h| {
             Ok(BgaResource {
                 path: normalize_path(h.name)?,
-                // BMSON 无裁剪/放置概念（图片/视频统一为路径）。
+                // BMSON has no crop/placement concept (images and videos are
+                // just paths).
                 crop: None,
             })
         })
@@ -768,13 +780,13 @@ fn build_chart_info(bmson: &bmsrs_bmson_def::Bmson<'_>) -> Result<ChartInfo, Pro
         banner_image: normalize_optional_path(bmson.chart_info.banner_image)?,
         preview_music: normalize_optional_path(bmson.chart_info.preview_music)?,
         bga_resources,
-        // BMSON 无 #VIDEOFILE/#MOVIE 概念。
+        // BMSON has no #VIDEOFILE/#MOVIE concept.
         video: None,
         key_count: mode_key_count(&bmson.chart_data.mode_hint),
     })
 }
 
-/// 从 `mode_hint` 推断可玩按键总数。
+/// Infer the total playable key count from `mode_hint`.
 fn mode_key_count(mode: &bmsrs_bmson_def::ModeHint) -> Option<u8> {
     use bmsrs_bmson_def::ModeHint;
 
@@ -793,7 +805,7 @@ fn mode_key_count(mode: &bmsrs_bmson_def::ModeHint) -> Option<u8> {
     }
 }
 
-/// 从 BMSON [`BpmEvent`] 构建 [`BpmChange`]。
+/// Build [`BpmChange`] from a BMSON [`BpmEvent`].
 const fn build_bpm_change(e: &BpmEvent) -> BpmChange {
     BpmChange {
         tick: e.y,
@@ -801,7 +813,7 @@ const fn build_bpm_change(e: &BpmEvent) -> BpmChange {
     }
 }
 
-/// 从 BMSON 停止事件构建 [`StopEvent`]。
+/// Build [`StopEvent`] from a BMSON stop event.
 const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
     StopEvent {
         tick: e.y,
@@ -809,11 +821,11 @@ const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
     }
 }
 
-/// 从 BMSON `lines` 字段构建小节线事件。
+/// Build barline events from the BMSON `lines` field.
 ///
-/// `None` → 自动生成 4/4 拍小节线（每隔 `resolution * 4` 个脉冲一条），
-/// 范围从 0 到 `last_tick`。`last_tick` 由调用方从完整事件集（含 BGA）
-/// 推算，确保覆盖所有事件类型。
+/// `None` auto-generates 4/4 barlines (one every `resolution * 4` ticks) from 0
+/// to `last_tick`. The caller derives `last_tick` from the complete event set
+/// (including BGA) so every event type is covered.
 fn build_bar_lines(
     lines: Option<&[bmsrs_bmson_def::BarLine]>,
     resolution: u64,

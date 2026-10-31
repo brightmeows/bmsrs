@@ -48,10 +48,10 @@ jobs:
       - name: Restore cargo target
         uses: actions/cache@v6
         with:
-          # 各子目录理由：
-          #   deps/         — registry 依赖的 .rlib/.rmeta，源码路径稳定，编译指纹一致，可重用
-          #   .fingerprint/ — cargo 依赖它的指纹判定 freshness，缺了即使有 .rlib 也会重编
-          #   semver-checks — 基线版本的 rustdoc JSON，版本不变就不会变，免去每次重新生成
+          # Rationale for each subdirectory:
+          #   deps/         - .rlib/.rmeta for registry dependencies; source paths are stable and build fingerprints match, so they are reusable
+          #   .fingerprint/ - cargo uses these fingerprints for freshness checks; without them, even existing .rlib files trigger recompilation
+          #   semver-checks - rustdoc JSON for the baseline version; it does not change while the version stays fixed, avoiding regeneration on every run
           path: |
             target/debug/deps
             target/debug/.fingerprint

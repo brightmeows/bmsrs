@@ -1,86 +1,91 @@
 # bmsrs-chart
 
-## 定位
+## Role
 
-格式无关的谱面数据模型——格式处理器与播放器之间的中央 IR。
+Format-agnostic chart data model: the central IR between format processors and
+the player.
 
-**零外部依赖。** 纯 `std`，无 `serde`、`thiserror`、`serde_json`。
+**Zero external dependencies.** Pure `std`, with no `serde`, `thiserror`, or
+`serde_json`.
 
-## 时间模型
+## Time model
 
-| 域 | 类型 | 用途 |
-|------|------|------|
-| Tick | `u64` | 所有事件位置、停止时长、LN 时长 |
-| Time | `Duration` | `AudioAsset.start`、`Chart::duration()` |
-| 音乐时间 | `Duration` | `TimingTrack::tick_to_musical_duration`，不含 STOP 暂停；音频切片使用 |
+| Domain | Type | Use |
+|--------|------|-----|
+| Tick | `u64` | all event positions, stop durations, LN durations |
+| Time | `Duration` | `AudioAsset.start`, `Chart::duration()` |
+| Musical time | `Duration` | `TimingTrack::tick_to_musical_duration`, excluding STOP pauses; used for audio slicing |
 
-`resolution` 定义每四分音符的 tick 数（默认 240）。
+`resolution` defines ticks per quarter note (default 240).
 
-## 泛型参数
+## Generic parameters
 
-`Chart<T, C>` — 两个泛型参数，均有默认值：
+`Chart<T, C>` has two generic parameters, both with defaults:
 
-| 参数 | 默认值 | 用途 |
-|------|--------|------|
-| `T: NoteExt` | `()` | 每音符扩展数据（音量、pan、LN 模式等）|
-| `C: CustomEvent` | `NoCustomEvent` | 格式特有自定义事件类型 |
+| Parameter | Default | Use |
+|-----------|---------|-----|
+| `T: NoteExt` | `()` | per-note extension data (volume, pan, LN mode, and so on) |
+| `C: CustomEvent` | `NoCustomEvent` | format-specific custom event type |
 
-音符核心字段：
+Core note fields:
 
-| 类型 | 作用 |
-|------|------|
-| `NoteAudio` | 音频层集合：`None` / `One(AudioIndex)` / `Many(Box<[AudioIndex]>)`；`Many` 至少两层 |
-| `NoteRole` | `Normal` / `Release`，与 `NoteKind` 正交，擦除 `NoteExt` 后仍保留 |
-| `AudioIndex` / `BgaResourceId` | 独立 newtype，避免音频与 BGA 索引互相赋值 |
+| Type | Purpose |
+|------|---------|
+| `NoteAudio` | audio layer set: `None` / `One(AudioIndex)` / `Many(Box<[AudioIndex]>)`; `Many` has at least two layers |
+| `NoteRole` | `Normal` / `Release`, orthogonal to `NoteKind`, survives erasing `NoteExt` |
+| `AudioIndex` / `BgaResourceId` | dedicated newtypes preventing audio and BGA indices from being assigned to each other |
 
-## 事件优先级
+## Event priority
 
-`Event` 枚举变体按优先级排序：
+`Event` enum variants sort by priority:
 
 ```
 Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 ```
 
-稳定排序保留同 tick 的插入顺序。
+The stable sort preserves insertion order at the same tick.
 
-## 数据所有者
+## Data ownership
 
-模式族（mode families）**不在此定义**。每个格式处理器拥有自己的 `layout` 模块。
-`Chart` 不存储模式信息——音符已携带 `(NoteSide, Lane)`。
+Mode families are **not defined here**. Each format processor owns its own
+`layout` module. `Chart` does not store mode information; notes already carry
+`(NoteSide, Lane)`.
 
-## BPM 查询
+## BPM lookup
 
-| 类型 | 方法 | 用途 |
-|------|------|------|
-| [`BpmLookup`] | `new(init_bpm, &[BpmChange])` | 在构造 [`TimingTrack`] 前查询 BPM（例如 STP 毫秒→脉冲换算），无须完整计时轨 |
-| [`BpmLookup`] | `bpm_at_tick(tick) → f64` | 给定脉冲处生效的 BPM（二分查找） |
+| Type | Method | Use |
+|------|--------|-----|
+| [`BpmLookup`] | `new(init_bpm, &[BpmChange])` | query BPM before constructing [`TimingTrack`] (for example, STP milliseconds to ticks) without a full timing track |
+| [`BpmLookup`] | `bpm_at_tick(tick) -> f64` | BPM in effect at a tick (binary search) |
 
-`BpmLookup::bpm_at_tick` 与 `TimingTrack::bpm_at_tick` 语义一致；前者无须构造完整计时轨，用于构造前的轻量查询。
+`BpmLookup::bpm_at_tick` matches `TimingTrack::bpm_at_tick` semantically; the
+former needs no full timing track and serves lightweight pre-construction
+queries.
 
-## 非显而易见的规则
+## Non-obvious rules
 
-| 规则 | 说明 |
-|------|------|
-| `Chart::duration()` = `last_tick` 的渲染时长 | 最后事件之后无额外尾音 |
-| `AudioAsset.start` 是 Time 域 | 用于定义音频素材的触发起点 |
-| `TimingTrack::default()` = 120 BPM | 安全默认值，非 0.0；`ChartData` 仍不实现 `Default` |
-| `LnTypeHint`/`LnJudgeHint`/`LnLifeHint` | 长音提示的 typed enum，位于 `note.rs`。`LnTypeHint` 由 BMS `#LNMODE` / BMSON `ln_type_hint` 共同填充 |
-| `Event` 的 `tick()` 方法 | 统一访问所有变体的 tick 字段 |
-| `Event::sort_key()` | `(tick, priority)` 复合键，同脉冲排序的唯一入口 |
-| `ChartData::validate()` | 先检查事件有序，再检查音符/BGM 音频索引与 BGA 资源索引；`UnsortedEvents` 是独立错误 |
-| `judge_multiplier` / `life_multiplier` | `Option<f64>`；`None` = 来源未指定，`Some(1.0)` = 标准 |
-| `ChartInfo.key_count` | 可玩按键总数；`None` = 未提供或无法推断 |
-| `ChartInfo.subartists` / `title_image` | 对齐 BMSON v2 的谱面级归属；BMS 的 `#SUBARTIST` 也映射到 `subartists` |
-| `TimingTrack::tick_to_musical_duration` | 与 `tick_to_duration` 的区别是排除 STOP 暂停，供音频切片使用 |
-| `BgaResource.crop` | 源裁剪矩形与目标偏移（BMS `#BGA`/`#@BGA`）。`None` = 整图。BMSON 不区分裁剪，恒为 `None` |
-| `BgaResource` 无 `id` | `bga_resources` 的向量下标就是唯一资源 id；事件用 `BgaResourceId` 引用 |
-| `ChartInfo.video` | 背景视频（BMS `#VIDEOFILE`/`#MOVIE`）。BMSON 无此概念，恒为 `None` |
-| `VideoAsset` 的 `Eq` | `fps: Option<f64>` 使其无法派生 `Eq`；手动 `impl Eq`（保证不含 NaN，仿 `Damage`）。`colors`/`delay_frames` 用 `u32` 规避 |
-| `CropRect` 全整数 | 源矩形 + 偏移均为 `i32`，自然 `Eq` |
+| Rule | Explanation |
+|------|-------------|
+| `Chart::duration()` is the render duration of `last_tick` | no extra tail after the last event |
+| `AudioAsset.start` is in the Time domain | defines the trigger offset of an audio asset |
+| `TimingTrack::default()` is 120 BPM | a safe default, not 0.0; `ChartData` still does not implement `Default` |
+| `LnTypeHint`/`LnJudgeHint`/`LnLifeHint` | typed enums for long-note hints in `note.rs`. `LnTypeHint` is filled by both BMS `#LNMODE` and BMSON `ln_type_hint` |
+| `Event`'s `tick()` method | uniform access to the tick field of every variant |
+| `Event::sort_key()` | the `(tick, priority)` composite key and the only same-tick ordering entry point |
+| `ChartData::validate()` | checks event ordering, then note/BGM audio indices and BGA resource indices; `UnsortedEvents` is a separate error |
+| `judge_multiplier` / `life_multiplier` | `Option<f64>`; `None` means unspecified by the source, `Some(1.0)` means standard |
+| `ChartInfo.key_count` | total playable keys; `None` means not provided or not inferable |
+| `ChartInfo.subartists` / `title_image` | aligned with BMSON v2's chart-level ownership; BMS `#SUBARTIST` also maps to `subartists` |
+| `TimingTrack::tick_to_musical_duration` | unlike `tick_to_duration`, excludes STOP pauses; used for audio slicing |
+| `BgaResource.crop` | source crop rectangle and target offset (BMS `#BGA`/`#@BGA`). `None` means the whole image. BMSON has no crop concept and always uses `None` |
+| `BgaResource` has no `id` | the vector index into `bga_resources` is the unique resource id; events reference it through `BgaResourceId` |
+| `ChartInfo.video` | background video (BMS `#VIDEOFILE`/`#MOVIE`). BMSON has no such concept and always uses `None` |
+| `VideoAsset`'s `Eq` | `fps: Option<f64>` prevents deriving `Eq`; implemented manually (guaranteed no NaN, following `Damage`). `colors`/`delay_frames` use `u32` to avoid the issue |
+| `CropRect` is all integers | source rectangle and offset are `i32`, so `Eq` derives naturally |
 
-## 已知限制（不进 IR）
+## Known limitations (not in the IR)
 
-| 项 | 原因 |
-|----|------|
-| BMS `#SWBGA`（扫描线过渡动画） | 运行时动画，依赖 renderer 实现，非静态资源数据 |
-| BMS `#EXBMP` 逐图透明色 / `#ARGB` 逐图层着色（作为资源属性） | 已通过 `BmsCustomEvent::BgaArgb`（通道 A1-A4）以事件形式承载，不重复建模为资源属性 |
+| Item | Reason |
+|------|--------|
+| BMS `#SWBGA` (scanline transition animation) | runtime animation that depends on the renderer, not static resource data |
+| BMS `#EXBMP` per-image transparent color / `#ARGB` per-layer tinting (as resource attributes) | already carried as events through `BmsCustomEvent::BgaArgb` (channels A1-A4); not modeled again as resource attributes |

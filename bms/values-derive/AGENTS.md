@@ -1,69 +1,71 @@
 # bmsrs-bms-values-derive
 
-## 定位
+## Role
 
-`#[derive(BmsTokenAttr)]` proc-macro crate。自动处理所有 `#[bms_token("...")]` 模式。
+`#[derive(BmsTokenAttr)]` proc-macro crate. It handles every
+`#[bms_token("...")]` pattern automatically.
 
-纯编译时逻辑，无运行时依赖。
+Pure compile-time logic, no runtime dependencies.
 
-## 三种模式
+## Three modes
 
-| 模式 | 检测条件 | 生成内容 |
-|------|----------|----------|
-| **Command** | `#[bms_token("#BPM{id} {value}")]` 或 `#[bms_token("#TITLE {}")]` | `try_match_header` + `format_header` |
-| **Literal** | `#[bms_token("0")]`（无 `#`/`%` 前缀）| `FromStr` + `Display` |
-| **Dispatch** | 无 `#[bms_token]`，全部是单 tuple 变体 | `BmsHeader::try_match_header` |
+| Mode | Detection | Generated items |
+|------|-----------|-----------------|
+| **Command** | `#[bms_token("#BPM{id} {value}")]` or `#[bms_token("#TITLE {}")]` | `try_match_header` + `format_header` |
+| **Literal** | `#[bms_token("0")]` (no `#` or `%` prefix) | `FromStr` + `Display` |
+| **Dispatch** | No `#[bms_token]`; all variants are single tuple variants | `BmsHeader::try_match_header` |
 
-## 模块结构
+## Module structure
 
-| 文件 | 职责 |
-|------|------|
-| `lib.rs` | derive macro 入口，模式检测 |
-| `parse.rs` | template 字符串解析（`"#BPM{id} {value}"` → `BmsTokenTemplate`）|
-| `codegen.rs` | 生成 `try_match_header` / `format_header`（command 模式 + dispatch 模式）|
-| `value_codegen.rs` | 生成 `FromStr` / `Display`（literal 模式）|
+| File | Responsibility |
+|------|----------------|
+| `lib.rs` | derive macro entry point, mode detection |
+| `parse.rs` | template string parsing (`"#BPM{id} {value}"` to `BmsTokenTemplate`) |
+| `codegen.rs` | generates `try_match_header` / `format_header` (command and dispatch modes) |
+| `value_codegen.rs` | generates `FromStr` / `Display` (literal mode) |
 
-## 生成的函数
+## Generated functions
 
-| 函数 | 模式 | 作用 |
-|------|------|------|
-| `try_match_header` | Command | 子 enum 级解析入口 |
-| `format_header` | Command | enum 变体 → `(command, value)` |
-| `BmsHeader::try_match_header` | Dispatch | 顶层调度 |
-| `FromStr` / `Display` | Literal | 值 ↔ 字符串映射 |
+| Function | Mode | Purpose |
+|----------|------|---------|
+| `try_match_header` | Command | sub-enum parse entry point |
+| `format_header` | Command | enum variant to `(command, value)` |
+| `BmsHeader::try_match_header` | Dispatch | top-level dispatch |
+| `FromStr` / `Display` | Literal | value-to-string mapping |
 
-## 属性
+## Attributes
 
-| 属性 | 效果 |
-|------|------|
-| `#[bms_token("...")]` | command pattern 或 literal value |
-| `#[bms_fallback]` | Command 模式：失败 → `Ok(None)`；Dispatch 模式：跳过此变体 |
-| `#[doc(hidden)]` | 跳过 codegen（用于 phantom 变体）|
+| Attribute | Effect |
+|-----------|--------|
+| `#[bms_token("...")]` | command pattern or literal value |
+| `#[bms_fallback]` | Command mode: failure returns `Ok(None)`; Dispatch mode: skip this variant |
+| `#[doc(hidden)]` | skip codegen (used for phantom variants) |
 
-## `String` 字段检测
+## `String` field detection
 
-字段类型为 `String` 时，通过 `String::from(value)` 解析（owned 转换），
-而非 `FromStr`/`BmsValue`。
+When the field type is `String`, it is parsed through `String::from(value)` (an
+owned conversion) rather than `FromStr` / `BmsValue`.
 
-## 错误映射
+## Error mapping
 
-macro 将每个 `FromStr::Err` 通过 `IntoTokensError` 转换为 `BmsTokenizeError`。
+The macro converts every `FromStr::Err` into a `BmsTokenizeError` through
+`IntoTokensError`.
 
-| 内置实现 | 说明 |
-|----------|------|
-| `ParseIntError` / `ParseFloatError` | 标准库整数/浮点解析错误 |
-| `ParseBmsValueError` | BMS 通用值解析错误 |
-| `BmsChannelIdError` | 通道号解析错误 |
-| `ParseDifficultyError` | 难度等级解析错误 |
+| Built-in implementation | Meaning |
+|-------------------------|---------|
+| `ParseIntError` / `ParseFloatError` | standard-library integer and float parse errors |
+| `ParseBmsValueError` | generic BMS value parse error |
+| `BmsChannelIdError` | channel number parse error |
+| `ParseDifficultyError` | difficulty level parse error |
 
-自定义 `FromStr` 类型实现 `IntoTokensError` 以控制错误变体。
+Custom `FromStr` types implement `IntoTokensError` to control the error variant.
 
-## 测试
+## Tests
 
 ```bash
-# 通过 bmsrs-bms-values 的 roundtrip 测试间接测试
+# Tested indirectly through bmsrs-bms-values roundtrip tests
 cargo test -p bmsrs-bms-values
-# 多态测试
+# Polymorphic tests
 ```
 
-proc-macro 单元测试在 `parse.rs` 中（使用 `proc_macro2` 类型）。
+Proc-macro unit tests live in `parse.rs` (using `proc_macro2` types).

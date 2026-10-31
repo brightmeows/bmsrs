@@ -1,4 +1,4 @@
-//! `bmsrs-player` 的集成测试。
+//! Integration tests for `bmsrs-player`.
 #![expect(clippy::unwrap_used, reason = "test code")]
 
 use std::num::NonZeroU8;
@@ -23,10 +23,10 @@ const fn key(n: u8) -> Lane {
     Lane::Key(nz(n))
 }
 
-/// 创建一个简单的测试谱面。
+/// Create a simple test chart.
 fn make_test_chart() -> Chart {
-    // 事件必须按 (tick, priority) 升序排列，否则 Player 的
-    // partition_point 无法正确工作。
+    // Events must be sorted ascending by (tick, priority); otherwise the
+    // Player's partition_point cannot work correctly.
     Chart {
         song: SongInfo {
             title: "Test".into(),
@@ -68,7 +68,8 @@ fn make_test_chart() -> Chart {
             ],
             judge_deltas: None,
             life_deltas: None,
-            // validate 检查音频索引完整性：BGM 事件引用索引 0，素材表须非空。
+            // validate checks audio index integrity: the BGM event references
+            // index 0, so the asset table must be non-empty.
             audio_assets: vec![AudioAsset::from_path_buf(
                 PathBuf::from("test.wav"),
                 Duration::ZERO,
@@ -78,7 +79,7 @@ fn make_test_chart() -> Chart {
     }
 }
 
-// Player 创建与基本操作
+// Player creation and basic operations
 
 #[test]
 fn player_new_starts_at_zero() {
@@ -171,7 +172,7 @@ fn player_current_bpm_at_change_tick() {
     );
 }
 
-// 事件查询
+// Event queries
 
 #[test]
 fn player_events_in_range() {
@@ -233,7 +234,7 @@ fn player_bga_events_empty() {
     assert!(bga.is_none());
 }
 
-// Scroll 缓存
+// Scroll cache
 
 #[test]
 fn player_scroll_rate_default() {
@@ -259,7 +260,7 @@ fn player_scroll_rate_with_events() {
     assert!((player.scroll_rate_at(500) - 2.0).abs() < f64::EPSILON);
 }
 
-// Timeline 查询
+// Timeline queries
 
 #[test]
 fn player_tick_to_duration() {
@@ -279,7 +280,7 @@ fn player_duration_to_tick() {
     assert_eq!(tick, 240);
 }
 
-// 谱面访问
+// Chart access
 
 #[test]
 fn player_chart_ref() {
@@ -304,7 +305,8 @@ fn player_audio_assets() {
     let chart = make_test_chart();
     let player = Player::new(chart).unwrap();
 
-    // 夹具含一条音频素材（validate 要求 BGM 引用可解析）。
+    // The fixture has one audio asset (validate requires BGM references to
+    // resolve).
     let assets = player.audio_assets();
     assert_eq!(assets.len(), 1);
 }
@@ -318,7 +320,7 @@ fn player_bga_resources() {
     assert_eq!(resources, []);
 }
 
-// 带 BPM 变化的更大范围测试
+// Larger-range tests with BPM changes
 
 #[test]
 fn player_advance_with_bpm_change() {
@@ -344,7 +346,7 @@ fn player_advance_with_bpm_change() {
     assert_eq!(player.current_tick(), 480);
 }
 
-// 带停止事件的测试
+// Tests with stop events
 
 #[test]
 fn player_advance_with_stop() {
@@ -388,9 +390,10 @@ fn frame_wise_advance_crosses_stop() {
     .unwrap();
     let mut player = Player::new(chart).unwrap();
 
-    // 60fps 帧循环 3 秒：180 帧 × 1/60s。冻结段为 [0.5, 1.0)s，
-    // 脉冲应到达 (3.0 - 1.0)s × 480 ticks/s + 240 = 1200；
-    // 若以脉冲为状态、时间从脉冲反推，将永久卡在 240。
+    // A 3-second 60fps frame loop: 180 frames at 1/60s. The frozen segment is
+    // [0.5, 1.0)s, so ticks should reach (3.0 - 1.0)s * 480 ticks/s + 240 = 1200;
+    // with ticks as state and time derived from ticks, it would stay stuck at
+    // 240 forever.
     for _ in 0..180 {
         player.advance(Duration::from_secs_f64(1.0 / 60.0));
     }
@@ -404,7 +407,7 @@ fn visible_tick_range_at_start_covers_negative_reaction() {
     let chart = make_test_chart();
     let player = Player::new(chart).unwrap();
 
-    // 当前在 tick 0，reaction 1s 向前被钳位为 0。
+    // At tick 0, a 1s reaction clamped to 0.
     let (start, end) = player.visible_tick_range(Duration::from_secs(1), Duration::from_secs(2));
     assert_eq!(start, 0);
     // 120 BPM, resolution 240: 2s = 4 beats = 960 ticks
@@ -416,21 +419,23 @@ fn visible_tick_range_at_midpoint_returns_symmetric_window() {
     let chart = make_test_chart();
     let mut player = Player::new(chart).unwrap();
 
-    // 前进到 1s（在 120 BPM 段：1s = 2 beats = 480 ticks）。
+    // Advance to 1s (in the 120 BPM segment: 1s = 2 beats = 480 ticks).
     player.advance(Duration::from_secs_f64(1.0));
     assert_eq!(player.current_tick(), 480);
 
     let (start, end) =
         player.visible_tick_range(Duration::from_millis(500), Duration::from_millis(500));
-    // 0.5s 前 = tick 240, 0.5s 后 = tick 720（仍在 120 BPM 段）。
+    // 0.5s before is tick 240, 0.5s after is tick 720 (still in the 120 BPM
+    // segment).
     assert_eq!(start, 240);
     assert_eq!(end, 720);
 }
 
 #[test]
 fn player_new_accepts_negative_bpm() {
-    // 负 BPM（逆走谱面）应在全链路通过：TimingTrack → ChartData::validate → Player::new。
-    // 若任何校验点仍用 <=0.0，此处 panic。
+    // Negative BPM (reverse-scroll charts) must pass through the whole chain:
+    // TimingTrack, ChartData::validate, Player::new. If any validation point
+    // still uses <=0.0, this panics.
     let chart: Chart = Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
@@ -447,13 +452,13 @@ fn player_new_accepts_negative_bpm() {
             audio_assets: vec![],
         },
     };
-    // 不 panic 即通过——验证全链路接受负 BPM
+    // Not panicking means success: the whole chain accepts negative BPM.
     assert!(Player::new(chart).is_ok());
 }
 
-// F7: BGM 与 BGA 事件查询
+// F7: BGM and BGA event queries
 
-/// 创建一个带多 BGM 事件的谱面。
+/// Create a chart with multiple BGM events.
 fn make_chart_with_bgm() -> Chart {
     Chart {
         song: SongInfo {
@@ -477,7 +482,8 @@ fn make_chart_with_bgm() -> Chart {
                 Event::bgm(360, AudioIndex::new(2)),
                 Event::bar(960),
             ],
-            // validate 检查音频索引完整性：三条 BGM 引用索引 0-2，素材表须覆盖。
+            // validate checks audio index integrity: three BGM events reference
+            // indices 0-2, so the asset table must cover them.
             audio_assets: ["a.wav", "b.wav", "c.wav"]
                 .iter()
                 .map(|&name| AudioAsset::from_path_buf(PathBuf::from(name), Duration::ZERO, None))
@@ -486,7 +492,7 @@ fn make_chart_with_bgm() -> Chart {
     }
 }
 
-/// 创建一个带多 BGA 事件的谱面（每种图层各一个）。
+/// Create a chart with multiple BGA events (one per layer).
 fn make_chart_with_bga() -> Chart {
     Chart {
         song: SongInfo {
@@ -560,7 +566,8 @@ fn make_chart_with_bga() -> Chart {
     }
 }
 
-/// BGM 事件经 `events_in_range` 加调用方 kind 过滤取出。
+/// BGM events are extracted through `events_in_range` plus caller-side kind
+/// filtering.
 #[test]
 fn player_bgm_in_range_returns_events() {
     let chart = make_chart_with_bgm();
@@ -580,7 +587,7 @@ fn player_bgm_in_range_returns_events() {
     assert_eq!(bgm, vec![(120, 0), (240, 1), (360, 2)]);
 }
 
-/// BGM 子区间经 `events_in_range` 取出。
+/// BGM subranges are extracted through `events_in_range`.
 #[test]
 fn player_bgm_in_range_subrange_returns_subset() {
     let chart = make_chart_with_bgm();
@@ -600,7 +607,8 @@ fn player_bgm_in_range_subrange_returns_subset() {
     assert_eq!(bgm, vec![120, 240, 360]);
 }
 
-/// 所有图层的 BGA 事件经 `events_in_range` 加调用方 kind 过滤取出。
+/// BGA events for every layer are extracted through `events_in_range` plus
+/// caller-side kind filtering.
 #[test]
 fn player_bga_events_base_returns_all_events() {
     let chart = make_chart_with_bga();
@@ -624,7 +632,7 @@ fn player_bga_events_base_returns_all_events() {
     assert_eq!(bga[3], (BgaLayer::Layer2, 3, 480));
 }
 
-/// 按 `BgaLayer` 过滤。
+/// Filter by `BgaLayer`.
 #[test]
 fn player_bga_events_filter_by_layer() {
     let chart = make_chart_with_bga();
@@ -695,7 +703,7 @@ fn player_bga_events_filter_by_layer() {
     assert_eq!(layer2[0].tick(), 480);
 }
 
-/// 多 BGM 通道（不同 `audio_index`）。
+/// Multiple BGM channels (different `audio_index` values).
 #[test]
 fn player_bgm_multiple_channels_returns_all() {
     let chart = make_chart_with_bgm();

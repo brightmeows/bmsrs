@@ -1,4 +1,4 @@
-//! 分析入口。
+//! Analysis entry point.
 
 use std::collections::BTreeMap;
 
@@ -8,25 +8,25 @@ use bmsrs_bms_values::{BmsChannel, BodyCells, parse_header_line, parse_message_l
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};
 
-/// 一次分析结果。
+/// Result of one analysis.
 #[derive(Debug, Clone)]
 pub struct Analysis {
-    /// CST 与语法诊断。
+    /// CST and syntax diagnostics.
     parse: Parse,
-    /// 诊断列表。
+    /// Diagnostic list.
     diagnostics: Vec<AnalysisDiagnostic>,
-    /// 符号索引。
+    /// Symbol index.
     index: SymbolIndex,
 }
 
 impl Analysis {
-    /// 分析 BMS 文本。
+    /// Analyze BMS text.
     #[must_use]
     pub fn from_text(text: &str) -> Self {
         Self::from_text_with(text, &ParseOptions::default())
     }
 
-    /// 使用解析选项分析 BMS 文本。
+    /// Analyze BMS text with parse options.
     #[must_use]
     pub fn from_text_with(text: &str, options: &ParseOptions) -> Self {
         let parse = SourceFile::parse_with(text, options);
@@ -59,32 +59,32 @@ impl Analysis {
         }
     }
 
-    /// 返回文档根节点。
+    /// Return the document root node.
     #[must_use]
     pub fn source_file(&self) -> SourceFile {
         self.parse.source_file()
     }
 
-    /// 返回新建的红色根节点。
+    /// Return a fresh red root node.
     #[must_use]
     pub fn syntax(&self) -> bmsrs_bms_syntax::SyntaxNode {
         self.parse.syntax()
     }
 
-    /// 返回诊断。
+    /// Return the diagnostics.
     #[must_use]
     pub fn diagnostics(&self) -> &[AnalysisDiagnostic] {
         &self.diagnostics
     }
 
-    /// 返回符号索引。
+    /// Return the symbol index.
     #[must_use]
     pub const fn index(&self) -> &SymbolIndex {
         &self.index
     }
 }
 
-/// 收集定义与引用。
+/// Collect definitions and references.
 fn collect_lines(
     source: &SourceFile,
     prefixes: &[char],
@@ -113,7 +113,7 @@ fn collect_lines(
     }
 }
 
-/// 处理头部行。
+/// Process a header line.
 fn collect_header(
     line: &Line,
     prefixes: &[char],
@@ -147,7 +147,7 @@ fn collect_header(
     }
 }
 
-/// 处理通道行。
+/// Process a channel line.
 fn collect_message(
     line: &Line,
     index: &mut SymbolIndex,
@@ -176,7 +176,7 @@ fn collect_message(
     collect_message_refs(message.channel(), &message.body, base, index);
 }
 
-/// 按通道收集消息引用。
+/// Collect message references for a channel.
 fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mut SymbolIndex) {
     let Some(kind) = reference_kind(channel) else {
         return;
@@ -194,19 +194,19 @@ fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mu
     }
 }
 
-/// 返回内容段在整行文本中的起始偏移。
+/// Return the start offset of the content span within the whole line text.
 fn content_base(line: &Line, content: &str) -> usize {
     let line_text = line.syntax().text().to_string();
     let content_offset = line_text.find(content).unwrap_or(0);
     usize::from(line.range().start()).saturating_add(content_offset)
 }
 
-/// 把字节偏移转为 `TextSize`。
+/// Convert a byte offset to `TextSize`.
 fn text_size(offset: usize) -> TextSize {
     TextSize::from(u32::try_from(offset).unwrap_or(u32::MAX))
 }
 
-/// 从命令名识别定义种类与 ID。
+/// Identify the definition kind and ID from a command name.
 fn definition_kind(command: &str) -> Option<(SymbolKind, String)> {
     let upper = command.to_ascii_uppercase();
     let prefixes = [
@@ -237,7 +237,7 @@ fn definition_kind(command: &str) -> Option<(SymbolKind, String)> {
     })
 }
 
-/// 从通道识别引用种类。
+/// Identify the reference kind from a channel.
 const fn reference_kind(channel: BmsChannel) -> Option<SymbolKind> {
     match channel {
         BmsChannel::Bgm | BmsChannel::Note(_) => Some(SymbolKind::Wav),
@@ -270,7 +270,7 @@ const fn reference_kind(channel: BmsChannel) -> Option<SymbolKind> {
     }
 }
 
-/// 添加重复定义诊断。
+/// Add duplicate-definition diagnostics.
 fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<AnalysisDiagnostic>) {
     let mut groups: BTreeMap<(SymbolKind, String), Vec<usize>> = BTreeMap::new();
     for (position, definition) in index.definitions().iter().enumerate() {
@@ -286,7 +286,7 @@ fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Analysis
                     diagnostics.push(AnalysisDiagnostic::new(
                         definition.range(),
                         Severity::Warning,
-                        format!("重复定义 {} {}", kind.label(), id),
+                        format!("duplicate definition of {} {}", kind.label(), id),
                         Some("duplicate-definition"),
                     ));
                 }
@@ -295,7 +295,7 @@ fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Analysis
     }
 }
 
-/// 添加缺失引用诊断。
+/// Add missing-reference diagnostics.
 fn add_missing_reference_diagnostics(
     index: &SymbolIndex,
     diagnostics: &mut Vec<AnalysisDiagnostic>,
@@ -308,7 +308,7 @@ fn add_missing_reference_diagnostics(
             diagnostics.push(AnalysisDiagnostic::new(
                 reference.range(),
                 Severity::Warning,
-                format!("未定义 {} {}", reference.kind().label(), reference.id()),
+                format!("undefined {} {}", reference.kind().label(), reference.id()),
                 Some("undefined-reference"),
             ));
         }

@@ -1,42 +1,42 @@
-//! 乐曲级元数据字段。
+//! Song-level metadata fields.
 //!
-//! 对应分词器的 [`BmsHeaderMetadata`]。
+//! Corresponds to the tokenizer's [`BmsHeaderMetadata`].
 
 use std::collections::BTreeMap;
 
 use bmsrs_bms_values::{BmsHeaderMetadata, TextIndex};
 
-/// 乐曲 / 谱面识别元数据。
+/// Song and chart identity metadata.
 ///
-/// 所有字段均使用最后胜出语义。
+/// Every field uses last-wins semantics.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Metadata {
-    /// 乐曲标题（`#TITLE`）。
+    /// Song title (`#TITLE`).
     pub title: Option<String>,
-    /// 乐曲副标题（`#SUBTITLE`）。
+    /// Song subtitle (`#SUBTITLE`).
     pub subtitle: Option<String>,
-    /// 主要艺术家 / 作曲者（`#ARTIST`）。
+    /// Main artist / composer (`#ARTIST`).
     pub artist: Option<String>,
-    /// 合作创作者（`#SUBARTIST`）。
+    /// Co-creators (`#SUBARTIST`).
     pub sub_artist: Option<String>,
-    /// 音乐流派（`#GENRE` / `#GENLE`）。
+    /// Music genre (`#GENRE` / `#GENLE`).
     pub genre: Option<String>,
-    /// BMS 谱面作者名（`#MAKER`）。
+    /// BMS chart author name (`#MAKER`).
     pub maker: Option<String>,
-    /// 选曲列表中显示的文本（`#COMMENT`）。
+    /// Text shown in the song list (`#COMMENT`).
     pub comment: Option<String>,
-    /// 字符编码提示（`#CHARSET`）。
+    /// Character encoding hint (`#CHARSET`).
     pub charset: Option<String>,
-    /// 作者网站 URL（`%URL`）。
+    /// Author website URL (`%URL`).
     pub url: Option<String>,
-    /// 作者邮箱地址（`%EMAIL`）。
+    /// Author email address (`%EMAIL`).
     pub email: Option<String>,
-    /// 定时屏幕文本定义（`#TEXTxx`、`#SONGxx`）。
+    /// Timed on-screen text definitions (`#TEXTxx`, `#SONGxx`).
     pub text_defs: BTreeMap<TextIndex, String>,
 }
 
 impl Metadata {
-    /// 将一个元数据头部命令应用到此结构体。
+    /// Apply one metadata header command to this structure.
     pub fn apply(&mut self, header: &BmsHeaderMetadata) {
         match header {
             BmsHeaderMetadata::Title(s) => self.title = Some(s.clone()),
@@ -55,12 +55,14 @@ impl Metadata {
         }
     }
 
-    /// 从标题中解析隐式副标题。
+    /// Parse an implicit subtitle from the title.
     ///
-    /// BMS 规范允许 `#TITLE` 值使用分隔符暗示副标题。优先级（首个匹配
-    /// 胜出）：`-` → `～` → `()` → `[]` → `<>`。
+    /// The BMS specification allows a `#TITLE` value to imply a subtitle using
+    /// separators. Priority (the first match wins): `-`, then `～`, then `()`,
+    /// then `[]`, then `<>`.
     ///
-    /// 如果已通过 `#SUBTITLE` 显式设置了副标题，则不执行任何操作。
+    /// Does nothing when a subtitle has already been set explicitly through
+    /// `#SUBTITLE`.
     pub fn parse_implicit_subtitle(&mut self) {
         if self.subtitle.is_some() {
             return;
@@ -83,7 +85,7 @@ impl Metadata {
     }
 }
 
-/// 解析 `sep...sep` 结尾模式（如 `-sub-` 或 `～sub～`）。
+/// Parse a `sep...sep` suffix pattern (such as `-sub-` or `～sub～`).
 fn parse_mirrored(input: &str, sep: char) -> Option<(&str, &str)> {
     let trimmed = input.trim_end();
     let body = trimmed.strip_suffix(sep)?;
@@ -101,7 +103,8 @@ fn parse_mirrored(input: &str, sep: char) -> Option<(&str, &str)> {
     Some((main, sub))
 }
 
-/// 解析 `open...close` 结尾模式（如 `(sub)`、`[sub]`、`<sub>`）。
+/// Parse an `open...close` suffix pattern (such as `(sub)`, `[sub]`, or
+/// `<sub>`).
 fn parse_enclosed(input: &str, open: char, close: char) -> Option<(&str, &str)> {
     let trimmed = input.trim_end();
     let body = trimmed.strip_suffix(close)?;

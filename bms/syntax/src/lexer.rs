@@ -1,4 +1,5 @@
-//! 行导向的 BMS 词法：切行、识别 trivia 与行内容。
+//! Line-oriented BMS lexing: splitting lines, recognizing trivia, and lexing
+//! line content.
 
 use std::ops::Range;
 
@@ -6,56 +7,56 @@ use bmsrs_bms_source::ScanState;
 
 use crate::{ParseOptions, SyntaxKind};
 
-/// 单个词法 token。
+/// A single lexical token.
 #[derive(Debug, Clone, Copy)]
 pub struct LexToken<'a> {
-    /// token 种类。
+    /// Token kind.
     pub kind: SyntaxKind,
-    /// token 文本。
+    /// Token text.
     pub text: &'a str,
-    /// 在文档中的起始字节偏移。
+    /// Start byte offset in the document.
     pub start: usize,
 }
 
 impl LexToken<'_> {
-    /// 返回 token 的结束偏移。
+    /// Return the token's end offset.
     pub(crate) const fn end(&self) -> usize {
         self.start.saturating_add(self.text.len())
     }
 }
 
-/// 行的语法分类。
+/// Syntactic classification of a line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineKind {
-    /// 空白行。
+    /// Blank line.
     Blank,
-    /// 纯注释行。
+    /// Comment-only line.
     Comment,
-    /// 头部命令行。
+    /// Header command line.
     Header,
-    /// 通道数据行。
+    /// Channel data line.
     Message,
-    /// 普通文本行。
+    /// Plain text line.
     Text,
-    /// 解析失败的行。
+    /// A line that failed to parse.
     Error,
 }
 
-/// 一行及其 token。
+/// A line and its tokens.
 #[derive(Debug, Clone)]
 pub struct LineData<'a> {
-    /// 语法分类。
+    /// Syntactic classification.
     pub kind: LineKind,
-    /// token 列表。
+    /// Token list.
     pub tokens: Vec<LexToken<'a>>,
-    /// 行起始字节偏移（含前缀 trivia）。
+    /// Line start byte offset (including prefix trivia).
     pub start: usize,
-    /// 行结束字节偏移（含行终止符）。
+    /// Line end byte offset (including the line terminator).
     pub end: usize,
 }
 
 impl LineData<'_> {
-    /// 返回头部命令名（若存在）。
+    /// Return the header command name, if present.
     pub(crate) fn command_name(&self) -> Option<&str> {
         self.tokens
             .iter()
@@ -64,18 +65,18 @@ impl LineData<'_> {
     }
 }
 
-/// 原始行片段。
+/// A raw line fragment.
 #[derive(Debug, Clone, Copy)]
 struct RawLine<'a> {
-    /// 不含行终止符的内容。
+    /// Content without the line terminator.
     body: &'a str,
-    /// 行终止符。
+    /// Line terminator.
     newline: &'a str,
-    /// 行起始偏移。
+    /// Line start offset.
     start: usize,
 }
 
-/// 把文本切成行，保留行终止符。
+/// Split text into lines, preserving terminators.
 fn split_lines(text: &str) -> Vec<RawLine<'_>> {
     let bytes = text.as_bytes();
     let mut lines = Vec::new();
@@ -122,7 +123,7 @@ fn split_lines(text: &str) -> Vec<RawLine<'_>> {
     lines
 }
 
-/// 逐行词法分析。
+/// Lex line by line.
 pub fn lex<'a>(text: &'a str, options: &ParseOptions) -> Vec<LineData<'a>> {
     let mut state = ScanState::default();
     split_lines(text)
@@ -131,7 +132,7 @@ pub fn lex<'a>(text: &'a str, options: &ParseOptions) -> Vec<LineData<'a>> {
         .collect()
 }
 
-/// 词法分析一行。
+/// Lex one line.
 fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState, options: &ParseOptions) -> LineData<'a> {
     let scanned = state.scan(line.body);
     let mut tokens = Vec::new();
@@ -176,7 +177,7 @@ fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState, options: &ParseOptions
     }
 }
 
-/// 把内容段解析为 token。
+/// Parse the content span into tokens.
 fn lex_content<'a>(
     text: &'a str,
     absolute: usize,
@@ -238,7 +239,7 @@ fn lex_content<'a>(
     lex_header(text, absolute, prefix_kind, prefix_len, tokens)
 }
 
-/// 判断是否是 `#xxxYY:...` 通道行，返回 body 起始偏移。
+/// Return the body start offset if this is a `#xxxYY:...` channel line.
 fn message_body_start(text: &str) -> Option<usize> {
     let bytes = text.as_bytes();
     if bytes.len() < 7 || bytes.first() != Some(&b'#') || bytes.get(6) != Some(&b':') {
@@ -253,7 +254,7 @@ fn message_body_start(text: &str) -> Option<usize> {
     Some(7)
 }
 
-/// 词法分析头部行。
+/// Lex a header line.
 fn lex_header<'a>(
     text: &'a str,
     absolute: usize,
@@ -309,7 +310,7 @@ fn lex_header<'a>(
     LineKind::Header
 }
 
-/// 把通道体拆成两字符 chunk。
+/// Split the channel body into two-character chunks.
 fn push_body<'a>(body: &'a str, absolute: usize, tokens: &mut Vec<LexToken<'a>>) {
     let mut boundaries: Vec<usize> = body.char_indices().map(|(index, _)| index).collect();
     boundaries.push(body.len());
@@ -333,7 +334,7 @@ fn push_body<'a>(body: &'a str, absolute: usize, tokens: &mut Vec<LexToken<'a>>)
     }
 }
 
-/// 处理前缀/后缀 trivia。
+/// Handle prefix and suffix trivia.
 fn push_trivia<'a>(
     body: &'a str,
     range: Range<usize>,
@@ -388,7 +389,7 @@ fn push_trivia<'a>(
     }
 }
 
-/// 追加一个 token。
+/// Append a token.
 fn push_token<'a>(tokens: &mut Vec<LexToken<'a>>, kind: SyntaxKind, text: &'a str, start: usize) {
     if text.is_empty() {
         return;

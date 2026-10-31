@@ -1,16 +1,16 @@
-//! 字节保真 roundtrip 测试。
+//! Byte-fidelity roundtrip tests.
 
 use bmsrs_bms_source::Document;
 use proptest::prelude::*;
 
-/// 用指定编码编码测试文本。
+/// Encode test text with the given encoding.
 fn encode(text: &str, encoding: &'static encoding_rs::Encoding) -> Vec<u8> {
     let (bytes, _, had_unmappable) = encoding.encode(text);
-    assert!(!had_unmappable, "测试夹具必须可编码");
+    assert!(!had_unmappable, "test fixture must be encodable");
     bytes.into_owned()
 }
 
-/// 构造带可选 BOM 的 UTF-16 字节。
+/// Build UTF-16 bytes with an optional BOM.
 fn utf16_bytes(text: &str, little_endian: bool, bom: bool) -> Vec<u8> {
     let mut bytes = Vec::new();
     if bom {

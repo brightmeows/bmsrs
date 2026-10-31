@@ -1,39 +1,40 @@
-//! 控制流分支选择查询。
+//! Control-flow branch selection queries.
 
 use crate::{Line, SourceFile, SyntaxKind, SyntaxNode};
 
-/// 单个控制流块的决策。
+/// Decision for a single control-flow block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockDecision {
-    /// 使用的随机值。
+    /// Random value used.
     value: u64,
-    /// 选中的分支/case 索引；无匹配时为分支数。
+    /// Index of the selected branch/case; the branch count when nothing
+    /// matched.
     selected_index: usize,
 }
 
 impl BlockDecision {
-    /// 返回随机值。
+    /// Return the random value.
     #[must_use]
     pub const fn value(self) -> u64 {
         self.value
     }
 
-    /// 返回选中的分支/case 索引。
+    /// Return the selected branch/case index.
     #[must_use]
     pub const fn selected_index(self) -> usize {
         self.selected_index
     }
 }
 
-/// 所有控制流块的决策。
+/// Decisions for all control-flow blocks.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BranchSelection {
-    /// 按遍历顺序记录的决策。
+    /// Decisions recorded in traversal order.
     decisions: Vec<BlockDecision>,
 }
 
 impl BranchSelection {
-    /// 返回决策列表。
+    /// Return the decision list.
     #[must_use]
     pub fn decisions(&self) -> &[BlockDecision] {
         &self.decisions
@@ -41,10 +42,11 @@ impl BranchSelection {
 }
 
 impl SourceFile {
-    /// 按 `next` 提供的随机值选择分支，返回选中的行。
+    /// Select branches using the random values supplied by `next`, and return
+    /// the selected lines.
     ///
-    /// `next(max)` 应返回 `[1, max]` 内的值；`#SETRANDOM` / `#SETSWITCH`
-    /// 不调用它。
+    /// `next(max)` should return a value in `[1, max]`; `#SETRANDOM` /
+    /// `#SETSWITCH` do not call it.
     #[must_use]
     pub fn select_lines(&self, mut next: impl FnMut(u64) -> u64) -> (Vec<Line>, BranchSelection) {
         let mut selection = BranchSelection::default();
@@ -54,7 +56,7 @@ impl SourceFile {
     }
 }
 
-/// 选择父节点下的所有条目。
+/// Select every item under a parent node.
 fn select_children(
     parent: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
@@ -66,7 +68,7 @@ fn select_children(
     }
 }
 
-/// 选择单个节点。
+/// Select a single node.
 fn select_node(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
@@ -93,7 +95,7 @@ fn select_node(
     }
 }
 
-/// 选择 `#RANDOM` 块。
+/// Select a `#RANDOM` block.
 fn select_random(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
@@ -124,7 +126,7 @@ fn select_random(
     });
 }
 
-/// 选择一条互斥链。
+/// Select one mutually exclusive chain.
 fn select_chain(
     chain: &SyntaxNode,
     value: u64,
@@ -146,7 +148,7 @@ fn select_chain(
     selected
 }
 
-/// 选择 `#SWITCH` 块。
+/// Select a `#SWITCH` block.
 fn select_switch(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
@@ -185,7 +187,7 @@ fn select_switch(
     });
 }
 
-/// 选择分支/case 的内容，跳过指令行。
+/// Select the body of a branch/case, skipping directive lines.
 fn select_body(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
@@ -199,7 +201,7 @@ fn select_body(
     }
 }
 
-/// 读取块指令的随机值。
+/// Read the random value of a block directive.
 fn block_value(node: &SyntaxNode, next: &mut impl FnMut(u64) -> u64) -> u64 {
     let directive = node
         .children()
@@ -224,7 +226,7 @@ fn block_value(node: &SyntaxNode, next: &mut impl FnMut(u64) -> u64) -> u64 {
     }
 }
 
-/// 判断分支是否匹配随机值。
+/// Return whether a branch matches the random value.
 fn branch_matches(branch: &SyntaxNode, value: u64) -> bool {
     let Some(line) = Line::cast(branch.children().next().unwrap_or_else(|| branch.clone())) else {
         return false;
@@ -240,7 +242,7 @@ fn branch_matches(branch: &SyntaxNode, value: u64) -> bool {
         .is_some_and(|branch_value| branch_value == value)
 }
 
-/// 判断 case 是否匹配随机值。
+/// Return whether a case matches the random value.
 fn case_matches(case: &SyntaxNode, value: u64) -> bool {
     let Some(line) = Line::cast(case.children().next().unwrap_or_else(|| case.clone())) else {
         return false;
@@ -256,7 +258,7 @@ fn case_matches(case: &SyntaxNode, value: u64) -> bool {
         .is_some_and(|case_value| case_value == value)
 }
 
-/// 判断 case 是否带 `#SKIP`。
+/// Return whether a case has a `#SKIP`.
 fn has_skip(case: &SyntaxNode) -> bool {
     case.children()
         .any(|child| child.kind() == SyntaxKind::SkipDirective)

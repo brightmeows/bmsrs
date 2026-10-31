@@ -1,96 +1,109 @@
 # bmsrs-bms-parser
 
-## 定位
+## Role
 
-BMS 语义层：rowan CST → 结构化 `Bms` 模型。类型化单行语法
-（`BmsHeader` / `BmsMessage` / 索引类型）在 `bmsrs-bms-values`；控制流分支选择
-由 `bmsrs-bms-syntax::SourceFile::select_lines` 完成。
+BMS semantic layer: rowan CST to the structured `Bms` model. Typed single-line
+syntax (`BmsHeader` / `BmsMessage` / index types) lives in `bmsrs-bms-values`;
+control-flow branch selection is done by
+`bmsrs-bms-syntax::SourceFile::select_lines`.
 
-## 设计哲学
+## Design philosophy
 
-**`Bms` 保真映射。** `Bms` 字段是 BMS 文件内容的直接结构化表示，不存需要计算或语义解释才能得到的派生值。域级判据见 `bms/AGENTS.md` 职责判据。
+**`Bms` is a faithful mapping.** `Bms` fields are a direct structured
+representation of BMS file content; they do not store derived values that
+require computation or semantic interpretation. See `bms/AGENTS.md` for the
+domain-level criteria.
 
-`BgaEvent.layer` 使用本 crate 的 `BmsBgaLayer`；`bmsrs-bms-parser` 不依赖
-`bmsrs-chart`，图层到 `bmsrs_chart::BgaLayer` 的映射由 `bmsrs-bms-processor`
-负责。
+`BgaEvent.layer` uses this crate's `BmsBgaLayer`; `bmsrs-bms-parser` does not depend
+on `bmsrs-chart`. The mapping from layers to `bmsrs_chart::BgaLayer` belongs to
+`bmsrs-bms-processor`.
 
-| 不做什么 | 理由 |
-|----------|------|
-| 值解释（路径、URL、邮箱） | 字符串原样保留 |
-| 控制流展开 | 由 `bmsrs-bms-syntax` 的 `select_lines` 处理 |
-| 派生值计算 | 归 processor（如伤害 = base36/2、引用→绝对值） |
-| 引用-定义配对解析 | `Bms` 保真存引用形态（如 `BpmValue::Reference`）；查表归 processor |
+| Does not do | Reason |
+|-------------|--------|
+| Value interpretation (paths, URLs, emails) | Strings are kept as-is |
+| Control-flow expansion | Handled by `bmsrs-bms-syntax`'s `select_lines` |
+| Derived value computation | Belongs to the processor (for example, damage = base36/2, reference to absolute value) |
+| Reference-definition pair resolution | `Bms` faithfully stores the reference form (such as `BpmValue::Reference`); lookup belongs to the processor |
 
-> `Metadata::parse_implicit_subtitle` 是例外：作为 opt-in 工具方法提供，
-> 不在 `from_flat_tokens` 中自动调用，调用方显式选择是否执行副标题推断。
+> `Metadata::parse_implicit_subtitle` is an exception: it is provided as an
+> opt-in utility and is not called automatically in `from_flat_tokens`; callers
+> explicitly choose whether to run subtitle inference.
 
-## 生命周期
+## Lifecycle
 
-`Messages` 使用两阶段设计：
+`Messages` uses a two-phase design:
 
-| 阶段 | 方法 | 作用 |
-|------|------|------|
-| 1. 收集 | `concat_raw` | 追加 body 字符串到 `(measure, channel)` |
-| 2. 最终化 | `finalize(base)` | 解析事件，position-merge，归一化索引 |
+| Phase | Method | Purpose |
+|-------|--------|---------|
+| 1. Collect | `concat_raw` | append body strings to `(measure, channel)` |
+| 2. Finalize | `finalize(base)` | parse events, position-merge, normalize indices |
 
-`Bms::from_cst` 选择分支后调用 `from_flat_tokens`；后者自动调用 `finalize`。
-手动构造时须显式调用。
-`finalize` 可重复调用（先 clear），但建议只调用一次。
+`Bms::from_cst` calls `from_flat_tokens` after selecting branches; the latter
+calls `finalize` automatically. Manual construction must call it explicitly.
+`finalize` can be called repeatedly (it clears first), but calling it once is
+recommended.
 
-## CST / 文档入口
+## CST / document entry points
 
-- `Bms::from_cst` / `from_cst_with`：选中分支的 token 构建；warning 只覆盖选中行
-- `Bms::from_document` / `from_document_with`：全行 token 化，未选中分支的错误也进 warning
-- `tokenize_lines` / `tokenize_lines_with`：带 1-based 行号的 `LineToken`
-- `ErrorStrategy::CollectAll` 收集全部；`FailFast` 返回按行号排序的首条 `CstWarning`
+- `Bms::from_cst` / `from_cst_with`: build from tokens of selected branches;
+  warnings cover only selected lines
+- `Bms::from_document` / `from_document_with`: tokenize every line; errors in
+  unselected branches also become warnings
+- `tokenize_lines` / `tokenize_lines_with`: `LineToken` with 1-based line numbers
+- `ErrorStrategy::CollectAll` collects everything; `FailFast` returns the first
+  `CstWarning` sorted by line number
 
-## Header 分发
+## Header dispatch
 
-| 状态 | 变体 | 存储策略 |
-|------|------|----------|
-| 存储 | Metadata, Gameplay, Timing, Display, Audio, Visual, `Fallback` | Option(最后胜出) / BTreeMap(按 ID) |
-| 跳过 | ControlFlow | 由 `bmsrs-bms-syntax::select_lines` 处理 |
+| Status | Variants | Storage strategy |
+|--------|----------|------------------|
+| Stored | Metadata, Gameplay, Timing, Display, Audio, Visual, `Fallback` | Option (last wins) / BTreeMap (by ID) |
+| Skipped | ControlFlow | Handled by `bmsrs-bms-syntax::select_lines` |
 
-### 消息通道处理策略
+### Message channel handling
 
-| 通道类型 | 策略 |
-|----------|------|
-| BGM（ch 01） | 每行独立处理（多声部支持）|
-| 小节长（ch 02） | 最后一行胜出 |
-| 选项（ch A6）及其他通道 | position-merge（非 `"00"` 覆盖，`"00"` 保留）|
+| Channel type | Strategy |
+|--------------|----------|
+| BGM (ch 01) | each line independently (polyphony support) |
+| Measure length (ch 02) | last line wins |
+| Options (ch A6) and other channels | position-merge (non-`"00"` overrides, `"00"` preserved) |
 
-## 非显而易见的规则
+## Non-obvious rules
 
-| 规则 | 说明 |
-|------|------|
-| 小节长值为比值 | `1.0` = 4/4，`0.75` = 3/4，`2.0` = 8/4。非百分比。 |
-| `finalize(base)` 参数 | 控制索引归一化：Base36 → 大写，Base62 → 保留原大小写 |
-| 事件索引均通过 `normalize(base)` | 确保与定义表的 key 大小写匹配 |
-| `"00"` 在不同通道语义不同 | note 通道 = 无音符（skip），BPM ch03 = 休止（skip），LN/ext 通道 = 有效值 |
-| 归一化契约（全 def 键统一） | `Timing`/`Visual`/`Gameplay` 的所有 `apply` 均接收 `base` 并对索引键 `normalize`（含 `ex_rank_defs`/`change_option_defs`）。`Gameplay::apply` 也已纳入此契约 |
-| `non_event_data` 预归一化 | 非事件通道（opacity/ARGB/text/option/seek 等）的合并串在 `finalize_merged` 中拆分为 2-char 值后，逐值按 `base` 归一化，存入 `NonEventData.values`。processor 查表无需再次归一化（消除了此前 F1/F2 标记的重复归一化）|
-| `warnings` 通道 | 值形状合法但不满足该通道解析规则的 2-char 值被跳过并记入 `Messages.warnings`（`ChannelValueWarning`，带 measure/channel/value）；引用缺失类（WAV/BPM/STOP 键未定义）归 processor 层的 `ProcessWarning::Missing*` |
+| Rule | Explanation |
+|------|-------------|
+| Measure length value is a ratio | `1.0` = 4/4, `0.75` = 3/4, `2.0` = 8/4. Not a percentage. |
+| `finalize(base)` parameter | Controls index normalization: Base36 uppercases, Base62 preserves the original case |
+| Event indices all go through `normalize(base)` | Ensures case matching with definition-table keys |
+| `"00"` means different things per channel | note channels = no note (skip), BPM ch03 = rest (skip), LN/ext channels = valid value |
+| Normalization contract (all def keys) | Every `apply` on `Timing`/`Visual`/`Gameplay` receives `base` and normalizes index keys (including `ex_rank_defs`/`change_option_defs`). `Gameplay::apply` follows this contract too |
+| `non_event_data` pre-normalization | For non-event channels (opacity/ARGB/text/option/seek, etc.), merged strings are split into 2-character values in `finalize_merged`, then normalized per value by `base` and stored in `NonEventData.values`. The processor does not need to normalize again when looking up definitions (removing the duplicate normalization previously marked F1/F2) |
+| `warnings` channel | 2-character values whose shape is valid but do not satisfy the channel parse rule are skipped and recorded in `Messages.warnings` (`ChannelValueWarning`, with measure/channel/value); missing references (undefined WAV/BPM/STOP keys) belong to the processor layer's `ProcessWarning::Missing*` |
 
 ## Always / Ask / Never
 
 ### Always
 
-- 所有索引值（Wav/Bmp/Bpm/Stop/Scroll/Speed/ExRank/ChangeOption）通过 `normalize(base)` 创建
-- `Timing`/`Visual`/`Gameplay` 的 `apply` 均接收 `base` 参数并对索引键归一化
-- 添加新事件类型时在 `Messages` 和 `lib.rs` re-export 中注册
-- 在 AGENTS.md 中记录新事件类型的通道/语义
+- All index values (Wav/Bmp/Bpm/Stop/Scroll/Speed/ExRank/ChangeOption) are
+  created through `normalize(base)`
+- `apply` on `Timing`/`Visual`/`Gameplay` receives `base` and normalizes index
+  keys
+- Register new event types in `Messages` and the `lib.rs` re-exports
+- Document the new event type's channel and semantics in AGENTS.md
 
 ### Ask
 
-- 修改 `finalize` 的处理策略（影响通道合并行为）
-- 新增需要特殊合并语义的通道
+- Changing `finalize` processing strategy (affects channel merge behavior)
+- Adding a channel that needs special merge semantics
 
 ### Never
 
-- 在 parser 层自动执行引擎特定的推断（`parse_implicit_subtitle` 等需调用方显式触发）
-- 假设 `"00"` 在所有通道都表示“无操作”
-- 存储 processor 才需要的派生值（见“设计哲学”派生值禁止）
+- Perform engine-specific inference automatically in the parser layer
+  (`parse_implicit_subtitle` and similar require an explicit call)
+- Assume `"00"` means "no-op" on every channel
+- Store derived values that only the processor needs (see the "derived values"
+  prohibition in the design philosophy)
 
-## 测试
+## Tests
 
-公开 API 测试在 `tests/` 目录中；`merge_channel` 算法测试保留 inline。
+Public API tests live in `tests/`; `merge_channel` algorithm tests stay inline.

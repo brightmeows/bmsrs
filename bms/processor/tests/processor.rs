@@ -12,7 +12,7 @@ use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{EventKind, NoteKind};
 
-/// 在测试中构造有效 [`ChannelPos`] 的简写。
+/// Shorthand for constructing a valid [`ChannelPos`] in tests.
 fn ch(player: u8, lane: u8) -> ChannelPos {
     ChannelPos::new(player, lane).unwrap_or_else(|| panic!("invalid BMS channel"))
 }
@@ -36,8 +36,8 @@ const PEDAL: Lane = Lane::FootPedal;
 
 #[test]
 fn bme_maps_key7_channel_19() {
-    // 回归：旧的 Beat7k 匹配 `(1, 1..=8)` 静默丢弃了通道 19（解码轨道 9，
-    // 即 KEY7）。Bme 必须将其映射到 Key(7)。
+    // Regression: the old Beat7k match `(1, 1..=8)` silently dropped channel 19
+    // (decoded lane 9, which is KEY7). Bme must map it to Key(7).
     assert_eq!(Bme::map_channel(ch(1, 9)), Some((NoteSide::P1, key(7))));
 }
 
@@ -53,13 +53,13 @@ fn bme_maps_both_player_sides() {
 
 #[test]
 fn pms_maps_cross_side_channels_to_single_player() {
-    // 1P 通道 11-15 上的 PMS KEY1-5 → Player1
+    // PMS KEY1-5 on 1P channels 11-15, mapped to Player1.
     assert_eq!(Pms::map_channel(ch(1, 1)), Some((NoteSide::P1, key(1))));
     assert_eq!(Pms::map_channel(ch(1, 5)), Some((NoteSide::P1, key(5))));
-    // 2P 通道 22-25 上的 PMS KEY6-9 → 仍为 Player1（单人模式）
+    // PMS KEY6-9 on 2P channels 22-25 still map to Player1 (single-player mode).
     assert_eq!(Pms::map_channel(ch(2, 2)), Some((NoteSide::P1, key(6))));
     assert_eq!(Pms::map_channel(ch(2, 5)), Some((NoteSide::P1, key(9))));
-    // 通道 21（2P 轨道 1）PMS 不使用。
+    // Channel 21 (2P lane 1) is unused by PMS.
     assert_eq!(Pms::map_channel(ch(2, 1)), None);
 }
 
@@ -216,7 +216,7 @@ fn process_default_detects_oct_fp_layout() {
 
 #[test]
 fn process_key7_note_lands_on_key_seven() {
-    // KEY7 通道 19 丢弃 bug 的端到端回归。
+    // End-to-end regression for the KEY7 channel 19 drop bug.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.audio
@@ -225,7 +225,7 @@ fn process_key7_note_lands_on_key_seven() {
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
-        lane: 9, // 通道 19 → KEY7
+        lane: 9, // Channel 19 gives KEY7.
         key_type: KeyType::Visible,
         wav_id: "01".parse().unwrap(),
     });
@@ -257,13 +257,13 @@ fn process_zero_bpm_returns_error() {
 
 #[test]
 fn process_negative_bpm_is_accepted() {
-    // 负 BPM 用于逆向滚动（逆走），时序上使用 |bpm| 计算。
+    // Negative BPM is used for reverse scrolling; timing uses |bpm|.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(-120.0);
     let result = BmsProcessor::process::<Bme>(&bms);
     assert!(result.is_ok());
     let chart = result.unwrap().chart;
-    // BPM 绝对值 = 120，因此 240 ticks = 0.5s。
+    // Absolute BPM is 120, so 240 ticks = 0.5s.
     assert_eq!(
         chart.data.timing.tick_to_duration(240),
         std::time::Duration::from_millis(500)
@@ -272,8 +272,9 @@ fn process_negative_bpm_is_accepted() {
 
 #[test]
 fn process_nan_bpm_change_never_enters_event_stream() {
-    // NaN 经 f64 解析可进入 Bms；与计时轨同一谓词过滤后不得进入统一
-    // 事件流（Event 的 Eq 契约要求 f64 字段不含 NaN）。
+    // NaN can enter Bms through f64 parsing; filtered by the same predicate as
+    // the timing track, it must not enter the unified event stream (Event's Eq
+    // contract requires f64 fields to contain no NaN).
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.messages.bpm_changes.push(BpmChange {
@@ -300,7 +301,8 @@ fn process_nan_bpm_change_produces_warning() {
     });
 
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
-    // NaN 不可 assert_eq，用 matches! 检查变体与值。
+    // NaN cannot be compared with assert_eq; use matches! to check the variant
+    // and value.
     assert!(matches!(
         warnings.as_slice(),
         [ProcessWarning::InvalidBpmChangeIgnored { bpm, .. }] if bpm.is_nan()
@@ -354,8 +356,8 @@ fn process_metadata_from_headers() {
 
 #[test]
 fn process_default_uses_bme_and_maps_both_sides() {
-    // process_default 无条件使用 Bme（#PLAYER 头部命令不影响映射）。
-    // 2P 音符报告 NoteSide::P2。
+    // process_default uses Bme unconditionally (the #PLAYER header does not
+    // affect the mapping). 2P notes report NoteSide::P2.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.audio
@@ -443,8 +445,9 @@ fn process_lnobj_produces_long_note() {
     assert_eq!(lns[0], 0);
 }
 
-/// LNOBJ 模式下 ch51-69 长音通道事件与 LNOBJ 互斥（memo/10 规范未定义），
-/// 但不应静默丢弃——作为普通可见音符保留。
+/// In LNOBJ mode, ch51-69 long-note channel events are mutually exclusive with
+/// LNOBJ (memo/10 leaves this undefined), but they must not be discarded
+/// silently; they are kept as ordinary visible notes.
 #[test]
 fn lnobj_preserves_long_note_channel_events_as_normal() {
     let mut bms = Bms::default();
@@ -481,7 +484,11 @@ fn lnobj_preserves_long_note_channel_events_as_normal() {
             }
         })
         .collect();
-    assert_eq!(normals, vec![0u64], "ch51-69 事件应作为普通音符保留");
+    assert_eq!(
+        normals,
+        vec![0u64],
+        "ch51-69 events should be kept as normal notes"
+    );
 }
 
 #[test]
@@ -503,13 +510,16 @@ fn process_bpm_change_reference_resolved() {
 
 #[test]
 fn process_bpm_changes_dedup_preserves_mid_change() {
-    // 回归：去重曾在按 tick 排序前执行。同通道的 1/4 与 3/4 同值变更在
-    // 向量中相邻被合并，夹在中间的 1/2 引用变更后 BPM 回不到 120。
+    // Regression: deduplication used to run before sorting by tick. Equal-value
+    // changes at 1/4 and 3/4 in the same channel were adjacent in the vector and
+    // merged, so BPM could not return to 120 after the 1/2 reference change
+    // between them.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(60.0);
     let bpm_id: BpmIndex = "01".parse().unwrap();
     bms.timing.bpm_defs.insert(bpm_id, 240.0);
-    // 模拟 parser 产出顺序：小节内先 ch03（1/4、3/4），后 ch08（1/2）。
+    // Simulate parser output order: within the measure, ch03 (1/4, 3/4) comes
+    // first, then ch08 (1/2).
     bms.messages.bpm_changes.push(BpmChange {
         position: Position::new(0, 1, 4),
         value: BpmValue::Absolute(120.0),
@@ -525,7 +535,7 @@ fn process_bpm_changes_dedup_preserves_mid_change() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    // 小节 0 的 3/4 处（tick 720）应回到 BPM 120。
+    // At 3/4 of measure 0 (tick 720), BPM should be back to 120.
     assert!((chart.data.timing.bpm_at_tick(720) - 120.0).abs() < 1e-9);
 }
 
@@ -589,11 +599,11 @@ fn pms_bme_reinterprets_16_17_as_keys() {
 
 #[test]
 fn dsc_oct_fp_maps_dual_scratch_and_pedal() {
-    // P1 Scratch
+    // P1 Scratch.
     assert_eq!(DscOctFp::map_channel(ch(1, 6)), Some((NoteSide::P1, sc(1))));
-    // P2 脚踏板
+    // P2 foot pedal.
     assert_eq!(DscOctFp::map_channel(ch(2, 1)), Some((NoteSide::P2, PEDAL)));
-    // P2 第二 Scratch
+    // P2 second scratch.
     assert_eq!(DscOctFp::map_channel(ch(2, 6)), Some((NoteSide::P2, sc(2))));
 }
 
@@ -605,14 +615,15 @@ fn pms_bme_maps_second_player_side() {
 
 #[test]
 fn bme_maps_extended_channel_lane_10() {
-    // 扩展通道（pomu2 系 `1A` 等，lane 10）映射到 Key(10)。
+    // Extended channels (pomu2 family `1A` and so on, lane 10) map to Key(10).
     assert_eq!(Bme::map_channel(ch(1, 10)), Some((NoteSide::P1, key(10))));
     assert_eq!(Bme::map_channel(ch(2, 35)), Some((NoteSide::P2, key(35))));
 }
 
 #[test]
 fn all_layouts_map_extended_channel_lane_10() {
-    // 所有族都把扩展通道（lane 10–35）映射到对应侧的 Key(lane)。
+    // Every family maps extended channels (lanes 10-35) to Key(lane) on the
+    // corresponding side.
     assert_eq!(
         Nanasi::map_channel(ch(1, 10)),
         Some((NoteSide::P1, key(10)))
@@ -637,19 +648,19 @@ fn bms_channel_rejects_invalid_input() {
     assert_eq!(ChannelPos::new(3, 1), None);
     assert_eq!(ChannelPos::new(0, 1), None);
     assert_eq!(ChannelPos::new(1, 0), None);
-    // lane 10 现已支持（扩展通道 `1A`–`1Z` 等）。
+    // Lane 10 is now supported (extended channels `1A`-`1Z` and so on).
     assert!(ChannelPos::new(1, 10).is_some());
     assert!(ChannelPos::new(1, 35).is_some());
-    // 上限：lane 36+ 仍无效。
+    // Upper bound: lane 36 and above are still invalid.
     assert!(ChannelPos::new(1, 36).is_none());
 }
 
 #[test]
 fn lnobj_end_marker_plays_bgm() {
-    // LNOBJ 终点标记应生成 BGM 事件（按规范）。
+    // LNOBJ end markers should produce BGM events (per the specification).
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    // 注册起始 WAV 与 LNOBJ WAV。
+    // Register the start WAV and the LNOBJ WAV.
     bms.audio
         .wav_files
         .insert("01".parse().unwrap(), "kick.wav".to_owned());
@@ -658,7 +669,7 @@ fn lnobj_end_marker_plays_bgm() {
         .insert("FF".parse().unwrap(), "ln_end.wav".to_owned());
     let ln_obj: LnObjIndex = "FF".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
-    // 长音起点（带 WAV 01 的可见音符）
+    // Long-note start (a visible note with WAV 01).
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -666,7 +677,7 @@ fn lnobj_end_marker_plays_bgm() {
         key_type: KeyType::Visible,
         wav_id: "01".parse().unwrap(),
     });
-    // 长音终点标记（小节 1 处的 LNOBJ WAV FF）
+    // Long-note end marker (LNOBJ WAV FF at measure 1).
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(1, 0, 8),
         player: 1,
@@ -677,7 +688,7 @@ fn lnobj_end_marker_plays_bgm() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    // 从谱面收集 BGM 事件。
+    // Collect BGM events from the chart.
     let bgm_ticks: Vec<_> = chart
         .data
         .events
@@ -691,15 +702,16 @@ fn lnobj_end_marker_plays_bgm() {
         })
         .collect();
 
-    // 小节 1 处的 LNOBJ 终点标记 → 脉冲 960（240 节拍分辨率 × 4 拍）。
-    // 音频索引应为 1（第二个注册的 WAV：ln_end.wav）。
+    // The LNOBJ end marker at measure 1 gives tick 960 (240 tick resolution
+    // times 4 beats). The audio index should be 1 (the second registered WAV:
+    // ln_end.wav).
     assert_eq!(bgm_ticks, vec![(960, 1)]);
 }
 
 #[test]
 fn lnobj_bgm_no_event_for_unmatched_lno() {
-    // 当 LNOBJ 标记在同一轨道上没有前导音符时，不形成配对，因此不应
-    // 生成 LNOBJ BGM。
+    // When an LNOBJ marker has no preceding note on the same lane, no pair is
+    // formed, so no LNOBJ BGM should be emitted.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.audio
@@ -707,7 +719,7 @@ fn lnobj_bgm_no_event_for_unmatched_lno() {
         .insert("FF".parse().unwrap(), "orphan.wav".to_owned());
     let ln_obj: LnObjIndex = "FF".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
-    // 同一 (player, lane) 上无前导的 LNOBJ 标记。
+    // An LNOBJ marker with no predecessor on the same (player, lane).
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(1, 0, 8),
         player: 1,

@@ -1,18 +1,20 @@
-//! `Messages` 的集成测试（通过公开 API 进行事件解析）。
+//! Integration tests for `Messages` (event parsing through the public API).
 //!
-//! 这些测试仅通过公开 API 消费 `Messages` 结构体，使用
-//! `concat_raw` + `finalize`。
+//! These tests consume the `Messages` struct only through the public API, using
+//! `concat_raw` and `finalize`.
 
 use bmsrs_bms_parser::BmsBgaLayer;
 use bmsrs_bms_parser::*;
 use bmsrs_bms_parser::{BmsBase, BmsChannel, BpmIndex, WavIndex};
 
-/// 辅助函数：通过 Messages 解析单条标准消息行（`#xxxYY:body`），使用 Base36。
+/// Helper: parse one standard message line (`#xxxYY:body`) through `Messages`,
+/// using Base36.
 fn parse_one(line: &str) -> Messages {
     parse_one_with_base(line, BmsBase::Base36)
 }
 
-/// 辅助函数：通过 Messages 解析单条标准消息行，并指定进制。
+/// Helper: parse one standard message line through `Messages` with an explicit
+/// base.
 fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
     let mut msgs = Messages::default();
     if let Ok(Some(msg)) = parse_message_line(line) {
@@ -45,7 +47,7 @@ fn position_at_measure_start() {
 
 #[test]
 fn position_at_measure_end() {
-    // 3/3 位于小节边界上；fraction 为 1.0
+    // 3/3 is at the measure boundary; fraction is 1.0.
     let pos = Position::new(1, 3, 3);
     assert!((pos.fraction() - 1.0).abs() < f64::EPSILON);
 }
@@ -156,7 +158,7 @@ fn measure_length_fields() {
     assert!((ml.length_ratio - 2.0).abs() < f64::EPSILON);
 }
 
-// 事件解析集成测试
+// Event parsing integration tests
 
 #[test]
 fn bgm_events_parsed() {
@@ -186,7 +188,7 @@ fn long_note_events_parsed() {
     assert_eq!(msgs.long_note_events.len(), 2);
     assert_eq!(msgs.long_note_events[0].player, 1);
     assert_eq!(msgs.long_note_events[0].lane, 1);
-    assert_eq!(msgs.long_note_events[1].lane, 1); // 同一轨道，不同位置
+    assert_eq!(msgs.long_note_events[1].lane, 1); // Same lane, different position.
     assert_eq!(msgs.long_note_events[0].position.numer(), 0);
     assert_eq!(msgs.long_note_events[1].position.numer(), 1);
 }
@@ -208,14 +210,14 @@ fn mine_raw_value_decoded() {
 
 #[test]
 fn mine_raw_value_half_health() {
-    // 1E (36进制) = 50
+    // 1E (Base36) = 50.
     let msgs = parse_one("#001D1:1E");
     assert_eq!(msgs.mine_events[0].raw_value, Some(50));
 }
 
 #[test]
 fn mine_raw_value_instant_kill() {
-    // ZZ = 1295（即死标记）
+    // ZZ = 1295 (instant-death marker).
     let msgs = parse_one("#001D1:ZZ");
     assert_eq!(msgs.mine_events[0].raw_value, Some(1295));
 }
@@ -236,9 +238,10 @@ fn mine_raw_value_mixed_zero_and_real() {
     assert_eq!(msgs.mine_events[1].raw_value, Some(1295));
 }
 
-/// 回归：Base62 模式下地雷伤害值仍按 base36 解码——
-/// `"10"` 应为 base36 = 36，而非十进制 10。
-/// 见 `bms/ext/base62-format.md` L127-129：地雷值不受 `#BASE 62` 影响。
+/// Regression: mine damage values are still Base36-decoded in Base62 mode:
+/// `"10"` should be Base36 = 36, not decimal 10.
+/// See `bms/ext/base62-format.md` lines 127-129: mine values are not affected by
+/// `#BASE 62`.
 #[test]
 fn mine_raw_value_base62_mode_still_base36() {
     let msgs = parse_one_with_base("#001D1:10", BmsBase::Base62);
@@ -294,7 +297,8 @@ fn speed_event_multiple_values() {
 
 #[test]
 fn speed_event_zero_values_preserved() {
-    // SPEED 通道过滤 "00"（无操作位置），仅保留有效索引。
+    // The SPEED channel filters "00" (no-op positions), keeping only valid
+    // indices.
     let msgs = parse_one("#001SP:AA00BB");
     assert_eq!(msgs.speed_events.len(), 2);
     assert_eq!(msgs.speed_events[0].speed_id, "AA".try_into().unwrap());
@@ -350,7 +354,7 @@ fn measure_length_fractional() {
 
 #[test]
 fn measure_length_default_on_invalid() {
-    // 无效值被静默忽略。
+    // Invalid values are silently ignored.
     let msgs = parse_one("#00102:notanumber");
     assert_eq!(
         msgs.measure_lengths,
@@ -378,7 +382,7 @@ fn unknown_channel_raw_only() {
             .and_then(|v| v.first().map(String::as_str)),
         Some("AA")
     );
-    // 单行存储。
+    // Single-line storage.
     assert_eq!(
         msgs.raw.get(&1).and_then(|m| m.get(&ch).map(Vec::len)),
         Some(1)
@@ -409,14 +413,14 @@ fn note_events_only_zero_entries_produces_nothing() {
 
 #[test]
 fn two_player_notes_parsed() {
-    // 通道 21 = 2P 可见按键 1
+    // Channel 21 = 2P visible key 1.
     let msgs = parse_one("#00121:1122");
     assert_eq!(msgs.note_events.len(), 2);
     assert_eq!(msgs.note_events[0].player, 2);
     assert_eq!(msgs.note_events[0].lane, 1);
     assert_eq!(msgs.note_events[0].key_type, KeyType::Visible);
 
-    // 通道 41 = 2P 不可见按键 1
+    // Channel 41 = 2P invisible key 1.
     let msgs_41 = parse_one("#00141:3344");
     assert_eq!(msgs_41.note_events.len(), 2);
     assert_eq!(msgs_41.note_events[0].player, 2);
@@ -424,7 +428,7 @@ fn two_player_notes_parsed() {
     assert_eq!(msgs_41.note_events[0].key_type, KeyType::Invisible);
 }
 
-// BPM 00 过滤（通道 03）
+// BPM 00 filtering (channel 03)
 
 #[test]
 fn bpm_00_rest_skipped() {
@@ -435,7 +439,7 @@ fn bpm_00_rest_skipped() {
 
 #[test]
 fn bpm_00_only_all_filtered() {
-    // 全部为 "00" 值 → 无 BPM 变更。
+    // All values are "00", so there is no BPM change.
     let msgs = parse_one("#00103:00000000");
     assert_eq!(msgs.bpm_changes.len(), 0);
 }
@@ -451,11 +455,15 @@ fn bpm_00_mixed_with_real() {
 
 #[test]
 fn finalize_idempotent_does_not_duplicate_non_event_data() {
-    // chA6（选项）走 finalize_merged，产生 non_event_data 条目。
+    // chA6 (options) goes through finalize_merged and produces a
+    // non_event_data entry.
     let mut msgs = parse_one("#001A6:0100000000000000");
     let first_count = msgs.non_event_data.len();
-    assert!(first_count > 0, "chA6 应产生 non_event_data 条目");
-    // 重复调用 finalize 不应追加重复条目
+    assert!(
+        first_count > 0,
+        "chA6 should produce a non_event_data entry"
+    );
+    // Repeated finalize calls must not append duplicate entries.
     msgs.finalize(BmsBase::Base36);
     assert_eq!(msgs.non_event_data.len(), first_count);
 }
@@ -488,9 +496,9 @@ fn base62_lowercase_and_uppercase_wav_indices_are_distinct() {
     );
 }
 
-// 扩展音符通道（pomu2 系 `1A`–`1Z` 等）
+// Extended note channels (pomu2 family `1A`-`1Z` and so on)
 
-/// 扩展可见通道 `1A` 解码出 lane 10。
+/// Extended visible channel `1A` decodes to lane 10.
 #[test]
 fn extended_visible_channel_1a_decodes_lane_10() {
     let msgs = parse_one("#0011A:01");
@@ -500,7 +508,7 @@ fn extended_visible_channel_1a_decodes_lane_10() {
     assert_eq!(msgs.note_events[0].key_type, KeyType::Visible);
 }
 
-/// 扩展可见通道 `1Z` 解码出 lane 35。
+/// Extended visible channel `1Z` decodes to lane 35.
 #[test]
 fn extended_visible_channel_1z_decodes_lane_35() {
     let msgs = parse_one("#0011Z:01");
@@ -509,7 +517,7 @@ fn extended_visible_channel_1z_decodes_lane_35() {
     assert_eq!(msgs.note_events[0].lane, 35);
 }
 
-/// 2P 扩展可见通道 `2A` 解码出 player 2, lane 10。
+/// 2P extended visible channel `2A` decodes to player 2, lane 10.
 #[test]
 fn extended_visible_channel_2a_decodes_player_2_lane_10() {
     let msgs = parse_one("#0012A:01");
@@ -519,7 +527,7 @@ fn extended_visible_channel_2a_decodes_player_2_lane_10() {
     assert_eq!(msgs.note_events[0].key_type, KeyType::Visible);
 }
 
-/// 扩展不可见通道 `3A`/`4A` 解码出 lane 10 的不可见音符。
+/// Extended invisible channels `3A`/`4A` decode to invisible notes at lane 10.
 #[test]
 fn extended_invisible_channel_3a_decodes_lane_10() {
     let msgs = parse_one("#0013A:01");
@@ -533,7 +541,7 @@ fn extended_invisible_channel_3a_decodes_lane_10() {
     assert_eq!(msgs_4a.note_events[0].key_type, KeyType::Invisible);
 }
 
-/// 扩展长音通道 `5A`/`6A` 解码出 lane 10 的长音。
+/// Extended long-note channels `5A`/`6A` decode to long notes at lane 10.
 #[test]
 fn extended_long_note_channel_5a_decodes_lane_10() {
     let msgs = parse_one("#0015A:01");
@@ -546,7 +554,7 @@ fn extended_long_note_channel_5a_decodes_lane_10() {
     assert_eq!(msgs_6a.long_note_events[0].lane, 10);
 }
 
-/// 预留通道 `"10"`/`"20"`（lane 0）不产生 `NoteEvent`。
+/// Reserved channels `"10"` and `"20"` (lane 0) produce no `NoteEvent`.
 #[test]
 fn reserved_channel_10_produces_no_note() {
     let msgs_10 = parse_one("#00110:01");
@@ -555,22 +563,23 @@ fn reserved_channel_10_produces_no_note() {
     assert_eq!(msgs_20.note_events.len(), 0);
 }
 
-/// 回归：地雷通道 `D0`（lane 0）不产生 `MineEvent`。
+/// Regression: mine channel `D0` (lane 0) produces no `MineEvent`.
 #[test]
 fn mine_channel_d0_produces_no_event() {
     let msgs = parse_one("#001D0:01");
     assert_eq!(msgs.mine_events.len(), 0);
 }
 
-/// 回归：假设性的 `DA`（lane 10）不产生 `MineEvent`——
-/// `classify_channel` 已将其归为 `Unknown`，仅 `D1`–`D9` 有效。
+/// Regression: a hypothetical `DA` (lane 10) produces no `MineEvent`;
+/// `classify_channel` already classifies it as `Unknown`, and only `D1`-`D9`
+/// are valid.
 #[test]
 fn mine_channel_da_produces_no_event() {
     let msgs = parse_one("#001DA:01");
     assert_eq!(msgs.mine_events.len(), 0);
 }
 
-/// 回归：标准地雷 `D1`–`D9` 仍正常产生 `MineEvent`（lane 1–9）。
+/// Regression: standard mines `D1`-`D9` still produce `MineEvent` (lanes 1-9).
 #[test]
 fn mine_channel_d1_still_works() {
     let msgs = parse_one("#001D1:01");

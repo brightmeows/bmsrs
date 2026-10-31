@@ -1,19 +1,19 @@
-//! 行级编辑测试。
+//! Line-level editing tests.
 
 use bmsrs_bms_source::{Document, DocumentOptions, EditError, LineKind, SourceEncoding};
 
-/// 返回 `Shift_JIS` 编码。
+/// Return the `Shift_JIS` encoding.
 fn shift_jis_encoding() -> SourceEncoding {
     let Some(encoding) = SourceEncoding::from_label(b"shift_jis") else {
-        panic!("Shift_JIS 必须受支持");
+        panic!("Shift_JIS must be supported");
     };
     encoding
 }
 
-/// 构造 `Shift_JIS` 文档。
+/// Build a `Shift_JIS` document.
 fn shift_jis_document(source: &str) -> Document {
     let (bytes, _, had_unmappable) = encoding_rs::SHIFT_JIS.encode(source);
-    assert!(!had_unmappable, "测试夹具必须可编码");
+    assert!(!had_unmappable, "test fixture must be encodable");
     Document::from_bytes_with(
         bytes.into_owned(),
         &DocumentOptions {

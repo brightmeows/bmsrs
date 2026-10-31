@@ -1,4 +1,4 @@
-//! 从 rowan CST 或无损文档构建 `Bms`。
+//! Build `Bms` from a rowan CST or a lossless document.
 
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
@@ -9,71 +9,71 @@ use bmsrs_bms_values::{BmsToken, BmsTokenizeError, parse_header_line, parse_mess
 
 use crate::Bms;
 
-/// token 抽取的错误处理策略。
+/// Error-handling strategy for token extraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ErrorStrategy {
-    /// 收集全部行的错误。
+    /// Collect errors from every line.
     #[default]
     CollectAll,
-    /// 遇到首条错误时返回。
+    /// Return at the first error.
     FailFast,
 }
 
-/// CST/文档解析产生的警告类别。
+/// Warning categories produced by CST or document parsing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CstWarningKind {
-    /// 单行值解析错误。
+    /// Single-line value parse error.
     Tokenize(BmsTokenizeError),
-    /// 文档解码错误。
+    /// Document decode error.
     Decode(TextDecodeError),
-    /// CTS 语法/控制流诊断。
+    /// CST syntax or control-flow diagnostic.
     Syntax(String),
 }
 
-/// 一条带行号的解析警告。
+/// A parse warning with a line number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CstWarning {
-    /// 行号（1 起）。
+    /// One-based line number.
     pub line: NonZeroUsize,
-    /// 文本范围。
+    /// Text range.
     pub range: TextRange,
-    /// 警告类别。
+    /// Warning category.
     pub kind: CstWarningKind,
 }
 
-/// 从 CST 构建 `Bms` 的结果。
+/// Result of building `Bms` from a CST.
 #[derive(Debug, Clone)]
 pub struct CstParse {
-    /// 语义模型。
+    /// Semantic model.
     pub bms: Bms,
-    /// 控制流选择记录。
+    /// Control-flow selection record.
     pub selection: BranchSelection,
-    /// 警告。
+    /// Warnings.
     pub warnings: Vec<CstWarning>,
 }
 
-/// 一行的 typed token 结果。
+/// Typed token result for one line.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineToken {
-    /// 行号（1 起）。
+    /// One-based line number.
     pub line: NonZeroUsize,
-    /// 整行文本范围。
+    /// Text range of the whole line.
     pub range: TextRange,
-    /// typed token 或单行值错误。
+    /// Typed token or single-line value error.
     pub token: Result<BmsToken, BmsTokenizeError>,
 }
 
 impl Bms {
-    /// 从 CST 选择分支并构建 `Bms`。
+    /// Select branches from the CST and build `Bms`.
     ///
-    /// `rng(max)` 返回 `[1, max]` 内的值；`#SETRANDOM` / `#SETSWITCH`
-    /// 不调用它。
+    /// `rng(max)` returns a value in `[1, max]`; `#SETRANDOM` / `#SETSWITCH`
+    /// do not call it.
     #[must_use]
     pub fn from_cst(file: &SourceFile, rng: impl FnMut(u64) -> u64) -> CstParse {
         Self::from_cst_with(file, &ParseOptions::default(), rng)
     }
 
-    /// 使用解析选项从 CST 选择分支并构建 `Bms`。
+    /// Select branches from the CST with parse options and build `Bms`.
     #[must_use]
     pub fn from_cst_with(
         file: &SourceFile,
@@ -93,11 +93,13 @@ impl Bms {
         }
     }
 
-    /// 从无损文档构建 `Bms`，并收集所有行的警告。
+    /// Build `Bms` from a lossless document and collect warnings from every
+    /// line.
     ///
     /// # Errors
     ///
-    /// 文档解码失败，或 `FailFast` 遇到首条警告时返回 [`CstWarning`]。
+    /// Returns [`CstWarning`] when document decoding fails or when `FailFast`
+    /// encounters the first warning.
     pub fn from_document(
         document: &Document,
         rng: impl FnMut(u64) -> u64,
@@ -106,11 +108,12 @@ impl Bms {
         Self::from_document_with(document, &ParseOptions::default(), rng, strategy)
     }
 
-    /// 使用解析选项从无损文档构建 `Bms`。
+    /// Build `Bms` from a lossless document with parse options.
     ///
     /// # Errors
     ///
-    /// 文档解码失败，或 `FailFast` 遇到首条警告时返回 [`CstWarning`]。
+    /// Returns [`CstWarning`] when document decoding fails or when `FailFast`
+    /// encounters the first warning.
     pub fn from_document_with(
         document: &Document,
         options: &ParseOptions,
@@ -144,7 +147,7 @@ impl Bms {
     }
 }
 
-/// 用整份 token 列表构建选中分支。
+/// Build the selected branches from the full token list.
 fn build_selected(
     file: &SourceFile,
     all_tokens: &[LineToken],
@@ -176,7 +179,7 @@ fn build_selected(
     (Bms::from_flat_tokens(tokens), selection, selected_ranges)
 }
 
-/// 收集 CST 语法诊断。
+/// Collect CST syntax diagnostics.
 fn syntax_warnings(parse: &bmsrs_bms_syntax::Parse, file: &SourceFile) -> Vec<CstWarning> {
     let lines: Vec<_> = file.lines().enumerate().collect();
     parse
@@ -202,7 +205,7 @@ fn syntax_warnings(parse: &bmsrs_bms_syntax::Parse, file: &SourceFile) -> Vec<Cs
         .collect()
 }
 
-/// 收集单行 token 错误。
+/// Collect single-line token errors.
 fn token_warnings(tokens: &[LineToken]) -> Vec<CstWarning> {
     tokens
         .iter()
@@ -216,13 +219,14 @@ fn token_warnings(tokens: &[LineToken]) -> Vec<CstWarning> {
         .collect()
 }
 
-/// 对 CST 的所有 Header/Message 行做 typed token 抽取。
+/// Extract typed tokens from every Header/Message line in the CST.
 #[must_use]
 pub fn tokenize_lines(file: &SourceFile) -> Vec<LineToken> {
     tokenize_lines_with(file, &ParseOptions::default())
 }
 
-/// 使用解析选项对 CST 的所有 Header/Message 行做 typed token 抽取。
+/// Extract typed tokens from every Header/Message line in the CST with parse
+/// options.
 #[must_use]
 pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<LineToken> {
     file.lines()
@@ -241,7 +245,7 @@ pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<Lin
         .collect()
 }
 
-/// 把一行内容解析为 token。
+/// Parse one line of content into a token.
 fn tokenize_line_with(content: &str, prefixes: &[char]) -> Result<BmsToken, BmsTokenizeError> {
     if let Some(message) = parse_message_line(content)? {
         return Ok(BmsToken::Message(message));

@@ -26,7 +26,8 @@ updates:
       - "automated"
     open-pull-requests-limit: 20
     ignore:
-      # ci.yml 的 dtolnay/rust-toolchain@<版本> 是 workspace.package.rust-version
-      # （MSRV）的镜像，两处必须随 MSRV 调整手动同步；dependabot 单独漂移
-      # 该引用会让 msrv job 检查错对象
+      # dtolnay/rust-toolchain@<version> in ci.yml mirrors
+      # workspace.package.rust-version (the MSRV); the two must be updated
+      # manually together. If dependabot drifts this reference independently, the
+      # msrv job checks the wrong target.
       - dependency-name: "dtolnay/rust-toolchain"

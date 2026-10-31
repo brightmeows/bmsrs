@@ -1,9 +1,10 @@
-//! BMSON 谱面解析示例 —— 基于 chumsky 的 JSON 解析器与 serde 反序列化。
+//! BMSON chart parsing example: a chumsky JSON parser plus serde deserialization.
 //!
-//! 本示例演示如何使用 chumsky 构建支持错误恢复的 JSON 解析器，
-//! 并将 BMSON JSON 文本解析为 `bmsrs_bmson_def::Bmson`（自动检测 v0/v1/v2）。
+//! This example demonstrates building an error-recovering JSON parser with
+//! chumsky and parsing BMSON JSON text into `bmsrs_bmson_def::Bmson` (auto-detecting
+//! v0/v1/v2).
 //!
-//! # 运行
+//! # Run
 //!
 //! ```bash
 //! cargo run --example bmson_parser -p bmsrs-bmson-def
@@ -91,49 +92,50 @@ fn main() {
 }
 
 //
-// 辅助函数：最小 BMSON JSON 字符串
+// Helpers: minimal BMSON JSON strings
 //
 
-/// 最小合法的 v2.0.0 BMSON JSON 字符串。
+/// Minimal valid v2.0.0 BMSON JSON string.
 const fn minimal_v2_json() -> &'static str {
     r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},"chart_info":{"subtitle":"","subartists":[],"chart_name":"","level":1,"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}},"chart_data":{"init_bpm":140.0,"lines":null,"bpm_events":[],"stop_events":[],"sound_channels":[]}}"#
 }
 
-/// 最小合法的 v1.0.0 BMSON JSON 字符串。
+/// Minimal valid v1.0.0 BMSON JSON string.
 const fn minimal_v1_json() -> &'static str {
     r#"{"version":"1.0.0","info":{"title":"T","artist":"A","genre":"G","init_bpm":140.0,"level":1},"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}}"#
 }
 
-/// 最小合法的 v0.2.1 BMSON JSON 字符串。
+/// Minimal valid v0.2.1 BMSON JSON string.
 const fn minimal_v0_json() -> &'static str {
     r#"{"info":{"title":"T","artist":"A","genre":"G","initBPM":140.0,"level":1},"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}}"#
 }
 
 //
-// 错误类型
+// Error type
 //
 
-/// BMSON 解析与反序列化过程中可能出现的错误。
+/// Errors that can occur while parsing and deserializing BMSON.
 #[derive(Debug, thiserror::Error)]
 enum BmsonDeError {
-    /// 致命的 JSON 解析错误（chumsky 未产生任何输出）。
+    /// Fatal JSON parse error (chumsky produced no output).
     #[error("JSON parse error(s):\n{0}")]
     JsonParse(String),
 
-    /// bmson 版本字符串缺失或无法识别。
+    /// The bmson version string is missing or unrecognized.
     #[error("{0}")]
     UnknownVersion(String),
 
-    /// 从 `serde_json::Value` 反序列化版本特定类型失败。
+    /// Failed to deserialize a version-specific type from `serde_json::Value`.
     #[error("Failed to deserialize {version} bmson: {message}")]
     Deserialize {
-        /// 可读的版本标识符。
+        /// Human-readable version identifier.
         version: &'static str,
-        /// 底层错误描述。
+        /// Underlying error description.
         message: String,
     },
 
-    /// 从旧版 v0.2.1 格式转换为统一 v2 格式失败。
+    /// Failed to convert from the legacy v0.2.1 format to the unified v2
+    /// format.
     #[error("V0 conversion error: {0}")]
     V0Conversion(String),
 }
@@ -155,22 +157,23 @@ impl From<bmsrs_bmson_def::v0::TryFromV0Error> for BmsonDeError {
 }
 
 //
-// 版本检测（轻量级字符串扫描）
+// Version detection (lightweight string scan)
 //
 
-/// 通过扫描 JSON 文本的 `"version"` 字段检测 bmson 格式版本。
+/// Detect the bmson format version by scanning the JSON text's `"version"`
+/// field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DetectedVersion {
-    /// v0.2.1（遗留，无 `version` 字段）。
+    /// v0.2.1 (legacy, no `version` field).
     V0,
-    /// v1.0.0（扁平 schema）。
+    /// v1.0.0 (flat schema).
     V1,
-    /// v2.0.0-rc1（拆分 schema）。
+    /// v2.0.0-rc1 (split schema).
     V2,
 }
 
 impl DetectedVersion {
-    /// 扫描 JSON 字符串并检测 bmson 版本。
+    /// Scan a JSON string and detect the bmson version.
     #[expect(
         clippy::string_slice,
         reason = "JSON bytes for \"version\" key and ASCII version strings; byte indexing is safe"
@@ -237,16 +240,16 @@ impl DetectedVersion {
 }
 
 //
-// BMSON 解析入口
+// BMSON parse entry point
 //
 
-/// 将 BMSON JSON 字符串解析为 `bmsrs_bmson_def::Bmson`（自动检测 v0/v1/v2）。
+/// Parse a BMSON JSON string into `bmsrs_bmson_def::Bmson` (auto-detecting v0/v1/v2).
 fn parse_bmson(json: &str) -> Result<bmsrs_bmson_def::Bmson<'_>, BmsonDeError> {
-    // 1. 运行 chumsky 解析器进行校验。
+    // 1. Run the chumsky parser for validation.
     let (value, errors) = parse_json(json);
     let had_output = value.is_some();
 
-    // 2. 若解析器完全未产生输出，返回解析错误。
+    // 2. If the parser produced no output at all, return a parse error.
     if !had_output {
         let (_warnings, _recovered, fatal) = classify_errors(errors, false);
         let msg = fatal
@@ -257,10 +260,10 @@ fn parse_bmson(json: &str) -> Result<bmsrs_bmson_def::Bmson<'_>, BmsonDeError> {
         return Err(BmsonDeError::JsonParse(msg));
     }
 
-    // 3. 从原始文本中检测 bmson 版本。
+    // 3. Detect the bmson version from the raw text.
     let version = DetectedVersion::detect(json)?;
 
-    // 4. 反序列化；失败时附带 chumsky 诊断信息。
+    // 4. Deserialize; on failure, attach chumsky diagnostics.
     deserialize_by_version(json, version).map_err(|err| {
         if errors.is_empty() {
             return err;
@@ -285,7 +288,7 @@ fn parse_bmson(json: &str) -> Result<bmsrs_bmson_def::Bmson<'_>, BmsonDeError> {
     })
 }
 
-/// 内部：分派到版本特定的反序列化。
+/// Internal: dispatch to version-specific deserialization.
 fn deserialize_by_version<'a>(
     json: &'a str,
     version: DetectedVersion,
@@ -319,23 +322,23 @@ fn deserialize_by_version<'a>(
 }
 
 //
-// 基于 chumsky 的 JSON 解析器
+// chumsky-based JSON parser
 //
 
 use chumsky::error::RichReason;
 use chumsky::prelude::*;
 use serde_json::Value;
 
-/// 解析器错误类型。
+/// Parser error type.
 type ParseError<'a> = Rich<'a, char>;
 
-/// 解析结果：可选的输出值与一组错误列表。
+/// Parse result: an optional output value plus a list of errors.
 type ParseResult<'a, T> = (Option<T>, Vec<ParseError<'a>>);
 
-/// 构建基于 chumsky 的 JSON 解析器。
+/// Build a chumsky-based JSON parser.
 ///
-/// 解析器能从常见错误（缺失/尾随逗号、括号不匹配）中恢复，
-/// 并在成功时产出 `serde_json::Value`。
+/// The parser recovers from common errors (missing or trailing commas,
+/// mismatched brackets) and produces a `serde_json::Value` on success.
 #[expect(
     clippy::too_many_lines,
     reason = "parser combinator API composes many sub-parsers inline"
@@ -523,12 +526,12 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Value, extra::Err<Rich<'a, char>>> {
     })
 }
 
-/// 将 JSON 字符串解析为 `serde_json::Value`。
+/// Parse a JSON string into `serde_json::Value`.
 fn parse_json(input: &str) -> ParseResult<'_, Value> {
     parser().parse(input.trim()).into_output_errors()
 }
 
-/// 将 chumsky 的 `Rich` 错误划分为 warning / recovered / fatal 三类。
+/// Classify chumsky `Rich` errors into warning, recovered, and fatal groups.
 fn classify_errors<'a>(
     errors: impl IntoIterator<Item = ParseError<'a>>,
     had_output: bool,
@@ -551,7 +554,7 @@ fn classify_errors<'a>(
 }
 
 //
-// 测试用例
+// Test cases
 //
 
 fn test_v2_roundtrip() {

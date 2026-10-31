@@ -1,83 +1,99 @@
 # bmsrs-bms-source
 
-## 定位
+## Role
 
-BMS 源文本层：原始字节 → 行 → 编辑 → 写回。只处理“字节到行”，不解析
-BMS 语法；头部、通道与控制流由 `bmsrs-bms-syntax` 的 CST 负责。
+BMS source-text layer: raw bytes, lines, editing, and write-back. It handles
+only the "bytes to lines" part and does not parse BMS syntax; headers, channels,
+and control flow belong to the CST in `bmsrs-bms-syntax`.
 
-## 核心不变量
+## Core invariants
 
-| 不变量 | 含义 |
-|--------|------|
-| 未编辑行字节不变 | `render()` 对未编辑行直接切原始字节，不经过解码与重新编码 |
-| 只编码被编辑的行 | 结构化编辑只替换内容段，前缀/后缀 trivia 按原始字节拼接 |
-| 行终止符逐行保留 | LF / CRLF / CR / 无终止符各自保留；插入行继承相邻行 |
-| BOM 单独保留 | BOM 是文档前缀，不进入首行内容 |
-| 不可表示字符显式失败 | `EditError::Unmappable`，文档不变，不做替换 |
-| 不做语义分类 | 行只分为 `Blank` / `Comment` / `Text` / `Error(Decode)` |
+| Invariant | Meaning |
+|-----------|---------|
+| Unedited line bytes are unchanged | `render()` slices raw bytes for unedited lines, without decoding or re-encoding |
+| Only edited lines are encoded | Structured edits replace only the content span; prefix and suffix trivia are spliced from raw bytes |
+| Line terminators are preserved per line | LF, CRLF, CR, and no terminator are each preserved; inserted lines inherit a neighbor's terminator |
+| The BOM is kept separate | The BOM is a document prefix and never enters the first line's content |
+| Unrepresentable characters fail explicitly | `EditError::Unmappable`; the document is unchanged and no substitution is made |
+| No semantic classification | Lines are only `Blank` / `Comment` / `Text` / `Error(Decode)` |
 
-## 行模型
+## Line model
 
 ```text
-<前缀 trivia><内容段><后缀 trivia><行尾终止符>
+<prefix trivia><content span><suffix trivia><line terminator>
 ```
 
-- 内容段是第一个连续的非 trivia 区段；`Line::content` 记录它在原始字节中的区间
-- 前缀与后缀包含缩进、行内 `//` 注释与跨行 `/* */` 块注释的残余
-- `LineKind`：`Blank` / `Comment` / `Text` / `Error`
+- The content span is the first contiguous non-trivia region; `Line::content`
+  records its range in the raw bytes
+- The prefix and suffix contain indentation, inline `//` comments, and remnants
+  of multi-line `/* */` block comments
+- `LineKind`: `Blank` / `Comment` / `Text` / `Error`
 
-## 文本桥
+## Text bridge
 
-- `Document::to_text()`：去 BOM、保留原行尾，解码错误用 replacement
-- `Document::try_to_text()`：严格版，返回 `TextDecodeError`
-- `Document::render_line_indices(&[usize])`：0-based 选行，含 BOM，未编辑行原样切片
+- `Document::to_text()`: removes the BOM, keeps original line endings, and uses
+  replacement characters for decode errors
+- `Document::try_to_text()`: strict variant returning `TextDecodeError`
+- `Document::render_line_indices(&[usize])`: selects 0-based lines, includes the
+  BOM, and slices unedited lines verbatim
 
-## 注释状态机
+## Comment state machine
 
-状态机在**原始字节**上扫描，不在解码后的文本上。依据是：所有受支持的
-ASCII 兼容编码中，注释标记（`/`、`*`、`;`、`"`）与行终止符都不会出现在
-多字节字符的尾字节中（`Shift_JIS` / `GBK` / `Big5` 尾字节从 `0x40` 起，
-`EUC-KR` / `EUC-JP` 从 `0xA1` 起）。UTF-16 按 2 字节代码单元扫描。
+The state machine scans **raw bytes**, not decoded text. The reason: in every
+supported ASCII-compatible encoding, comment markers (`/`, `*`, `;`, `"`) and
+line terminators never appear in the trailing byte of a multi-byte character
+(trailing bytes start at `0x40` in `Shift_JIS` / `GBK` / `Big5` and at `0xA1` in
+`EUC-KR` / `EUC-JP`). UTF-16 is scanned as 2-byte code units.
 
-| 语法 | 规则 |
-|------|------|
-| `//` | 前一字符为空白或行首时开启行注释；字符串内不生效 |
-| `;` | 仅行首（允许前置空白）开启整行注释 |
-| `/* */` | 不嵌套，可跨行；内容段在首个注释处冻结 |
-| `"..."` | 反斜杠转义；字符串状态跨行保留 |
+| Syntax | Rule |
+|--------|------|
+| `//` | Opens a line comment when the previous character is whitespace or at line start; ignored inside strings |
+| `;` | Opens a whole-line comment only at line start (leading whitespace allowed) |
+| `/* */` | Not nested; may span lines; the content span freezes at the first comment |
+| `"..."` | Backslash escapes; string state is preserved across lines |
 
-## 编码
+## Encoding
 
-- 支持全部 ASCII 兼容且无状态的编码与 UTF-16；拒绝 `ISO-2022-JP`（跨行状态）与 `replacement`（不可解码）
-- 检测顺序：BOM → `#CHARSET` → 严格 UTF-8 → `Shift_JIS` / `EUC-KR` / `GBK` / `Big5`
-- `#CHARSET` 声明解码失败时回退候选表，`DetectionMethod::DeclaredFallback` 回报
-- 编码被编辑行时检查 `Encoding::encode` 返回的 `had_unmappable` 标志；该函数会把不可映射字符替换成数字字符引用，标志为真时丢弃结果并返回错误
+- Supports every ASCII-compatible, stateless encoding plus UTF-16; rejects
+  `ISO-2022-JP` (cross-line state) and `replacement` (cannot decode)
+- Detection order: BOM, `#CHARSET`, strict UTF-8, then `Shift_JIS` / `EUC-KR` /
+  `GBK` / `Big5`
+- When the `#CHARSET` declaration fails to decode, falls back to the candidate
+  table and reports `DetectionMethod::DeclaredFallback`
+- When encoding an edited line, checks the `had_unmappable` flag returned by
+  `Encoding::encode`; that function replaces unmappable characters with numeric
+  character references, so a true flag discards the result and returns an error
 
-## 测试
+## Tests
 
 ```bash
 cargo test -p bmsrs-bms-source
 ```
 
-公开 API 测试放 `tests/`，覆盖：字节 roundtrip（各编码 × 各终止符）、
-行分类、注释状态机、行编辑、编码检测。
+Public API tests live in `tests/` and cover byte roundtrips (each encoding and
+each terminator), line classification, the comment state machine, line editing,
+and encoding detection.
 
 ## Always / Ask / Never
 
 ### Always
 
-- 新增编码支持前先确认它 ASCII 兼容且无状态，或单独实现分行策略
-- 编辑路径必须保证失败时文档不变
-- 新增行分类只做字节/trivia 层面的判断；语义分类留给 `bmsrs-bms-syntax`
+- Before adding encoding support, confirm it is ASCII-compatible and stateless,
+  or implement a dedicated line-splitting strategy
+- The edit path must leave the document unchanged on failure
+- New line classifications stay at the byte/trivia level; semantic
+  classification belongs to `bmsrs-bms-syntax`
 
 ### Ask
 
-- 修改字节保真不变量（例如引入整文件重编码）
-- 修改注释语义（会影响所有使用方的 token 边界）
+- Changing the byte-fidelity invariants (for example, introducing whole-file
+  re-encoding)
+- Changing comment semantics (affects token boundaries for every consumer)
 
 ### Never
 
-- 在源层做编码转换、行尾统一或 BOM 增删
-- 用 `Encoding::encode` 直接写回被编辑行
-- 在未编辑行上重新编码
-- 在本 crate 引入 BMS tokenizer / parser / control-flow 依赖
+- Perform encoding conversion, line-ending normalization, or BOM insertion and
+  removal in the source layer
+- Write edited lines back with `Encoding::encode` directly
+- Re-encode unedited lines
+- Add BMS tokenizer, parser, or control-flow dependencies to this crate

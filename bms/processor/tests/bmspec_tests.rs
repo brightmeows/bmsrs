@@ -1,10 +1,11 @@
-//! `BMSpec` 可执行规范集成测试。
+//! `BMSpec` executable specification integration tests.
 //!
-//! 这些测试从原始 BMS 文本出发，走完整管道
-//! （tokenizer → parser → processor → Chart），验证事件时间位置
-//! 符合 bmspec 规范断言。每个测试对应 bmspec 目录下的一个场景。
+//! These tests start from raw BMS text, run the full pipeline
+//! (tokenizer, parser, processor, Chart), and verify that event timing matches
+//! the bmspec assertions. Each test corresponds to a scenario in the bmspec
+//! directory.
 //!
-//! 节拍（beat）换算：1 beat = resolution（240）个脉冲。
+//! Beat conversion: 1 beat = resolution (240) ticks.
 
 use bmsrs_bms_parser::Bms;
 use bmsrs_bms_processor::BmsProcessor;
@@ -14,10 +15,10 @@ use bmsrs_bms_syntax::SourceFile;
 use bmsrs_chart::{Chart, EventKind, NoteKind};
 use bmsrs_player::Player;
 
-/// bmsrs-bms-processor 返回的 chart 类型。
+/// Chart type returned by bmsrs-bms-processor.
 type BmsChart = Chart<(), BmsCustomEvent>;
 
-/// 管道辅助：BMS 原文 → `Chart<(), BmsCustomEvent>`。
+/// Pipeline helper: BMS text to `Chart<(), BmsCustomEvent>`.
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn process(bms_text: &str) -> BmsChart {
     BmsProcessor::process::<Bme>(&parse_bms(bms_text))
@@ -25,13 +26,13 @@ fn process(bms_text: &str) -> BmsChart {
         .chart
 }
 
-/// 用随机值 1 解析 BMS 文本。
+/// Parse BMS text with random value 1.
 fn parse_bms(bms_text: &str) -> Bms {
     let source = SourceFile::parse(bms_text);
     Bms::from_cst(&source.source_file(), |_| 1).bms
 }
 
-/// 提取所有 Note 事件（含种类信息）。
+/// Extract every Note event (including kind information).
 fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
     chart
         .data
@@ -47,7 +48,7 @@ fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
         .collect()
 }
 
-/// 提取所有 Scroll 事件。
+/// Extract every Scroll event.
 fn scroll_events(chart: &BmsChart) -> Vec<(u64, f64)> {
     chart
         .data
@@ -63,7 +64,7 @@ fn scroll_events(chart: &BmsChart) -> Vec<(u64, f64)> {
         .collect()
 }
 
-/// 提取所有 Speed 事件。
+/// Extract every Speed event.
 fn speed_events(chart: &BmsChart) -> Vec<(u64, f64)> {
     chart
         .data
@@ -79,7 +80,7 @@ fn speed_events(chart: &BmsChart) -> Vec<(u64, f64)> {
         .collect()
 }
 
-/// 提取 Long `Note`（`NoteKind::Long`）事件。
+/// Extract Long `Note` (`NoteKind::Long`) events.
 fn long_notes(chart: &BmsChart) -> Vec<(u64, u64)> {
     chart
         .data
@@ -99,7 +100,7 @@ fn long_notes(chart: &BmsChart) -> Vec<(u64, u64)> {
         .collect()
 }
 
-/// bmspec-1-01-Sentences: 解析标准 BMS 文件。
+/// bmspec-1-01-Sentences: parse a standard BMS file.
 #[test]
 fn bmspec_1_01_parse_sentences() {
     let chart = process(
@@ -110,21 +111,23 @@ fn bmspec_1_01_parse_sentences() {
     );
     assert_eq!(chart.song.title, "BY MY SIDE");
     assert_eq!(chart.song.artist, "flicknote");
-    // 通道 01 含有 4 个 BGM 事件。注释行被忽略。
-    assert_eq!(chart.data.audio_assets.len(), 0); // WAV 未定义
+    // Channel 01 contains 4 BGM events. Comment lines are ignored.
+    assert_eq!(chart.data.audio_assets.len(), 0); // WAV is undefined.
 }
 
-/// bmspec-1-01-Sentences: 格式错误的命令行（无空格分隔符的头部视为注释）。
+/// bmspec-1-01-Sentences: malformed command lines (a header without a space
+/// separator is treated as a comment).
 #[test]
 fn bmspec_1_01_malformed_command() {
-    // #ARTIST:flicknote （冒号而非空格）→ 不被识别为头部。
+    // #ARTIST:flicknote (colon instead of a space) is not recognized as a
+    // header.
     let chart = process("#TITLE BY MY SIDE\n#ARTIST:flicknote\n");
     assert_eq!(chart.song.title, "BY MY SIDE");
-    // #ARTIST 没被解析到（冒号导致 parse_header_line 回退）
+    // #ARTIST is not parsed (the colon makes parse_header_line fall back).
     assert_eq!(chart.song.artist, "");
 }
 
-/// bmspec-1-02-Header: 标准头部。
+/// bmspec-1-02-Header: standard header.
 #[test]
 fn bmspec_1_02_standard_header() {
     let chart = process("#TITLE BY MY SIDE\n#ARTIST flicknote\n");
@@ -132,14 +135,14 @@ fn bmspec_1_02_standard_header() {
     assert_eq!(chart.song.artist, "flicknote");
 }
 
-/// bmspec-1-02-Header: 多空格分隔符。
+/// bmspec-1-02-Header: multiple-space separator.
 #[test]
 fn bmspec_1_02_header_multiple_spaces() {
     let chart = process("#TITLE      BY MY SIDE\n");
     assert_eq!(chart.song.title, "BY MY SIDE");
 }
 
-/// bmspec-1-02-Header: 不区分大小写。
+/// bmspec-1-02-Header: case-insensitive.
 #[test]
 fn bmspec_1_02_case_insensitive_header() {
     let chart = process("#Title BY MY SIDE\n#Artist flicknote\n");
@@ -147,20 +150,20 @@ fn bmspec_1_02_case_insensitive_header() {
     assert_eq!(chart.song.artist, "flicknote");
 }
 
-/// bmspec-1-02-Header: 重复头部，后胜出。
+/// bmspec-1-02-Header: duplicate headers, last wins.
 #[test]
 fn bmspec_1_02_duplicated_header() {
     let chart = process("#TiTlE BEAT MUSIC SEQUENCE\n#tItLe BY*MY*SIDE\n");
     assert_eq!(chart.song.title, "BY*MY*SIDE");
 }
 
-/// bmspec-1-03-Objects: 基本音符对象位置。
+/// bmspec-1-03-Objects: basic note object positions.
 #[test]
 fn bmspec_1_03_basic_objects() {
     let chart = process("#00111:01000002\n#00311:0003\n");
     let notes = all_notes(&chart);
-    // 3 个音符，分别位于 beat 4, 7, 14
-    // beat = tick / 240
+    // 3 notes at beats 4, 7, and 14.
+    // beat = tick / 240.
     assert_eq!(notes.len(), 3);
     let ticks: Vec<u64> = notes.into_iter().map(|(t, _)| t).collect();
     assert_eq!(ticks[0], 960, "object 01 at beat 4"); // measure 1, pos 0/4
@@ -168,7 +171,7 @@ fn bmspec_1_03_basic_objects() {
     assert_eq!(ticks[2], 3360, "object 03 at beat 14"); // measure 3, pos 1/2
 }
 
-/// bmspec-1-03-Objects: 重叠音符对象（通道合并）。
+/// bmspec-1-03-Objects: overlapping note objects (channel merging).
 #[test]
 fn bmspec_1_03_overlapped_objects() {
     let chart = process(
@@ -177,20 +180,22 @@ fn bmspec_1_03_overlapped_objects() {
          #00113:0066\n",
     );
     let notes = all_notes(&chart);
-    // 合并后应有 7 个对象（过滤掉 "00"）
+    // After merging there should be 7 objects ("00" filtered out).
     assert_eq!(notes.len(), 7);
-    // merge: max_count=8。
-    //   行 1 ("11111111", 4 值) → 位置 0,2,4,6
-    //   行 2 ("0022332255224400", 8 值) → 位置 1=22,2=33,3=22,4=55,5=22,6=44
-    //   行 3 ("0066", 2 值) → 位置 4=66（覆盖 55）
-    // 合并结果 (过滤 00): 11(0),22(1),33(2),22(3),66(4),22(5),44(6)
+    // merge: max_count=8.
+    //   Line 1 ("11111111", 4 values) gives positions 0, 2, 4, 6.
+    //   Line 2 ("0022332255224400", 8 values) gives 1=22, 2=33, 3=22, 4=55,
+    //   5=22, 6=44.
+    //   Line 3 ("0066", 2 values) gives 4=66 (overrides 55).
+    // Merged result (00 filtered): 11(0), 22(1), 33(2), 22(3), 66(4), 22(5),
+    // 44(6).
     // tick at pos i = 960 + i/8 * 960
     let ticks: Vec<u64> = notes.iter().map(|(t, _)| *t).collect();
     assert_eq!(ticks[4], 1440, "object 66 should be at beat 6"); // pos 4/8 → 960 + 480 = 1440
     assert_eq!(ticks[6], 1680, "object 44 at beat 7"); // pos 6/8 → 960 + 720 = 1680
 }
 
-/// bmspec-1-03-Objects: 空通道行。
+/// bmspec-1-03-Objects: empty channel line.
 #[test]
 fn bmspec_1_03_empty_channel() {
     let chart = process("#00111:\n");
@@ -198,7 +203,7 @@ fn bmspec_1_03_empty_channel() {
     assert!(notes.is_empty(), "empty channel produces no objects");
 }
 
-/// bmspec-1-04-Time-Signature: 变拍子定位。
+/// bmspec-1-04-Time-Signature: variable time-signature positioning.
 #[test]
 fn bmspec_1_04_time_signature() {
     let chart = process(
@@ -224,7 +229,8 @@ fn bmspec_1_04_time_signature() {
     assert_eq!(ticks[3], 2640, "obj 03 at beat 11");
 }
 
-/// bmspec-1-05-BPM: BPM 变化 —— 对象应位于正确的时间位置。
+/// bmspec-1-05-BPM: BPM changes; objects should land at the correct time
+/// positions.
 #[test]
 fn bmspec_1_05_bpm_change() {
     let chart = process("#BPM 60\n#00003:0078\n#00111:01\n");
@@ -260,7 +266,7 @@ fn bmspec_1_05_bpm_change() {
     );
 }
 
-/// bmspec-1-05-BPM: 多段 BPM 变化。
+/// bmspec-1-05-BPM: multiple BPM changes.
 #[test]
 fn bmspec_1_05_multiple_bpm_changes() {
     let chart = process(
@@ -277,7 +283,8 @@ fn bmspec_1_05_multiple_bpm_changes() {
     // #00011:00010203 → 4 notes at measure 0: positions 0/4, 1/4, 2/4, 3/4
 
     // #00011:00010203 → measure=0, channel 11, values [00, 01, 02, 03]
-    // "00" 被过滤掉。剩下 3 个 note 在 measure 0, positions 1/4, 2/4, 3/4
+    // "00" is filtered out. The remaining 3 notes are in measure 0 at positions
+    // 1/4, 2/4, and 3/4.
     // #00111:04 → measure=1, pos=0/1
     // starts = [0, 960, 1920]
     // Position(0, 0, 4) → 0 (filtered out by "00" rule)
@@ -299,7 +306,7 @@ fn bmspec_1_05_multiple_bpm_changes() {
     );
 }
 
-/// bmspec-1-05-BPM: 扩展 BPM（#BPMxx 定义 + #00008 引用）。
+/// bmspec-1-05-BPM: extended BPM (`#BPMxx` definition plus `#00008` reference).
 #[test]
 fn bmspec_1_05_extended_bpm() {
     let chart = process(
@@ -311,8 +318,9 @@ fn bmspec_1_05_extended_bpm() {
 
     // #BPM01 120 defines extended BPM index 01 = 120.0
     // #00008:0001 → channel 08 (extended BPM), track=0, values [00, 01]
-    // "00" = 休止（无 BPM 变更），"01" 引用 BPM01=120 at position 1/2
-    // BPM 序列：
+    // "00" is a rest (no BPM change); "01" references BPM01=120 at position
+    // 1/2.
+    // BPM sequence:
     //   tick 0: init 60 (from #BPM 60)
     //   tick 480: BPM 120 (from "01" → BPM01)
     // Note at tick 960 = measure 1, pos 0/1
@@ -329,7 +337,7 @@ fn bmspec_1_05_extended_bpm() {
     );
 }
 
-/// bmspec-1-06-STOP: 基本停止。
+/// bmspec-1-06-STOP: basic stop.
 #[test]
 fn bmspec_1_06_basic_stop() {
     let chart = process(
@@ -356,10 +364,10 @@ fn bmspec_1_06_basic_stop() {
     // Note 02 at tick 1680:
     //   0-960 at 60 BPM = 4.0s
     //   Stop at tick 960: duration = 480 ticks = 4.0s at 60 BPM
-    //   Stop 严格在 tick 960（< 1680），停止时长计入。
-    //   停止后位置推进到 tick 960 + 480 = 1440。
+    //   The stop is strictly at tick 960 (< 1680), so its duration counts.
+    //   After the stop, the position advances to tick 960 + 480 = 1440.
     //   1440-1680 = 240 ticks at 60 BPM = 1.0s
-    //   合计 = 4.0 + 4.0 + 1.0 = 9.0s
+    //   Total = 4.0 + 4.0 + 1.0 = 9.0s.
 
     let dur1 = chart.data.timing.tick_to_duration(notes[0].0);
 
@@ -370,8 +378,8 @@ fn bmspec_1_06_basic_stop() {
     );
 }
 
-/// bmspec-1-06-STOP: STOP 与 BPM 同 tick 时序——BPM（优先级 2）应在 STOP（优先级 3）之前
-/// 生效。覆盖 A11 场景。
+/// bmspec-1-06-STOP: STOP and BPM at the same tick; BPM (priority 2) takes
+/// effect before STOP (priority 3). Covers the A11 scenario.
 #[test]
 fn bmspec_1_06_stop_on_same_beat_as_bpm_matches_expected_timing() {
     let chart = process(
@@ -385,13 +393,14 @@ fn bmspec_1_06_stop_on_same_beat_as_bpm_matches_expected_timing() {
 
     let notes = all_notes(&chart);
     assert_eq!(notes.len(), 1, "should have 1 note");
-    // BPM 变更为 120 与 STOP 同在 tick 960（measure 1, pos 0/2）。
-    // 事件排序：BPM(2) 先于 STOP(3)。
+    // The BPM change to 120 and the STOP are both at tick 960 (measure 1,
+    // pos 0/2).
+    // Event order: BPM(2) before STOP(3).
     //   tick 0-960 at 60 BPM = 4.0s
-    //   STOP 480 ticks at 120 BPM（BPM 已变更）= 1.0s
+    //   STOP 480 ticks at 120 BPM (BPM already changed) = 1.0s.
     //   tick 960-1920 at 120 BPM = 2.0s
-    //   合计 = 7.0s
-    // 若 BPM 在 STOP 之后变更：STOP 480 ticks at 60 BPM = 2.0s → 合计 8.0s
+    //   Total = 7.0s.
+    // If BPM changed after STOP: STOP 480 ticks at 60 BPM = 2.0s, total 8.0s.
     let dur = chart.data.timing.tick_to_duration(notes[0].0);
     assert!(
         (dur.as_secs_f64() - 7.0).abs() < 1e-6,
@@ -399,50 +408,53 @@ fn bmspec_1_06_stop_on_same_beat_as_bpm_matches_expected_timing() {
     );
 }
 
-/// bmspec-2-LNOBJ: 长音对象配对。
+/// bmspec-2-LNOBJ: long-note object pairing.
 #[test]
 fn bmspec_2_lnobj() {
     let chart = process("#LNOBJ XX\n#00111:01XX02XX03XX04XX\n");
     let lns = long_notes(&chart);
 
-    // 4 个长音，每个从 beat 4 到 4.5（半拍间隔在 8 值/小节中）
-    // #00111:01XX02XX03XX04XX 有 8 个值
-    // 每个值 960/8 = 120 个脉冲
-    // 01 在 pos 0/8: tick 960 → beat 4
-    // XX 在 pos 1/8: tick 1080 → beat 4.5（长音终点）
-    // 02 在 pos 2/8: tick 1200 → beat 5（下一个长音起点）
-    // 以此类推...
+    // 4 long notes, each from beat 4 to 4.5 (half-beat spacing in 8 values per
+    // measure).
+    // #00111:01XX02XX03XX04XX has 8 values.
+    // Each value is 960/8 = 120 ticks.
+    // 01 at pos 0/8: tick 960, beat 4.
+    // XX at pos 1/8: tick 1080, beat 4.5 (long-note end).
+    // 02 at pos 2/8: tick 1200, beat 5 (next long-note start).
+    // And so on.
 
     assert_eq!(lns.len(), 4, "should have 4 long notes");
 
-    // 每个长音的 duration: 1 个 subdivision = 120 ticks
+    // Each long note's duration: 1 subdivision = 120 ticks.
     assert_eq!(lns[0], (960, 120), "LN 01: beat 4 to 4.5");
     assert_eq!(lns[1], (1200, 120), "LN 02: beat 5 to 5.5");
     assert_eq!(lns[2], (1440, 120), "LN 03: beat 6 to 6.5");
     assert_eq!(lns[3], (1680, 120), "LN 04: beat 7 to 7.5");
 }
 
-/// bmspec-2-LNTYPE1: 独立长音通道。
+/// bmspec-2-LNTYPE1: dedicated long-note channels.
 #[test]
 fn bmspec_2_lntype1() {
     let chart = process("#00151:0101020203030404\n");
     let lns = long_notes(&chart);
 
-    // 通道 51, 8 个值：01 01 02 02 03 03 04 04
-    // 第 1-2: 01 at pos 0, 01 at pos 1 → 长音 01 从 pos 0 到 pos 1
-    // 第 3-4: 02 at pos 2, 02 at pos 3 → 长音 02 从 pos 2 到 pos 3
-    // 以此类推...
+    // Channel 51, 8 values: 01 01 02 02 03 03 04 04.
+    // Values 1-2: 01 at pos 0 and 01 at pos 1, giving long note 01 from pos 0
+    // to pos 1.
+    // Values 3-4: 02 at pos 2 and 02 at pos 3, giving long note 02 from pos 2
+    // to pos 3.
+    // And so on.
 
     assert_eq!(lns.len(), 4, "should have 4 long notes");
 
-    let sub = 960 / 8; // 每个 subdivision = 120 个脉冲
+    let sub = 960 / 8; // Each subdivision is 120 ticks.
     assert_eq!(lns[0], (960, sub), "LN 01: beat 4 to 4.5");
     assert_eq!(lns[1], (1200, sub), "LN 02: beat 5 to 5.5");
     assert_eq!(lns[2], (1440, sub), "LN 03: beat 6 to 6.5");
     assert_eq!(lns[3], (1680, sub), "LN 04: beat 7 to 7.5");
 }
 
-/// bmspec-2-LNTYPE2: MGQ 长音记法。
+/// bmspec-2-LNTYPE2: MGQ long-note notation.
 #[test]
 fn bmspec_2_lntype2_pairs_long_notes_correctly() {
     let chart = process(
@@ -453,25 +465,25 @@ fn bmspec_2_lntype2_pairs_long_notes_correctly() {
     );
     let lns = long_notes(&chart);
 
-    // LNTYPE 2 (MGQ) 中，"00" 充当释放标记。
-    // #00151:00222222 → 4 个值：00 22 22 22（denom=4）
-    //   00 at pos 0/4 = tick 960 → 跳过
-    //   22 at pos 1/4 = tick 1200 → 开始长音
-    //   22 at pos 2/4 = tick 1440 → 继续
-    //   22 at pos 3/4 = tick 1680 → 继续
-    // #00251:22 → 1 个值：22（denom=1）
-    //   22 at pos 0/1 = tick 1920 → 继续
-    // #00351:2200 → 2 个值：22 00（denom=2）
-    //   22 at pos 0/2 = tick 2880 → 继续
-    //   00 at pos 1/2 = tick 3360 → 释放长音
+    // In LNTYPE 2 (MGQ), "00" acts as the release marker.
+    // #00151:00222222 gives 4 values: 00 22 22 22 (denom=4).
+    //   00 at pos 0/4 = tick 960: skip.
+    //   22 at pos 1/4 = tick 1200: start the long note.
+    //   22 at pos 2/4 = tick 1440: continue.
+    //   22 at pos 3/4 = tick 1680: continue.
+    // #00251:22 gives 1 value: 22 (denom=1).
+    //   22 at pos 0/1 = tick 1920: continue.
+    // #00351:2200 gives 2 values: 22 00 (denom=2).
+    //   22 at pos 0/2 = tick 2880: continue.
+    //   00 at pos 1/2 = tick 3360: release the long note.
     //
-    // 单个长音从 tick 1200 到 tick 3360，duration = 2160
+    // A single long note from tick 1200 to tick 3360, duration = 2160.
 
     assert_eq!(lns.len(), 1, "should have 1 long note");
     assert_eq!(lns[0], (1200, 2160), "LN from beat 5 to beat 14");
 }
 
-/// bmspec-3-SCROLL: 基础：速度与位置累积。
+/// bmspec-3-SCROLL: basics: rate and position accumulation.
 #[test]
 fn bmspec_3_scroll_basic() {
     let chart = process("#SCROLL02 0.5\n#001SC:02\n");
@@ -501,7 +513,7 @@ fn bmspec_3_scroll_basic() {
     );
 }
 
-/// bmspec-3-SCROLL: 初始速度：第 0 小节指定。
+/// bmspec-3-SCROLL: initial speed specified in measure 0.
 #[test]
 fn bmspec_3_scroll_initial_speed() {
     let chart = process("#SCROLL02 0.5\n#000SC:02\n");
@@ -527,8 +539,8 @@ fn bmspec_3_scroll_initial_speed() {
     );
 }
 
-/// 辅助函数：走完整控制流管道的 BMS 处理。
-/// 用 `SETRANDOM` / `SETSWITCH` 固定分支值。
+/// Helper: process BMS through the full control-flow pipeline.
+/// Pins branch values with `SETRANDOM` / `SETSWITCH`.
 fn process_with_cf(bms_text: &str) -> BmsChart {
     let source = SourceFile::parse(bms_text);
     let bms = Bms::from_cst(&source.source_file(), |_| 0).bms;
@@ -538,10 +550,10 @@ fn process_with_cf(bms_text: &str) -> BmsChart {
         .chart
 }
 
-/// bmspec-4-RANDOM: SETRANDOM 固定值选择分支。
+/// bmspec-4-RANDOM: SETRANDOM picks a fixed branch.
 #[test]
 fn bmspec_4_random_setrandom() {
-    // SETRANDOM 1 → 始终选中 #IF 1
+    // SETRANDOM 1 always selects #IF 1.
     let chart = process_with_cf(
         "#SETRANDOM 1\n\
          #IF 1\n\
@@ -553,12 +565,12 @@ fn bmspec_4_random_setrandom() {
          #ENDRANDOM\n\
          #BPM 120\n",
     );
-    // 应只有 WAV01 (a.wav) 出现在 audio_assets 中
+    // Only WAV01 (a.wav) should appear in audio_assets.
     assert_eq!(chart.data.audio_assets.len(), 1);
     assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "a.wav");
 }
 
-/// bmspec-4-RANDOM: SETRANDOM 选中第二个分支。
+/// bmspec-4-RANDOM: SETRANDOM selects the second branch.
 #[test]
 fn bmspec_4_random_setrandom_second() {
     let chart = process_with_cf(
@@ -576,10 +588,11 @@ fn bmspec_4_random_setrandom_second() {
     assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "b.wav");
 }
 
-/// bmspec-4-RANDOM: 多个连续块各自独立选择。
+/// bmspec-4-RANDOM: consecutive blocks select independently.
 #[test]
 fn bmspec_4_random_multiple_blocks() {
-    // 第一个块选中 #IF 2，第二个块选中 #IF 1（顺序不重要）
+    // The first block selects #IF 2, the second selects #IF 1 (order does not
+    // matter).
     let chart = process_with_cf(
         "#SETRANDOM 2\n\
          #IF 1\n\
@@ -615,7 +628,7 @@ fn bmspec_4_random_multiple_blocks() {
     );
 }
 
-/// bmspec-4-RANDOM: 无匹配时不出 WAV。
+/// bmspec-4-RANDOM: no WAV is emitted when nothing matches.
 #[test]
 fn bmspec_4_random_no_match() {
     let chart = process_with_cf(
@@ -628,11 +641,11 @@ fn bmspec_4_random_no_match() {
          #ENDIF\n\
          #ENDRANDOM\n",
     );
-    // RNG=3 不匹配任何 IF → 不产出 WAV
+    // RNG=3 matches no IF, so no WAV is emitted.
     assert_eq!(chart.data.audio_assets, [] as [bmsrs_chart::AudioAsset; 0]);
 }
 
-/// bmspec-5-Subtitle: 基本副标题。
+/// bmspec-5-Subtitle: basic subtitle.
 #[test]
 fn bmspec_5_subtitle() {
     let chart = process("#TITLE BY MY SIDE\n#SUBTITLE [TUTORIAL]\n");
@@ -640,7 +653,7 @@ fn bmspec_5_subtitle() {
     assert_eq!(chart.chart.subtitle, "[TUTORIAL]");
 }
 
-/// bmspec-1-07-Basic-Info: 基本信息完整解析。
+/// bmspec-1-07-Basic-Info: full basic-info parsing.
 #[test]
 fn bmspec_1_07_basic_info() {
     let chart = process(
@@ -657,7 +670,8 @@ fn bmspec_1_07_basic_info() {
     assert_eq!(chart.chart.level, 5);
 }
 
-/// bmspec-1-08-WAV: WAV 定义引用（在 Bms 模型层验证，Chart 不保留 WavIndex→文件名映射）。
+/// bmspec-1-08-WAV: WAV definition references (verified at the Bms model layer;
+/// Chart does not keep the `WavIndex` to file-name mapping).
 #[test]
 fn bmspec_1_08_wav_references() {
     let bms = parse_bms(
@@ -687,7 +701,7 @@ fn bmspec_1_08_wav_references() {
     assert_eq!(bms.audio.wav_files.get(&wav02).map(String::as_str), None);
 }
 
-/// bmspec-6-SPEED: 未设置时保持默认 1.0。
+/// bmspec-6-SPEED: stays at the default 1.0 when unset.
 #[test]
 fn bmspec_6_speed_without_set() {
     let chart = process("#SPEED01 0.5\n");
@@ -695,19 +709,20 @@ fn bmspec_6_speed_without_set() {
     assert!(speeds.is_empty(), "no SPEED event without #xxxSP channel");
 }
 
-/// bmspec-6-SPEED: 单值设置。
+/// bmspec-6-SPEED: single-value setting.
 #[test]
 fn bmspec_6_speed_single() {
     let chart = process("#SPEED01 0.5\n#001SP:0001\n");
     let speeds = speed_events(&chart);
-    // #001SP:0001 → 2 values [00, 01], 但 SPEED00 未定义 → 跳过
-    // 只有 SPEED01=0.5 被发出：Position(1, 1, 2) → tick=960+480=1440
+    // #001SP:0001 gives 2 values [00, 01], but SPEED00 is undefined, so it is
+    // skipped.
+    // Only SPEED01=0.5 is emitted: Position(1, 1, 2), tick 960+480=1440.
     assert_eq!(speeds.len(), 1, "single speed event");
     assert_eq!(speeds[0].0, 1440, "speed at beat 6");
     assert!((speeds[0].1 - 0.5).abs() < 1e-9, "speed rate should be 0.5");
 }
 
-/// bmspec-6-SPEED: 多值插值（多个 `SPEEDxx` 定义）。
+/// bmspec-6-SPEED: multiple values (several `SPEEDxx` definitions).
 #[test]
 fn bmspec_6_speed_multiple() {
     let chart = process(
@@ -718,7 +733,7 @@ fn bmspec_6_speed_multiple() {
          #002SP:03\n",
     );
     let speeds = speed_events(&chart);
-    // #001SP:0102 = [01, 02] → 2 events（00 不存在于输入中）
+    // #001SP:0102 = [01, 02] gives 2 events (00 is not present in the input).
     //   Position(1, 0, 2)=tick 960(value=01→0.5),
     //   Position(1, 1, 2)=tick 1440(value=02→1.5)
     // #002SP:03 = [03] → 1 event
@@ -732,7 +747,8 @@ fn bmspec_6_speed_multiple() {
     assert!((speeds[2].1 - 1.0).abs() < 1e-9);
 }
 
-/// bmspec-6-SPEED: 间距插值（通过 `Player::spacing_at` 验证）。
+/// bmspec-6-SPEED: spacing interpolation (verified through
+/// `Player::spacing_at`).
 #[test]
 fn bmspec_6_speed_interpolation() {
     let chart = process(
@@ -744,13 +760,14 @@ fn bmspec_6_speed_interpolation() {
     );
     let player = Player::new(chart).unwrap();
 
-    // 首个关键帧之前 → 1.0（默认）
+    // Before the first keyframe: 1.0 (default).
     assert!((player.spacing_at(0) - 1.0).abs() < 1e-9, "before first kf");
 
     // keyframe 01: tick 960 (beat 4), rate 0.5
     assert!((player.spacing_at(960) - 0.5).abs() < 1e-9, "kf 01");
 
-    // keyframe 01→02 插值: tick 1200 位于 960 与 1440 的中点
+    // Interpolation from keyframe 01 to 02: tick 1200 is the midpoint of 960
+    // and 1440.
     // 0.5 + (1.5 - 0.5) * 0.5 = 1.0
     assert!(
         (player.spacing_at(1200) - 1.0).abs() < 1e-9,
@@ -760,7 +777,8 @@ fn bmspec_6_speed_interpolation() {
     // keyframe 02: tick 1440 (beat 6), rate 1.5
     assert!((player.spacing_at(1440) - 1.5).abs() < 1e-9, "kf 02");
 
-    // keyframe 02→03 插值: tick 1680 (beat 7), 75% between 1440 and 1920
+    // Interpolation from keyframe 02 to 03: tick 1680 (beat 7) is 75% between
+    // 1440 and 1920.
     // 1.5 + (1.0 - 1.5) * (1680 - 1440) / (1920 - 1440)
     // = 1.5 + (-0.5) * 0.5 = 1.25
     assert!(
@@ -771,16 +789,16 @@ fn bmspec_6_speed_interpolation() {
     // keyframe 03: tick 1920 (beat 8), rate 1.0
     assert!((player.spacing_at(1920) - 1.0).abs() < 1e-9, "kf 03");
 
-    // 最后一个关键帧之后 → 保持 1.0
+    // After the last keyframe: stays at 1.0.
     assert!(
         (player.spacing_at(2400) - 1.0).abs() < 1e-9,
         "after last kf"
     );
 }
 
-// BmsCustomEvent 集成测试
+// BmsCustomEvent integration tests
 
-/// BGA Base Opacity（通道 0B）产生 `BmsCustomEvent::BgaOpacity`。
+/// BGA Base Opacity (channel 0B) produces `BmsCustomEvent::BgaOpacity`.
 #[test]
 fn bga_opacity_custom_event() {
     let chart =
@@ -800,7 +818,7 @@ fn bga_opacity_custom_event() {
     assert_eq!(customs[0], (bmsrs_chart::BgaLayer::Base, 0xFF));
 }
 
-/// TEXT 通道（99）产生 `BmsCustomEvent::TextDisplay`。
+/// The TEXT channel (99) produces `BmsCustomEvent::TextDisplay`.
 #[test]
 fn text_display_custom_event() {
     let chart =
@@ -818,7 +836,7 @@ fn text_display_custom_event() {
     assert_eq!(texts[0], 1);
 }
 
-/// BGM Volume（通道 97）产生 `BmsCustomEvent::BgmVolume`。
+/// BGM Volume (channel 97) produces `BmsCustomEvent::BgmVolume`.
 #[test]
 fn bgm_volume_custom_event() {
     let chart =
@@ -836,7 +854,7 @@ fn bgm_volume_custom_event() {
     assert_eq!(vols[0], 0x80);
 }
 
-/// Option 通道（A6）产生 `BmsCustomEvent::OptionChange`。
+/// The Option channel (A6) produces `BmsCustomEvent::OptionChange`.
 #[test]
 fn option_change_custom_event() {
     let chart =
@@ -854,12 +872,14 @@ fn option_change_custom_event() {
     assert_eq!(opts[0], 5, "option_id should be decoded as base36");
 }
 
-/// ARGB 通道（A1-A4）需要 `#ARGBxx` 定义来解析颜色，未定义时跳过。
+/// ARGB channels (A1-A4) need an `#ARGBxx` definition to resolve colors; they
+/// are skipped when undefined.
 #[test]
 fn argb_custom_event_skips_when_undefined() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A1:0100000000000000\n");
-    // ARGB index 01 未定义，无 `#ARGB01` 头部，因此不应产生事件。
+    // ARGB index 01 is undefined (no `#ARGB01` header), so no event should be
+    // produced.
     let argb_count = chart
         .data
         .events
@@ -869,7 +889,7 @@ fn argb_custom_event_skips_when_undefined() {
     assert_eq!(argb_count, 0, "undefined ARGB should be skipped");
 }
 
-/// SWBGA 通道（A5）产生 `BmsCustomEvent::BgaKeyBound`。
+/// The SWBGA channel (A5) produces `BmsCustomEvent::BgaKeyBound`.
 #[test]
 fn swbga_custom_event() {
     let chart = process(
@@ -888,11 +908,11 @@ fn swbga_custom_event() {
     assert_eq!(
         keybounds[0].get(),
         0,
-        "BMP index 01 经 bmp_map 查表映射到 0 基 resource_id"
+        "BMP index 01 maps to a zero-based resource_id through bmp_map"
     );
 }
 
-/// Judge 通道（A0）产生 `BmsCustomEvent::JudgeOverride`。
+/// The Judge channel (A0) produces `BmsCustomEvent::JudgeOverride`.
 #[test]
 fn judge_custom_event() {
     let chart =
@@ -911,7 +931,7 @@ fn judge_custom_event() {
     assert_eq!(judges[0], 180, "base36 '50' should decode to 180");
 }
 
-/// Key Volume 通道（98）产生 `BmsCustomEvent::KeyVolume`。
+/// The Key Volume channel (98) produces `BmsCustomEvent::KeyVolume`.
 #[test]
 fn key_volume_custom_event() {
     let chart =
@@ -929,8 +949,9 @@ fn key_volume_custom_event() {
     assert_eq!(vols[0], 0x40, "hex '40' should decode to 64");
 }
 
-/// Video Seek 通道（05）查 `#SEEK` 定义表产生 `BmsCustomEvent::VideoSeek`，
-/// position 为定义表中的毫秒值（C4：不再使用 base36 原值）。
+/// The Video Seek channel (05) looks up the `#SEEK` definition table and
+/// produces `BmsCustomEvent::VideoSeek`, with position taken from the
+/// definition's millisecond value (C4: no longer the raw Base36 value).
 #[test]
 fn video_seek_custom_event() {
     let chart = process(
@@ -946,10 +967,11 @@ fn video_seek_custom_event() {
         })
         .collect();
     assert_eq!(seeks.len(), 1);
-    assert_eq!(seeks[0], 500, "#SEEK03 500 应映射为 500 毫秒");
+    assert_eq!(seeks[0], 500, "#SEEK03 500 should map to 500 milliseconds");
 }
 
-/// Video Seek 通道引用未定义的 `#SEEK` id 时，事件被跳过（C4）。
+/// When the Video Seek channel references an undefined `#SEEK` id, the event is
+/// skipped (C4).
 #[test]
 fn video_seek_undefined_skipped() {
     let chart =
@@ -960,10 +982,10 @@ fn video_seek_undefined_skipped() {
         .iter()
         .filter(|e| matches!(&e.kind, EventKind::Custom(BmsCustomEvent::VideoSeek { .. })))
         .count();
-    assert_eq!(seek_count, 0, "未定义 #SEEK 的 id 应被跳过");
+    assert_eq!(seek_count, 0, "undefined #SEEK ids should be skipped");
 }
 
-/// 自定义事件插入后不影响原生事件的排序与查询。
+/// Inserting custom events does not affect native event ordering or queries.
 #[test]
 fn custom_events_dont_affect_note_queries() {
     let chart =
@@ -977,12 +999,14 @@ fn custom_events_dont_affect_note_queries() {
     assert_eq!(note_count, 1, "note should still be present");
 }
 
-// F1：non_event_data 查表归一化（Base36 小写索引）
+// F1: non_event_data lookup normalization (lowercase Base36 indices)
 
-/// ARGB 通道（A1）使用小写索引引用小写定义的 `#ARGB`，归一化后应命中（F1）。
+/// The ARGB channel (A1) references a lowercase-defined `#ARGB` with a
+/// lowercase index; normalization should make it match (F1).
 #[test]
 fn argb_lowercase_index_resolves_after_normalize() {
-    // #ARGBaa 定义小写 id；通道 A1 用小写 "aa" 引用。
+    // #ARGBaa defines a lowercase id; channel A1 references it with lowercase
+    // "aa".
     let chart = process(
         "#BPM 120\n#WAV01 kick.wav\n#ARGBaa 10,20,30,40\n#00101:0100000000000000\n#001A1:aa00000000000000\n",
     );
@@ -995,11 +1019,16 @@ fn argb_lowercase_index_resolves_after_normalize() {
             _ => None,
         })
         .collect();
-    assert_eq!(argbs.len(), 1, "小写 ARGB 索引经归一化应命中定义表");
+    assert_eq!(
+        argbs.len(),
+        1,
+        "lowercase ARGB index should match after normalization"
+    );
     assert_eq!(argbs[0], (10, 20, 30, 40));
 }
 
-/// BGA `KeyBound` 通道（A5）使用小写索引引用小写定义的 `#BMP`（F1）。
+/// The BGA `KeyBound` channel (A5) references a lowercase-defined `#BMP` with a
+/// lowercase index (F1).
 #[test]
 fn keybound_lowercase_index_resolves_after_normalize() {
     let chart = process(
@@ -1018,11 +1047,12 @@ fn keybound_lowercase_index_resolves_after_normalize() {
         .count();
     assert_eq!(
         keybound_count, 1,
-        "小写 KeyBound 索引经归一化应命中 bmp_map"
+        "lowercase KeyBound index should match bmp_map after normalization"
     );
 }
 
-/// Option 通道（A6）+ `#CHANGEOPTION` 定义均用小写，归一化后双向自洽（F1+F2）。
+/// The Option channel (A6) and the `#CHANGEOPTION` definition both use
+/// lowercase; normalization keeps both sides consistent (F1+F2).
 #[test]
 fn option_lowercase_def_and_ref_resolve() {
     let chart = process(
@@ -1037,13 +1067,17 @@ fn option_lowercase_def_and_ref_resolve() {
             _ => None,
         })
         .collect();
-    assert_eq!(opts.len(), 1, "小写 Option 定义 + 引用经归一化应匹配");
+    assert_eq!(
+        opts.len(),
+        1,
+        "lowercase Option definition and reference should match after normalization"
+    );
     assert_eq!(opts[0], "opt_value");
 }
 
-// F3a：#LNMODE → ln_type_hint
+// F3a: #LNMODE to ln_type_hint
 
-/// `#LNMODE` 各值映射到 `LnTypeHint`（F3a）。
+/// Each `#LNMODE` value maps to an `LnTypeHint` (F3a).
 #[test]
 fn ln_mode_maps_to_ln_type_hint() {
     let base = "#BPM 120\n#WAV01 kick.wav\n#00101:0100000000000000\n";
@@ -1059,16 +1093,17 @@ fn ln_mode_maps_to_ln_type_hint() {
         process(&format!("#LNMODE 3\n{base}")).data.ln_type_hint,
         bmsrs_chart::LnTypeHint::Hcn,
     );
-    // 未声明 #LNMODE 时默认为 Ln。
+    // Defaults to Ln when #LNMODE is not declared.
     assert_eq!(process(base).data.ln_type_hint, bmsrs_chart::LnTypeHint::Ln,);
 }
 
-// C1：#BGA / #@BGA → BgaResource.crop
+// C1: #BGA / #@BGA to BgaResource.crop
 
-/// `#BGA` 定义产生带裁剪的 BGA 资源（C1）。
+/// A `#BGA` definition produces a BGA resource with a crop (C1).
 #[test]
 fn bga_crop_def_attaches_crop_rect() {
-    // #BMP01 为源；#BGA01 裁剪自 BMP 1（十进制），矩形 (0,0)-(100,100)，偏移 (10,20)。
+    // #BMP01 is the source; #BGA01 crops from BMP 1 (decimal) with rectangle
+    // (0,0)-(100,100) and offset (10,20).
     let chart = process(
         "#BPM 120\n#WAV01 kick.wav\n#BMP01 src.png\n#BGA01 1 0 0 100 100 10 20\n#00104:0100000000000000\n",
     );
@@ -1078,17 +1113,18 @@ fn bga_crop_def_attaches_crop_rect() {
         .iter()
         .filter_map(|r| r.crop.map(|c| (r.path.to_string_lossy().into_owned(), c)))
         .collect();
-    assert_eq!(cropped.len(), 1, "应有一个带裁剪的 BGA 资源");
+    assert_eq!(cropped.len(), 1, "there should be one cropped BGA resource");
     let (path, crop) = &cropped[0];
-    assert_eq!(path, "src.png", "路径取自源 BMP");
+    assert_eq!(path, "src.png", "path comes from the source BMP");
     assert_eq!((crop.x1, crop.y1, crop.x2, crop.y2), (0, 0, 100, 100));
     assert_eq!((crop.dx, crop.dy), (10, 20));
 }
 
-/// `#@BGA`（宽/高形式）归一为右下角形式（C1）。
+/// `#@BGA` (width/height form) is normalized to the bottom-right-corner form
+/// (C1).
 #[test]
 fn at_bga_wh_form_normalizes_to_xy2() {
-    // #@BGA：sx=0 sy=0 w=50 h=40 → x2=50 y2=40。
+    // #@BGA: sx=0, sy=0, w=50, h=40 gives x2=50 and y2=40.
     let chart = process(
         "#BPM 120\n#WAV01 kick.wav\n#BMP01 src.png\n#@BGA01 1 0 0 50 40 0 0\n#00104:0100000000000000\n",
     );
@@ -1100,31 +1136,46 @@ fn at_bga_wh_form_normalizes_to_xy2() {
         .collect();
     assert_eq!(cropped.len(), 1);
     let c = cropped[0];
-    assert_eq!((c.x1, c.y1, c.x2, c.y2), (0, 0, 50, 40), "w/h 应转为 x2/y2");
+    assert_eq!(
+        (c.x1, c.y1, c.x2, c.y2),
+        (0, 0, 50, 40),
+        "w/h should become x2/y2"
+    );
 }
 
-// C2：#VIDEOFILE / #MOVIE → VideoAsset
+// C2: #VIDEOFILE / #MOVIE to VideoAsset
 
-/// `#VIDEOFILE` 产生循环视频资源（C2）。
+/// `#VIDEOFILE` produces a looping video asset (C2).
 #[test]
 fn videofile_produces_looping_video_asset() {
     let chart = process(
         "#BPM 120\n#WAV01 kick.wav\n#VIDEOFILE bg.mp4\n#VIDEOf/s 30\n#VIDEOCOLORS 16\n#VIDEODLY 5\n#00101:0100000000000000\n",
     );
-    let video = chart.chart.video.as_ref().expect("应有视频资源");
+    let video = chart
+        .chart
+        .video
+        .as_ref()
+        .expect("video asset should exist");
     assert_eq!(video.path.to_string_lossy(), "bg.mp4");
-    assert!(video.loop_playback, "#VIDEOFILE 应循环");
+    assert!(video.loop_playback, "#VIDEOFILE should loop");
     assert_eq!(video.fps, Some(30.0));
     assert_eq!(video.colors, Some(16));
     assert_eq!(video.delay_frames, Some(5));
 }
 
-/// `#MOVIE` 产生单次播放视频资源（C2）。
+/// `#MOVIE` produces a single-play video asset (C2).
 #[test]
 fn movie_produces_non_looping_video_asset() {
     let chart = process("#BPM 120\n#WAV01 kick.wav\n#MOVIE intro.mp4\n#00101:0100000000000000\n");
-    let video = chart.chart.video.as_ref().expect("应有视频资源");
+    let video = chart
+        .chart
+        .video
+        .as_ref()
+        .expect("video asset should exist");
     assert_eq!(video.path.to_string_lossy(), "intro.mp4");
-    assert!(!video.loop_playback, "#MOVIE 应单次播放");
-    assert!(video.fps.is_none(), "未声明 #VIDEOf/s 时 fps 为 None");
+    assert!(!video.loop_playback, "#MOVIE should play once");
+    assert!(
+        video.fps.is_none(),
+        "fps is None when #VIDEOf/s is not declared"
+    );
 }

@@ -189,7 +189,7 @@ fn detect_v1_with_mode_hint() {
 
 #[test]
 fn detect_version_string_with_extra_whitespace() {
-    // 扫描器处理 "version" 与值之间的空白。
+    // The scanner handles whitespace between "version" and the value.
     let json = r#"{  "version"  :  "2.0.0"  ,"song_info":{}}"#;
     assert_eq!(
         bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
@@ -208,7 +208,7 @@ fn detect_version_first_in_object() {
 
 #[test]
 fn detect_version_not_first_key() {
-    // version 字段可能出现在其他字段之后
+    // The version field may appear after other fields.
     let json = r#"{"x":1,"version":"2.0.0","y":2}"#;
     assert_eq!(
         bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
@@ -218,7 +218,7 @@ fn detect_version_not_first_key() {
 
 #[test]
 fn nested_version_before_top_level_ignored() {
-    // 嵌套 version 不会干扰顶层 version 检测。
+    // A nested version does not interfere with top-level version detection.
     let json = r#"{"chart_name": {"version": "1.0.0"}, "version": "2.0.0"}"#;
     assert_eq!(
         bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
@@ -228,7 +228,8 @@ fn nested_version_before_top_level_ignored() {
 
 #[test]
 fn nested_version_after_top_level_ignored() {
-    // 顶层的 version 在嵌套 version 之前时，仍应正确检测。
+    // A top-level version appearing before a nested version is still detected
+    // correctly.
     let json = r#"{"version": "2.0.0", "chart_name": {"version": "1.0.0"}}"#;
     assert_eq!(
         bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
@@ -238,7 +239,7 @@ fn nested_version_after_top_level_ignored() {
 
 #[test]
 fn version_string_in_value_not_confused() {
-    // "version" 作为值（不是键）出现时不应影响检测。
+    // "version" appearing as a value (not a key) must not affect detection.
     let json = r#"{"title": "version 2.0.0", "chart_info": {"chart_name": "version1"}}"#;
     assert_eq!(
         bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
@@ -248,7 +249,7 @@ fn version_string_in_value_not_confused() {
 
 #[test]
 fn version_with_trailing_whitespace_parsed() {
-    // version 字符串值尾部有空白。
+    // The version string value has trailing whitespace.
     let json = r#"{"version": "2.0.0 ", "song_info": {}}"#;
     assert_eq!(
         bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
@@ -258,7 +259,7 @@ fn version_with_trailing_whitespace_parsed() {
 
 #[test]
 fn version_with_trailing_content_parsed() {
-    // version 字符串值后有额外的非 SemVer 内容。
+    // The version string value is followed by extra non-SemVer content.
     let json = r#"{"version": "2.0.0+20250101", "song_info": {}}"#;
     assert_eq!(
         bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),

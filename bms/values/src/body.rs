@@ -1,58 +1,61 @@
-//! BMS 通道正文的 2 字符单元切分。
+//! Splitting BMS channel bodies into 2-character cells.
 //!
-//! BMS 通道正文是一串 2 字符值。解析采用宽松策略：连续两个合法
-//! Base62 字符组成一个单元，非法字符被跳过，末尾单字符被丢弃。
-//! parser、writer 与 analysis 共用本模块，避免各自的切块实现在
-//! 畸形正文上产生不同的位置模型。
+//! A BMS channel body is a string of 2-character values. Parsing uses a
+//! lenient policy: two consecutive valid Base62 characters form one cell,
+//! invalid characters are skipped, and a trailing single character is dropped.
+//! The parser, writer, and analysis layers share this module so their chunking
+//! implementations cannot produce different position models on malformed
+//! bodies.
 
 use std::ops::Range;
 
 use crate::index::is_base62;
 
-/// 正文中的一个 2 字符单元。
+/// A 2-character cell in a body.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cell<'a> {
-    /// 单元在完整正文网格中的序号（包含被 [`BodyCells::non_zero`]
-    /// 跳过的 `"00"`）。
+    /// Zero-based position of the cell in the full body grid (including `"00"`
+    /// cells skipped by [`BodyCells::non_zero`]).
     pub index: usize,
-    /// 单元在正文中的字节区间。
+    /// Byte range of the cell in the body.
     pub range: Range<usize>,
-    /// 单元的 2 字符文本。
+    /// The cell's 2-character text.
     pub text: &'a str,
 }
 
-/// 按宽松规则切分 BMS 通道正文的迭代器。
+/// Iterator that splits a BMS channel body using the lenient rule.
 ///
-/// 由 [`BodyCells::including_zero`] 或 [`BodyCells::non_zero`] 构造。构造时扫描
-/// 一次以确定完整单元数，随后迭代不分配。
+/// Constructed by [`BodyCells::including_zero`] or [`BodyCells::non_zero`].
+/// Construction scans once to determine the total cell count; iteration then
+/// allocates nothing.
 #[derive(Clone, Debug)]
 pub struct BodyCells<'a> {
-    /// 待切分的正文。
+    /// Body to split.
     body: &'a str,
-    /// 是否保留 `"00"` 单元。
+    /// Whether to keep `"00"` cells.
     include_zero: bool,
-    /// 完整正文的单元数。
+    /// Number of cells in the full body.
     total: usize,
-    /// 下一个待扫描的字节位置。
+    /// Next byte position to scan.
     pos: usize,
-    /// 下一个单元的完整网格序号。
+    /// Full-grid index of the next cell.
     index: usize,
 }
 
 impl<'a> BodyCells<'a> {
-    /// 切分全部单元，包含 `"00"`。
+    /// Split all cells, including `"00"`.
     #[must_use]
     pub fn including_zero(body: &'a str) -> Self {
         Self::new(body, true)
     }
 
-    /// 切分非 `"00"` 单元；序号仍按完整网格计算。
+    /// Split non-`"00"` cells; indices still use the full grid.
     #[must_use]
     pub fn non_zero(body: &'a str) -> Self {
         Self::new(body, false)
     }
 
-    /// 使用显式的 `"00"` 策略构造。
+    /// Construct with an explicit `"00"` policy.
     fn new(body: &'a str, include_zero: bool) -> Self {
         Self {
             body,
@@ -63,13 +66,14 @@ impl<'a> BodyCells<'a> {
         }
     }
 
-    /// 返回完整正文的单元数（包含 `"00"`，不受 `non_zero` 影响）。
+    /// Return the number of cells in the full body (including `"00"`,
+    /// regardless of `non_zero`).
     #[must_use]
     pub const fn total(&self) -> usize {
         self.total
     }
 
-    /// 返回底层正文。
+    /// Return the underlying body.
     #[must_use]
     pub const fn body(&self) -> &'a str {
         self.body
@@ -99,7 +103,7 @@ impl<'a> Iterator for BodyCells<'a> {
     }
 }
 
-/// 统计正文中的完整 2 字符单元数。
+/// Count the complete 2-character cells in the body.
 fn count_cells(body: &str) -> usize {
     let bytes = body.as_bytes();
     let mut count = 0;

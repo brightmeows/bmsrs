@@ -1,26 +1,27 @@
-//! 音频素材类型。
+//! Audio asset types.
 //!
-//! BGM 事件现归入统一的 [`Event`](crate::Event) 枚举 ——
-//! 参见 [`crate::EventKind::Bgm`]。
+//! BGM events now live in the unified [`Event`](crate::Event) enum; see
+//! [`crate::EventKind::Bgm`].
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-/// 指向 [`ChartData::audio_assets`](crate::ChartData::audio_assets) 的索引。
+/// Index into [`ChartData::audio_assets`](crate::ChartData::audio_assets).
 ///
-/// 独立的 newtype 避免与 BGA 资源索引等裸 `u32` 互相赋值。
+/// The dedicated newtype prevents accidental assignment between audio indices
+/// and raw `u32` values such as BGA resource indices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AudioIndex(u32);
 
 impl AudioIndex {
-    /// 从裸索引创建音频索引。
+    /// Create an audio index from a raw index.
     #[must_use]
     pub const fn new(value: u32) -> Self {
         Self(value)
     }
 
-    /// 返回裸索引值。
+    /// Return the raw index value.
     #[must_use]
     pub const fn get(self) -> u32 {
         self.0
@@ -45,32 +46,34 @@ impl std::fmt::Display for AudioIndex {
     }
 }
 
-/// 音频素材 —— 一个音频文件中的一段。
+/// Audio asset: a segment of one audio file.
 ///
-/// 对于 BMS 谱面，每个素材是一整个 WAV 文件（`start: Duration::ZERO`、
-/// `duration: None`）。
+/// For BMS charts, each asset is an entire WAV file (`start: Duration::ZERO`,
+/// `duration: None`).
 ///
-/// 对于 BMSON 谱面，处理器使用音频通道切片算法预先计算出切片，
-/// 在同一音频文件中产生具有特定 `start` 和 `duration` 值的素材。
+/// For BMSON charts, the processor precomputes slices with the sound-channel
+/// slicing algorithm, producing assets with specific `start` and `duration`
+/// values within the same audio file.
 ///
-/// 路径使用 [`Arc<Path>`] 存储，使同一文件的多个切片可以共享路径
-/// 而不产生重复的堆分配。
+/// Paths are stored as [`Arc<Path>`] so multiple slices of the same file can
+/// share the path without duplicate heap allocations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AudioAsset {
-    /// 相对于谱面文件所在目录的文件路径。
+    /// File path relative to the directory containing the chart file.
     pub path: Arc<Path>,
-    /// 从文件起始处计算的切片起始偏移。
-    /// 对于 BMS（无切片）始终为 [`Duration::ZERO`]。
+    /// Slice start offset from the beginning of the file. For BMS (no slicing)
+    /// this is always [`Duration::ZERO`].
     pub start: Duration,
-    /// 切片时长。
-    /// `None` 表示播放至文件末尾。
+    /// Slice duration. `None` means play to the end of the file.
     pub duration: Option<Duration>,
 }
 
 impl AudioAsset {
-    /// 从 `PathBuf` 创建一个 `AudioAsset`，自动包装为 `Arc<Path>`。
+    /// Create an `AudioAsset` from a `PathBuf`, automatically wrapping it as
+    /// `Arc<Path>`.
     ///
-    /// 便捷构造，用于 BMS 处理器中每个素材独立对应一个文件的情况。
+    /// Convenience constructor for the BMS processor, where each asset
+    /// corresponds to its own file.
     #[must_use]
     pub fn from_path_buf(path: PathBuf, start: Duration, duration: Option<Duration>) -> Self {
         Self {

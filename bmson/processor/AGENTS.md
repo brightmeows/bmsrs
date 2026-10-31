@@ -1,43 +1,44 @@
 # bmsrs-bmson-processor
 
-## 定位
+## Role
 
-`bmsrs_bmson_def::Bmson` (v2 root schema) → `Chart` 的转换处理器。
-入口为 `BmsonProcessor`（零大小类型），通过 `BmsonProcessor::process_default` / `process_nkeys` 暴露全部功能。
-通过 `BmsonLayout` 模式族解耦键位映射。
+Processor that converts `bmsrs_bmson_def::Bmson` (v2 root schema) into `Chart`. The
+entry point is `BmsonProcessor` (a zero-sized type); all functionality is
+exposed through `BmsonProcessor::process_default` / `process_nkeys`. Key mapping
+is decoupled through the `BmsonLayout` mode family.
 
-## 模式族
+## Mode families
 
-| 类型 | 实现 | 用途 |
-|------|------|------|
-| 无状态 ZST | `impl BmsonLayout` | 简单模式，`BmsonProcessor::process::<L>(bmson)` |
-| 有状态 decoder | 不实现 `BmsonLayout` | 运行时配置（键数），`BmsonProcessor::process_nkeys(bmson, keys)` |
+| Type | Implements | Use |
+|------|------------|-----|
+| Stateless ZST | `impl BmsonLayout` | simple modes, `BmsonProcessor::process::<L>(bmson)` |
+| Stateful decoder | does not implement `BmsonLayout` | runtime configuration (key count), `BmsonProcessor::process_nkeys(bmson, keys)` |
 
-`process_default` 根据 `mode_hint` 分发：
+`process_default` dispatches by `mode_hint`:
 
-| mode_hint | 模式族 |
-|-----------|--------|
+| mode_hint | Mode family |
+|-----------|-------------|
 | beat / dj | `Beat` |
 | popn | `Pms` |
-| 通用 | `GenericLayout` |
+| generic | `GenericLayout` |
 
-## 声音通道切片
+## Sound channel slicing
 
-每个 `SoundChannel` 在启动时预先切片为 `AudioAsset` 数组，
-每一切片以唯一 Note 脉冲为边界。切片时间使用
-`TimingTrack::tick_to_musical_duration`，STOP 暂停不进入音频偏移。
-运行时的音符事件通过索引查预切好的 asset。
+Each `SoundChannel` is pre-sliced at startup into an array of `AudioAsset`s,
+with each slice bounded by a unique note tick. Slice times use
+`TimingTrack::tick_to_musical_duration`; STOP pauses do not enter audio offsets.
+Runtime note events look up the pre-sliced asset by index.
 
-见内部 `slice` 模块。
+See the internal `slice` module.
 
-## 非显而易见的规则
+## Non-obvious rules
 
-| 规则 | 说明 |
-|------|------|
-| BGM 音符丢弃 | 同脉冲有可演奏音符时，BGM 音符 (`x: 0`) 被丢弃 |
-| 事件排序 | Note/BGA → BPM → Stop |
-| 分层音符 | 跨 `SoundChannel` 的同一 `(side, lane, tick)` 融合为一个 `Note`，音频层收进 `NoteAudio`；长音长度不一致产生 `LayeredNoteLengthMismatch` 警告 |
-| 释放音 | `up: true` 映射为核心 `NoteRole::Release`，不再放进 `BmsonNoteExt` |
-| 键数 | `ChartInfo.key_count` 从 `mode_hint` 推断；未知/扩展提示为 `None` |
-| 资源路径 | `SoundChannel`/`mine_channels`/`key_channels`/BGA/图片路径统一走 `normalize_path`：拒绝绝对路径、盘符、`..`、NUL 与空路径，反斜杠转正斜杠 |
-| 元数据 | `subartists` 与 `title_image` 映射到 `ChartInfo`；`ln_mode` 已删除，beatoraja `t` 覆盖 `ln_type_hint` |
+| Rule | Explanation |
+|------|-------------|
+| BGM note dropping | When a playable note shares the same tick, the BGM note (`x: 0`) is dropped |
+| Event ordering | Note/BGA, then BPM, then Stop |
+| Layered notes | The same `(side, lane, tick)` across `SoundChannel`s merges into one `Note`, with audio layers collected in `NoteAudio`; mismatched long-note lengths produce a `LayeredNoteLengthMismatch` warning |
+| Release notes | `up: true` maps to the core `NoteRole::Release` and no longer lives in `BmsonNoteExt` |
+| Key count | `ChartInfo.key_count` is inferred from `mode_hint`; unknown or extension hints give `None` |
+| Resource paths | `SoundChannel`/`mine_channels`/`key_channels`/BGA/image paths all go through `normalize_path`: absolute paths, drive prefixes, `..`, NUL, and empty paths are rejected; backslashes become forward slashes |
+| Metadata | `subartists` and `title_image` map to `ChartInfo`; `ln_mode` was removed, and beatoraja `t` overrides `ln_type_hint` |

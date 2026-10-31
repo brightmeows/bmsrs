@@ -4,7 +4,7 @@ on:
   push:
     branches: "main"
   schedule:
-    # 每周兜底重推，收敛单链路失败的漂移窗口
+    # Weekly fallback push to shrink the drift window after a single-link failure.
     - cron: "40 4 * * 1"
 
 jobs:

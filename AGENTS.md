@@ -1,18 +1,22 @@
 # bmsrs
 
-## 项目定位
+## Project scope
 
-BMS（Be-Music Script）/ BMSON 谱面格式解析、转换与模拟播放的 Rust 工作空间。
-输出统一的 `Chart<T>` 中间表示，供渲染层/播放器消费。
+A Rust workspace for parsing, converting, and simulating playback of BMS
+(Be-Music Script) and BMSON chart formats. It produces a unified `Chart<T>`
+intermediate representation for renderers and players.
 
-> **⚠️ 预发布状态**：当前 `0.1.0` 版本尚未发布，仍在积极开发中。所有公开接口可随时变动，无需遵循 semver 兼容性。若涉及跨 crate 的架构性变更或 breaking API 修改，向用户确认即可。
+> **Pre-release status**: `0.1.0` has not been released and is under active
+> development. All public interfaces may change at any time; semver
+> compatibility does not apply. Cross-crate architectural changes and breaking
+> API changes only require confirmation from the user.
 
-## 管道图
+## Pipeline
 
 ```mermaid
 flowchart LR
     BMS[".bms file"] --> Src[bmsrs-bms-source]
-    Src -->|解码文本| Syn[bmsrs-bms-syntax]
+    Src -->|decoded text| Syn[bmsrs-bms-syntax]
     Syn -->|CST| Par[bmsrs-bms-parser]
     Par --> BProc[bmsrs-bms-processor]
     Par --> Writer[bmsrs-bms-writer]
@@ -26,164 +30,187 @@ flowchart LR
     Chart --> Player[bmsrs-player]
 ```
 
-## Crate 职责矩阵
+## Crate responsibility matrix
 
-| Crate | 定位 | 输入 → 输出 |
-|-------|------|-------------|
-| `bmsrs-bms-source` | BMS 源文本层：字节、编码、行索引与字节保真编辑 | `Vec<u8>` → `Document` |
-| `bmsrs-bms-syntax` | BMS 语法层：rowan CST、词法、容错解析与控制流查询 | `&str` → `SourceFile` |
-| `bmsrs-bms-values` | BMS 单行语法与类型化值：header/message、索引与解析 | `&str`（单行）→ 类型化值 |
-| `bmsrs-bms-parser` | BMS 语义层：CST → `Bms` 模型 | CST → `Bms` |
-| `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | 无运行时逻辑 |
-| `bmsrs-bms-processor` | `Bms` → 格式无关 `Chart` | `Bms` → `Chart` |
-| `bmsrs-bms-writer` | BMS 生成器：`Bms` 模型全量重写为 BMS 文本 | `Bms` → `String` |
-| `bmsrs-bms-analysis` | BMS 分析层：诊断、符号索引与编辑器数据 | `&str` → `Analysis` |
-| `bmsrs-bmson-def` | bmson JSON 类型定义（v0/v1/v2） | 纯数据模型 |
-| `bmsrs-bmson-processor` | `Bmson` → `Chart` | `Bmson` → `Chart` |
-| `bmsrs-chart` | 格式无关的谱面数据模型 | `Chart<T>` = 中央 IR |
-| `bmsrs-player` | `Chart<T>` 纯仿真层 | 时间轴查询，无 I/O/渲染 |
-| `bmsrs` | 公共 re-export facade | `pub use` 聚合 |
+| Crate | Role | Input to output |
+|-------|------|-----------------|
+| `bmsrs-bms-source` | BMS source-text layer: bytes, encoding, line index, byte-faithful editing | `Vec<u8>` to `Document` |
+| `bmsrs-bms-syntax` | BMS syntax layer: rowan CST, lexing, error-tolerant parsing, control-flow queries | `&str` to `SourceFile` |
+| `bmsrs-bms-values` | BMS single-line syntax and typed values: headers/messages, indices, parsing | `&str` (one line) to typed values |
+| `bmsrs-bms-parser` | BMS semantic layer: CST to `Bms` model | CST to `Bms` |
+| `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | no runtime logic |
+| `bmsrs-bms-processor` | `Bms` to format-agnostic `Chart` | `Bms` to `Chart` |
+| `bmsrs-bms-writer` | BMS generator: rewrites the full `Bms` model as BMS text | `Bms` to `String` |
+| `bmsrs-bms-analysis` | BMS analysis layer: diagnostics, symbol index, editor data | `&str` to `Analysis` |
+| `bmsrs-bmson-def` | bmson JSON type definitions (v0/v1/v2) | data model only |
+| `bmsrs-bmson-processor` | `Bmson` to `Chart` | `Bmson` to `Chart` |
+| `bmsrs-chart` | Format-agnostic chart data model | `Chart<T>` as the central IR |
+| `bmsrs-player` | Pure simulation layer for `Chart<T>` | timeline queries, no I/O or rendering |
+| `bmsrs` | Public re-export facade | aggregated `pub use` |
 
-`bms-lsp` 已拆到独立仓库：<https://github.com/brightmeows/bms-lsp>。
-它通过 git `rev` 依赖本仓库的 `bmsrs-bms-analysis` 与 `bmsrs-bms-syntax`，不再随本工作区构建。
+`bms-lsp` lives in a separate repository: <https://github.com/brightmeows/bms-lsp>.
+It depends on this repository's `bmsrs-bms-analysis` and `bmsrs-bms-syntax`
+through a git
+`rev` and is no longer built as part of this workspace.
 
-外部依赖统一通过 `[workspace.dependencies]` 管理，不直接在各 crate `Cargo.toml` 中指定版本。
+External dependencies are managed through `[workspace.dependencies]`; do not
+specify versions in individual crate `Cargo.toml` files.
 
-### facade crate
+### Facade crate
 
-根目录即 `bmsrs` facade crate。新增 workspace crate 时在 `src/lib.rs` 添加 `pub mod` + `pub use`。
+The repository root is the `bmsrs` facade crate. When adding a workspace crate,
+add the corresponding `pub mod` and `pub use` in `src/lib.rs`.
 
-## 命令
+## Commands
 
-### 提交前自动执行（pre-commit hooks）
-
-```bash
-pre-commit run --all-files          # 手动触发全部 hook
-```
-
-Hook 配置于 `.pre-commit-config.yaml`：
-
-| Hook | 作用 | 失败意味着 |
-|------|------|-----------|
-| `cargo fmt --check` | 格式未格式化 | 运行 `cargo fmt` |
-| `cargo clippy --workspace --all-targets -- -D warnings` | Lint 不通过 | 修复警告 |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | API doc 有 warning | 修复 doc 问题 |
-| `no-comment-decorations` | 装饰性注释块 | 移除 `// ===`、`// ---` 等装饰 |
-| `no-confusable-unicode` | Unicode 混淆字符 | 替换为 ASCII 等价字符 |
-| `no-module-level-expect-allow` | 模块级 `#![expect]/#[allow]` | 改用函数级 `#[expect(..., reason = "...")]` |
-
-### 手动执行
+### Automatic checks before commit (pre-commit hooks)
 
 ```bash
-cargo test --workspace --quiet        # 全工作区测试
-cargo bench -p bmsrs-player          # 热路径性能基准
-cargo deny check                       # 依赖审计（CI）
+pre-commit run --all-files          # run every hook manually
 ```
 
-## 约定
+Hooks are configured in `.pre-commit-config.yaml`:
 
-### 提交格式
+| Hook | Purpose | Failure means |
+|------|---------|---------------|
+| `cargo fmt --check` | formatting is not canonical | run `cargo fmt` |
+| `cargo clippy --workspace --all-targets -- -D warnings` | lint failure | fix the warnings |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | API doc warning | fix the doc issue |
+| `no-comment-decorations` | decorative comment blocks | remove decorations such as `// ===` and `// ---` |
+| `no-confusable-unicode` | confusable Unicode characters | replace them with ASCII equivalents |
+| `no-module-level-expect-allow` | module-level `#![expect]/#[allow]` | use function-level `#[expect(..., reason = "...")]` |
+| `no-cjk-in-comments` | CJK characters in full-line `//` or `/* ... */` Rust comments or `expect` reasons | translate the comment; string fixtures are not checked |
 
-Conventional Commits，匹配 `release-plz.toml` changelog 分组。
-Title/body 用中文（type 与 scope 仍用英文，如 `docs(chart):`）。
-breaking change 用 `!` 放在冒号前。
+### Manual
 
-### 工作树目录
+```bash
+cargo test --workspace --quiet        # workspace tests
+cargo bench -p bmsrs-player          # hot-path performance benchmarks
+cargo deny check                       # dependency audit (CI)
+```
 
-Git worktree 统一放在 `.worktrees/` 目录下。
+## Conventions
 
-### MSRV 与 Edition
+### Commit format
 
-| 项目 | 值 |
-|------|-----|
+Conventional Commits, matching the `release-plz.toml` changelog groups.
+Titles and bodies are written in English. This is a repository-level override
+of the global convention, which uses Chinese commit subjects.
+Mark breaking changes with `!` before the colon.
+
+### Worktree directory
+
+Git worktrees live under `.worktrees/`.
+
+### MSRV and Edition
+
+| Item | Value |
+|------|-------|
 | MSRV | 1.95 |
-| Edition | 2024（`resolver = "3"`）|
+| Edition | 2024 (`resolver = "3"`) |
 
-### Lint 约定
+### Lint conventions
 
-- 工作区统一 `[lints]` 配置：`allow_attributes = "deny"`
-- **禁止** `#[allow]`，始终用 `#[expect(clippy::lint, reason = "...")]`
-- clippy `all` + `pedantic` 默认启用
+- The workspace uses a shared `[lints]` configuration: `allow_attributes = "deny"`
+- `#[allow]` is **forbidden**; always use `#[expect(clippy::lint, reason = "...")]`
+- clippy `all` and `pedantic` are enabled by default
 
-### API 设计
+### API design
 
-公开操作通过类型的关联函数暴露（结构体或零大小 `*Builder`），**禁止**自由函数作为公开 API。
-例外：facade 的整管线入口（`bms::from_text` / `bms::from_bytes`）与低层纯函数
-（`bmsrs-bms-source` 的行/编码工具）可以保留自由函数；它们没有可挂靠的领域类型，
-包装成 builder 只会增加调用成本。
-仅当 API 有可配置参数时使用 `*Builder`；无状态时直接用结构体方法。
-私有操作**建议**同样按上述模式设计（挂在类型上而非自由函数），尤其当多个函数共享同一组参数或逻辑上属于同一转换过程时；但不强制——纯函数式辅助、无共享状态的简单工具函数保留为自由函数即可。
+Public operations are exposed as associated functions on types (structs or
+zero-sized `*Builder` types); free functions are **forbidden** as public API.
+Exceptions: the facade's whole-pipeline entry points (`bms::from_text` /
+`bms::from_bytes`) and low-level pure functions (`bmsrs-bms-source` line and
+encoding helpers) may remain free functions. They have no domain type to attach
+to, and wrapping them in a builder only adds call-site cost.
+Use a `*Builder` only when the API has configurable parameters; use plain struct
+methods when there is no state.
+Private operations **should** follow the same pattern (attached to types rather
+than free functions), especially when several functions share the same parameter
+set or belong to the same conversion process. This is a recommendation, not a
+requirement: pure helpers and simple stateless utilities may remain free
+functions.
 
-### 开发用 skill
+### Development references
 
-本项目开发时参考以下 skill（个人级配置，不在仓库内）：
+The following skills are maintained outside this repository and are not part of
+it. This root file is the only place in the repository that names them;
+crate-level AGENTS.md files and source comments stay self-contained.
 
-| Skill | 来源仓库 | 用途 |
-|-------|----------|------|
-| `bms` / `bmson` | <https://github.com/brightmeows/bms-skills> | BMS/bmson 格式规范、领域术语译法 |
-| `rust-meta-cognition` | <https://github.com/brightmeows/rust-meta-skills> | Rust 设计/编译问题路由 |
+| Skill | Source repository | Purpose |
+|-------|-------------------|---------|
+| `bms` / `bmson` | <https://github.com/brightmeows/bms-skills> | BMS/bmson format specifications and terminology lookup |
+| `rust-meta-cognition` | <https://github.com/brightmeows/rust-meta-skills> | routing for Rust design and compilation problems |
 
-引用其内容时，引向 skill 指向的原始来源，而非 skill 文档本身。
+When citing their content, link to the original sources the skills point to,
+not to the skill documents themselves.
 
-### 注释风格
+### Comment style
 
-- 公开项用 `///`，模块用 `//!`（clippy 强制）
-- `//` 用于实现内部说明，不用来写文档
-- 文档注释（`///`、`//!`）与实现注释（`//`）一律用中文；
-  BMS/bmson 领域术语参照 bms / bmson skill 中的译法，代码标识符用反引号保留英文
-- rustdoc 标准段标题（`# Errors`、`# Panic`、`# Example` 等）保留英文
+- Public items use `///`; modules use `//!` (enforced by clippy)
+- `//` is for implementation notes, not documentation
+- Doc comments (`///`, `//!`) and implementation comments (`//`) are written in
+  English; BMS/bmson commands and fields keep their canonical names, and code
+  identifiers stay in backticks
+- The `no-cjk-in-comments` hook enforces this for full-line `//` and
+  `/* ... */` comments and `#[expect(..., reason = "...")]` strings (plain or
+  raw); inline trailing comments and test assertion messages are covered by
+  review
+- Standard rustdoc section headings (`# Errors`, `# Panics`, `# Examples`, etc.)
+  remain in English
 
-### 测试规范
+### Test conventions
 
-| 方面 | 规则 |
-|------|------|
-| 命名 | `<场景>_<期望>`，如 `empty_input_returns_empty_bms` |
-| 断言数 | 一个场景一个测试，可包含多个相关断言；测试名写清场景与期望 |
-| 公开 API 测试 | 放 `tests/*.rs`（集成测试）；**禁止**在 `src/` 内测公开 API |
-| `pub(crate)`/ 私有测试 | 放 `src/*.rs` 内 `#[cfg(test)] mod` |
-| 优先测试公开类型 | 避免测试内部 `Wrap` 结构体 |
-| 防重复 | 新增测试前检查同 crate 的 `tests/` 与 `src/` 内 `#[cfg(test)] mod`，避免覆盖重复；仅当现有测试无法覆盖新场景时才新增 |
+| Aspect | Rule |
+|--------|------|
+| Naming | `<scenario>_<expectation>`, e.g. `empty_input_returns_empty_bms` |
+| Assertions | one test per scenario, possibly with multiple related assertions; the test name states the scenario and the expectation |
+| Public API tests | live in `tests/*.rs` (integration tests); **do not** test public API inside `src/` |
+| `pub(crate)` and private tests | live in `#[cfg(test)] mod` blocks inside `src/*.rs` |
+| Prefer public types | avoid testing internal `Wrap` structs |
+| Avoid duplication | before adding a test, check the crate's `tests/` and the `#[cfg(test)] mod` blocks in `src/`; add a new test only when existing tests cannot cover the scenario |
 
-### 已知限制
+### Known limitations
 
-以下项是当前有意不做或尚未闭合的边界；新增支持前先重判，不要默默假设。
+These are boundaries intentionally left unimplemented or not yet closed.
+Reassess them before adding support; do not assume silently.
 
-| 项 | 现状 | 重判触发条件 |
-|----|------|--------------|
-| `#EXRANKxx` 查表 | `BmsGameplay.ex_rank_defs` 保留原始定义；`JudgeOverride` 仍是 base36 直传值 | 判定系统整体设计定稿时 |
-| `#SWBGA` 细节 | `BgaKeyBound` 只承载资源 id，pattern/key/时长未建模 | 渲染器需要按键绑定动画时 |
-| `#CHARFILE` 等显示字段 | 未进入 `Chart` | 渲染器需要角色图时 |
-| `#CDDA` / `#MIDIFILE` | 只进 `BmsAudio` 侧车，没有播放抽象 | 播放器需要 CD/MIDI 源时 |
-| BMSON `resolution: 0` | 拒绝整个文件，比规范严格 | 需要兼容制谱工具缺陷时 |
-| BMS `#BPM 0` | 返回 `ZeroBpm`，不回退 130 | 需要支持“不滚动”谱面时 |
-| BMS `#PLAYER` | 被忽略，`Bme` 覆盖 5K/7K/10K/14K | 需要按 `#PLAYER` 自动分族时 |
-| BGM 分层 | BGM 事件保持独立，只有可判定音符融合 `NoteAudio` | 出现需要融合 BGM 分层的真实谱面时 |
-| processor 语义警告的范围 | 没有 `TextRange`；编辑器路径用 `bmsrs-bms-analysis` 重算 | LSP 需要把语义警告定位到原文时 |
+| Item | Status | Reassess when |
+|------|--------|---------------|
+| `#EXRANKxx` lookup | `BmsGameplay.ex_rank_defs` keeps the raw definitions; `JudgeOverride` still passes the base36 value through directly | the overall judging system design is finalized |
+| `#SWBGA` details | `BgaKeyBound` carries only the resource id; pattern, key, and duration are not modeled | a renderer needs key-bound animations |
+| Display fields such as `#CHARFILE` | not included in `Chart` | a renderer needs character images |
+| `#CDDA` / `#MIDIFILE` | only stored in the `BmsAudio` sidecar; no playback abstraction | a player needs CD or MIDI sources |
+| BMSON `resolution: 0` | rejects the whole file, stricter than the specification | compatibility with authoring-tool defects is required |
+| BMS `#BPM 0` | returns `ZeroBpm` instead of falling back to 130 | charts with no scrolling need to be supported |
+| BMS `#PLAYER` | ignored; `Bme` covers 5K/7K/10K/14K | automatic family selection by `#PLAYER` is needed |
+| BGM layering | BGM events stay separate; only judgeable notes merge `NoteAudio` | a real chart needs BGM layers merged |
+| Scope of processor semantic warnings | no `TextRange`; the editor path recomputes them with `bmsrs-bms-analysis` | the LSP needs semantic warnings located in the source text |
 
-### 版本发布
+### Versioning
 
-- 由 release-plz CI 管理版本、CHANGELOG.md、git tag
-- **禁止**手动修改版本号、创建 changelog、打 tag
+- release-plz CI manages versions, CHANGELOG.md, and git tags
+- Do **not** manually edit version numbers, create changelogs, or create tags
 
 ## Always / Ask / Never
 
 ### Always
 
-- 修改后运行 `pre-commit run --all-files`（或等 hook 自动触发）
-- commit message 符合 Conventional Commits + scope；subject/body 用中文（type/scope 用英文）
-- 每个提交只做一个逻辑变更，`feat:` + `fix:` 不混入同提交
-- 文档注释（`///`、`//!`）与实现注释（`//`）一律用中文，代码标识符用反引号保留英文
-- 新增 crate 时在 `src/lib.rs` 和根 AGENTS.md 中添加对应的 `pub use` 和记录
+- Run `pre-commit run --all-files` after changes (or let the hooks run automatically)
+- Commit messages follow Conventional Commits with a scope; titles and bodies are written in English
+- Each commit contains exactly one logical change; do not mix `feat:` and `fix:` in the same commit
+- Doc comments (`///`, `//!`) and implementation comments (`//`) are written in English; code identifiers stay in backticks
+- When adding a crate, add the corresponding `pub use` and entry in `src/lib.rs` and the root AGENTS.md
 
 ### Ask
 
-- 新增非 workspace 的外部依赖
-- 修改 `.pre-commit-config.yaml` 或 CI 配置
-- 跨 crate 的架构性重构（移动模块、重命名公开类型）
+- Adding an external dependency that is not part of the workspace
+- Modifying `.pre-commit-config.yaml` or CI configuration
+- Cross-crate architectural refactors (moving modules, renaming public types)
 
 ### Never
 
-- 手动修改 `Cargo.toml` 中的版本号
-- 创建或修改 CHANGELOG.md
-- force push 到 main 分支
-- 引入 `serde` / `serde_json` 等序列化依赖到 `bmsrs-chart` 或 `bmsrs-player`
+- Manually edit version numbers in `Cargo.toml`
+- Create or modify CHANGELOG.md
+- Force push to the `main` branch
+- Add serialization dependencies such as `serde` / `serde_json` to `bmsrs-chart` or `bmsrs-player`

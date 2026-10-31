@@ -1,42 +1,46 @@
-//! BMSON 模式族布局：通过 [`BmsonLayout`] 将 `x` 值映射到轨道。
+//! BMSON mode-family layouts: map `x` values to lanes through [`BmsonLayout`].
 //!
-//! 每个模式族表示为一个零大小 newtype，将音频通道的 `x` 值映射为
-//! `(NoteSide, Lane)` 对。有状态的解码器（例如用于 `generic-nkeys` 的
-//! [`GenericLayout`]）是独立结构体，自带一个固有的 `map_x` 方法。
+//! Each mode family is a zero-sized newtype that maps a sound channel's `x`
+//! value to a `(NoteSide, Lane)` pair. Stateful decoders (such as
+//! [`GenericLayout`] for `generic-nkeys`) are separate structs with an inherent
+//! `map_x` method.
 
 use std::num::NonZeroU8;
 
 use bmsrs_chart::mode::{Lane, NoteSide};
 
-/// BMSON 侧映射：将音频通道的 `x` 值解码为 `(NoteSide, Lane)` 对。
+/// BMSON side mapping: decode a sound channel's `x` value into a
+/// `(NoteSide, Lane)` pair.
 ///
-/// 返回 `None` 将丢弃该音符。只有无状态模式族实现此 trait；有状态解码器
-/// （例如 [`GenericLayout`]）自带 `map_x` 方法，通过
-/// [`crate::BmsonProcessor::process_nkeys`] 使用。
+/// Returning `None` drops the note. Only stateless mode families implement this
+/// trait; stateful decoders (such as [`GenericLayout`]) have their own `map_x`
+/// method and are used through
+/// [`crate::BmsonProcessor::process_nkeys`].
 pub trait BmsonLayout {
-    /// 将 BMSON 玩家通道的 `x` 映射到音符位置。
+    /// Map a BMSON player channel's `x` to a note position.
     #[must_use]
     fn map_x(x: u64) -> Option<(NoteSide, Lane)>;
 }
 
-/// 从一个在调用处已知 ≥ 1 的值构造 `NonZeroU8`。
+/// Construct a `NonZeroU8` from a value known at the call site to be at least 1.
 const fn nz(n: u8) -> Option<NonZeroU8> {
     NonZeroU8::new(n)
 }
 
-/// Beat 模式族（BMSON）：覆盖 `beat-5k`、`beat-7k`、`beat-10k`、`beat-14k`
-/// （以及 `dj-*` 别名）。
+/// Beat mode family (BMSON): covers `beat-5k`, `beat-7k`, `beat-10k`, and
+/// `beat-14k` (plus the `dj-*` aliases).
 ///
-/// 物理布局（从左到右）：每侧 `KEY1-5 | SC | KEY6-7`。
+/// Physical layout (left to right): `KEY1-5 | SC | KEY6-7` per side.
 ///
-/// 按 bmson 规范，`beat-10k` 谱面必须让 `x ∈ {6, 7, 14, 15}` 留空
-/// （在每侧 5K 模式下这些槽位不存在）。本模式族在出现时将它们映射为
-/// `KEY6`/`KEY7`，从而保留而不丢弃不合规范的输入。
+/// Per the bmson specification, `beat-10k` charts must leave `x` in
+/// `{6, 7, 14, 15}` empty (those slots do not exist in a 5K-per-side mode). This
+/// family maps them to `KEY6`/`KEY7` when present, preserving rather than
+/// dropping non-conforming input.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Beat;
 
 impl Beat {
-    /// 将 BMSON `x` 值解码为 beat 模式族的位置。
+    /// Decode a BMSON `x` value into a position in the beat mode family.
     #[expect(
         clippy::cast_possible_truncation,
         reason = "x bounded by match arms to ≤16"
@@ -59,12 +63,14 @@ impl BmsonLayout for Beat {
     }
 }
 
-/// PMS 模式族（BMSON）：单人 9 键布局，覆盖 `popn-9k` 与 `popn-5k`（子集）。
+/// PMS mode family (BMSON): single-player 9-key layout covering `popn-9k` and
+/// `popn-5k` (a subset).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Pms;
 
 impl Pms {
-    /// 将 BMSON `x` 值解码为 PMS 模式族的位置（`popn-9k`/`5k`）。
+    /// Decode a BMSON `x` value into a position in the PMS mode family
+    /// (`popn-9k`/`5k`).
     #[expect(
         clippy::cast_possible_truncation,
         reason = "x bounded by match arm to ≤9"
@@ -84,22 +90,23 @@ impl BmsonLayout for Pms {
     }
 }
 
-/// 用于 BMSON `generic-nkeys` 的通用 n-keys 模式族。`keys` 为通道数；
-/// 通道 `1..=keys` 从左到右依次映射到 `Lane::Key(1..=keys)`。
+/// Generic n-keys mode family for BMSON `generic-nkeys`. `keys` is the number of
+/// channels; channels `1..=keys` map to `Lane::Key(1..=keys)` from left to right.
 ///
-/// 本模式族带有运行时状态（按键数），因此**不**实现无状态的
-/// [`BmsonLayout`]。请通过 [`crate::BmsonProcessor::process_nkeys`] 调用。
+/// This family carries runtime state (the key count), so it does **not**
+/// implement the stateless [`BmsonLayout`]. Use it through
+/// [`crate::BmsonProcessor::process_nkeys`].
 ///
-/// `keys` 为 `u8`：[`Lane::Key`] 的索引上限就是 `NonZeroU8`，
-/// 超出 255 的按键数本就无法正确映射，类型上直接拒绝。
+/// `keys` is a `u8`: [`Lane::Key`] is bounded by `NonZeroU8`, so key counts
+/// above 255 cannot be mapped correctly and are rejected by the type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GenericLayout {
-    /// 按键数（全部位于玩家 1，至少为 1）。
+    /// Number of keys (all on player 1, at least 1).
     pub keys: u8,
 }
 
 impl GenericLayout {
-    /// 针对当前按键数，将 BMSON `x` 值映射为音符位置。
+    /// Map a BMSON `x` value to a note position for the current key count.
     #[must_use]
     pub fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         let n = u8::try_from(x).ok()?;

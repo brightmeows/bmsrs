@@ -1,24 +1,24 @@
-//! 行模型：终止符、内容段与分类。
+//! Line model: terminators, content spans, and classification.
 
 use std::ops::Range;
 
 use crate::SourceEncoding;
 
-/// 行尾终止符。
+/// Line terminator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineEnding {
-    /// `LF`（`\n`）。
+    /// `LF` (`\n`).
     Lf,
-    /// `CRLF`（`\r\n`）。
+    /// `CRLF` (`\r\n`).
     CrLf,
-    /// 独立的 `CR`（`\r`）。
+    /// A lone `CR` (`\r`).
     Cr,
-    /// 文件末行没有终止符。
+    /// The final line has no terminator.
     None,
 }
 
 impl LineEnding {
-    /// 返回此终止符在给定编码下的字节长度。
+    /// Return the byte length of this terminator in the given encoding.
     pub(crate) fn byte_len(self, encoding: SourceEncoding) -> usize {
         let unit = if encoding.is_utf16() { 2 } else { 1 };
         match self {
@@ -28,7 +28,7 @@ impl LineEnding {
         }
     }
 
-    /// 将此终止符的字节追加到 `out`。
+    /// Append this terminator's bytes to `out`.
     pub(crate) fn append_to(self, out: &mut Vec<u8>, encoding: SourceEncoding) {
         match (self, encoding.utf16_little_endian()) {
             (Self::None, _) => {}
@@ -45,79 +45,83 @@ impl LineEnding {
     }
 }
 
-/// 文档中的一行。
+/// A line in a document.
 ///
-/// 行由四段组成：前缀 trivia、内容段、后缀 trivia、行尾终止符。
-/// 未被编辑的行在写回时直接使用原始字节；被编辑的行使用
-/// [`Document::render`](crate::Document::render) 记录的替换字节。
+/// A line consists of four segments: prefix trivia, content span, suffix
+/// trivia, and line terminator. Unedited lines use their raw bytes when written
+/// back; edited lines use the replacement bytes recorded by
+/// [`Document::render`](crate::Document::render).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Line {
-    /// 原始字节区间（含终止符）；插入的行是空区间。
+    /// Raw byte range, including the terminator; inserted lines have an empty
+    /// range.
     pub(crate) span: Range<usize>,
-    /// 行尾终止符。
+    /// Line terminator.
     pub(crate) terminator: LineEnding,
-    /// 内容段在原始字节中的区间；空白行、纯注释行与插入行为 `None`。
+    /// Content span in the raw bytes; `None` for blank lines, comment-only
+    /// lines, and inserted lines.
     pub(crate) content: Option<Range<usize>>,
-    /// 行的语义分类。
+    /// Semantic classification of the line.
     pub(crate) kind: LineKind,
-    /// 被编辑后的完整行字节（含终止符）；`None` 表示使用原始字节。
+    /// Full line bytes after editing, including the terminator; `None` means
+    /// use the raw bytes.
     pub(crate) replacement: Option<Vec<u8>>,
 }
 
 impl Line {
-    /// 返回行的语义分类。
+    /// Return the semantic classification of the line.
     #[must_use]
     pub const fn kind(&self) -> &LineKind {
         &self.kind
     }
 
-    /// 返回行尾终止符。
+    /// Return the line terminator.
     #[must_use]
     pub const fn terminator(&self) -> LineEnding {
         self.terminator
     }
 
-    /// 返回是否是空白行或纯注释行。
+    /// Return whether the line is blank or comment-only.
     #[must_use]
     pub const fn is_trivia(&self) -> bool {
         self.kind.is_trivia()
     }
 
-    /// 返回行内容是否经过编辑。
+    /// Return whether the line content was edited.
     #[must_use]
     pub const fn is_edited(&self) -> bool {
         self.replacement.is_some()
     }
 }
 
-/// 行的语义分类。
+/// Semantic classification of a line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LineKind {
-    /// 空白行。
+    /// Blank line.
     Blank,
-    /// 纯注释行。
+    /// Comment-only line.
     Comment,
-    /// 既不是注释也不是命令的文本行。
+    /// A text line that is neither a comment nor a command.
     Text,
-    /// 解码失败的行。
+    /// A line that failed to decode.
     Error(LineError),
 }
 
 impl LineKind {
-    /// 返回是否是空白行或纯注释行。
+    /// Return whether the line is blank or comment-only.
     #[must_use]
     pub const fn is_trivia(&self) -> bool {
         matches!(self, Self::Blank | Self::Comment)
     }
 }
 
-/// 行解析错误。
+/// Line parsing error.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum LineError {
-    /// 行的字节在文档编码下无法完整解码。
+    /// The line bytes cannot be decoded completely with the document encoding.
     #[error("line cannot be decoded with {encoding}")]
     Decode {
-        /// 文档编码名。
+        /// Document encoding name.
         encoding: &'static str,
     },
 }

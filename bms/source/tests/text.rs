@@ -1,11 +1,11 @@
-//! 完整文本与选中行渲染测试。
+//! Full-text and selected-line rendering tests.
 
 use bmsrs_bms_source::{Document, DocumentOptions, SourceEncoding, TextDecodeError};
 
-/// 用指定编码编码文本。
+/// Encode text with the given encoding.
 fn encode(text: &str, encoding: &'static encoding_rs::Encoding) -> Vec<u8> {
     let (bytes, _, had_unmappable) = encoding.encode(text);
-    assert!(!had_unmappable, "测试夹具必须可编码");
+    assert!(!had_unmappable, "test fixture must be encodable");
     bytes.into_owned()
 }
 
@@ -39,7 +39,7 @@ fn text_includes_edited_line() {
 #[test]
 fn invalid_utf8_try_to_text_returns_error() {
     let Some(encoding) = SourceEncoding::from_label(b"utf-8") else {
-        panic!("UTF-8 必须受支持");
+        panic!("UTF-8 must be supported");
     };
     let document = Document::from_bytes_with(
         vec![0xFF, 0xFE, 0x00],

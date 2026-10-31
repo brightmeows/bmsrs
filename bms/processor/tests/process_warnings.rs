@@ -8,7 +8,7 @@ use bmsrs_bms_processor::{BmsProcessor, ProcessWarning};
 fn missing_wav_key_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    // 定义 WAV "01"，但音符引用未定义的 "ZZ"
+    // Define WAV "01", but the note references the undefined "ZZ".
     bms.audio
         .wav_files
         .insert("01".parse().unwrap(), "kick.wav".to_owned());
@@ -35,7 +35,7 @@ fn untermined_long_note_produces_warning() {
     bms.audio
         .wav_files
         .insert("01".parse().unwrap(), "a.wav".to_owned());
-    // LNTYPE 1 模式下，单个 long note event 无法配对。
+    // In LNTYPE 1 mode, a single long-note event cannot be paired.
     bms.messages.long_note_events.push(LongNoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -75,7 +75,7 @@ fn missing_bpm_definition_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     let bpm_id: bmsrs_bms_parser::BpmIndex = "ZZ".parse().unwrap();
-    // 引用未定义的 BPM 键
+    // Reference an undefined BPM key.
     bms.messages.bpm_changes.push(BpmChange {
         position: Position::new(1, 0, 8),
         value: BpmValue::Reference(bpm_id),
@@ -93,7 +93,7 @@ fn missing_bpm_definition_produces_warning() {
 fn process_still_returns_ok_with_warnings() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    // 引用未定义的 WAV
+    // Reference an undefined WAV.
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -108,7 +108,8 @@ fn process_still_returns_ok_with_warnings() {
 
 #[test]
 fn unparsable_bpm_value_produces_warning() {
-    // ch03 要求十六进制（01-FF），"GG" 不满足——修复前静默丢弃，无信号。
+    // ch03 requires hexadecimal (01-FF); "GG" does not satisfy it. Before the
+    // fix, this was dropped silently with no signal.
     let text = "\
 #BPM 120
 #00003:GG

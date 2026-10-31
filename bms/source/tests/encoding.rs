@@ -1,4 +1,4 @@
-//! 编码检测与支持范围测试。
+//! Encoding detection and support-range tests.
 
 use bmsrs_bms_source::{DetectionMethod, Document, SourceEncoding};
 

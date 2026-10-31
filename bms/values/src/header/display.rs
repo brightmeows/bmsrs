@@ -1,8 +1,8 @@
-//! 显示与难度头部：`#STAGEFILE`、`#BANNER`、`#BACKBMP`、
-//! `#CHARFILE`、`#PLAYLEVEL`、`#DIFFICULTY`、`#PREVIEW`。
+//! Display and difficulty headers: `#STAGEFILE`, `#BANNER`, `#BACKBMP`,
+//! `#CHARFILE`, `#PLAYLEVEL`, `#DIFFICULTY`, and `#PREVIEW`.
 //!
-//! 本模块还定义了 [`BmsHeaderDisplay`] 所用的域类型：
-//! [`DifficultyLevel`] 与 [`PoorBgaMode`]。
+//! This module also defines the domain types used by [`BmsHeaderDisplay`]:
+//! [`DifficultyLevel`] and [`PoorBgaMode`].
 
 use std::str::FromStr;
 
@@ -11,12 +11,12 @@ use thiserror::Error;
 use crate::BmsTokenAttr;
 use crate::IntoTokensError;
 
-/// `#DIFFICULTY`（值 1–5）指定的难度分类。
+/// Difficulty classification specified by `#DIFFICULTY` (values 1-5).
 ///
-/// 用于在选曲界面排序与筛选谱面。常见
-/// 映射：
+/// Used to sort and filter charts in the song selection screen. Common
+/// mappings:
 ///
-/// | 值 | 典型标签 |
+/// | Value | Typical label |
 /// |-------|---------------|
 /// | `1` | BEGINNER / EASY / LIGHT |
 /// | `2` | NORMAL / STANDARD |
@@ -24,21 +24,22 @@ use crate::IntoTokensError;
 /// | `4` | ANOTHER / EX |
 /// | `5` | INSANE / BLACK ANOTHER |
 ///
-/// 允许省略 `#DIFFICULTY`，但意味着谱面无法按
-/// 难度分类筛选。
+/// Omitting `#DIFFICULTY` is allowed, but it means the chart cannot be filtered
+/// by difficulty classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display, derive_more::Deref)]
 #[display("{}", _0)]
 pub struct DifficultyLevel(u8);
 
 impl DifficultyLevel {
-    /// 原始数值（1–5）。
+    /// Raw numeric value (1-5).
     #[must_use]
     pub const fn get(&self) -> u8 {
         self.0
     }
 }
 
-/// 当 `#DIFFICULTY` 值不在有效范围（1–5）内时返回的错误。
+/// Error returned when the `#DIFFICULTY` value is outside the valid range
+/// (1-5).
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("invalid #DIFFICULTY value: {0} (expected 1-5)")]
 pub struct ParseDifficultyError(pub String);
@@ -65,77 +66,79 @@ impl FromStr for DifficultyLevel {
     }
 }
 
-/// `#POORBGA` 指定的 poor BGA 显示模式。
+/// Poor BGA display mode specified by `#POORBGA`.
 ///
-/// 控制 miss / poor 图片（通道 `#xxx06`）的显示方式：
+/// Controls how miss/poor images (channel `#xxx06`) are displayed:
 ///
-/// | 值 | 行为 |
+/// | Value | Behavior |
 /// |-------|-----------|
-/// | `0` | **默认**——miss 时整个 BGA 切换到 `#xxx06` 片刻，然后返回正常图片序列。 |
-/// | `1` | **叠加**——`#xxx06` 图片叠加到当前 BGA 之上（类似 beatmaniaIIDX 的 miss 角色动画）。 |
-/// | `2` | **隐藏**——永不显示 miss 图片；正常 BGA 不受干扰地继续。 |
+/// | `0` | **Default**: on a miss, the whole BGA switches to `#xxx06` briefly, then returns to the normal image sequence. |
+/// | `1` | **Overlay**: the `#xxx06` image is drawn over the current BGA (similar to the beatmaniaIIDX miss character animation). |
+/// | `2` | **Hidden**: miss images are never shown; the normal BGA continues undisturbed. |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum PoorBgaMode {
-    /// `#POORBGA 0`——使用默认 BGA 显示行为。
+    /// `#POORBGA 0`: use the default BGA display behavior.
     #[bms_token("0")]
     Default,
-    /// `#POORBGA 1`——在当前 BGA 之上叠加 poor BGA。
+    /// `#POORBGA 1`: overlay the poor BGA on top of the current BGA.
     #[bms_token("1")]
     Overlay,
-    /// `#POORBGA 2`——显示 poor BGA 时隐藏当前 BGA。
+    /// `#POORBGA 2`: hide the current BGA while displaying the poor BGA.
     #[bms_token("2")]
     Hidden,
 }
 
-/// 显示与难度头部。
+/// Display and difficulty headers.
 ///
-/// 这些命令控制实际游玩音符*之外*玩家*所见*的内容——
-/// 加载画面、横幅、难度标签等。
+/// These commands control what the player *sees* outside the actual playable
+/// notes: loading screens, banners, difficulty labels, and so on.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr)]
 pub enum BmsHeaderDisplay {
-    /// `#STAGEFILE`——加载期间显示的启动画面图片（通常 640×480）。
+    /// `#STAGEFILE`: splash image shown during loading (usually 640x480).
     ///
-    /// 可选。省略时播放器显示其默认加载画面。
+    /// Optional. When omitted, the player shows its default loading screen.
     #[bms_token("#STAGEFILE {}")]
     StageFile(String),
-    /// `#BANNER`——选曲与结算界面的横幅图片（300×80）。
+    /// `#BANNER`: banner image for the song selection and result screens
+    /// (300x80).
     ///
-    /// 可选。支持相对路径（仅下级）。路径长度
-    /// 限制为 260 字节。
+    /// Optional. Supports relative paths (descending only). Path length is
+    /// limited to 260 bytes.
     #[bms_token("#BANNER {}")]
     Banner(String),
-    /// `#BACKBMP`——游玩界面的背景图片（通常 640×480）。
+    /// `#BACKBMP`: background image for the gameplay screen (usually 640x480).
     ///
-    /// 原始规范：图片填充游玩区域背景。在某些
-    /// LR2 皮肤中，它被用作标题卡。尺寸与行为
-    /// 取决于皮肤。
+    /// Original specification: the image fills the gameplay area background. In
+    /// some LR2 skins it is used as a title card. Size and behavior depend on
+    /// the skin.
     #[bms_token("#BACKBMP {}")]
     BackBmp(String),
-    /// `#CHARFILE`——pop'n music 风格的角色文件（pomu2 扩展）。
+    /// `#CHARFILE`: pop'n music style character file (pomu2 extension).
     ///
-    /// 一个 `.chp` 文件，定义游玩期间显示的动画角色。
-    /// 仅 pomu2 与 PMChr-V 支持。
+    /// A `.chp` file defining an animated character shown during gameplay. Only
+    /// pomu2 and PMChr-V support it.
     #[bms_token("#CHARFILE {}")]
     CharFile(String),
-    /// `#PLAYLEVEL`——选曲列表中显示的难度数值。
+    /// `#PLAYLEVEL`: difficulty value shown in the song list.
     ///
-    /// 显示格式因播放器而异（星星、条形图、整数）。
-    /// 通常为整数，但某些播放器接受字符串（例如
-    /// `#PLAYLEVEL 安心`）。省略时默认：`3`（BM98 约定）。
+    /// The display format varies by player (stars, bar graphs, integers). It is
+    /// usually an integer, but some players accept non-numeric strings. Default
+    /// when omitted: `3` (BM98 convention).
     ///
-    /// 值 `0` 在 BM98 和若干其他播放器中有特殊含义：
-    /// 它显示为问号（`?`）而非数值，常用于难度随
-    /// `#RANDOM`/`#SWITCH` 变化的谱面。
+    /// The value `0` has a special meaning in BM98 and several other players:
+    /// it displays as a question mark (`?`) instead of a number, commonly used
+    /// for charts whose difficulty changes with `#RANDOM` / `#SWITCH`.
     #[bms_token("#PLAYLEVEL {}")]
     PlayLevel(f64),
-    /// `#DIFFICULTY`——用于谱面筛选的难度*分类*（1–5）。
+    /// `#DIFFICULTY`: difficulty *classification* used for chart filtering
+    /// (1-5).
     #[bms_token("#DIFFICULTY {}")]
     Difficulty(DifficultyLevel),
-    /// `#PREVIEW`——选曲界面播放的音频文件
-    /// （beatoraja 扩展）。
+    /// `#PREVIEW`: audio file played in the song selection screen (beatoraja
+    /// extension).
     ///
-    /// 省略时，beatoraja 自动发现谱面文件夹中的
-    /// `preview*.wav` / `preview*.ogg`。
+    /// When omitted, beatoraja automatically discovers `preview*.wav` /
+    /// `preview*.ogg` in the chart folder.
     #[bms_token("#PREVIEW {}")]
     Preview(String),
 }

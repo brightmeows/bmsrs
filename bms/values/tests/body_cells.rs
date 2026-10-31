@@ -1,4 +1,4 @@
-//! `BodyCells` 公开 API 测试。
+//! Public API tests for `BodyCells`.
 
 use bmsrs_bms_values::BodyCells;
 

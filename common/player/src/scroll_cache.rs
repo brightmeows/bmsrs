@@ -1,41 +1,42 @@
-//! 预计算的滚动速度缓存。
+//! Precomputed scroll speed cache.
 //!
-//! [`ScrollCache`] 在 [`Player`](crate::Player) 创建时由事件列表构建，
-//! 提供 O(log n) 的滚动速度查询与累积位置查询，替代每次调用时的 O(n)
-//! 线性扫描。
+//! [`ScrollCache`] is built from the event list when a [`Player`](crate::Player)
+//! is created, providing O(log n) scroll speed and cumulative position queries
+//! instead of an O(n) linear scan per call.
 
 use bmsrs_chart::{CustomEvent, Event, EventKind, NoteExt};
 
-/// 预计算的滚动速度段。
+/// Precomputed scroll speed segment.
 struct ScrollSegment {
-    /// 本段起始的绝对脉冲。
+    /// Absolute tick at the start of this segment.
     start_tick: u64,
-    /// 本段起始处的累积滚动位置（以节拍为单位）。
+    /// Cumulative scroll position (in beats) at the start of this segment.
     start_position: f64,
-    /// 本段内的滚动倍率。
+    /// Scroll multiplier within this segment.
     rate: f64,
 }
 
-/// 预计算的滚动速度与位置缓存。
+/// Precomputed scroll speed and position cache.
 ///
-/// 存储已排序的速度段，每个段对应一次 [`EventKind::Scroll`] 变更。
-/// 查询时通过二分查找定位生效段，将 O(n) 降为 O(log n)。
+/// Stores sorted speed segments, one per [`EventKind::Scroll`] change. Queries
+/// locate the active segment by binary search, reducing O(n) to O(log n).
 ///
-/// 位置计算将滚动速度对时间积分：`position += rate * delta_beats`，
-/// 其中 `delta_beats = delta_ticks / resolution`。
+/// Position computation integrates scroll speed over time:
+/// `position += rate * delta_beats`, where
+/// `delta_beats = delta_ticks / resolution`.
 pub struct ScrollCache {
-    /// 按 `start_tick` 升序排列的速度段。
+    /// Speed segments sorted ascending by `start_tick`.
     segments: Vec<ScrollSegment>,
-    /// 每四分音符的脉冲数。
+    /// Ticks per quarter note.
     resolution: u64,
 }
 
 impl ScrollCache {
-    /// 从已排序事件列表与节拍分辨率构建缓存。
+    /// Build the cache from a sorted event list and beat resolution.
     ///
-    /// 仅遍历 `Scroll` 变体，跳过其他事件类型。
-    /// 输入 `events` 必须按 [`Event::tick`] 升序排列（由谱面保证）。
-    /// `resolution` 为每四分音符的脉冲数（通常为 240）。
+    /// Only `Scroll` variants are visited; other event types are skipped. The
+    /// input `events` must be sorted ascending by [`Event::tick`] (guaranteed by
+    /// the chart). `resolution` is ticks per quarter note (usually 240).
     #[expect(
         clippy::cast_precision_loss,
         reason = "u64 tick/resolution offsets fit in f64"
@@ -52,7 +53,8 @@ impl ScrollCache {
             })
             .collect();
 
-        // 预计算每个段的累积位置。先加一个初始默认段（tick 0, rate 1.0）。
+        // Precompute the cumulative position of each segment. Start with an
+        // initial default segment (tick 0, rate 1.0).
         let res_f = resolution as f64;
         let mut segments = vec![ScrollSegment {
             start_tick: 0,
@@ -73,9 +75,10 @@ impl ScrollCache {
                 rate,
             });
         }
-        // 尾段：覆盖 tick 超出最后一个事件时的查询。非空事件列表下与最后
-        // 一段等价（partition_point.saturating_sub(1) 回退到最后一段），
-        // 但对空事件列表提供默认常量段（tick=0, rate=1.0）。
+        // Tail segment: covers queries beyond the last event. With a non-empty
+        // event list it is equivalent to the last segment
+        // (partition_point.saturating_sub(1) falls back to it), but it provides a
+        // default constant segment (tick=0, rate=1.0) for an empty event list.
         segments.push(ScrollSegment {
             start_tick: raw_segments.last().map_or(0, |&(t, _)| t),
             start_position: pos,
@@ -88,7 +91,7 @@ impl ScrollCache {
         }
     }
 
-    /// 返回 `tick` 处生效的滚动速度倍率。
+    /// Return the scroll speed multiplier in effect at `tick`.
     #[expect(
         clippy::indexing_slicing,
         reason = "first segment at tick 0 guarantees idx >= 1"
@@ -101,10 +104,10 @@ impl ScrollCache {
         self.segments[idx].rate
     }
 
-    /// 返回 `tick` 处的累积滚动位置（以节拍为单位）。
+    /// Return the cumulative scroll position at `tick`, in beats.
     ///
-    /// 位置 = 滚动速度对时间的积分。默认无 SCROLL 事件时，
-    /// 位置 = `tick / resolution`（标准节拍对齐）。
+    /// Position is the integral of scroll speed over time. With no SCROLL events,
+    /// position is `tick / resolution` (standard beat alignment).
     #[expect(
         clippy::indexing_slicing,
         clippy::cast_precision_loss,

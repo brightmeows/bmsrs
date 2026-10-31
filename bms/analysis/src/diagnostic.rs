@@ -1,33 +1,33 @@
-//! 分析诊断。
+//! Analysis diagnostics.
 
 use bmsrs_bms_syntax::TextRange;
 
-/// 诊断严重度。
+/// Diagnostic severity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Severity {
-    /// 错误。
+    /// Error.
     Error,
-    /// 警告。
+    /// Warning.
     Warning,
-    /// 提示。
+    /// Information.
     Information,
 }
 
-/// 一条分析诊断。
+/// An analysis diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnalysisDiagnostic {
-    /// 文本范围。
+    /// Text range.
     range: TextRange,
-    /// 严重度。
+    /// Severity.
     severity: Severity,
-    /// 消息。
+    /// Message.
     message: String,
-    /// 稳定错误码。
+    /// Stable error code.
     code: Option<&'static str>,
 }
 
 impl AnalysisDiagnostic {
-    /// 构造诊断。
+    /// Construct a diagnostic.
     pub(crate) fn new(
         range: TextRange,
         severity: Severity,
@@ -42,25 +42,25 @@ impl AnalysisDiagnostic {
         }
     }
 
-    /// 返回文本范围。
+    /// Return the text range.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
 
-    /// 返回严重度。
+    /// Return the severity.
     #[must_use]
     pub const fn severity(&self) -> Severity {
         self.severity
     }
 
-    /// 返回消息。
+    /// Return the message.
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
     }
 
-    /// 返回错误码。
+    /// Return the error code.
     #[must_use]
     pub const fn code(&self) -> Option<&'static str> {
         self.code

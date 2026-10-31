@@ -1,32 +1,32 @@
-//! 音符种类定义。
+//! Note kind definitions.
 //!
-//! 音符位置（`NoteSide`、`Lane`）直接携带于
-//! [`EventKind::Note`](crate::EventKind::Note) 中。每音符的格式扩展使用
-//! [`NoteExt`](crate::NoteExt) trait。
+//! Note positions (`NoteSide`, `Lane`) are carried directly in
+//! [`EventKind::Note`](crate::EventKind::Note). Per-note format extensions use
+//! the [`NoteExt`](crate::NoteExt) trait.
 
 use std::fmt::Debug;
 
 use crate::audio::AudioIndex;
 
-/// 地雷伤害值。
+/// Mine damage value.
 ///
-/// 保证不含 NaN，支持 [`Eq`] 比较。
+/// Guaranteed to contain no NaN, so it supports [`Eq`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Damage(f64);
 
 impl Damage {
-    /// 从 `f64` 创建伤害值。
+    /// Create a damage value from `f64`.
     ///
-    /// # Panic（仅 debug 构建）
+    /// # Panics (debug builds only)
     ///
-    /// debug 构建中若 `value` 为 NaN 则 panic。
+    /// Panics in debug builds when `value` is NaN.
     #[must_use]
     pub fn new(value: f64) -> Self {
         debug_assert!(!value.is_nan(), "damage must not be NaN");
         Self(value)
     }
 
-    /// 返回原始伤害值。
+    /// Return the raw damage value.
     #[must_use]
     pub const fn get(self) -> f64 {
         self.0
@@ -41,41 +41,44 @@ impl PartialEq for Damage {
 
 impl Eq for Damage {}
 
-/// 音符的音频层集合。
+/// The set of audio layers for a note.
 ///
-/// 大多数音符只有一层音频；BMSON 允许不同 `SoundChannel` 在相同位置
-/// 融合为一个音符，此时该音符携带多层音频。内部用三态表示，单音频
-/// 不产生额外分配，`Many` 至少包含两个元素。
+/// Most notes have one audio layer; BMSON allows different `SoundChannel`s to
+/// merge into one note at the same position, in which case the note carries
+/// multiple audio layers. The internal three-state representation avoids extra
+/// allocation for a single audio layer; `Many` always contains at least two
+/// elements.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NoteAudio(NoteAudioInner);
 
-/// [`NoteAudio`] 的内部三态表示。
+/// Internal three-state representation of [`NoteAudio`].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 enum NoteAudioInner {
     #[default]
-    /// 无音频层。
+    /// No audio layers.
     None,
-    /// 单层音频。
+    /// One audio layer.
     One(AudioIndex),
-    /// 多层音频，至少两个元素。
+    /// Multiple audio layers, at least two elements.
     Many(Box<[AudioIndex]>),
 }
 
 impl NoteAudio {
-    /// 无音频层的音符。
+    /// A note with no audio layers.
     #[must_use]
     pub const fn none() -> Self {
         Self(NoteAudioInner::None)
     }
 
-    /// 只有一层音频的音符。
+    /// A note with exactly one audio layer.
     #[must_use]
     pub const fn one(index: AudioIndex) -> Self {
         Self(NoteAudioInner::One(index))
     }
 
-    /// 从任意音频索引集合构造；零层得到 [`none`](Self::none)，一层得到
-    /// [`one`](Self::one)，两层及以上折叠为 `Many`。
+    /// Construct from any collection of audio indices; zero layers gives
+    /// [`none`](Self::none), one gives [`one`](Self::one), and two or more fold
+    /// into `Many`.
     #[must_use]
     pub fn from_indices(indices: impl IntoIterator<Item = AudioIndex>) -> Self {
         let collected: Vec<AudioIndex> = indices.into_iter().collect();
@@ -86,7 +89,7 @@ impl NoteAudio {
         }
     }
 
-    /// 以切片形式返回全部音频索引。
+    /// Return all audio indices as a slice.
     #[must_use]
     pub fn as_slice(&self) -> &[AudioIndex] {
         match &self.0 {
@@ -96,24 +99,24 @@ impl NoteAudio {
         }
     }
 
-    /// 遍历全部音频索引。
+    /// Iterate over all audio indices.
     pub fn iter(&self) -> impl Iterator<Item = AudioIndex> + '_ {
         self.as_slice().iter().copied()
     }
 
-    /// 第一层音频索引；无音频时为 [`None`]。
+    /// The first audio layer index; [`None`] when there is no audio.
     #[must_use]
     pub fn primary(&self) -> Option<AudioIndex> {
         self.as_slice().first().copied()
     }
 
-    /// 音频层数。
+    /// Number of audio layers.
     #[must_use]
     pub fn len(&self) -> usize {
         self.as_slice().len()
     }
 
-    /// 是否没有音频层。
+    /// Whether there are no audio layers.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.as_slice().is_empty()
@@ -126,73 +129,75 @@ impl From<Option<AudioIndex>> for NoteAudio {
     }
 }
 
-/// 音符在游玩中的角色。
+/// The note's role during gameplay.
 ///
-/// 与 [`NoteKind`] 正交：`up: true` 的释放音可以是普通音符，也可以是
-/// 长音音符。角色属于核心模型，擦除格式扩展后仍然保留。
+/// Orthogonal to [`NoteKind`]: a release note (`up: true`) can be either a
+/// normal note or a long note. The role belongs to the core model and survives
+/// erasing format extensions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum NoteRole {
-    /// 普通可判定音符。
+    /// Normal judgeable note.
     #[default]
     Normal,
-    /// 释放音 / BSS / MSS 端点。
+    /// Release note / BSS / MSS endpoint.
     Release,
 }
 
-/// 可玩音符的种类。
+/// Kind of a playable note.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum NoteKind {
-    /// 普通音符（短音）—— 单次敲击。
+    /// Normal (short) note: a single hit.
     #[default]
     Normal,
-    /// 长音 —— 从该音符的脉冲位置开始保持 `duration` 个脉冲。
+    /// Long note held for `duration` ticks starting at this note's tick.
     Long {
-        /// 保持时长（脉冲数）。
+        /// Hold duration in ticks.
         duration: u64,
     },
-    /// 地雷 —— 按下会扣血。
+    /// Mine: pressing it drains life.
     Mine {
-        /// 伤害量（由游戏定义的单位）。
+        /// Damage amount (game-defined units).
         damage: Damage,
     },
-    /// 不可见音符 —— 触发音频但不显示，也不按常规判定。
+    /// Invisible note: triggers audio but is not displayed and is not judged
+    /// normally.
     ///
-    /// 在 BMS 中这些是 "key" 音符（通道 `31`–`39`、`41`–`49`）。
-    /// 在 BMSON 中这些来自 `key_channels`。
+    /// In BMS these are "key" notes (channels `31`-`39`, `41`-`49`). In BMSON
+    /// they come from `key_channels`.
     Invisible,
 }
 
-/// 谱面级或按音符的长音类型提示。
+/// Chart-level or per-note long-note type hint.
 ///
-/// `Ln` 和 `Cn` 对应 BMSON v2 标准值 `"ln"`/`"cn"`。
-/// `Hcn` 是 beatoraja 扩展，不属于 v2 标准。
+/// `Ln` and `Cn` correspond to the BMSON v2 standard values `"ln"`/`"cn"`.
+/// `Hcn` is a beatoraja extension and is not part of v2.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LnTypeHint {
-    /// 长音（LN）—— 仅在按下时判定。
+    /// Long note (LN): judged only on press.
     #[default]
     Ln,
-    /// 充电音（CN）—— 在按下和释放时都判定。
+    /// Charge note (CN): judged on both press and release.
     Cn,
-    /// 地狱充电音（HCN）—— beatoraja 扩展，非标准。
+    /// Hell charge note (HCN): beatoraja extension, non-standard.
     Hcn,
 }
 
-/// 谱面级或按音符的长音判定提示。
+/// Chart-level or per-note long-note judgment hint.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LnJudgeHint {
-    /// 仅判定音符本身。
+    /// Judge only the note itself.
     #[default]
     Normal,
-    /// 按住期间额外判定若干脉冲。
+    /// Judge additional ticks while held.
     Ticks,
 }
 
-/// 谱面级或按音符的长音血量提示。
+/// Chart-level or per-note long-note life hint.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LnLifeHint {
-    /// 仅音符本身恢复血量。
+    /// Only the note itself restores life.
     #[default]
     Normal,
-    /// 按住期间额外脉冲恢复血量。
+    /// Additional ticks restore life while held.
     Ticks,
 }

@@ -1,8 +1,9 @@
-//! BMS（Be-Music Script）格式解析器。
+//! Parser for the BMS (Be-Music Script) format.
 //!
-//! 本 crate 提供 BMS 解析管道的第二阶段：将 flat token 流（无控制流
-//! 命令）转换为结构化的 [`Bms`] 对象，包含带类型的元数据、资源定义、
-//! 计时与通道消息。
+//! This crate provides the second stage of the BMS parsing pipeline: it turns a
+//! flat token stream (without control-flow commands) into a structured [`Bms`]
+//! object containing typed metadata, resource definitions, timing, and channel
+//! messages.
 
 mod audio;
 mod cst;
@@ -14,7 +15,7 @@ mod timing;
 mod visual;
 mod warnings;
 
-// 重新导出子模块的全部公开类型。
+// Re-export all public types from the submodules.
 pub use audio::{Audio, OwnedExWavParams};
 pub use bmsrs_bms_values::*;
 pub use cst::{
@@ -33,47 +34,48 @@ pub use timing::Timing;
 pub use visual::{OwnedExBmpParams, OwnedSwBgaParams, Visual};
 pub use warnings::ChannelValueWarning;
 
-// Bms —— 根文档模型
+// Bms: root document model
 
-/// 由 flat token 流构建的 BMS 文件结构化表示。
+/// Structured representation of a BMS file built from a flat token stream.
 ///
-/// 每个子结构体恰好对应一个分词器头部分组，使 `process_header` 方法
-/// 能直接路由到子模块的 `apply` 方法。唯一例外是 `#STP`（Timing →
-/// Messages），它跨越了子结构体边界，因为它使用与通道事件相同的位置
-/// 模型。
+/// Each sub-structure corresponds to exactly one tokenizer header group, so the
+/// `process_header` method can route directly to a submodule's `apply` method.
+/// The only exception is `#STP` (Timing to Messages), which crosses
+/// sub-structure boundaries because it uses the same position model as channel
+/// events.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Bms {
-    /// 乐曲 / 谱面识别元数据（← `BmsHeaderMetadata`）。
+    /// Song and chart identity metadata (from `BmsHeaderMetadata`).
     pub metadata: metadata::Metadata,
-    /// 游玩行为设置（← `BmsHeaderGameplay`）。
+    /// Gameplay behavior settings (from `BmsHeaderGameplay`).
     pub gameplay: gameplay::Gameplay,
-    /// 计时定义（← `BmsHeaderTiming`）。
+    /// Timing definitions (from `BmsHeaderTiming`).
     pub timing: timing::Timing,
-    /// 显示资源 / 难度标记（← `BmsHeaderDisplay`）。
+    /// Display resources and difficulty markers (from `BmsHeaderDisplay`).
     pub display: display::Display,
-    /// 音频资源定义（← `BmsHeaderResDefAudio`）。
+    /// Audio resource definitions (from `BmsHeaderResDefAudio`).
     pub audio: audio::Audio,
-    /// 视觉 / BGA 资源定义（← `BmsHeaderResDefVisual`）。
+    /// Visual and BGA resource definitions (from `BmsHeaderResDefVisual`).
     pub visual: visual::Visual,
-    /// 通道消息数据（原始数据 + 已解析事件）。
+    /// Channel message data (raw data plus parsed events).
     pub messages: messages::Messages,
-    /// 未识别 / 引擎特有的头部命令。
+    /// Unrecognized or engine-specific header commands.
     pub fallback_headers: Vec<(String, String)>,
 }
 
 impl Bms {
-    /// 由 flat token 流（无控制流命令）构建 `Bms`。
+    /// Build `Bms` from a flat token stream (without control-flow commands).
     ///
-    /// 两阶段处理：
-    /// 1. 预扫描定位 `#BASE` 以确定进制基数。
-    /// 2. 随后所有 token 以正确的基数处理，将索引键（`WavIndex`、
-    ///    `BmpIndex` 等）归一化，以便在标准（Base36）BMS 文件中进行
-    ///    不区分大小写的比较。
+    /// Two-phase processing:
+    /// 1. Pre-scan for `#BASE` to determine the radix base.
+    /// 2. Process every token with the correct base, normalizing index keys
+    ///    (`WavIndex`, `BmpIndex`, and so on) for case-insensitive comparison
+    ///    in standard (Base36) BMS files.
     pub fn from_flat_tokens(tokens: impl IntoIterator<Item = BmsToken>) -> Self {
         let mut bms = Self::default();
 
-        // 预扫描 #BASE。先收集 token 迭代器，因为需要迭代两次
-        //（一次用于 BASE，一次用于处理）。
+        // Pre-scan #BASE. Collect the token iterator first because it is
+        // iterated twice (once for BASE, once for processing).
         let all_tokens: Vec<_> = tokens.into_iter().collect();
         let bms_base = detect_base(&all_tokens);
 
@@ -88,18 +90,19 @@ impl Bms {
         bms
     }
 
-    // 头部分发 —— 纯路由到子模块的 apply() 方法
+    // Header dispatch: pure routing to the submodule apply() methods
 
-    /// 将头部命令路由到对应子模块的 `apply` 方法。
+    /// Route a header command to the corresponding submodule's `apply` method.
     ///
-    /// `base` 是由 `#BASE` 确定的进制基数（默认为 [`BmsBase::Base36`]）。
+    /// `base` is the radix base determined by `#BASE` (defaults to
+    /// [`BmsBase::Base36`]).
     fn process_header(&mut self, header: &BmsHeader, base: BmsBase) {
         match header {
             BmsHeader::Metadata(m) => self.metadata.apply(m),
             BmsHeader::Gameplay(g) => self.gameplay.apply(g, base),
             BmsHeader::Timing(t) => {
                 self.timing.apply(t, base);
-                // #STP 跨越子结构体边界
+                // #STP crosses sub-structure boundaries.
                 if let BmsHeaderTiming::Stp { params } = t {
                     self.messages.stp_events.push(messages::StpEvent {
                         position: messages::Position::new(
@@ -121,17 +124,17 @@ impl Bms {
         }
     }
 
-    // 消息
+    // Messages
 
-    /// 将通道消息插入到消息容器中。
+    /// Insert a channel message into the message container.
     fn process_message(&mut self, m: &BmsMessage) {
         self.messages.concat_raw(m);
     }
 }
 
-/// 预扫描 token 以查找 `#BASE`，确定进制基数。
+/// Pre-scan tokens for `#BASE` to determine the radix base.
 ///
-/// 当未找到 `#BASE` 头部命令时，默认为 [`BmsBase::Base36`]。
+/// Defaults to [`BmsBase::Base36`] when no `#BASE` header command is found.
 fn detect_base(tokens: &[BmsToken]) -> BmsBase {
     tokens
         .iter()

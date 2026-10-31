@@ -1,20 +1,20 @@
-//! 按编码把原始字节切成行。
+//! Split raw bytes into lines according to the encoding.
 
 use std::ops::Range;
 
 use crate::{LineEnding, SourceEncoding};
 
-/// 一行的原始字节区间。
+/// Byte range of a single line.
 pub struct LineSpan {
-    /// 整行区间（含终止符）。
+    /// Full line range, including the terminator.
     pub range: Range<usize>,
-    /// 去掉终止符后的区间。
+    /// Range without the terminator.
     pub body: Range<usize>,
-    /// 行尾终止符。
+    /// Line terminator.
     pub terminator: LineEnding,
 }
 
-/// 按编码切分原始字节。
+/// Split raw bytes according to the encoding.
 pub fn split_lines(bytes: &[u8], encoding: SourceEncoding) -> Vec<LineSpan> {
     encoding.utf16_little_endian().map_or_else(
         || split_bytes(bytes),
@@ -22,7 +22,7 @@ pub fn split_lines(bytes: &[u8], encoding: SourceEncoding) -> Vec<LineSpan> {
     )
 }
 
-/// ASCII 兼容编码的行切分。
+/// Line splitting for ASCII-compatible encodings.
 fn split_bytes(bytes: &[u8]) -> Vec<LineSpan> {
     let mut spans = Vec::new();
     let mut start = 0usize;
@@ -73,7 +73,7 @@ fn split_bytes(bytes: &[u8]) -> Vec<LineSpan> {
     spans
 }
 
-/// UTF-16 编码的行切分：按 2 字节代码单元扫描。
+/// Line splitting for UTF-16: scan 2-byte code units.
 fn split_utf16(bytes: &[u8], little_endian: bool) -> Vec<LineSpan> {
     let mut spans = Vec::new();
     let mut start = 0usize;
@@ -124,7 +124,7 @@ fn split_utf16(bytes: &[u8], little_endian: bool) -> Vec<LineSpan> {
     spans
 }
 
-/// 读取 2 字节代码单元。
+/// Read a 2-byte code unit.
 fn read_unit(bytes: &[u8], index: usize, little_endian: bool) -> u16 {
     let first = bytes.get(index).copied().unwrap_or(0);
     let second = bytes.get(index + 1).copied().unwrap_or(0);

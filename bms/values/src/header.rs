@@ -1,4 +1,4 @@
-//! BMS 头部命令解析，按语义域分类。
+//! BMS header command parsing, grouped by semantic domain.
 
 mod control_flow;
 mod display;
@@ -21,57 +21,60 @@ pub use timing::{BmsHeaderTiming, StpParams};
 use crate::BmsTokenAttr;
 use crate::BmsTokenizeError;
 
-/// BMS 文件中的头部命令，按语义域分类。
+/// Header commands in a BMS file, grouped by semantic domain.
 ///
-/// 分发顺序遵循下方变体声明顺序。
-/// 标注了 `#[bms_fallback]` 的变体不参与分发，
-/// 而是捕获任何未匹配具体变体的内容。
+/// Dispatch follows the variant declaration order below. A variant marked
+/// `#[bms_fallback]` does not participate in dispatch; it captures anything
+/// that does not match a concrete variant.
 #[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From, derive_more::TryUnwrap)]
 pub enum BmsHeader {
-    /// 音频资源定义（`#WAV`、`#EXWAV`、`#WAVCMD` 等）。
+    /// Audio resource definitions (`#WAV`, `#EXWAV`, `#WAVCMD`, and so on).
     ResDefAudio(BmsHeaderResDefAudio),
-    /// 计时定义（`#BPM`、`#STOP`、`#SCROLL`、`#SPEED` 等）。
+    /// Timing definitions (`#BPM`, `#STOP`, `#SCROLL`, `#SPEED`, and so on).
     Timing(BmsHeaderTiming),
-    /// 视觉资源定义（`#BMP`、`#BGA`、`#ARGB` 等）。
+    /// Visual resource definitions (`#BMP`, `#BGA`, `#ARGB`, and so on).
     ResDefVisual(BmsHeaderResDefVisual),
-    /// 控制流命令（`#RANDOM`、`#SWITCH`、`#IF` 等）。
+    /// Control-flow commands (`#RANDOM`, `#SWITCH`, `#IF`, and so on).
     ControlFlow(BmsHeaderControlFlow),
-    /// 游玩行为（`#PLAYER`、`#RANK`、`#TOTAL`、`#LNTYPE` 等）。
+    /// Gameplay behavior (`#PLAYER`, `#RANK`, `#TOTAL`, `#LNTYPE`, and so on).
     Gameplay(BmsHeaderGameplay),
-    /// 显示与难度标记（`#STAGEFILE`、`#DIFFICULTY` 等）。
+    /// Display and difficulty markers (`#STAGEFILE`, `#DIFFICULTY`, and so on).
     Display(BmsHeaderDisplay),
-    /// 乐曲/谱面标识（`#TITLE`、`#ARTIST`、`#GENRE` 等）。
+    /// Song and chart identity (`#TITLE`, `#ARTIST`, `#GENRE`, and so on).
     Metadata(BmsHeaderMetadata),
-    /// 无法识别或引擎特有的头部命令。
+    /// Unrecognized or engine-specific header commands.
     #[bms_fallback]
     Fallback(BmsHeaderFallback),
 }
 
-/// 无法识别的头部命令的兜底类型。
+/// Fallback type for unrecognized header commands.
 ///
-/// 捕获原始命令名与值，使下游消费方（解析器、工具）
-/// 能处理分词器不认识的引擎扩展。
+/// Captures the raw command name and value so downstream consumers (parsers,
+/// tools) can handle engine extensions the tokenizer does not know.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BmsHeaderFallback {
-    /// 文件中出现的原始命令名（例如 `"MYEXT"`）。
+    /// Raw command name as it appears in the file (for example, `"MYEXT"`).
     pub command: String,
-    /// 空格分隔符之后的值。
+    /// Value after the space separator.
     pub value: String,
 }
 
-/// 将单行头部行解析为 `BmsHeader`。
+/// Parse a single header line into a `BmsHeader`.
 ///
-/// `prefixes` 控制哪些起始字符被识别为头部标记
-/// （默认：`#` 和 `%`）。不以任一配置前缀开头的行被跳过。
+/// `prefixes` controls which leading characters are recognized as header
+/// markers (default: `#` and `%`). Lines that do not start with a configured
+/// prefix are skipped.
 ///
-/// 若该行不是头部（空行、注释、通道数据）则返回 `Ok(None)`。
+/// Returns `Ok(None)` when the line is not a header (blank line, comment, or
+/// channel data).
 ///
 /// # Errors
 ///
-/// 当头部命令被识别但其值无法解析为预期类型时，
-/// 返回 `Err(BmsTokenizeError)`。
-/// 为 C 显式解析父 trait（避免 `BmsStr` blanket impl 的 `E0283`）。
-/// 在测试中，使用非泛型的 `parse_header_line_default` 包装。
+/// Returns `Err(BmsTokenizeError)` when a header command is recognized but its
+/// value cannot be parsed into the expected type.
+/// Explicitly resolve the parent trait for C (avoiding `E0283` from the
+/// `BmsStr` blanket implementation). Tests use the non-generic
+/// `parse_header_line_default` wrapper.
 #[expect(
     clippy::string_slice,
     reason = "BMS header lines are ASCII-only; byte indexing at whitespace boundaries is safe"
@@ -86,13 +89,13 @@ pub fn parse_header_line(
         return Ok(None);
     }
 
-    // 以 `##` 开头的行是注释。
+    // Lines starting with `##` are comments.
     if trimmed.starts_with("##") {
         return Ok(None);
     }
 
-    // 从配置列表中确定前缀字符。
-    // trimmed 非空（已在上面检查）。
+    // Determine the prefix character from the configured list.
+    // `trimmed` is non-empty (checked above).
     let Some(first) = trimmed.chars().next() else {
         return Ok(None);
     };
@@ -106,7 +109,7 @@ pub fn parse_header_line(
         return Ok(None);
     }
 
-    // 在首个空白处拆分命令名与值。
+    // Split the command name and value at the first whitespace.
     let split_pos = rest
         .find(|c: char| c.is_ascii_whitespace())
         .unwrap_or(rest.len());
@@ -117,15 +120,15 @@ pub fn parse_header_line(
         return Ok(None);
     }
 
-    // 若原始命令含冒号，则它是通道消息，而非头部。
+    // If the raw command contains a colon, it is a channel message, not a
+    // header.
     if command.contains(':') {
         return Ok(None);
     }
 
-    // `%` 命令：仅 `%URL` 与 `%EMAIL` 是有效的 BMS 头部——
-    // 其他一切都是引擎特有的扩展。未知的 `%` 命令
-    // 不得回退（否则会让 `%TITLE` 冒充
-    // `#TITLE`）。
+    // `%` commands: only `%URL` and `%EMAIL` are valid BMS headers; everything
+    // else is an engine-specific extension. Unknown `%` commands must not fall
+    // back (otherwise `%TITLE` could impersonate `#TITLE`).
     if prefix == '%'
         && !command.eq_ignore_ascii_case("URL")
         && !command.eq_ignore_ascii_case("EMAIL")
@@ -136,14 +139,14 @@ pub fn parse_header_line(
         })));
     }
 
-    // 分发给子枚举的 `try_match_header` 函数。
-    // `command` 携带输入生命周期，使索引切片错误
-    // 能存储命令的正确部分。
+    // Dispatch to the sub-enum `try_match_header` functions.
+    // `command` carries the input lifetime so index-slice errors can store the
+    // correct part of the command.
     if let Some(header) = BmsHeader::try_match_header(command, value)? {
         return Ok(Some(header));
     }
 
-    // 无匹配项 → Fallback。
+    // No match: use the fallback.
     Ok(Some(BmsHeader::Fallback(BmsHeaderFallback {
         command: command.to_owned(),
         value: value.to_owned(),

@@ -1,10 +1,10 @@
-//! rowan 语言绑定与节点别名。
+//! rowan language binding and node aliases.
 
 use rowan::Language;
 
 use crate::SyntaxKind;
 
-/// BMS 的 rowan 语言标记。
+/// The rowan language marker for BMS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BmsLanguage;
 
@@ -20,14 +20,14 @@ impl Language for BmsLanguage {
     }
 }
 
-/// BMS CST 节点。
+/// BMS CST node.
 pub type SyntaxNode = rowan::SyntaxNode<BmsLanguage>;
 
-/// BMS CST token。
+/// BMS CST token.
 pub type SyntaxToken = rowan::SyntaxToken<BmsLanguage>;
 
-/// 节点或 token。
+/// A node or token.
 pub type SyntaxElement = rowan::SyntaxElement<BmsLanguage>;
 
-/// 节点或 token 的种类。
+/// The kind of a node or token.
 pub type SyntaxKindRaw = rowan::SyntaxKind;

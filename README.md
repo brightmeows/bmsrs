@@ -1,59 +1,64 @@
 # bmsrs
 
-BMS / BMSON 谱面格式的 Rust 解析、转换与模拟播放工具包。
+English | [简体中文](README.zh-CN.md)
 
-> 预发布状态：`0.1.0` 尚未发布，公开接口可能变动。
+A Rust toolkit for parsing, converting, and simulating playback of BMS and
+BMSON chart formats.
 
-## 简介
+> Pre-release: `0.1.0` has not been released; public interfaces may change.
 
-bmsrs 处理两种谱面格式：
+## Overview
 
-- BMS：文本格式，提供从原始字节到结构化模型的完整管道。
-- BMSON：JSON 格式，支持 v0、v1、v2 类型定义与升版。
+bmsrs handles two chart formats:
 
-两条管道输出统一的 `Chart<T>` 中央 IR。渲染器、播放器与工具只需消费这一层。
+- BMS: a text format with a complete pipeline from raw bytes to a structured
+  model.
+- BMSON: a JSON format with v0, v1, and v2 type definitions and upgrades.
 
-项目使用 Rust 2024 edition，MSRV 为 1.95。
+Both pipelines output the unified `Chart<T>` central IR. Renderers, players, and
+tools only need to consume this layer.
 
-## 管道
+The project uses Rust 2024 edition with MSRV 1.95.
 
-| 输入 | 处理 | 输出 |
-|------|------|------|
-| BMS 字节 | `bmsrs-bms-source`、`bmsrs-bms-syntax`、`bmsrs-bms-parser` | `Bms` |
+## Pipeline
+
+| Input | Processing | Output |
+|-------|------------|--------|
+| BMS bytes | `bmsrs-bms-source`, `bmsrs-bms-syntax`, `bmsrs-bms-parser` | `Bms` |
 | `Bms` | `bmsrs-bms-processor` | `Chart` |
-| BMSON JSON | `bmsrs-bmson-def`、`bmsrs-bmson-processor` | `Chart` |
-| `Chart` | `bmsrs-player` | 时间轴查询 |
+| BMSON JSON | `bmsrs-bmson-def`, `bmsrs-bmson-processor` | `Chart` |
+| `Chart` | `bmsrs-player` | timeline queries |
 
-`bmsrs-bms-analysis` 直接消费 CST，提供诊断、符号索引与编辑器数据。
-`bmsrs-bms-writer` 把 `Bms` 规范化重写为 BMS 文本。
+`bmsrs-bms-analysis` consumes the CST directly, providing diagnostics, a symbol index,
+and editor data. `bmsrs-bms-writer` rewrites `Bms` canonically as BMS text.
 
-## Crate 一览
+## Crates
 
-| Crate | 职责 |
-|-------|------|
-| `bmsrs-bms-source` | BMS 源文本层：字节、编码、行索引、字节保真编辑 |
-| `bmsrs-bms-syntax` | BMS 语法层：rowan CST、词法、控制流查询 |
-| `bmsrs-bms-values` | BMS 单行语法与类型化值 |
-| `bmsrs-bms-parser` | BMS 语义层：CST 转换为 `Bms` |
-| `bmsrs-bms-processor` | `Bms` 转换为 `Chart` |
-| `bmsrs-bms-writer` | `Bms` 规范化重写为 BMS 文本 |
-| `bmsrs-bms-analysis` | 诊断、符号索引与编辑器数据 |
-| `bmsrs-bmson-def` | BMSON v0、v1、v2 类型定义 |
-| `bmsrs-bmson-processor` | `Bmson` 转换为 `Chart` |
-| `bmsrs-chart` | 格式无关的 `Chart<T>` 中央 IR |
-| `bmsrs-player` | `Chart` 的纯仿真层 |
-| `bmsrs` | 公共 re-export facade |
+| Crate | Responsibility |
+|-------|----------------|
+| `bmsrs-bms-source` | BMS source-text layer: bytes, encoding, line index, byte-faithful editing |
+| `bmsrs-bms-syntax` | BMS syntax layer: rowan CST, lexing, control-flow queries |
+| `bmsrs-bms-values` | BMS single-line syntax and typed values |
+| `bmsrs-bms-parser` | BMS semantic layer: CST to `Bms` |
+| `bmsrs-bms-processor` | `Bms` to `Chart` |
+| `bmsrs-bms-writer` | canonical rewrite of `Bms` as BMS text |
+| `bmsrs-bms-analysis` | diagnostics, symbol index, and editor data |
+| `bmsrs-bmson-def` | BMSON v0, v1, and v2 type definitions |
+| `bmsrs-bmson-processor` | `Bmson` to `Chart` |
+| `bmsrs-chart` | format-agnostic `Chart<T>` central IR |
+| `bmsrs-player` | pure simulation layer for `Chart` |
+| `bmsrs` | public re-export facade |
 
-## 快速开始
+## Quick start
 
-`0.1.0` 尚未发布。当前请使用 git 依赖：
+`0.1.0` has not been released. Use a git dependency for now:
 
 ```toml
 [dependencies]
 bmsrs = { git = "https://github.com/brightmeows/bmsrs" }
 ```
 
-### BMS 到播放器
+### BMS to Player
 
 ```rust
 use std::time::Duration;
@@ -75,9 +80,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`from_bytes` 的第二个参数是 `#RANDOM` 与 `#SWITCH` 的分支选择函数。示例固定选择第一个分支；已经是 UTF-8 文本时可改用 `from_text`。
+The second argument of `from_bytes` is the branch-selection function for
+`#RANDOM` and `#SWITCH`. The example always picks the first branch; use
+`from_text` when the input is already UTF-8.
 
-### BMSON 到 Chart
+### BMSON to Chart
 
 ```rust
 use bmsrs::bmson::def::Bmson;
@@ -92,11 +99,12 @@ fn load(json: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-需要在项目中自行添加 `serde_json`。v0 与 v1 文件先通过 `Bmson::from` 升版到 v2。
+Add `serde_json` to your project. v0 and v1 files are upgraded to v2 through
+`Bmson::from` first.
 
-## 开发
+## Development
 
-常用检查：
+Common checks:
 
 ```bash
 cargo fmt --all --check
@@ -105,22 +113,24 @@ cargo test --workspace --quiet
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-提交前运行全部 hook：
+Run every hook before committing:
 
 ```bash
 pre-commit run --all-files
 ```
 
-播放器热路径基准：
+Player hot-path benchmarks:
 
 ```bash
 cargo bench -p bmsrs-player
 ```
 
-CI 还会运行 `cargo deny check` 与 MSRV 1.95 检查。
+CI also runs `cargo deny check` and an MSRV 1.95 check.
 
-各 crate 的职责与开发约定记录在 `AGENTS.md`。子目录规则见 `bms/AGENTS.md`、`bmson/AGENTS.md` 与 `common/AGENTS.md`。
+Crate responsibilities and development conventions are documented in
+`AGENTS.md`. Subdirectory rules live in `bms/AGENTS.md`, `bmson/AGENTS.md`, and
+`common/AGENTS.md`.
 
-## 许可证
+## License
 
-Apache-2.0，见 [`LICENSE`](LICENSE)。
+Apache-2.0, see [`LICENSE`](LICENSE).

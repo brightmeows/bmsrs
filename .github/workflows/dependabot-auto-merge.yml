@@ -13,7 +13,7 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    # 只处理 Dependabot 的 PR
+    # Only handle Dependabot PRs.
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Fetch Dependabot metadata
@@ -23,20 +23,25 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Skip major updates
-        # major 留人工：semver 不是风险模型，必过检查抓不到运行时行为变化，
-        # 构建工具与框架的 major 尤其。跳过时 PR 保持打开等手动合并；特定
-        # 依赖的挂起版本用 dependabot.yml 的 ignore 挡在 PR 开出之前，与本
-        # 闸门互补。major 的安全更新同样留人工，宁多看一眼。
+        # Major updates stay manual: semver is not a risk model, and required
+        # checks cannot catch runtime behavior changes, especially for build tools
+        # and frameworks. When skipped, the PR stays open for manual merge;
+        # pending versions of specific dependencies are blocked earlier by
+        # dependabot.yml's ignore rules, complementing this gate. Major security
+        # updates also stay manual; one extra look is worth it.
         if: steps.metadata.outputs.update-type == 'version-update:semver-major'
         run: echo "major bump on ${{ steps.metadata.outputs.dependency-names }}, leaving for manual merge"
 
       - name: Enable auto-merge
-        # patch/minor 与安全更新自动合并。等待由 GitHub 服务端承担：ruleset
-        # 的必过检查全过后自动执行合并，不在 runner 上轮询（那会引入 600s
-        # 超时失败模式与多 run 启用竞态）。版本缺失等未知形态（update-type
-        # 为空）按非 major 放行，不卡队列。
-        # 仓库仅允许 merge commit（allow_squash_merge=false），故用 --merge。
-        # PR 有冲突时启用会失败，dependabot rebase 触发 synchronize 后重试。
+        # Patch/minor and security updates merge automatically. Waiting is handled
+        # by GitHub's server: once the ruleset's required checks pass, the merge
+        # runs automatically without polling on the runner (which would introduce
+        # a 600s timeout failure mode and races between runs). Unknown shapes such
+        # as missing update-type are treated as non-major and do not block the
+        # queue.
+        # The repository only allows merge commits (allow_squash_merge=false), so
+        # --merge is used. Enabling fails when the PR has conflicts; retry after
+        # dependabot rebase triggers synchronize.
         if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: |
           enabled=$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest != null')

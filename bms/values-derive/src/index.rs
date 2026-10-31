@@ -1,16 +1,20 @@
-//! `#[derive(BmsIndex)]` proc-macro ——为 BMS 索引 newtype 生成标准 trait 实现。
+//! `#[derive(BmsIndex)]` proc-macro: generates the standard trait
+//! implementations for a BMS index newtype.
 //!
-//! 输入：单字段元组结构体如 `WavIndex(pub BmsIndex)`。
-//! 输出：`Clone`、`Copy`、`Debug`、`PartialEq`、`Eq`、`PartialOrd`、`Ord`、
-//! `Hash`、`Deref`、`Display`、`From<Inner>`、`FromStr`、`TryFrom<&str>` 的实现。
+//! Input: a single-field tuple struct such as `WavIndex(pub BmsIndex)`.
+//! Output: implementations of `Clone`, `Copy`, `Debug`, `PartialEq`, `Eq`,
+//! `PartialOrd`, `Ord`, `Hash`, `Deref`, `Display`, `From<Inner>`, `FromStr`,
+//! and `TryFrom<&str>`.
 
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
-/// 为 BMS 索引 newtype 生成标准 trait 实现的内部函数。
+/// Internal function that generates the standard trait implementations for a
+/// BMS index newtype.
 ///
-/// 由 `lib.rs` 中的 `#[proc_macro_derive(BmsIndexNewtype)]` 门面转发至此。
+/// Forwarded from the `#[proc_macro_derive(BmsIndexNewtype)]` facade in
+/// `lib.rs`.
 #[expect(
     clippy::too_many_lines,
     reason = "single function generates 13 trait impls; splitting would not improve clarity"
@@ -19,7 +23,7 @@ pub fn derive_bms_index_impl(ts: TokenStream) -> TokenStream {
     let input = parse_macro_input!(ts as DeriveInput);
     let name = &input.ident;
 
-    // 提取内部类型（元组结构体的第一个字段）
+    // Extract the inner type (the first field of the tuple struct).
     let inner = match &input.data {
         syn::Data::Struct(ds) => match &ds.fields {
             syn::Fields::Unnamed(f)

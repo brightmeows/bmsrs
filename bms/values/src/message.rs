@@ -1,104 +1,106 @@
-//! BMS 消息（通道数据）行解析。
+//! BMS message (channel data) line parsing.
 //!
-//! # 格式
+//! # Format
 //!
-//! 通道数据行形式为 `#ADDR:body`，其中：
+//! Channel data lines have the form `#ADDR:body`, where:
 //!
-//! - `ADDR` 是一个字符串，由**小节**（数字位，0 起索引）
-//!   后接**通道**（最后 1–2 个有效的 Base62 字符
-//!   （`0-9A-Za-z`））组成。例如在 `#00111:...` 中，
-//!   地址 `00111` 的小节为 `001`、通道为 `11`。
-//! - `body` 是原始值字符串——2 字符的对象索引由
-//!   下游（解析器）从拼接的原始存储中解析。
-//!   未知或扩展通道（如 `SC`、`SP`、`1G`）保存在
-//!   [`channel`](BmsMessage::channel) 字段与原始存储中。
+//! - `ADDR` is a string made of a **measure** (decimal digits, zero-based)
+//!   followed by a **channel** (the last one or two valid Base62 characters,
+//!   `0-9A-Za-z`). For example, in `#00111:...`, address `00111` has measure
+//!   `001` and channel `11`.
+//! - `body` is the raw value string. Two-character object indices are parsed
+//!   downstream (by the parser) from the concatenated raw storage. Unknown or
+//!   extended channels (such as `SC`, `SP`, `1G`) are kept in the
+//!   [`channel`](BmsMessage::channel) field and in the raw storage.
 //!
-//! # 通道语义（节选）
+//! # Channel semantics (excerpt)
 //!
-//! 完整的通道映射是解析器的职责——此表仅列出最常见的通道供参考：
+//! The full channel map is the parser's responsibility; this table only lists
+//! the most common channels for reference:
 //!
-//! | 通道 | 用途 |
+//! | Channel | Purpose |
 //! |---------|---------|
-//! | `01` | BGM（可跨多行）|
-//! | `02` | 小节长度变更 |
-//! | `03` | BPM 变更（十六进制整数，`[01-FF]`）|
-//! | `04` | BGA BASE 图层 |
-//! | `06` | BGA POOR（miss）图层 |
-//! | `07` | BGA LAYER（黑色 = 透明）|
-//! | `08` | 扩展 BPM 变更 |
-//! | `09` | STOP 序列 |
-//! | `0A` | BGA LAYER2（SCROLL）|
-//! | `11-19` | 1P 可见音符 |
-//! | `21-29` | 2P 可见音符 |
-//! | `31-39` | 1P 不可见音符 |
-//! | `41-49` | 2P 不可见音符 |
-//! | `51-69` | 长音通道 |
-//! | `D1-D9` | 1P 地雷 |
-//! | `E1-E9` | 2P 地雷 |
-//! | `SC` | SCROLL（扩展）|
-//! | `SP` | SPEED（扩展）|
+//! | `01` | BGM (may span multiple lines) |
+//! | `02` | Measure length change |
+//! | `03` | BPM change (hexadecimal integer, `[01-FF]`) |
+//! | `04` | BGA BASE layer |
+//! | `06` | BGA POOR (miss) layer |
+//! | `07` | BGA LAYER (black means transparent) |
+//! | `08` | Extended BPM change |
+//! | `09` | STOP sequence |
+//! | `0A` | BGA LAYER2 (SCROLL) |
+//! | `11-19` | 1P visible notes |
+//! | `21-29` | 2P visible notes |
+//! | `31-39` | 1P invisible notes |
+//! | `41-49` | 2P invisible notes |
+//! | `51-69` | Long-note channels |
+//! | `D1-D9` | 1P mines |
+//! | `E1-E9` | 2P mines |
+//! | `SC` | SCROLL (extension) |
+//! | `SP` | SPEED (extension) |
 //!
-//! # 示例
+//! # Example
 //!
 //! ```text
-//! #00111:11223344 → addr="00111", body="11223344"
-//!                    track=1, channel="11"
-//! #0010A:01       → addr="0010A", body="01"
-//!                    track=1, channel="0A"
-//! #000SC:         → addr="000SC", body=""
-//!                    track=0, channel="SC"
+//! #00111:11223344  addr="00111", body="11223344"
+//!                  track=1, channel="11"
+//! #0010A:01        addr="0010A", body="01"
+//!                  track=1, channel="0A"
+//! #000SC:          addr="000SC", body=""
+//!                  track=0, channel="SC"
 //! ```
 
 use crate::channel::{BmsChannel, classify_channel};
 use crate::index::{ChannelIndex, is_base62};
 use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
 
-/// BMS 文件中的通道数据行（`#ADDR:body`）。
+/// A channel data line in a BMS file (`#ADDR:body`).
 ///
-/// 格式描述见模块级文档。
+/// See the module-level documentation for the format.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BmsMessage {
-    /// 原始地址字符串（`:` 之前）。
+    /// Raw address string (before `:`).
     pub addr: String,
-    /// 原始正文字符串（`:` 之后）。
+    /// Raw body string (after `:`).
     pub body: String,
 
-    /// 0 起索引的小节号，从 [`addr`](BmsMessage::addr) 中
-    /// 通道后缀之前的数字位提取。
+    /// Zero-based measure number, extracted from the decimal digits in
+    /// [`addr`](BmsMessage::addr) before the channel suffix.
     track: u16,
-    /// 通道号——[`addr`](BmsMessage::addr) 中最后 1–2 个有效的 Base62 字符
-    /// （`0-9A-Za-z`），归类为 [`BmsChannel`] 枚举。
+    /// Channel number: the last one or two valid Base62 characters
+    /// (`0-9A-Za-z`) in [`addr`](BmsMessage::addr), classified into the
+    /// [`BmsChannel`] enum.
     channel: BmsChannel,
 }
 
 impl BmsMessage {
-    /// 返回 0 起索引的小节号。
+    /// Return the zero-based measure number.
     #[inline]
     #[must_use]
     pub const fn track(&self) -> u16 {
         self.track
     }
 
-    /// 返回解析后的通道号。
+    /// Return the parsed channel number.
     #[inline]
     #[must_use]
     pub const fn channel(&self) -> BmsChannel {
         self.channel
     }
 
-    /// 由部件构造一条消息行。
+    /// Construct a message line from its parts.
     ///
-    /// 行级编辑器在重打包通道数据时用此方法重建
-    /// [`BmsMessage`]，与 [`parse_message_line`](crate::parse_message_line)
-    /// 构成解包/打包的互逆面。
+    /// Line-level editors use this to rebuild a [`BmsMessage`] when repacking
+    /// channel data, forming the unpack/pack inverse of
+    /// [`parse_message_line`](crate::parse_message_line).
     ///
-    /// `channel` 须为 1–2 字符的 Base62 标识符；小写输入在
-    /// 构造时规范化为大写，与解析行为一致。
+    /// `channel` must be a 1-2 character Base62 identifier; lowercase input is
+    /// normalized to uppercase at construction, matching parse behavior.
     ///
     /// # Errors
     ///
-    /// 若 `channel` 不是有效的 Base62 通道号，返回
-    /// [`BmsTokenizeError::InvalidChannel`]。
+    /// Returns [`BmsTokenizeError::InvalidChannel`] when `channel` is not a
+    /// valid Base62 channel number.
     pub fn compose(
         track: u16,
         channel: &str,
@@ -120,19 +122,22 @@ impl BmsMessage {
         })
     }
 
-    /// 格式化为单行文本（`#ADDR:body`）。
+    /// Format as a single line of text (`#ADDR:body`).
     ///
-    /// 地址以 3 位零填充小节号加规范化（大写）通道号输出；
-    /// `body` 原样输出。供行级编辑写回使用。
+    /// The address is emitted as a 3-digit zero-padded measure followed by the
+    /// normalized (uppercase) channel number; `body` is emitted verbatim. Used
+    /// by line-level editing when writing back.
     #[must_use]
     pub fn to_line_text(&self) -> String {
         format!("#{}:{}", self.addr, self.body)
     }
 
-    /// 将 2 字符对象索引序列打包为通道行正文字符串。
+    /// Pack a sequence of 2-character object indices into a channel body
+    /// string.
     ///
-    /// 打包即按序拼接；每个值须恰为 2 字符，调用方负责
-    /// 保证槽位数与分辨率一致。
+    /// Packing is concatenation in order; each value must be exactly 2
+    /// characters, and the caller is responsible for keeping the slot count
+    /// consistent with the resolution.
     #[must_use]
     pub fn encode_body<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
         values.into_iter().collect()
@@ -151,17 +156,17 @@ impl TryFrom<BmsToken> for BmsMessage {
     }
 }
 
-/// 尝试将单行解析为 BMS 通道消息。
+/// Try to parse a single line as a BMS channel message.
 ///
-/// 若该行看起来不像通道消息（例如是头部、注释或空行），
-/// 返回 `Ok(None)`。
-/// 若该行看起来像通道消息但没有有效的通道后缀，
-/// 返回 `Err(...)`。
+/// Returns `Ok(None)` when the line does not look like a channel message (for
+/// example, a header, comment, or blank line). Returns `Err(...)` when the line
+/// looks like a channel message but has no valid channel suffix.
 ///
 /// # Errors
 ///
-/// 当地址在通道位置含有非 Base62 字符，或通道后缀不可识别时，
-/// 返回 [`BmsTokenizeError::InvalidChannel`]。
+/// Returns [`BmsTokenizeError::InvalidChannel`] when the address contains a
+/// non-Base62 character at the channel position, or the channel suffix is
+/// unrecognized.
 #[expect(
     clippy::string_slice,
     reason = "BMS message lines are ASCII-only (hex digits, Base62 chars, colons); byte indexing is safe"
@@ -171,26 +176,27 @@ pub fn parse_message_line(line: &str) -> Result<Option<BmsMessage>, BmsTokenizeE
         return Ok(None);
     }
 
-    // 至少需要：# + 1 字符 + :  （如 "#1:"）
+    // Needs at least: `#` + 1 character + `:` (for example, `"#1:"`).
     if line.len() < 3 {
         return Ok(None);
     }
 
-    let rest = &line[1..]; // 去掉 '#'
+    let rest = &line[1..]; // Strip the leading `#`.
 
-    // 在 ':' 处拆分得到 addr 与 body
+    // Split at `:` into addr and body.
     let Some((addr, body)) = rest.split_once(':') else {
-        return Ok(None); // 无冒号——非消息行
+        return Ok(None); // No colon: not a message line.
     };
 
     if addr.is_empty() || !addr.as_bytes().first().is_some_and(u8::is_ascii_digit) {
-        // addr 必须以数字开头（小节号前缀）才能算作消息行；
-        // 否则是像 #SWBGA01 30:... 这样恰好含冒号的头部。
+        // addr must start with a digit (the measure prefix) to count as a
+        // message line; otherwise this is a header that happens to contain a
+        // colon, such as `#SWBGA01 30:...`.
         return Ok(None);
     }
 
-    // 从 addr 末尾解析通道：
-    // 取最后 1–2 个连续的有效 Base62 字符。
+    // Parse the channel from the end of addr:
+    // take the last one or two consecutive valid Base62 characters.
     #[expect(
         clippy::indexing_slicing,
         reason = "addr is non-empty (checked above); `len` guards indices"
@@ -216,8 +222,8 @@ pub fn parse_message_line(line: &str) -> Result<Option<BmsMessage>, BmsTokenizeE
         }
     };
 
-    // 规范化为大写；通道 ID 大小写不敏感，以 Base36
-    // （大写字母数字）存储。
+    // Normalize to uppercase; channel IDs are case-insensitive and stored as
+    // Base36 (uppercase alphanumerics).
     let channel_upper = channel_str.to_ascii_uppercase();
     let channel_idx: ChannelIndex =
         channel_upper
@@ -228,8 +234,8 @@ pub fn parse_message_line(line: &str) -> Result<Option<BmsMessage>, BmsTokenizeE
             })?;
     let channel = classify_channel(channel_idx);
 
-    // 小节：从 prefix 提取所有 ASCII 数字字符，构建 u16。
-    // 0 起索引；空 prefix → track = 0。
+    // Measure: extract all ASCII digits from prefix and build a u16.
+    // Zero-based; an empty prefix means track = 0.
     let track: u16 = prefix
         .chars()
         .filter(char::is_ascii_digit)

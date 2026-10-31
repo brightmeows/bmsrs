@@ -1,12 +1,15 @@
-# bmson/ — BMSON 格式解析管道
+# bmson/: BMSON format parsing pipeline
 
-## 定位
+## Role
 
-BMSON（BMS 的 JSON 序列化格式）解析管道。`.bmson` JSON 经解析、类型定义、转换三阶段生成格式无关的 `Chart<T>`。
+Pipeline for parsing BMSON (the JSON serialization of BMS). `.bmson` JSON goes
+through parsing, type definitions, and conversion to produce a format-agnostic
+`Chart<T>`.
 
-核心设计理念：播放器运行时对音频切片，无需制谱者预切音效。
+Core design idea: the player slices audio at runtime, so chart authors do not
+need to pre-cut sound effects.
 
-## 管道
+## Pipeline
 
 ```mermaid
 flowchart LR
@@ -15,37 +18,33 @@ flowchart LR
     Proc --> Chart["Chart&lt;T&gt;"]
 ```
 
-| 阶段 | Crate | 职责 |
-|------|-------|------|
-| 类型定义 + 反序列化 | `bmsrs-bmson-def` | BMSON 纯数据模型（v0/v1/v2），支持 serde 反序列化 |
-| 转换 | `bmsrs-bmson-processor` | `Bmson` (v2) → `Chart` |
+| Stage | Crate | Responsibility |
+|-------|-------|----------------|
+| Type definition and deserialization | `bmsrs-bmson-def` | pure BMSON data model (v0/v1/v2) with serde deserialization |
+| Conversion | `bmsrs-bmson-processor` | `Bmson` (v2) to `Chart` |
 
-## 版本模型
+## Version model
 
-bmson 有三个 schema 版本：v0.21、v1.0、v2.0。v2 是 root schema——
-v0/v1 必须先通过 `Bmson::from` / `TryFrom` 升版到 v2 才能被 processor 处理。
+bmson has three schema versions: v0.21, v1.0, and v2.0. v2 is the root schema;
+v0/v1 must first be upgraded to v2 through `Bmson::from` / `TryFrom` before the
+processor can handle them.
 
-## 设计原则
+## Design principles
 
-| 原则 | 含义 |
-|------|------|
-| 类型定义与解析合一 | `bmsrs-bmson-def` 直接通过 `serde` 支持 JSON 反序列化，无需独立解析层 |
-| 模式族解耦 | `BmsonLayout` 零大小类型解耦键位映射，`mode_hint` 决定分发 |
-| 音频预切片 | `SoundChannel` 在启动时预切片为 `AudioAsset` 数组，运行时按索引查 |
+| Principle | Meaning |
+|-----------|---------|
+| Type definition and parsing combined | `bmsrs-bmson-def` supports JSON deserialization directly through `serde`, with no separate parsing layer |
+| Mode families decoupled | `BmsonLayout` zero-sized types decouple key mapping; `mode_hint` decides dispatch |
+| Audio pre-slicing | `SoundChannel` is pre-sliced at startup into an array of `AudioAsset`s, looked up by index at runtime |
 
-## 领域术语
-
-BMSON 字段、schema 版本差异等术语参照 **bmson skill**（`~/.agents/skills/bmson/`）。
-该 skill 是索引——具体字段语义须查阅其 `spec/`、`ext/` 子目录。
-
-## 测试
+## Tests
 
 ```bash
 cargo test -p bmsrs-bmson-def
 cargo test -p bmsrs-bmson-processor
 ```
 
-## 示例
+## Example
 
 ```bash
 cargo run --example bmson_parser -p bmsrs-bmson-def

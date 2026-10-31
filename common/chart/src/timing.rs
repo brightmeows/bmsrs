@@ -1,25 +1,27 @@
-//! 用于脉冲 ↔ Duration 换算的计时轨。
+//! Timing track for tick to `Duration` conversion.
 //!
-//! [`TimingTrack`] 持有初始 BPM、BPM 变更事件与停止事件。它提供
-//! [`TimingTrack::tick_to_duration`] 与 [`TimingTrack::duration_to_tick`]
-//! 用于在谱面位置（脉冲）与实际时间（[`Duration`]）之间换算。
+//! [`TimingTrack`] holds the initial BPM, BPM change events, and stop events. It
+//! provides [`TimingTrack::tick_to_duration`] and
+//! [`TimingTrack::duration_to_tick`] for conversion between chart positions
+//! (ticks) and wall-clock time ([`Duration`]).
 //!
-//! 内部计算使用 `f64` 运算（BPM 值本质上是浮点数）。`f64` ↔ [`Duration`]
-//! 的转换仅发生在公开 API 边界处，通过 [`Duration::from_secs_f64`] 与
-//! [`Duration::as_secs_f64`] 完成。
+//! Internal computation uses `f64` arithmetic (BPM values are inherently
+//! floating point). `f64` to [`Duration`] conversion happens only at public API
+//! boundaries, through [`Duration::from_secs_f64`] and
+//! [`Duration::as_secs_f64`].
 
 use std::time::Duration;
 
-/// `TimingTrack` 构造或验证时发生的错误。
+/// Errors that occur during `TimingTrack` construction or validation.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum TimingTrackError {
-    /// 初始 BPM 无效（必须为非零有限值）。
+    /// Initial BPM is invalid (must be non-zero and finite).
     InvalidBpm {
-        /// 无效的 BPM 值。
+        /// Invalid BPM value.
         bpm: f64,
     },
-    /// 节拍分辨率 `resolution` 为零（必须为正）。
+    /// Beat resolution `resolution` is zero (must be positive).
     ZeroResolution,
 }
 
@@ -37,7 +39,8 @@ impl std::fmt::Display for TimingTrackError {
 impl std::error::Error for TimingTrackError {}
 
 impl TimingTrackError {
-    /// 返回导致错误的 BPM 值；[`ZeroResolution`](Self::ZeroResolution) 时返回 `0.0`。
+    /// Return the BPM value that caused the error; returns `0.0` for
+    /// [`ZeroResolution`](Self::ZeroResolution).
     #[must_use]
     pub const fn bpm(&self) -> f64 {
         match self {
@@ -47,118 +50,123 @@ impl TimingTrackError {
     }
 }
 
-/// 用于将脉冲位置换算为实际时间的计时信息。
+/// Timing information for converting tick positions into wall-clock time.
 ///
-/// 所有事件都在绝对脉冲位置上。处理器负责将格式特有的位置
-/// （BMSON 脉冲、BMS 小节）换算为脉冲。
+/// All events are at absolute tick positions. Processors convert format-specific
+/// positions (BMSON ticks, BMS measures) into ticks.
 ///
-/// 内部使用预计算的 BPM 段与停止累积和，所有查询均为 O(log n)。
+/// Internally uses precomputed BPM segments and a stop cumulative sum, making
+/// every query O(log n).
 #[derive(Clone, Debug)]
 pub struct TimingTrack {
-    /// 脉冲 0 处的初始 BPM。
+    /// Initial BPM at tick 0.
     pub(crate) init_bpm: f64,
-    /// 每个四分音符的脉冲数（节拍分辨率）。
+    /// Ticks per quarter note (beat resolution).
     resolution: u64,
-    /// BPM 变更事件，按脉冲升序排列。
+    /// BPM change events, sorted ascending by tick.
     pub(crate) bpm_changes: Vec<BpmChange>,
-    /// 停止（暂停）事件，按脉冲升序排列。
+    /// Stop (pause) events, sorted ascending by tick.
     pub(crate) stops: Vec<StopEvent>,
-    /// 按 `start_tick` 排序的 BPM 段。
+    /// BPM segments sorted by `start_tick`.
     bpm_segments: Vec<BpmSegment>,
-    /// 已排序的 `(stop_tick, cumulative_pause_seconds)` 配对。
+    /// Sorted `(stop_tick, cumulative_pause_seconds)` pairs.
     stop_cumsum: Vec<(u64, f64)>,
-    /// `duration_to_tick` 的逆查找段（按 `sec_lo` 升序）。
+    /// Inverse lookup segments for `duration_to_tick` (ascending by `sec_lo`).
     inv: Vec<InvSeg>,
 }
 
 impl TimingTrack {
-    /// 返回初始 BPM。
+    /// Return the initial BPM.
     #[must_use]
     pub const fn init_bpm(&self) -> f64 {
         self.init_bpm
     }
 
-    /// 返回 BPM 变更事件切片。
+    /// Return the BPM change events slice.
     ///
-    /// 无效 BPM 变更在构造时被丢弃，返回值只包含生效变更。
+    /// Invalid BPM changes are dropped at construction, so the returned slice
+    /// contains only effective changes.
     #[must_use]
     pub fn bpm_changes(&self) -> &[BpmChange] {
         &self.bpm_changes
     }
 
-    /// 返回停止事件切片。
+    /// Return the stop events slice.
     #[must_use]
     pub fn stops(&self) -> &[StopEvent] {
         &self.stops
     }
 
-    /// 返回节拍分辨率。
+    /// Return the beat resolution.
     #[must_use]
     pub const fn resolution(&self) -> u64 {
         self.resolution
     }
 }
 
-/// BPM 变更事件。
+/// BPM change event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BpmChange {
-    /// BPM 发生变更的脉冲位置。
+    /// Tick position where the BPM changes.
     pub tick: u64,
-    /// 新的 BPM（每分钟拍数）。
+    /// New BPM (beats per minute).
     pub bpm: f64,
 }
 
 impl BpmChange {
-    /// 判断 BPM 值是否有效（有限且非零）。
+    /// Return whether a BPM value is valid (finite and non-zero).
     ///
-    /// 无效值（`0.0`、`NaN`、`±Inf`）的 BPM 变更在计时轨构造时被丢弃，
-    /// 并保持上一个有效 BPM 不变——与 beatoraja 行为一致。两侧 processor
-    /// 也共用本谓词，保证计时轨与统一事件流的过滤语义一致。
+    /// BPM changes with invalid values (`0.0`, `NaN`, `+/-Inf`) are dropped during
+    /// timing track construction, keeping the previous valid BPM, matching
+    /// beatoraja behavior. Both processors share this predicate so the timing
+    /// track and the unified event stream filter identically.
     #[must_use]
     pub const fn is_valid(bpm: f64) -> bool {
         bpm.is_finite() && bpm != 0.0
     }
 }
 
-/// 停止（暂停）事件。
+/// Stop (pause) event.
 ///
-/// 当回放到达 `tick` 时，滚动暂停 `duration` 个脉冲的时长（按当前 BPM
-/// 计算）。同一脉冲上的多个停止会累加。
+/// When playback reaches `tick`, scrolling pauses for `duration` ticks (computed
+/// with the current BPM). Multiple stops at the same tick accumulate.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StopEvent {
-    /// 停止开始的脉冲位置。
+    /// Tick position where the stop begins.
     pub tick: u64,
-    /// 时长（脉冲数）。
+    /// Duration in ticks.
     pub duration: u64,
 }
 
-/// 合并时间线的内部事件表示。
+/// Internal event representation for the merged timeline.
 #[derive(Clone, Copy, Debug)]
 enum TimingEvent {
-    /// BPM 变更 —— 与停止同脉冲时排在 Stop 之前。
+    /// BPM change; ordered before Stop when at the same tick.
     Bpm(f64),
-    /// 停止，时长以脉冲数表示。
+    /// Stop, with duration in ticks.
     Stop(u64),
 }
 
-/// 将秒数安全转换为 [`Duration`]，避免溢出 panic。
+/// Safely convert seconds into [`Duration`], avoiding overflow panics.
 ///
-/// 负值与 NaN 钳位为 [`Duration::ZERO`]，超出 [`Duration::MAX`] 的值
-/// 钳位为 [`Duration::MAX`]。正常范围内的值不受影响。
+/// Negative values and NaN clamp to [`Duration::ZERO`]; values above
+/// [`Duration::MAX`] clamp to [`Duration::MAX`]. Values in the normal range are
+/// unaffected.
 fn safe_from_secs_f64(secs: f64) -> Duration {
     Duration::try_from_secs_f64(secs.max(0.0)).unwrap_or(Duration::MAX)
 }
 
 impl TimingTrack {
-    /// 创建一个新的计时轨。
+    /// Create a new timing track.
     ///
-    /// 在构造时预计算所有内部段，后续查询为 O(log n)。
+    /// Precomputes all internal segments at construction; later queries are
+    /// O(log n).
     ///
     /// # Errors
     ///
-    /// - 若 `resolution == 0`，返回 [`TimingTrackError::ZeroResolution`]。
-    /// - 若 `init_bpm` 无效（零、NaN 或无穷大），返回
-    ///   [`TimingTrackError::InvalidBpm`]。
+    /// - Returns [`TimingTrackError::ZeroResolution`] when `resolution == 0`.
+    /// - Returns [`TimingTrackError::InvalidBpm`] when `init_bpm` is invalid
+    ///   (zero, NaN, or infinity).
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     pub fn new(
         init_bpm: f64,
@@ -175,10 +183,10 @@ impl TimingTrack {
 
         let res = resolution as f64;
 
-        // 在构造时一次性排序，避免下游 clone+sort。
+        // Sort once at construction to avoid clone+sort downstream.
         bpm_changes.sort_by_key(|bc| bc.tick);
-        // 无效 BPM 变更在存储前丢弃，使 bpm_changes() 与 bpm_at_tick
-        // 看到的集合一致；bpm_segments 仍按同一集合构建。
+        // Drop invalid BPM changes before storing so bpm_changes() and
+        // bpm_at_tick see the same set; bpm_segments is built from that same set.
         bpm_changes.retain(|bc| BpmChange::is_valid(bc.bpm));
         stops.sort_by_key(|s| s.tick);
 
@@ -215,7 +223,7 @@ impl TimingTrack {
             stop_cumsum.push((stop.tick, total_pause));
         }
 
-        // Build inv segments（bpm_changes 与 stops 已排序）
+        // Build inverse segments (bpm_changes and stops are already sorted).
         let inv = merge_inv(init_bpm, &bpm_changes, &stops, resolution);
 
         Ok(Self {
@@ -229,26 +237,28 @@ impl TimingTrack {
         })
     }
 
-    /// 创建仅含初始 BPM、无 BPM 变更和无停止的计时轨。
+    /// Create a timing track with only the initial BPM, no changes, and no
+    /// stops.
     ///
-    /// 等价于 `TimingTrack::new(bpm, vec![], vec![], resolution)`，但无需
-    /// 手动传递空向量，在测试和简单场景中更简洁。
+    /// Equivalent to `TimingTrack::new(bpm, vec![], vec![], resolution)` without
+    /// manually passing empty vectors; more concise in tests and simple cases.
     ///
     /// # Errors
     ///
-    /// 若 `init_bpm` 无效，返回 [`TimingTrackError::InvalidBpm`]。
-    /// 若 `resolution == 0`，返回 [`TimingTrackError::ZeroResolution`]。
+    /// Returns [`TimingTrackError::InvalidBpm`] when `init_bpm` is invalid, and
+    /// [`TimingTrackError::ZeroResolution`] when `resolution == 0`.
     pub fn simple(init_bpm: f64, resolution: u64) -> Result<Self, TimingTrackError> {
         Self::new(init_bpm, Vec::new(), Vec::new(), resolution)
     }
 
-    /// 将脉冲位置换算为实际时间 [`Duration`]。
+    /// Convert a tick position into wall-clock time [`Duration`].
     ///
-    /// 在带有停止事件的脉冲上，返回的时间是暂停**之前**的时刻
-    /// （依据 BMSON 规范，该脉冲上的音符在暂停之前激活）。
-    /// 严格位于目标脉冲之前的停止贡献其完整暂停时长。
+    /// At a tick with a stop event, the returned time is the moment **before**
+    /// the pause (per the BMSON specification, notes at that tick activate before
+    /// the pause). Stops strictly before the target tick contribute their full
+    /// pause duration.
     ///
-    /// 使用预计算段执行 O(log n) 二分查找。
+    /// Performs an O(log n) binary search over precomputed segments.
     #[must_use]
     #[expect(
         clippy::indexing_slicing,
@@ -257,7 +267,7 @@ impl TimingTrack {
     pub fn tick_to_duration(&self, tick: u64) -> Duration {
         let base = self.base_seconds_at_tick(tick);
 
-        // 目标脉冲之前（不含）的累积停止暂停。
+        // Cumulative stop pause strictly before the target tick.
         let stop_idx = self.stop_cumsum.partition_point(|(t, _)| *t < tick);
         let pause = if stop_idx > 0 {
             self.stop_cumsum[stop_idx - 1].1
@@ -268,18 +278,18 @@ impl TimingTrack {
         safe_from_secs_f64(base + pause)
     }
 
-    /// 将脉冲位置换算为不含 STOP 暂停的音乐时间。
+    /// Convert a tick position into musical time excluding STOP pauses.
     ///
-    /// 与 [`tick_to_duration`](Self::tick_to_duration) 的区别是排除
-    /// 目标脉冲之前所有 STOP 的暂停时长。音频切片使用本方法计算
-    /// `AudioAsset.start` 与 `duration`，因为 STOP 期间音频暂停，
-    /// 不应在源文件中跳过暂停对应的片段。
+    /// Unlike [`tick_to_duration`](Self::tick_to_duration), this excludes pause
+    /// durations of all STOPs before the target tick. Audio slicing uses this
+    /// method for `AudioAsset.start` and `duration` because audio pauses during a
+    /// STOP, so the paused segment should not be skipped in the source file.
     #[must_use]
     pub fn tick_to_musical_duration(&self, tick: u64) -> Duration {
         safe_from_secs_f64(self.base_seconds_at_tick(tick))
     }
 
-    /// 返回 `tick` 处不含 STOP 暂停的基准秒数。
+    /// Return the base seconds at `tick`, excluding STOP pauses.
     #[expect(
         clippy::cast_precision_loss,
         reason = "tick values fit in f64 mantissa for practical chart lengths"
@@ -298,12 +308,12 @@ impl TimingTrack {
         seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm.abs()
     }
 
-    /// 将实际时间 [`Duration`] 换算为最近的脉冲位置。
+    /// Convert wall-clock time [`Duration`] into the nearest tick position.
     ///
-    /// 这是 [`tick_to_duration`](Self::tick_to_duration) 的逆运算。
-    /// 停止中消耗的时间不会推进脉冲。
+    /// This is the inverse of [`tick_to_duration`](Self::tick_to_duration). Time
+    /// spent inside a stop does not advance ticks.
     ///
-    /// 在预计算的逆查找段上执行二分查找，复杂度为 O(log n)。
+    /// Performs a binary search over precomputed inverse segments, O(log n).
     #[must_use]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     #[expect(
@@ -328,18 +338,20 @@ impl TimingTrack {
         let seg = &self.inv[idx];
 
         if seg.bpm == 0.0 {
-            // 冻结段（停止内）：脉冲不推进。
+            // Frozen segment (inside a stop): ticks do not advance.
             return seg.tick;
         }
 
-        // 线性段内插值：dt 秒对应 dt * res * |bpm| / 60 个脉冲。
+        // Interpolate within a linear segment: dt seconds maps to
+        // dt * res * |bpm| / 60 ticks.
         let dt = target - seg.sec_lo;
         seg.tick + (dt * self.resolution as f64 * seg.bpm.abs() / 60.0).round() as u64
     }
 
-    /// 返回 `tick` 处生效的 BPM。
+    /// Return the BPM in effect at `tick`.
     ///
-    /// 委托 [`BpmLookup`]，与构造前的轻量查询共用同一实现。
+    /// Delegates to [`BpmLookup`], sharing the same implementation as the
+    /// pre-construction lightweight lookup.
     #[must_use]
     pub fn bpm_at_tick(&self, tick: u64) -> f64 {
         BpmLookup::new(self.init_bpm, &self.bpm_changes).bpm_at_tick(tick)
@@ -365,59 +377,64 @@ impl PartialEq for TimingTrack {
     }
 }
 
-// init_bpm 保证不含 NaN（构造时通过 TimingTrack::new 验证），因此
-// PartialEq 满足 Eq 的反射性要求。
+// init_bpm is guaranteed not to be NaN (validated by TimingTrack::new), so
+// PartialEq satisfies Eq's reflexivity requirement.
 impl Eq for TimingTrack {}
 
-/// 计时轨中 BPM 恒定的一段。
+/// A segment of the timing track with constant BPM.
 #[derive(Clone, Debug)]
 struct BpmSegment {
-    /// 本段起始的脉冲位置。
+    /// Starting tick of this segment.
     start_tick: u64,
-    /// `start_tick` 处的实际时间秒数（不含停止）。
+    /// Wall-clock seconds at `start_tick` (excluding stops).
     start_seconds: f64,
-    /// 本段内的 BPM。
+    /// BPM within this segment.
     bpm: f64,
 }
 
-/// `duration_to_tick` 逆查找的一段。
+/// One inverse-lookup segment for `duration_to_tick`.
 ///
-/// 将单调的 `total_seconds(tick)` 函数拆分为若干段：`BPM` 恒定的线性段
-/// （脉冲随时间推进）与停止冻结段（脉冲恒定、时间跳过停止时长）。
-/// 各段 `sec_lo` 严格递增，支持 O(log n) 二分查找。
+/// Splits the monotonic `total_seconds(tick)` function into segments: linear
+/// segments with constant BPM (ticks advance with time) and stop-frozen segments
+/// (ticks stay fixed while time skips the stop duration). Each segment's `sec_lo`
+/// is strictly increasing, enabling O(log n) binary search.
 #[derive(Clone, Debug)]
 struct InvSeg {
-    /// 本段起始的实际时间（秒）。
+    /// Wall-clock time at the start of this segment (seconds).
     sec_lo: f64,
-    /// `sec_lo` 处的脉冲位置。
+    /// Tick position at `sec_lo`.
     tick: u64,
-    /// 本段 BPM；`0.0` 表示冻结段（停止期间脉冲不推进）。
+    /// BPM of this segment; `0.0` means a frozen segment (ticks do not advance
+    /// during a stop).
     bpm: f64,
 }
 
-/// 在给定脉冲处快速查询生效 BPM 的轻量查找器。
+/// Lightweight lookup for querying the effective BPM at a given tick.
 ///
-/// 适用于需在构造 [`TimingTrack`] 之前查询 BPM 的场景（例如将 STP 毫秒
-/// 换算为脉冲），以及任何无须完整计时轨的一次性/低频查询。
+/// Suitable for querying BPM before constructing a [`TimingTrack`] (for example,
+/// converting STP milliseconds into ticks) and any one-off or low-frequency query
+/// that does not need a full timing track.
 ///
-/// 与 [`TimingTrack::bpm_at_tick`] 语义一致，但无须构造完整计时轨。
+/// Semantically identical to [`TimingTrack::bpm_at_tick`] without building a full
+/// timing track.
 #[derive(Clone, Debug)]
 pub struct BpmLookup<'a> {
-    /// 脉冲 0 处的初始 BPM。
+    /// Initial BPM at tick 0.
     init_bpm: f64,
-    /// BPM 变更事件，按 `tick` 升序排列。
+    /// BPM change events, sorted ascending by `tick`.
     bpm_changes: &'a [BpmChange],
 }
 
 impl BpmLookup<'_> {
-    /// 构造 `BpmLookup`。
+    /// Construct a `BpmLookup`.
     ///
-    /// `bpm_changes` 必须按 `tick` 升序排列（由调用方保证；
-    /// [`BpmChange`] 本身无排序不变量）。`init_bpm` **不做**有效性
-    /// 校验（与 [`TimingTrack::new`] 不同）：传入零/非有限值时
-    /// [`bpm_at_tick`](Self::bpm_at_tick) 会返回该无效值。调用方若
-    /// 依赖换算结果，须自行保证 `init_bpm` 有效；BMS 管道中
-    /// [`TimingTrack::new`] 在后续构造点完成最终校验。
+    /// `bpm_changes` must be sorted ascending by `tick` (the caller guarantees
+    /// this; [`BpmChange`] itself has no ordering invariant). `init_bpm` is
+    /// **not** validated (unlike [`TimingTrack::new`]): passing zero or a
+    /// non-finite value makes [`bpm_at_tick`](Self::bpm_at_tick) return that
+    /// invalid value. Callers that depend on conversion results must ensure
+    /// `init_bpm` is valid; in the BMS pipeline, [`TimingTrack::new`] performs
+    /// final validation at the later construction point.
     #[must_use]
     pub const fn new(init_bpm: f64, bpm_changes: &[BpmChange]) -> BpmLookup<'_> {
         BpmLookup {
@@ -426,13 +443,15 @@ impl BpmLookup<'_> {
         }
     }
 
-    /// 返回 `tick` 处生效的 BPM（不晚于 `tick` 的最后一次 BPM 变更）。
+    /// Return the BPM in effect at `tick` (the last BPM change at or before
+    /// `tick`).
     ///
-    /// 当 `tick` 早于所有 BPM 变更时返回构造时传入的 `init_bpm`。
+    /// Returns the `init_bpm` passed at construction when `tick` precedes every
+    /// BPM change.
     #[must_use]
     #[expect(
         clippy::indexing_slicing,
-        reason = "idx ≥ 1 由 match 分支保证，idx-1 必在界内"
+        reason = "the match arm guarantees idx >= 1, so idx-1 is in bounds"
     )]
     pub fn bpm_at_tick(&self, tick: u64) -> f64 {
         match self.bpm_changes.partition_point(|bc| bc.tick <= tick) {
@@ -442,7 +461,7 @@ impl BpmLookup<'_> {
     }
 }
 
-/// 二分查找 BPM 段，返回 `tick` 处生效的 BPM。
+/// Binary-search the BPM segments and return the BPM in effect at `tick`.
 #[expect(
     clippy::indexing_slicing,
     reason = "idx from saturating_sub on partition_point, always valid"
@@ -454,10 +473,10 @@ fn segment_bpm_at_tick(bpm_segments: &[BpmSegment], tick: u64) -> f64 {
     bpm_segments[idx].bpm
 }
 
-/// 合并已排序的 BPM 变更与停止事件。
+/// Merge sorted BPM change and stop events.
 ///
-/// 两输入均假设已按 `tick` 升序排序；同一脉冲上 BPM 排在 Stop 之前
-/// （"speed will first change, then the music pauses"）。
+/// Both inputs are assumed sorted ascending by `tick`; at the same tick, BPM
+/// comes before Stop ("speed will first change, then the music pauses").
 fn merge_sorted_events(bpm_changes: &[BpmChange], stops: &[StopEvent]) -> Vec<(u64, TimingEvent)> {
     let mut events = Vec::with_capacity(bpm_changes.len() + stops.len());
     let mut bpm_iter = bpm_changes.iter().peekable();
@@ -482,11 +501,13 @@ fn merge_sorted_events(bpm_changes: &[BpmChange], stops: &[StopEvent]) -> Vec<(u
     events
 }
 
-/// 构建 `duration_to_tick` 的逆查找段列表。
+/// Build the inverse lookup segments for `duration_to_tick`.
 ///
-/// 合并 BPM 变更与停止事件，按 `(tick, is_stop)` 升序遍历，累计实际时间
-/// 秒数，在每个断点记录 `(sec_lo, tick, bpm)`。停止产生一个 `bpm = 0.0` 的
-/// 冻结段，其后的线性段在同一脉冲以同 BPM 继续。
+/// Merges BPM changes and stop events, walks them ascending by
+/// `(tick, is_stop)`, accumulates wall-clock seconds, and records
+/// `(sec_lo, tick, bpm)` at each breakpoint. A stop produces a `bpm = 0.0` frozen
+/// segment, after which a linear segment continues at the same tick with the same
+/// BPM.
 #[expect(clippy::cast_precision_loss, reason = "tick/duration fit in f64")]
 fn merge_inv(
     init_bpm: f64,
@@ -546,7 +567,7 @@ mod tests {
 
     const RES: u64 = 240;
 
-    // 基本功能（新 TimingTrack 直接测试）
+    // Basic functionality (direct tests of the new TimingTrack)
 
     #[test]
     fn constant_bpm_tick_zero_is_zero() {
@@ -737,7 +758,7 @@ mod tests {
         assert_eq!(timing.tick_to_duration(1), Duration::MAX);
     }
 
-    // 构造错误
+    // Construction errors
 
     #[test]
     fn new_rejects_zero_init_bpm() {

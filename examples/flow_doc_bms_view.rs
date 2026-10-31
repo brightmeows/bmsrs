@@ -1,23 +1,25 @@
-//! 示例：在 rowan CST 上选择控制流分支并查看每轮结果。
+//! Example: select control-flow branches on a rowan CST and inspect each round.
 //!
-//! `SourceFile::select_lines` 保留所有分支的 CST，只按随机值返回选中行；
-//! `Bms::from_cst` 在同一份 CST 上做语义 lowering。本示例对同一份谱面
-//! 分别取随机值 1 和 2，展示两次选择的行与标题。
+//! `SourceFile::select_lines` keeps every branch in the CST and returns only the
+//! selected lines for a random value; `Bms::from_cst` performs semantic lowering
+//! on the same CST. This example evaluates the same chart with random values 1
+//! and 2, showing the selected lines and titles for each round.
 //!
-//! 运行方式：
+//! Run:
 //!
 //! ```sh
 //! cargo run --example flow_doc_bms_view
 //! ```
 
-// 示例的职责就是向 stdout 输出；工作区内禁用
-// `println!`（改用 `tracing`）的规则在此不适用。
+// This example's job is to print to stdout; the workspace rule that bans
+// `println!` in favor of `tracing` does not apply here.
 #![expect(clippy::print_stdout, reason = "example prints to stdout by design")]
 
 use bmsrs::bms::parser::Bms;
 use bmsrs::bms::syntax::SourceFile;
 
-/// 一份极小谱面：含一个 `#RANDOM` 块，两条分支各带自己的标题与通道消息。
+/// A minimal chart with one `#RANDOM` block; each branch has its own title and
+/// channel messages.
 const SOURCE: &str = "\
 #TITLE Demo
 #BPM 120

@@ -1,79 +1,80 @@
-//! bmsrs 工作区的重新导出门面。
+//! Re-export facade for the bmsrs workspace.
 //!
-//! 本 crate 聚合并重新导出各子 crate 的公共 API，
-//! 模块层级统一镜像工作区的目录结构。
-//! 整条管线的组装入口 [`bms::from_text`] / [`bms::from_bytes`] 也在此。
+//! This crate aggregates and re-exports the public APIs of the sub-crates; the
+//! module hierarchy mirrors the workspace directory structure. The whole-pipeline
+//! entry points [`bms::from_text`] / [`bms::from_bytes`] also live here.
 
-/// BMS 格式的解析与处理。
+/// Parsing and processing for the BMS format.
 pub mod bms {
     pub use parser::ErrorStrategy;
 
-    /// 整管线入口的错误。
+    /// Error type for the whole-pipeline entry points.
     #[derive(Debug, thiserror::Error)]
     pub enum FromTextError {
-        /// CST 语法或控制流结构错误。
+        /// CST syntax or control-flow structure error.
         #[error("syntax error at {range:?}: {message}")]
         Syntax {
-            /// 文本范围。
+            /// Text range.
             range: syntax::TextRange,
-            /// 错误消息。
+            /// Error message.
             message: String,
         },
-        /// 单行值解析错误。
+        /// Single-line value parse error.
         #[error("tokenization error at {range:?}: {error}")]
         Tokenize {
-            /// 文本范围。
+            /// Text range.
             range: syntax::TextRange,
-            /// 分词错误。
+            /// Tokenizer error.
             error: parser::BmsTokenizeError,
         },
-        /// 文档解码错误。
+        /// Document decode error.
         #[error("decode error at {range:?}: {error}")]
         Decode {
-            /// 文本范围。
+            /// Text range.
             range: syntax::TextRange,
-            /// 解码错误。
+            /// Decode error.
             error: source::TextDecodeError,
         },
     }
 
-    /// 整管线入口的非致命警告。
+    /// Non-fatal warnings from the whole-pipeline entry points.
     #[derive(Debug, Clone, PartialEq, thiserror::Error)]
     #[non_exhaustive]
     pub enum FromTextWarning {
-        /// CST 语法或控制流结构警告。
+        /// CST syntax or control-flow structure warning.
         #[error("syntax warning at {range:?}: {message}")]
         Syntax {
-            /// 文本范围。
+            /// Text range.
             range: syntax::TextRange,
-            /// 警告消息。
+            /// Warning message.
             message: String,
         },
-        /// 单行值解析失败，该行被跳过。
+        /// Single-line value parsing failed and the line was skipped.
         #[error("tokenization warning at {range:?}: {error}")]
         Tokenize {
-            /// 文本范围。
+            /// Text range.
             range: syntax::TextRange,
-            /// 分词错误。
+            /// Tokenizer error.
             error: parser::BmsTokenizeError,
         },
-        /// 文档解码失败。
+        /// Document decoding failed.
         #[error("decode warning at {range:?}: {error}")]
         Decode {
-            /// 文本范围。
+            /// Text range.
             range: syntax::TextRange,
-            /// 解码错误。
+            /// Decode error.
             error: source::TextDecodeError,
         },
     }
 
-    /// 由原始 BMS 文本构建 [`Bms`](parser::Bms)。
+    /// Build [`Bms`](parser::Bms) from raw BMS text.
     ///
-    /// 管道：CST 解析 → 控制流分支选择 → 单行值解析 → `Bms`。
+    /// Pipeline: CST parsing, control-flow branch selection, single-line value
+    /// parsing, then `Bms`.
     ///
     /// # Errors
     ///
-    /// `FailFast` 遇到首个 CST 或分词错误时返回 [`FromTextError`]。
+    /// `FailFast` returns [`FromTextError`] at the first CST or tokenizer error.
     pub fn from_text(
         text: &str,
         rng: impl FnMut(u64) -> u64,
@@ -82,11 +83,12 @@ pub mod bms {
         from_text_with(text, &syntax::ParseOptions::default(), rng, error_strategy)
     }
 
-    /// 使用解析选项由原始 BMS 文本构建 [`Bms`](parser::Bms)。
+    /// Build [`Bms`](parser::Bms) from raw BMS text with parse options.
     ///
     /// # Errors
     ///
-    /// `FailFast` 遇到首个 CST、分词或解码错误时返回 [`FromTextError`]。
+    /// `FailFast` returns [`FromTextError`] at the first CST, tokenizer, or
+    /// decode error.
     pub fn from_text_with(
         text: &str,
         options: &syntax::ParseOptions,
@@ -97,14 +99,17 @@ pub mod bms {
         from_document(&document, options, rng, error_strategy)
     }
 
-    /// 由原始 BMS 字节构建 [`Bms`](parser::Bms)，自动检测编码。
+    /// Build [`Bms`](parser::Bms) from raw BMS bytes, detecting the encoding
+    /// automatically.
     ///
-    /// 与 [`from_text`] 的区别是保留 `bmsrs-bms-source` 的编码检测与解码路径，
-    /// 适用于 `Shift_JIS` 等非 UTF-8 谱面。
+    /// Unlike [`from_text`], this preserves `bmsrs-bms-source`'s encoding
+    /// detection and decoding path, suitable for non-UTF-8 charts such as
+    /// `Shift_JIS`.
     ///
     /// # Errors
     ///
-    /// `FailFast` 遇到首个 CST、分词或解码错误时返回 [`FromTextError`]。
+    /// `FailFast` returns [`FromTextError`] at the first CST, tokenizer, or
+    /// decode error.
     pub fn from_bytes(
         bytes: Vec<u8>,
         rng: impl FnMut(u64) -> u64,
@@ -118,11 +123,13 @@ pub mod bms {
         )
     }
 
-    /// 使用文档解码选项由原始 BMS 字节构建 [`Bms`](parser::Bms)。
+    /// Build [`Bms`](parser::Bms) from raw BMS bytes with document decoding
+    /// options.
     ///
     /// # Errors
     ///
-    /// `FailFast` 遇到首个 CST、分词或解码错误时返回 [`FromTextError`]。
+    /// `FailFast` returns [`FromTextError`] at the first CST, tokenizer, or
+    /// decode error.
     pub fn from_bytes_with(
         bytes: Vec<u8>,
         document_options: &source::DocumentOptions,
@@ -138,7 +145,7 @@ pub mod bms {
         )
     }
 
-    /// 从已构建的文档跑完整语义管道。
+    /// Run the full semantic pipeline from an already-built document.
     fn from_document(
         document: &source::Document,
         options: &syntax::ParseOptions,
@@ -153,7 +160,7 @@ pub mod bms {
         ))
     }
 
-    /// 把解析层警告转换为 facade 警告。
+    /// Convert a parser-layer warning into a facade warning.
     fn from_cst_warning(warning: parser::CstWarning) -> FromTextWarning {
         match warning.kind {
             parser::CstWarningKind::Syntax(message) => FromTextWarning::Syntax {
@@ -171,7 +178,7 @@ pub mod bms {
         }
     }
 
-    /// 把解析层警告转换为 facade 错误。
+    /// Convert a parser-layer warning into a facade error.
     fn from_cst_error(warning: parser::CstWarning) -> FromTextError {
         match warning.kind {
             parser::CstWarningKind::Syntax(message) => FromTextError::Syntax {
@@ -189,96 +196,97 @@ pub mod bms {
         }
     }
 
-    /// 源文本层——字节、编码、行索引与字节保真编辑。
+    /// Source-text layer: bytes, encoding, line index, and byte-faithful editing.
     pub mod source {
         pub use bmsrs_bms_source::*;
     }
 
-    /// 语法层——rowan CST、词法、解析与控制流查询。
+    /// Syntax layer: rowan CST, lexing, parsing, and control-flow queries.
     pub mod syntax {
         pub use bmsrs_bms_syntax::*;
     }
 
-    /// BMS 语义层——类型化 header/message 与 `Bms` 模型。
+    /// BMS semantic layer: typed headers/messages and the `Bms` model.
     ///
-    /// `Bms` 与 `Messages` 的规范路径。值类型（`WavIndex` 等）的规范
-    /// 路径是 [`values`]；此处 re-export 仅为 parser
-    /// 使用者的便利别名。
+    /// Canonical path for `Bms` and `Messages`. The canonical path for value types
+    /// (`WavIndex` and so on) is [`values`]; the re-export here is only a
+    /// convenience alias for parser users.
     pub mod parser {
         pub use bmsrs_bms_parser::*;
     }
 
-    /// 单行语法与类型化值——header/message、索引与解析。
+    /// Single-line syntax and typed values: headers/messages, indices, parsing.
     ///
-    /// 值类型的规范路径。
+    /// Canonical path for value types.
     pub mod values {
         pub use bmsrs_bms_values::*;
     }
 
-    /// 分析层——诊断、符号索引与编辑器数据。
+    /// Analysis layer: diagnostics, symbol index, and editor data.
     pub mod analysis {
         pub use bmsrs_bms_analysis::*;
     }
 
-    /// BMS 处理器——将 `Bms` 转换为格式无关的 `Chart`。
+    /// BMS processor: converts `Bms` into a format-agnostic `Chart`.
     pub mod processor {
         pub use bmsrs_bms_processor::*;
     }
 
-    /// BMS 生成器——将 `Bms` 全量重写为 BMS 文本。
+    /// BMS generator: rewrites the full `Bms` as BMS text.
     pub mod writer {
         pub use bmsrs_bms_writer::*;
     }
 }
 
-/// BMSON 格式的类型定义与转换器。
+/// Type definitions and converters for the BMSON format.
 pub mod bmson {
-    /// BMSON 类型系统（v0/v1/v2）。
+    /// BMSON type system (v0/v1/v2).
     pub mod def {
         pub use bmsrs_bmson_def::{v0, v1, *};
     }
 
-    /// BMSON 处理器——将 bmson 数据转换为格式无关的 `Chart`。
+    /// BMSON processor: converts bmson data into a format-agnostic `Chart`.
     pub mod processor {
         pub use bmsrs_bmson_processor::*;
     }
 }
 
-/// 格式无关的谱面数据模型。
+/// Format-agnostic chart data model.
 pub mod chart {
     pub use bmsrs_chart::*;
 }
 
-/// 纯仿真 / 播放层。
+/// Pure simulation and playback layer.
 pub mod player {
     pub use bmsrs_player::*;
 }
 
-/// 跨层统一的诊断出口。
+/// Cross-layer unified diagnostic exit.
 ///
-/// 各层保留自己的 warning 类型；需要单一诊断流的消费者在这里做转换，
-/// 不强迫 processor 依赖 analysis。
+/// Each layer keeps its own warning types; consumers that need a single
+/// diagnostic stream convert here, without forcing the processor to depend on
+/// analysis.
 pub mod diagnostic {
     use bmsrs_bms_analysis::{AnalysisDiagnostic, Severity};
     use bmsrs_bms_syntax::TextRange;
 
     use crate::bms::FromTextWarning;
 
-    /// 统一诊断。
+    /// Unified diagnostic.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Diagnostic {
-        /// 严重度。
+        /// Severity.
         pub severity: Severity,
-        /// 文本范围；语义警告可能没有范围。
+        /// Text range; semantic warnings may have none.
         pub range: Option<TextRange>,
-        /// 消息。
+        /// Message.
         pub message: String,
-        /// 稳定错误码。
+        /// Stable error code.
         pub code: &'static str,
     }
 
     impl Diagnostic {
-        /// 构造一条诊断。
+        /// Construct a diagnostic.
         #[must_use]
         pub fn new(
             severity: Severity,

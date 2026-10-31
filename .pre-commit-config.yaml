@@ -93,3 +93,20 @@ repos:
         language: system
         types: [rust]
         exclude: ^(.*/)?(tests|benches|examples)/.*$
+
+  # Reject CJK characters in Rust comments and in #[expect(..., reason = "...")]
+  # strings. The hook covers full-line `//` comments, `/* ... */` blocks that
+  # start a line, and expect reasons written as plain or raw strings. String
+  # literals are deliberately not checked because BMS fixtures contain
+  # legitimate Japanese and Chinese chart text (for example `#TITLE テスト`).
+  # Inline trailing comments and assertion messages are left to review.
+  - repo: local
+    hooks:
+      - id: no-cjk-in-comments
+        name: no CJK characters in Rust comments or expect reasons
+        # -U enables multiline matching so a block comment that spans lines is
+        # scanned as one unit; `//` matches stay line-bounded through [^\n],
+        # and the tempered pattern stops at the closing `*/`.
+        entry: bash -c '! rg -U --pcre2 -n "(?ms)^[ \t]*//[^\n]*[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]|^[ \t]*/\*(?:(?!\*/).)*?[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]|reason\s*=\s*r?#*\"[^\"]*[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]" "$@"' _
+        language: system
+        types: [rust]

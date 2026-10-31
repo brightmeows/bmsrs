@@ -1,13 +1,15 @@
-//! `bmsrs-bms-source` 与 `bmsrs-bms-syntax` 的行边界一致性。
+//! Line-boundary consistency between `bmsrs-bms-source` and
+//! `bmsrs-bms-syntax`.
 //!
-//! `SourceFile::parse_document` 会先调用 `Document::to_text()` 再重新
-//! 切行。两层必须对行数与每行文本达成一致，否则 `Analysis` 的
-//! `TextRange` 会与文档坐标错位。
+//! `SourceFile::parse_document` calls `Document::to_text()` and then splits
+//! lines again. The two layers must agree on the line count and each line's
+//! text; otherwise the `TextRange` values in `Analysis` will be misaligned with
+//! document coordinates.
 
 use bmsrs_bms_source::Document;
 use bmsrs_bms_syntax::SourceFile;
 
-/// 断言文档行与 CST 行的文本逐一相等。
+/// Assert that document lines and CST lines match text for text.
 fn assert_document_boundaries(document: &Document) {
     let parsed = SourceFile::parse_document(document);
     let document_lines: Vec<String> = (0..document.len())
@@ -26,11 +28,11 @@ fn assert_document_boundaries(document: &Document) {
         .collect();
     assert_eq!(
         document_lines, syntax_lines,
-        "document 与 CST 的行边界不一致"
+        "document and CST line boundaries disagree"
     );
 }
 
-/// 断言 UTF-8 文本的行边界一致。
+/// Assert line-boundary consistency for UTF-8 text.
 fn assert_text_boundaries(text: &str) {
     assert_document_boundaries(&Document::from_text(text));
 }

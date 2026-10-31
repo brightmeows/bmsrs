@@ -1,4 +1,4 @@
-//! 分析层测试。
+//! Analysis-layer tests.
 
 use bmsrs_bms_analysis::{Analysis, SymbolKind};
 
@@ -23,19 +23,18 @@ fn missing_wav_reference_is_reported() {
         analysis
             .diagnostics()
             .iter()
-            .any(|diagnostic| diagnostic.message().contains("未定义 WAV 02"))
+            .any(|diagnostic| diagnostic.message().contains("undefined WAV 02"))
     );
 }
 
 #[test]
 fn duplicate_definition_is_reported() {
     let analysis = Analysis::from_text("#WAV01 a.wav\n#WAV01 b.wav\n");
-    assert!(
-        analysis
-            .diagnostics()
-            .iter()
-            .any(|diagnostic| diagnostic.message().contains("重复定义 WAV 01"))
-    );
+    assert!(analysis.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .message()
+            .contains("duplicate definition of WAV 01")
+    }));
 }
 
 #[test]
@@ -45,7 +44,7 @@ fn bga_reference_accepts_bmp_fallback() {
         !analysis
             .diagnostics()
             .iter()
-            .any(|diagnostic| diagnostic.message().contains("未定义 BGA 01"))
+            .any(|diagnostic| diagnostic.message().contains("undefined BGA 01"))
     );
 }
 
@@ -86,7 +85,7 @@ fn header_doc_matches_at_bga() {
 #[test]
 fn channel_doc_matches_note_group() {
     let found = bmsrs_bms_analysis::channel_doc("11");
-    assert_eq!(found.map(|doc| doc.title), Some("1P 可见音符"));
+    assert_eq!(found.map(|doc| doc.title), Some("1P visible notes"));
 }
 
 #[test]

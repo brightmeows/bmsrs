@@ -1,92 +1,101 @@
-//! BMS 引擎特定自定义事件类型。
+//! BMS engine-specific custom event types.
 //!
-//! 这些事件由 [`BmsProcessor`](crate::BmsProcessor) 从 BMS 通道（如 BGA 不透明度、
-//! ARGB 颜色、TEXT、OPTION 等）转换而来，存储在
-//! [`EventKind::Custom`](bmsrs_chart::EventKind::Custom) 变体中。
-//! tick 统一由 [`Event`](bmsrs_chart::Event) 存储，
-//! 本类型的变体不含 tick。
+//! These events are converted by [`BmsProcessor`](crate::BmsProcessor) from BMS
+//! channels (such as BGA opacity, ARGB color, TEXT, and OPTION) and stored in
+//! the [`EventKind::Custom`](bmsrs_chart::EventKind::Custom) variant. The tick
+//! is stored uniformly by [`Event`](bmsrs_chart::Event); variants of this type
+//! do not contain a tick.
 
 use bmsrs_chart::{BgaLayer, BgaResourceId, CustomEvent};
 
-/// BMS 格式特有的谱面事件。
+/// Chart events specific to the BMS format.
 ///
-/// # 设计原则
+/// # Design principles
 ///
-/// - 所有变体**不含** `tick` 字段——tick 由 [`Event`](bmsrs_chart::Event) 统一存储。
-/// - 仅包含引擎特定的事件；通用概念（音符、BPM、BGA 等）由
-///   [`Event`](bmsrs_chart::Event) 的原生变体承载。
+/// - No variant **contains** a `tick` field; the tick is stored uniformly by
+///   [`Event`](bmsrs_chart::Event).
+/// - Only engine-specific events live here; general concepts (notes, BPM, BGA,
+///   and so on) are carried by the native variants of
+///   [`Event`](bmsrs_chart::Event).
 ///
-/// # 标记 trait
+/// # Marker trait
 ///
-/// 本类型实现 [`CustomEvent`]（无方法标记 trait），
-/// 作为 [`EventKind::Custom`](bmsrs_chart::EventKind::Custom) 的 `C` 类型参数使用。
+/// This type implements [`CustomEvent`] (a method-less marker trait) and is used
+/// as the `C` type parameter of
+/// [`EventKind::Custom`](bmsrs_chart::EventKind::Custom).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BmsCustomEvent {
-    /// BGA 图层不透明度变更（通道 `0B`–`0E`）。
+    /// BGA layer opacity change (channels `0B`-`0E`).
     ///
-    /// 值范围 `01`–`FF`（十六进制），`00` = 完全透明，`FF` = 完全不透明。
+    /// Value range `01`-`FF` (hexadecimal); `00` means fully transparent and
+    /// `FF` means fully opaque.
     BgaOpacity {
-        /// 目标 BGA 图层。
+        /// Target BGA layer.
         layer: BgaLayer,
-        /// 不透明度（0–255）。
+        /// Opacity (0-255).
         opacity: u8,
     },
-    /// BGA 图层 ARGB 颜色变更（通道 `A1`–`A4`）。
+    /// BGA layer ARGB color change (channels `A1`-`A4`).
     ///
-    /// 每个颜色分量范围 `00`–`FF`。
+    /// Each color component ranges over `00`-`FF`.
     BgaArgb {
-        /// 目标 BGA 图层。
+        /// Target BGA layer.
         layer: BgaLayer,
-        /// Alpha 通道。
+        /// Alpha channel.
         a: u8,
-        /// 红色分量。
+        /// Red component.
         r: u8,
-        /// 绿色分量。
+        /// Green component.
         g: u8,
-        /// 蓝色分量。
+        /// Blue component.
         b: u8,
     },
-    /// BGA 按键绑定（通道 `A5` / `#SWBGA`）。
+    /// BGA key binding (channel `A5` / `#SWBGA`).
     ///
-    /// 将 BGA 资源绑定到按键操作，按下时显示对应帧。
+    /// Binds a BGA resource to a key action and shows the corresponding frame
+    /// when pressed.
     BgaKeyBound {
-        /// BGA 资源索引（对应 BMP 定义中的资源）。
+        /// BGA resource index (corresponds to a resource in the BMP definition).
         resource_id: BgaResourceId,
     },
-    /// 定时文本显示（通道 `99` / `#TEXTxx` / `#SONGxx`）。
+    /// Timed text display (channel `99` / `#TEXTxx` / `#SONGxx`).
     TextDisplay {
-        /// TEXT 定义索引。
+        /// TEXT definition index.
         text_index: u32,
     },
-    /// 逐位置判定覆盖（通道 `A0` / `#EXRANK`）。
+    /// Per-position judge override (channel `A0` / `#EXRANK`).
     ///
-    /// **语义未闭合**：当前直传通道值的 base36 数值，未查
-    /// `#EXRANKxx` 定义表，与 `#DEFEXRANK` 的乘算关系待判定系统
-    /// 整体设计后定稿；消费者在此之前不应解释本字段的语义。
+    /// **Semantics not finalized**: the channel value's Base36 number is passed
+    /// through directly, without looking up the `#EXRANKxx` definition table.
+    /// The multiplication relationship with `#DEFEXRANK` will be settled after
+    /// the overall judging system design; consumers should not interpret this
+    /// field before then.
     JudgeOverride {
-        /// base36 直传值（语义未闭合，见上）。
+        /// Base36 value passed through directly (semantics not finalized; see
+        /// above).
         rank: u64,
     },
-    /// 玩家选项变更（通道 `A6` / `#CHANGEOPTION`）。
+    /// Player option change (channel `A6` / `#CHANGEOPTION`).
     OptionChange {
-        /// 选项 ID。
+        /// Option ID.
         option_id: u64,
-        /// 选项值。
+        /// Option value.
         value: String,
     },
-    /// BGM 通道音量（通道 `97`）。
+    /// BGM channel volume (channel `97`).
     BgmVolume {
-        /// 音量（`01`–`FF`，`FF` = 原声）。
+        /// Volume (`01`-`FF`; `FF` means original volume).
         volume: u8,
     },
-    /// KEY 通道音量（通道 `98`）。
+    /// KEY channel volume (channel `98`).
     KeyVolume {
-        /// 音量（`01`–`FF`，`FF` = 原声）。
+        /// Volume (`01`-`FF`; `FF` means original volume).
         volume: u8,
     },
-    /// 视频定位（通道 `05` / `#SEEK`）。
+    /// Video seek (channel `05` / `#SEEK`).
     VideoSeek {
-        /// 视频目标位置（毫秒，源自 `#SEEK` 定义表；未定义的 id 被跳过）。
+        /// Video target position in milliseconds, from the `#SEEK` definition
+        /// table; undefined IDs are skipped.
         position: u64,
     },
 }
