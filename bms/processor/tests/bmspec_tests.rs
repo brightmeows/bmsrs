@@ -1179,3 +1179,21 @@ fn movie_produces_non_looping_video_asset() {
         "fps is None when #VIDEOf/s is not declared"
     );
 }
+
+/// `00` on a BGA channel is a rest and emits no BGA display event, even when
+/// `#BMP00` is defined (the miss image belongs to the miss system, not to
+/// channel data).
+#[test]
+fn bga_channel_rest_with_bmp00_defined_emits_no_event() {
+    let chart = process("#BPM 120\n#BMP00 miss.bmp\n#BMP11 a.bmp\n#00104:0011\n");
+    let bga_count = chart
+        .data
+        .events
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::Bga { .. }))
+        .count();
+    assert_eq!(
+        bga_count, 1,
+        "only the non-00 object emits a BGA event; 00 is a rest"
+    );
+}

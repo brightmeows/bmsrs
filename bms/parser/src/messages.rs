@@ -813,10 +813,14 @@ impl Messages {
     }
 
     /// Parse BGA display events from the full concatenated values (ch 04-07).
+    ///
+    /// `"00"` entries are filtered out: the object `00` is a rest on every
+    /// channel, so it must not display `#BMP00` (the miss image referenced by
+    /// the miss system, not by channel data).
     fn push_bga_full(&mut self, values: &str, layer: BmsBgaLayer, context: ChannelContext) {
         parse_indexed(
             context,
-            BodyCells::including_zero(values),
+            BodyCells::non_zero(values),
             &mut self.bga_events,
             &mut self.warnings,
             |position, value| {
