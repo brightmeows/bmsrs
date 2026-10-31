@@ -97,7 +97,7 @@ engines).
 | Conversion steps belong to `BmsConverter` | `collect_*`/`build_*` are methods on the private internal `BmsConverter`, not free functions |
 | `non_event_data` index normalization | Done in the parser layer; consumed by the processor | Every 2-character value in `non_event_data` was normalized in the parser's `finalize_merged` using the pre-scanned `#BASE`. Processor lookups hit directly. The `BmsConverter.base` field was removed because it is no longer needed |
 | `bpm_at_tick` source | Delegates to `BpmLookup::new(init_bpm, changes).bpm_at_tick(tick)` (the former local duplicate is gone). STP-to-tick conversion still has to happen before `TimingTrack` construction, but the algorithm is unified |
-| BGA crop source path | The `bmp_index` of `#BGA`/`#@BGA` is a decimal source number; it is matched against `bmp_files` keys by Base36 numeric value (for example, `"01"` gives 1). Crop ids whose source path cannot be resolved are skipped |
+| BGA crop source path | The `bmp_index` of `#BGA`/`#@BGA` is a decimal source number; it is matched against `bmp_files` keys by hexadecimal value (for example, `16` gives `"10"`), and only 0-255 is referenceable. Crop ids whose source path cannot be resolved are skipped |
 
 ## Deliberate deferral (parsed but not converted here)
 
