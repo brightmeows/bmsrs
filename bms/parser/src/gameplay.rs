@@ -62,7 +62,13 @@ impl Gameplay {
             BmsHeaderGameplay::Total(v) => self.total = Some(*v),
             BmsHeaderGameplay::VolWav(v) => self.vol_wav = Some(*v),
             BmsHeaderGameplay::LnType(t) => self.ln_type = Some(*t),
-            BmsHeaderGameplay::LnObj(id) => self.ln_obj = Some(*id),
+            BmsHeaderGameplay::LnObj(id) => {
+                // Normalize like every other definition index: Base36
+                // uppercases (note events carry uppercase ids), Base62 keeps
+                // the original case. Without this, a lowercase `#LNOBJ zz`
+                // never matched the normalized note events in Base36 files.
+                self.ln_obj = Some(LnObjIndex::from(id.normalize(base)));
+            }
             BmsHeaderGameplay::LnMode(m) => self.ln_mode = Some(*m),
             BmsHeaderGameplay::Base(m) => self.base = Some(*m),
             BmsHeaderGameplay::OctFp => self.oct_fp = Some(true),
