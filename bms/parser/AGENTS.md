@@ -84,7 +84,7 @@ recommended.
 
 ### Always
 
-- All index values (Wav/Bmp/Bpm/Stop/Scroll/Speed/ExRank/ChangeOption) are
+- All index values (Wav/Bmp/Bpm/Stop/Scroll/Speed/ExRank/ChangeOption/LnObj) are
   created through `normalize(base)`
 - `apply` on `Timing`/`Visual`/`Gameplay` receives `base` and normalizes index
   keys
