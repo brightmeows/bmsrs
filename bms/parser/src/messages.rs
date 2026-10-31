@@ -508,9 +508,11 @@ impl Messages {
             BmsChannel::Speed => self.push_speed_full(&merged, context),
             BmsChannel::Note(note_ch) => self.dispatch_note_channel(&merged, note_ch, context),
             // Non-event channels: keep normalized data for the processor to
-            // convert into BmsCustomEvent. Every 2-character value is
-            // normalized by base here, eliminating duplicate normalization in
-            // the processor (F1).
+            // convert into BmsCustomEvent. Their values reference definition
+            // families outside the Base62 command list (TEXT, EXRANK,
+            // CHANGEOPTION, SEEK, ARGB, SWBGA), so they always normalize with
+            // Base36 case-insensitivity, eliminating duplicate normalization
+            // in the processor (F1).
             BmsChannel::BgaBaseOpacity
             | BmsChannel::BgaLayerOpacity
             | BmsChannel::BgaLayer2Opacity
@@ -527,7 +529,7 @@ impl Messages {
             | BmsChannel::Seek
             | BmsChannel::Option
             | BmsChannel::Unknown(_) => {
-                let values = normalize_merged_values(&merged, base);
+                let values = normalize_merged_values(&merged, BmsBase::Base36);
                 self.non_event_data.push(NonEventData {
                     measure,
                     channel,

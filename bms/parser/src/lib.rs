@@ -147,3 +147,20 @@ fn detect_base(tokens: &[BmsToken]) -> BmsBase {
         })
         .unwrap_or(BmsBase::Base36)
 }
+
+/// Return the effective base for one definition family.
+///
+/// The Base62 specification (`#BASE 62`) lists exactly seven families that
+/// switch to case-sensitive Base62: `#WAVxx`, `#BMPxx`, `#BPMxx`, `#STOPxx`,
+/// `#SCROLLxx`, `#SPEEDxx`, and `#LNOBJ`. Every other definition family
+/// (`#TEXTxx`, `#EXRANKxx`, `#CHANGEOPTIONxx`, `#SEEKxx`, `#ARGBxx`,
+/// `#SWBGAxx`, and the `#BGA`/`#@BGA` crop namespace) keeps Base36
+/// case-insensitivity even in Base62 files.
+#[must_use]
+pub(crate) const fn family_base(global: BmsBase, is_base62_family: bool) -> BmsBase {
+    if is_base62_family {
+        global
+    } else {
+        BmsBase::Base36
+    }
+}
