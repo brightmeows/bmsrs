@@ -13,7 +13,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use bmsrs_bms_parser::{LnObjIndex, WavIndex};
+use bmsrs_bms_parser::{KeyType, LnObjIndex, WavIndex};
 use bmsrs_bms_parser::{LongNoteEvent, NoteEvent};
 
 use crate::position::MeasureTable;
@@ -179,6 +179,9 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairing
 /// Each such note is a long-note end; the previous note on the same
 /// `(player, lane)` (one that is not the LNOBJ marker) is the start.
 ///
+/// `#LNOBJ` applies to the visible channels `11`-`29` only; invisible notes
+/// carrying the marker index stay ordinary invisible notes.
+///
 /// Returns the paired long notes and the indices of consumed note events
 /// (including both start and end) so the caller can remove them.
 pub fn pair_lnobj(
@@ -192,6 +195,9 @@ pub fn pair_lnobj(
     let mut consumed = HashSet::new();
 
     for (i, ev) in note_events.iter().enumerate() {
+        if ev.key_type != KeyType::Visible {
+            continue;
+        }
         // Compare the underlying BmsIndex values (case-insensitive in standard
         // BMS).
         if *ev.wav_id == *ln_obj {
