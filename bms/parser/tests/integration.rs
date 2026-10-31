@@ -788,6 +788,35 @@ fn base62_wav_indices_case_sensitive() {
 }
 
 #[test]
+fn base62_keeps_non_listed_definition_families_base36() {
+    // The Base62 command list covers WAV/BMP/BPM/STOP/SCROLL/SPEED/LNOBJ
+    // only: #ARGBxx and the channel values referencing it stay Base36
+    // (case-insensitive) even in Base62 files.
+    let bms = parse("#BASE 62\n#ARGBaa 0,0,0,0\n#001A1:AA\n");
+    let key: BmpIndex = "AA".parse().unwrap();
+    assert!(
+        bms.visual.argb_defs.contains_key(&key),
+        "#ARGBxx is not a Base62 family; aa normalizes to AA"
+    );
+    assert_eq!(bms.messages.non_event_data.len(), 1);
+    assert!(
+        bms.messages.non_event_data[0]
+            .values
+            .iter()
+            .any(|v| v.as_str() == "AA"),
+        "non-event channel values normalize with Base36"
+    );
+}
+
+#[test]
+fn base62_bmp_indices_case_sensitive() {
+    // #BMPxx IS one of the seven Base62 families: lowercase indices are
+    // preserved as distinct keys.
+    let bms = parse("#BASE 62\n#BMPaa a.png\n#BMPAA b.png\n");
+    assert_eq!(bms.visual.bmp_files.len(), 2);
+}
+
+#[test]
 fn base36_wav_indices_case_insensitive() {
     // Standard mode (no #BASE 62): AA and aa map to the same index (last wins).
     let bms = parse("#WAVAA kick.wav\n#WAVaa snare.wav\n");

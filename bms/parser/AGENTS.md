@@ -73,11 +73,11 @@ recommended.
 | Rule | Explanation |
 |------|-------------|
 | Measure length value is a ratio | `1.0` = 4/4, `0.75` = 3/4, `2.0` = 8/4. Not a percentage. |
-| `finalize(base)` parameter | Controls index normalization: Base36 uppercases, Base62 preserves the original case |
-| Event indices all go through `normalize(base)` | Ensures case matching with definition-table keys |
+| `finalize(base)` parameter | Controls index normalization: Base36 uppercases, Base62 preserves the original case. Base62 applies only to the seven declared families (`#WAVxx`/`#BMPxx`/`#BPMxx`/`#STOPxx`/`#SCROLLxx`/`#SPEEDxx`/`#LNOBJ`); see `family_base` |
+| Event indices go through `normalize(family_base)` | Event-channel references are all seven-family (Base62-capable) indices; definition headers outside that list (TEXT/EXRANK/CHANGEOPTION/SEEK/ARGB/SWBGA/#BGA) normalize with Base36 even in Base62 files |
 | `"00"` means different things per channel | note channels = no note (skip), BPM ch03 = rest (skip), LN/ext channels = valid value |
 | Normalization contract (all def keys) | Every `apply` on `Timing`/`Visual`/`Gameplay` receives `base` and normalizes index keys (including `ex_rank_defs`/`change_option_defs`). `Gameplay::apply` follows this contract too |
-| `non_event_data` pre-normalization | For non-event channels (opacity/ARGB/text/option/seek, etc.), merged strings are split into 2-character values in `finalize_merged`, then normalized per value by `base` and stored in `NonEventData.values`. The processor does not need to normalize again when looking up definitions (removing the duplicate normalization previously marked F1/F2) |
+| `non_event_data` pre-normalization | For non-event channels (opacity/ARGB/text/option/seek, etc.), merged strings are split into 2-character values in `finalize_merged`, then normalized per value with `BmsBase::Base36` (these channels reference non-Base62 definition families) and stored in `NonEventData.values`. The processor does not need to normalize again when looking up definitions (removing the duplicate normalization previously marked F1/F2) |
 | `warnings` channel | 2-character values whose shape is valid but do not satisfy the channel parse rule are skipped and recorded in `Messages.warnings` (`ChannelValueWarning`, with measure/channel/value); missing references (undefined WAV/BPM/STOP keys) belong to the processor layer's `ProcessWarning::Missing*` |
 
 ## Always / Ask / Never
