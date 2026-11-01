@@ -432,6 +432,27 @@ fn bmspec_2_lnobj() {
     assert_eq!(lns[3], (1680, 120), "LN 04: beat 7 to 7.5");
 }
 
+/// A lowercase `#LNOBJ zz` pairs with uppercase `ZZ` markers in Base36 files:
+/// the marker index normalizes with the detected base like every definition.
+#[test]
+fn lnobj_marker_matches_case_insensitively_in_base36() {
+    let chart = process("#WAVAA a.wav\n#WAVzz end.wav\n#LNOBJ zz\n#00111:00AA\n#00211:ZZ00\n");
+    assert_eq!(long_notes(&chart).len(), 1, "zz and ZZ must pair in Base36");
+}
+
+/// In Base62 files the `#LNOBJ` index stays case-sensitive: `zz` must not
+/// match `ZZ`.
+#[test]
+fn lnobj_marker_stays_case_sensitive_in_base62() {
+    let chart = process(
+        "#BASE 62\n#WAVAA a.wav\n#WAVzz end.wav\n#WAVZZ end2.wav\n#LNOBJ zz\n#00111:00AA\n#00211:ZZ00\n",
+    );
+    assert!(
+        long_notes(&chart).is_empty(),
+        "Base62 preserves case: zz and ZZ are distinct indices"
+    );
+}
+
 /// An `#LNOBJ` marker index placed on an invisible channel (31-49) stays an
 /// ordinary invisible note: `#LNOBJ` applies to visible channels 11-29 only.
 #[test]
