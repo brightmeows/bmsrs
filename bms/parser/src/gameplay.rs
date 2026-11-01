@@ -51,13 +51,16 @@ impl Gameplay {
     /// normalization contract of [`Timing`](crate::timing::Timing) and
     /// [`Visual`](crate::visual::Visual).
     pub fn apply(&mut self, header: &BmsHeaderGameplay, base: BmsBase) {
+        // EXRANK and CHANGEOPTION definitions are not in the Base62 command
+        // list and keep Base36 case-insensitivity even in Base62 files.
+        let ext_base = crate::family_base(base, false);
         match header {
             BmsHeaderGameplay::Player(m) => self.player = Some(*m),
             BmsHeaderGameplay::Rank(r) => self.rank = Some(*r),
             BmsHeaderGameplay::DefExRank(v) => self.def_ex_rank = Some(*v),
             BmsHeaderGameplay::ExRank { id, value } => {
                 self.ex_rank_defs
-                    .insert(ExRankIndex::from(id.normalize(base)), *value);
+                    .insert(ExRankIndex::from(id.normalize(ext_base)), *value);
             }
             BmsHeaderGameplay::Total(v) => self.total = Some(*v),
             BmsHeaderGameplay::VolWav(v) => self.vol_wav = Some(*v),
@@ -68,8 +71,10 @@ impl Gameplay {
             BmsHeaderGameplay::OctFp => self.oct_fp = Some(true),
             BmsHeaderGameplay::Option(s) => self.option = Some(s.clone()),
             BmsHeaderGameplay::ChangeOption { id, value } => {
-                self.change_option_defs
-                    .insert(ChangeOptionIndex::from(id.normalize(base)), value.clone());
+                self.change_option_defs.insert(
+                    ChangeOptionIndex::from(id.normalize(ext_base)),
+                    value.clone(),
+                );
             }
         }
     }
