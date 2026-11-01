@@ -453,6 +453,38 @@ fn lnobj_marker_stays_case_sensitive_in_base62() {
     );
 }
 
+/// An `#LNOBJ` marker index placed on an invisible channel (31-49) stays an
+/// ordinary invisible note: `#LNOBJ` applies to visible channels 11-29 only.
+#[test]
+fn lnobj_marker_on_invisible_channel_stays_invisible_note() {
+    let chart = process("#WAVAA a.wav\n#WAVBB ghost.wav\n#LNOBJ BB\n#00111:AA\n#00131:BB\n");
+    let notes: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Note { kind, .. } => Some(*kind),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !notes.iter().any(|k| matches!(k, NoteKind::Long { .. })),
+        "an invisible marker must not pair into a long note"
+    );
+    assert!(
+        notes.iter().any(|k| matches!(k, NoteKind::Invisible)),
+        "the invisible note carrying the marker stays invisible"
+    );
+    assert_eq!(
+        notes
+            .iter()
+            .filter(|k| matches!(k, NoteKind::Normal))
+            .count(),
+        1,
+        "the visible note stays an ordinary note"
+    );
+}
+
 /// bmspec-2-LNTYPE1: dedicated long-note channels.
 #[test]
 fn bmspec_2_lntype1() {
@@ -1164,6 +1196,52 @@ fn at_bga_wh_form_normalizes_to_xy2() {
     );
 }
 
+/// `#BGA` source BMP numbers are decimal values of the hexadecimal `#BMP`
+/// index: `16` references `#BMP10` (C1).
+#[test]
+fn bga_crop_resolves_source_bmp_by_hex_value() {
+    let chart =
+        process("#BPM 120\n#BMP10 src.png\n#BGA01 16 0 0 100 100 0 0\n#00104:0100000000000000\n");
+    let cropped: Vec<_> = chart
+        .chart
+        .bga_resources
+        .iter()
+        .filter_map(|r| r.crop.map(|_| r.path.to_string_lossy().into_owned()))
+        .collect();
+    assert_eq!(
+        cropped.len(),
+        1,
+        "decimal 16 must reference the hexadecimal #BMP index 10"
+    );
+    assert_eq!(cropped[0], "src.png");
+}
+
+/// A `#BGA` source number is not Base36-decoded: `36` is hexadecimal `0x24`
+/// (`#BMP24`), not `#BMP10`, so the crop does not resolve to `#BMP10` (C1).
+#[test]
+fn bga_crop_source_is_not_base36_decoded() {
+    let chart =
+        process("#BPM 120\n#BMP10 src.png\n#BGA01 36 0 0 100 100 0 0\n#00104:0100000000000000\n");
+    let has_crop = chart.chart.bga_resources.iter().any(|r| r.crop.is_some());
+    assert!(
+        !has_crop,
+        "Base36 decoding of 36 would wrongly resolve #BMP10"
+    );
+}
+
+/// A `#BGA` source number above 255 cannot reference any `#BMP` index, so the
+/// crop definition is dropped entirely (C1).
+#[test]
+fn bga_crop_with_source_above_ff_is_dropped() {
+    let chart =
+        process("#BPM 120\n#BMPZZ src.png\n#BGA01 1295 0 0 100 100 0 0\n#00104:0100000000000000\n");
+    let has_crop = chart.chart.bga_resources.iter().any(|r| r.crop.is_some());
+    assert!(
+        !has_crop,
+        "#BGA can only reference hexadecimal indices 00-FF"
+    );
+}
+
 // C2: #VIDEOFILE / #MOVIE to VideoAsset
 
 /// `#VIDEOFILE` produces a looping video asset (C2).
@@ -1198,5 +1276,23 @@ fn movie_produces_non_looping_video_asset() {
     assert!(
         video.fps.is_none(),
         "fps is None when #VIDEOf/s is not declared"
+    );
+}
+
+/// `00` on a BGA channel is a rest and emits no BGA display event, even when
+/// `#BMP00` is defined (the miss image belongs to the miss system, not to
+/// channel data).
+#[test]
+fn bga_channel_rest_with_bmp00_defined_emits_no_event() {
+    let chart = process("#BPM 120\n#BMP00 miss.bmp\n#BMP11 a.bmp\n#00104:0011\n");
+    let bga_count = chart
+        .data
+        .events
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::Bga { .. }))
+        .count();
+    assert_eq!(
+        bga_count, 1,
+        "only the non-00 object emits a BGA event; 00 is a rest"
     );
 }

@@ -124,38 +124,43 @@ impl Visual {
     /// Index keys (`BmpIndex`, `SeekIndex`, and so on) are normalized with
     /// `base` for case-insensitive comparison in standard BMS.
     pub fn apply(&mut self, header: &BmsHeaderResDefVisual, base: BmsBase) {
+        // Only #BMPxx (and its #EXBMPxx alias) are in the Base62 command list.
+        // The #SEEKxx, #BGAxx/#@BGAxx, #SWBGAxx, and #ARGBxx namespaces keep
+        // Base36 case-insensitivity even in Base62 files.
+        let bmp_base = crate::family_base(base, true);
+        let ext_base = crate::family_base(base, false);
         match header {
             BmsHeaderResDefVisual::Bmp { id, filename } => {
                 self.bmp_files
-                    .insert(BmpIndex::from(id.normalize(base)), filename.clone());
+                    .insert(BmpIndex::from(id.normalize(bmp_base)), filename.clone());
             }
             BmsHeaderResDefVisual::Seek { id, value } => {
                 self.seek_defs
-                    .insert(SeekIndex::from(id.normalize(base)), *value);
+                    .insert(SeekIndex::from(id.normalize(ext_base)), *value);
             }
             BmsHeaderResDefVisual::ExBmp { id, params } => {
                 self.ex_bmp_defs.insert(
-                    BmpIndex::from(id.normalize(base)),
+                    BmpIndex::from(id.normalize(bmp_base)),
                     OwnedExBmpParams::from(params),
                 );
             }
             BmsHeaderResDefVisual::Bga { id, params } => {
                 self.crop_defs
-                    .insert(BmpIndex::from(id.normalize(base)), params.clone());
+                    .insert(BmpIndex::from(id.normalize(ext_base)), params.clone());
             }
             BmsHeaderResDefVisual::AtBga { id, params } => {
                 self.alt_crop_defs
-                    .insert(BmpIndex::from(id.normalize(base)), params.clone());
+                    .insert(BmpIndex::from(id.normalize(ext_base)), params.clone());
             }
             BmsHeaderResDefVisual::SwBga { id, params } => {
                 self.sw_bga_defs.insert(
-                    BmpIndex::from(id.normalize(base)),
+                    BmpIndex::from(id.normalize(ext_base)),
                     OwnedSwBgaParams::from(params),
                 );
             }
             BmsHeaderResDefVisual::Argb { id, params } => {
                 self.argb_defs
-                    .insert(BmpIndex::from(id.normalize(base)), params.clone());
+                    .insert(BmpIndex::from(id.normalize(ext_base)), params.clone());
             }
             BmsHeaderResDefVisual::VideoFile(s) => self.video_file = Some(s.clone()),
             BmsHeaderResDefVisual::Movie(s) => self.movie = Some(s.clone()),

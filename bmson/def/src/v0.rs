@@ -17,9 +17,9 @@
 //! |---|---|
 //! | `info` (key inside Bmson) | `info` |
 //! | `lines` | `lines` (same key as v1) |
-//! | `bpmNotes` | `bpm_notes` |
+//! | `bpmNotes` (alias `bpm_events`) | `bpm_notes` |
 //! | `stopEvents` / `stopNotes` | `stop_events` (both accepted) |
-//! | `soundChannel` | `sound_channels` |
+//! | `soundChannel` (alias `sound_channels`) | `sound_channels` |
 //! | `bgaHeader` / `bgaNotes` / `layerNotes` / `poorNotes` | handled by the shared [`crate::BGA`] |
 //! | `ID` (inside BGAHeader, handled by [`crate::BGAHeader`]) | `id` |
 //! | `lnType` (inside BmsonInfo) | `ln_type` |
@@ -53,9 +53,11 @@ pub struct Bmson<'a> {
     /// v1/v2).
     pub lines: Option<Vec<BarLine>>,
 
-    /// BPM change events (JSON key `bpmNotes`; the specification allows null).
+    /// BPM change events (JSON key `bpmNotes`, alias `bpm_events`; editors
+    /// mix `camelCase` and `snake_case`, and the specification allows null).
     #[serde(
         rename = "bpmNotes",
+        alias = "bpm_events",
         default,
         deserialize_with = "crate::null_to_default"
     )]
@@ -71,8 +73,8 @@ pub struct Bmson<'a> {
     )]
     pub stop_events: Vec<EventNote>,
 
-    /// Sound channels (JSON key `soundChannel`).
-    #[serde(rename = "soundChannel", default)]
+    /// Sound channels (JSON key `soundChannel`, alias `sound_channels`).
+    #[serde(rename = "soundChannel", alias = "sound_channels", default)]
     pub sound_channels: Vec<SoundChannel<'a>>,
 
     /// Background animation data.
