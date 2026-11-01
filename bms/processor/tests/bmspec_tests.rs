@@ -432,6 +432,38 @@ fn bmspec_2_lnobj() {
     assert_eq!(lns[3], (1680, 120), "LN 04: beat 7 to 7.5");
 }
 
+/// An `#LNOBJ` marker index placed on an invisible channel (31-49) stays an
+/// ordinary invisible note: `#LNOBJ` applies to visible channels 11-29 only.
+#[test]
+fn lnobj_marker_on_invisible_channel_stays_invisible_note() {
+    let chart = process("#WAVAA a.wav\n#WAVBB ghost.wav\n#LNOBJ BB\n#00111:AA\n#00131:BB\n");
+    let notes: Vec<_> = chart
+        .data
+        .events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Note { kind, .. } => Some(*kind),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !notes.iter().any(|k| matches!(k, NoteKind::Long { .. })),
+        "an invisible marker must not pair into a long note"
+    );
+    assert!(
+        notes.iter().any(|k| matches!(k, NoteKind::Invisible)),
+        "the invisible note carrying the marker stays invisible"
+    );
+    assert_eq!(
+        notes
+            .iter()
+            .filter(|k| matches!(k, NoteKind::Normal))
+            .count(),
+        1,
+        "the visible note stays an ordinary note"
+    );
+}
+
 /// bmspec-2-LNTYPE1: dedicated long-note channels.
 #[test]
 fn bmspec_2_lntype1() {
