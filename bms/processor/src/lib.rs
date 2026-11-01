@@ -1177,12 +1177,15 @@ struct BmpEntry {
 /// Resolve a decimal BMP number into a file path from the `#BMP` table.
 ///
 /// The `bmp_index` field of `#BGA` / `#@BGA` is the **decimal** number of the
-/// source `#BMP`; this looks for the key in `bmp_files` whose Base36 numeric
-/// value equals it (for example, `"01"` gives 1).
+/// source `#BMP`: per the BMS command memo the value is the hexadecimal index
+/// converted to decimal (so `16` references `#BMP10`), and only indices
+/// `00`-`FF` (0-255) can be referenced. Values above 255 are invalid and
+/// resolve to nothing.
 fn resolve_bmp_path(bmp_files: &BTreeMap<BmpIndex, String>, bmp_index: u16) -> Option<&String> {
+    let hex = u8::try_from(bmp_index).ok()?;
     bmp_files
         .iter()
-        .find_map(|(k, v)| (k.to_index() == Some(bmp_index)).then_some(v))
+        .find_map(|(k, v)| (k.as_u8_hex() == Some(hex)).then_some(v))
 }
 
 /// Build the LN range lookup table.

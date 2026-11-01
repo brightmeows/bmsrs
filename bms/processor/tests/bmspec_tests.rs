@@ -1143,6 +1143,52 @@ fn at_bga_wh_form_normalizes_to_xy2() {
     );
 }
 
+/// `#BGA` source BMP numbers are decimal values of the hexadecimal `#BMP`
+/// index: `16` references `#BMP10` (C1).
+#[test]
+fn bga_crop_resolves_source_bmp_by_hex_value() {
+    let chart =
+        process("#BPM 120\n#BMP10 src.png\n#BGA01 16 0 0 100 100 0 0\n#00104:0100000000000000\n");
+    let cropped: Vec<_> = chart
+        .chart
+        .bga_resources
+        .iter()
+        .filter_map(|r| r.crop.map(|_| r.path.to_string_lossy().into_owned()))
+        .collect();
+    assert_eq!(
+        cropped.len(),
+        1,
+        "decimal 16 must reference the hexadecimal #BMP index 10"
+    );
+    assert_eq!(cropped[0], "src.png");
+}
+
+/// A `#BGA` source number is not Base36-decoded: `36` is hexadecimal `0x24`
+/// (`#BMP24`), not `#BMP10`, so the crop does not resolve to `#BMP10` (C1).
+#[test]
+fn bga_crop_source_is_not_base36_decoded() {
+    let chart =
+        process("#BPM 120\n#BMP10 src.png\n#BGA01 36 0 0 100 100 0 0\n#00104:0100000000000000\n");
+    let has_crop = chart.chart.bga_resources.iter().any(|r| r.crop.is_some());
+    assert!(
+        !has_crop,
+        "Base36 decoding of 36 would wrongly resolve #BMP10"
+    );
+}
+
+/// A `#BGA` source number above 255 cannot reference any `#BMP` index, so the
+/// crop definition is dropped entirely (C1).
+#[test]
+fn bga_crop_with_source_above_ff_is_dropped() {
+    let chart =
+        process("#BPM 120\n#BMPZZ src.png\n#BGA01 1295 0 0 100 100 0 0\n#00104:0100000000000000\n");
+    let has_crop = chart.chart.bga_resources.iter().any(|r| r.crop.is_some());
+    assert!(
+        !has_crop,
+        "#BGA can only reference hexadecimal indices 00-FF"
+    );
+}
+
 // C2: #VIDEOFILE / #MOVIE to VideoAsset
 
 /// `#VIDEOFILE` produces a looping video asset (C2).
