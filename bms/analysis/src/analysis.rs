@@ -3,18 +3,19 @@
 use std::collections::BTreeMap;
 
 use bmsrs_bms_syntax::{
-    ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse, TextRange, TextSize,
+    IncrementalParser, ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse,
+    TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsMessage, BodyCells};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
-use crate::index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};
+use crate::index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};
 
 /// Result of one analysis.
 #[derive(Debug, Clone)]
 pub struct Analysis {
-    /// CST and syntax diagnostics.
-    parse: SyntaxParse,
+    /// Incremental syntax state.
+    syntax: IncrementalParser,
     /// Diagnostic list.
     diagnostics: Vec<AnalysisDiagnostic>,
     /// Symbol index.
@@ -31,46 +32,42 @@ impl Analysis {
     /// Analyze BMS text with parse options.
     #[must_use]
     pub fn from_text_with(text: &str, options: &ParseOptions) -> Self {
-        let parse = SourceFile::parse_with(text, options);
-        let source = parse.source_file();
-        let mut diagnostics: Vec<_> = parse
-            .errors()
-            .iter()
-            .map(|error| {
-                let severity = match error.kind() {
-                    bmsrs_bms_syntax::DiagnosticKind::Syntax => Severity::Error,
-                    bmsrs_bms_syntax::DiagnosticKind::ControlFlow => Severity::Warning,
-                };
-                AnalysisDiagnostic::new(error.range(), severity, error.message(), None)
-            })
-            .collect();
-        let mut index = SymbolIndex::default();
-        collect_lines(
-            &source,
-            &options.header_prefixes,
-            &mut index,
-            &mut diagnostics,
-        );
-        add_duplicate_diagnostics(&index, &mut diagnostics);
-        add_missing_reference_diagnostics(&index, &mut diagnostics);
-
+        let syntax = IncrementalParser::new(text, options.clone());
+        let (diagnostics, index) = analyze(syntax.parse(), options);
         Self {
-            parse,
+            syntax,
             diagnostics,
             index,
         }
     }
 
+    /// Return the analyzed source text.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        self.syntax.text()
+    }
+
+    /// Replace the source text and refresh diagnostics and the symbol index.
+    pub fn update(&mut self, text: &str) {
+        if text == self.syntax.text() {
+            return;
+        }
+        self.syntax.update(text);
+        let (diagnostics, index) = analyze(self.syntax.parse(), self.syntax.options());
+        self.diagnostics = diagnostics;
+        self.index = index;
+    }
+
     /// Return the document root node.
     #[must_use]
     pub fn source_file(&self) -> SourceFile {
-        self.parse.source_file()
+        self.syntax.parse().source_file()
     }
 
     /// Return a fresh red root node.
     #[must_use]
     pub fn syntax(&self) -> bmsrs_bms_syntax::SyntaxNode {
-        self.parse.syntax()
+        self.syntax.parse().syntax()
     }
 
     /// Return the diagnostics.
@@ -84,6 +81,32 @@ impl Analysis {
     pub const fn index(&self) -> &SymbolIndex {
         &self.index
     }
+}
+
+/// Build diagnostics and the symbol index from one parse result.
+fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<AnalysisDiagnostic>, SymbolIndex) {
+    let source = parse.source_file();
+    let mut diagnostics: Vec<_> = parse
+        .errors()
+        .iter()
+        .map(|error| {
+            let severity = match error.kind() {
+                bmsrs_bms_syntax::DiagnosticKind::Syntax => Severity::Error,
+                bmsrs_bms_syntax::DiagnosticKind::ControlFlow => Severity::Warning,
+            };
+            AnalysisDiagnostic::new(error.range(), severity, error.message(), None)
+        })
+        .collect();
+    let mut index = SymbolIndex::default();
+    collect_lines(
+        &source,
+        &options.header_prefixes,
+        &mut index,
+        &mut diagnostics,
+    );
+    add_duplicate_diagnostics(&index, &mut diagnostics);
+    add_missing_reference_diagnostics(&index, &mut diagnostics);
+    (diagnostics, index)
 }
 
 /// Collect definitions and references.
@@ -130,10 +153,12 @@ fn collect_header(
     };
     match BmsHeader::parse(&content, prefixes) {
         Ok(Some(_header)) => {
-            if let Some((kind, id)) = definition_kind(command.text()) {
+            if let Some((kind, id)) = definition_kind(command.text())
+                && let Some(symbol_id) = SymbolId::new(&id)
+            {
                 index.push_definition(SymbolDefinition::new(
                     kind,
-                    id,
+                    symbol_id,
                     line.range(),
                     command.text_range(),
                 ));
@@ -192,7 +217,9 @@ fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mu
             text_size(base.saturating_add(cell.range.start)),
             text_size(base.saturating_add(cell.range.end)),
         );
-        index.push_reference(SymbolReference::new(kind, id, range));
+        if let Some(symbol_id) = SymbolId::new(&id) {
+            index.push_reference(SymbolReference::new(kind, symbol_id, range));
+        }
     }
 }
 
@@ -275,7 +302,8 @@ const fn reference_kind(channel: BmsChannel) -> Option<SymbolKind> {
 /// Add duplicate-definition diagnostics.
 fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<AnalysisDiagnostic>) {
     let mut groups: BTreeMap<(SymbolKind, String), Vec<usize>> = BTreeMap::new();
-    for (position, definition) in index.definitions().iter().enumerate() {
+    let definitions: Vec<_> = index.definitions().collect();
+    for (position, definition) in definitions.iter().enumerate() {
         groups
             .entry((definition.kind(), definition.id().to_owned()))
             .or_default()
@@ -284,7 +312,7 @@ fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Analysis
     for ((kind, id), positions) in groups {
         if positions.len() > 1 {
             for position in positions {
-                if let Some(definition) = index.definitions().get(position) {
+                if let Some(definition) = definitions.get(position) {
                     diagnostics.push(AnalysisDiagnostic::new(
                         definition.range(),
                         Severity::Warning,

@@ -51,6 +51,9 @@ SourceFile
 ## API
 
 - `SourceFile::parse(text)` returns `SyntaxParse`; `SyntaxParse::source_file()` / `errors()`
+- `IncrementalParser::new(text, options)` / `update(text)` / `parse()` reuses
+  the green tree for single-line content edits and falls back to a full parse
+  for structural edits
 - `SourceFile::parse_with(text, &ParseOptions)` supports custom header prefixes
 - `SourceFile::parse_document(&Document)` / `parse_document_with` enter the CST
   from a lossless document

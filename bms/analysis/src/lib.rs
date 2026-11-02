@@ -17,8 +17,5 @@ mod index;
 
 pub use analysis::Analysis;
 pub use diagnostic::{AnalysisDiagnostic, Severity};
-pub use docs::{
-    CHANNEL_DOCS, ChannelDoc, HEADER_DOCS, HeaderDoc, channel_completions, channel_doc,
-    header_completions, header_doc,
-};
-pub use index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};
+pub use docs::{ChannelDoc, Docs, HeaderDoc};
+pub use index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};

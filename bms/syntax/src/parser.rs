@@ -4,7 +4,7 @@ use rowan::{GreenNode, GreenNodeBuilder, TextRange, TextSize};
 
 use crate::ast::SourceFile;
 use crate::lexer::{LineData, SyntaxLineKind, lex};
-use crate::{ParseOptions, SyntaxKind};
+use crate::{ParseOptions, SyntaxKind, SyntaxLine};
 
 /// Diagnostic category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -702,4 +702,154 @@ fn is_control_directive(line: &LineData<'_>) -> bool {
 fn is_command(line: &LineData<'_>, command: &str) -> bool {
     line.command_name()
         .is_some_and(|name| name.eq_ignore_ascii_case(command))
+}
+
+/// Stateful incremental parser.
+///
+/// `IncrementalParser` owns the current text and CST. For a single-line content
+/// edit it reparses that line and splices the new green node into the existing
+/// tree with `GreenNode::replace_child`; structural edits fall back to a full
+/// reparse.
+#[derive(Debug, Clone)]
+pub struct IncrementalParser {
+    /// Current source text.
+    text: String,
+    /// Parse options.
+    options: ParseOptions,
+    /// Current parse result.
+    parse: SyntaxParse,
+}
+
+impl IncrementalParser {
+    /// Create a parser and parse the initial text.
+    #[must_use]
+    pub fn new(text: &str, options: ParseOptions) -> Self {
+        let parse = parse_with(text, &options);
+        Self {
+            text: text.to_owned(),
+            options,
+            parse,
+        }
+    }
+
+    /// Return the current source text.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Return the current parse result.
+    #[must_use]
+    pub const fn parse(&self) -> &SyntaxParse {
+        &self.parse
+    }
+
+    /// Return the parse options.
+    #[must_use]
+    pub const fn options(&self) -> &ParseOptions {
+        &self.options
+    }
+
+    /// Replace the source text and update the CST.
+    pub fn update(&mut self, text: &str) {
+        if text == self.text {
+            return;
+        }
+        if let Some(parse) = self.try_line_update(text) {
+            self.parse = parse;
+        } else {
+            self.parse = parse_with(text, &self.options);
+        }
+        text.clone_into(&mut self.text);
+    }
+
+    /// Attempt a single-line green-tree splice.
+    fn try_line_update(&self, new_text: &str) -> Option<SyntaxParse> {
+        if self.text.lines().count() != new_text.lines().count() {
+            return None;
+        }
+        let (prefix, suffix) = common_affix(&self.text, new_text);
+        let changed_start = prefix;
+        let changed_end = new_text.len().saturating_sub(suffix);
+        if changed_start >= changed_end
+            || new_text
+                .get(changed_start..changed_end)
+                .is_none_or(|slice| slice.contains('\n'))
+        {
+            return None;
+        }
+
+        let offset = TextSize::from(u32::try_from(changed_start).ok()?);
+        let old_line = self
+            .parse
+            .source_file()
+            .token_at_offset(offset)?
+            .parent_ancestors()
+            .find_map(SyntaxLine::cast)?;
+        if old_line.is_directive() {
+            return None;
+        }
+
+        let lines = lex(new_text, &self.options);
+        let new_line = lines
+            .iter()
+            .find(|line| line.start <= changed_start && changed_start < line.end)?;
+        if is_control_directive(new_line) {
+            return None;
+        }
+
+        let mut builder = GreenNodeBuilder::new();
+        build_line(&mut builder, new_line);
+        let mut new_green = builder.finish();
+
+        let mut old_node = old_line.syntax().clone();
+        loop {
+            let parent = old_node.parent()?;
+            let index = old_node.index();
+            new_green = parent.green().replace_child(index, new_green.into());
+            if parent.parent().is_none() {
+                break;
+            }
+            old_node = parent;
+        }
+
+        let old_range = old_line.range();
+        let mut errors: Vec<_> = self
+            .parse
+            .errors()
+            .iter()
+            .filter(|error| !ranges_intersect(error.range(), old_range))
+            .cloned()
+            .collect();
+        collect_lex_errors(std::slice::from_ref(new_line), &mut errors);
+        errors.sort_by_key(|error| (error.range().start(), error.range().end()));
+
+        Some(SyntaxParse {
+            green: new_green,
+            errors,
+        })
+    }
+}
+
+/// Return the common prefix and suffix lengths.
+fn common_affix(old: &str, new: &str) -> (usize, usize) {
+    let prefix = old
+        .bytes()
+        .zip(new.bytes())
+        .take_while(|(left, right)| left == right)
+        .count();
+    let max_suffix = old.len().min(new.len()).saturating_sub(prefix);
+    let suffix = old
+        .bytes()
+        .rev()
+        .zip(new.bytes().rev())
+        .take(max_suffix)
+        .take_while(|(left, right)| left == right)
+        .count();
+    (prefix, suffix)
+}
+
+/// Return whether two half-open ranges overlap.
+fn ranges_intersect(left: TextRange, right: TextRange) -> bool {
+    left.start() < right.end() && right.start() < left.end()
 }
