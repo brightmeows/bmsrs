@@ -48,6 +48,7 @@ and editor data. `bmsrs-bms-writer` rewrites `Bms` canonically as BMS text.
 | `bmsrs-bmson-processor` | `Bmson` to `Chart` |
 | `bmsrs-chart` | format-agnostic `Chart<T>` central IR |
 | `bmsrs-player` | pure simulation layer for `Chart` |
+| `bmsrs-pipeline` | shared `Outcome`/`SourceSpan`/`Diagnostic` types |
 | `bmsrs` | public re-export facade |
 
 ## Quick start
@@ -64,16 +65,15 @@ bmsrs = { git = "https://github.com/brightmeows/bmsrs" }
 ```rust
 use std::time::Duration;
 
-use bmsrs::bms::processor::BmsProcessor;
-use bmsrs::bms::{ErrorStrategy, from_bytes};
-use bmsrs::player::Player;
+use bmsrs::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = std::fs::read("chart.bms")?;
-    let (bms, _warnings) = from_bytes(bytes, |_| 1, ErrorStrategy::CollectAll)?;
-    let processed = BmsProcessor::process_default(&bms)?;
+    let parsed = bmsrs::bms::parse_bytes(bytes)?;
+    let processed = bmsrs::bms::process(&parsed.value)?;
+    let chart = processed.value.chart;
 
-    let mut player = Player::new(processed.chart)?;
+    let mut player = Player::new(chart)?;
     player.advance(Duration::from_secs(1));
 
     println!("current tick: {}", player.current_tick());
@@ -81,27 +81,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-The second argument of `from_bytes` is the branch-selection function for
-`#RANDOM` and `#SWITCH`. The example always picks the first branch; use
-`from_text` when the input is already UTF-8.
+`parse_bytes` uses the first branch for `#RANDOM` / `#SWITCH` and collects all
+warnings. Use `parse_bytes_with` when you need a custom branch selector,
+`ParseOptions`, or `ErrorStrategy`.
 
 ### BMSON to Chart
 
 ```rust
-use bmsrs::bmson::def::Bmson;
-use bmsrs::bmson::processor::BmsonProcessor;
-
 fn load(json: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let bmson: Bmson = serde_json::from_str(json)?;
-    let processed = BmsonProcessor::process_default(&bmson)?;
+    let bmson = bmsrs::bmson::parse_str(json)?;
+    let processed = bmsrs::bmson::process(&bmson)?;
 
-    println!("events: {}", processed.chart.data.events.len());
+    println!("events: {}", processed.value.chart.data.events.len());
     Ok(())
 }
 ```
 
-Add `serde_json` to your project. v0 and v1 files are upgraded to v2 through
-`Bmson::from` first.
+The default `bmson` feature enables `serde_json` and upgrades v0/v1 files to v2.
+Disable default features if you only need the BMS side of the facade.
 
 ## Development
 
