@@ -13,14 +13,14 @@ need to pre-cut sound effects.
 
 ```mermaid
 flowchart LR
-    JSON[".bmson (JSON)"] --> Def[bmsrs-bmson-def]
+    JSON[".bmson (JSON)"] --> Def[bmsrs-bmson-model]
     Def --> Proc[bmsrs-bmson-processor]
     Proc --> Chart["Chart&lt;T&gt;"]
 ```
 
 | Stage | Crate | Responsibility |
 |-------|-------|----------------|
-| Type definition and deserialization | `bmsrs-bmson-def` | pure BMSON data model (v0/v1/v2) with serde deserialization |
+| Type definition and deserialization | `bmsrs-bmson-model` | pure BMSON data model (v0/v1/v2) with serde deserialization |
 | Conversion | `bmsrs-bmson-processor` | `Bmson` (v2) to `Chart` |
 
 ## Version model
@@ -33,19 +33,19 @@ processor can handle them.
 
 | Principle | Meaning |
 |-----------|---------|
-| Type definition and parsing combined | `bmsrs-bmson-def` supports JSON deserialization directly through `serde`, with no separate parsing layer |
+| Type definition and parsing combined | `bmsrs-bmson-model` supports JSON deserialization directly through `serde`, with no separate parsing layer |
 | Mode families decoupled | `BmsonLayout` zero-sized types decouple key mapping; `mode_hint` decides dispatch |
 | Audio pre-slicing | `SoundChannel` is pre-sliced at startup into an array of `AudioAsset`s, looked up by index at runtime |
 
 ## Tests
 
 ```bash
-cargo test -p bmsrs-bmson-def
+cargo test -p bmsrs-bmson-model
 cargo test -p bmsrs-bmson-processor
 ```
 
 ## Example
 
 ```bash
-cargo run --example bmson_parser -p bmsrs-bmson-def
+cargo run --example bmson_parser -p bmsrs-bmson-model
 ```

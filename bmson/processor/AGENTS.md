@@ -2,7 +2,7 @@
 
 ## Role
 
-Processor that converts `bmsrs_bmson_def::Bmson` (v2 root schema) into `Chart`. The
+Processor that converts `bmsrs_bmson_model::Bmson` (v2 root schema) into `Chart`. The
 entry point is `BmsonProcessor` (a zero-sized type); all functionality is
 exposed through `BmsonProcessor::process_default` / `process_nkeys`. Key mapping
 is decoupled through the `BmsonLayout` mode family.

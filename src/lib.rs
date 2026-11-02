@@ -242,7 +242,7 @@ pub mod bms {
 pub mod bmson {
     /// BMSON type system (v0/v1/v2).
     pub mod def {
-        pub use bmsrs_bmson_def::{v0, v1, *};
+        pub use bmsrs_bmson_model::{v0, v1, *};
     }
 
     /// BMSON processor: converts bmson data into a format-agnostic `Chart`.

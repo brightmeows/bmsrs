@@ -1,6 +1,6 @@
 //! Sound channel slicing algorithm.
 //!
-//! Each [`SoundChannel`](bmsrs_bmson_def::SoundChannel) bundles one audio file with all
+//! Each [`SoundChannel`](bmsrs_bmson_model::SoundChannel) bundles one audio file with all
 //! of its [`NoteEvent`]s. The processor precomputes audio slices so the player
 //! can look them up by index at runtime and get an [`AudioAsset`] with its
 //! length already set.
@@ -29,7 +29,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bmsrs_bmson_def::SoundChannel;
+use bmsrs_bmson_model::SoundChannel;
 use bmsrs_chart::{AudioAsset, TimingTrack};
 
 /// Output of slicing one sound channel.
@@ -129,7 +129,7 @@ pub fn slice_channel(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bmsrs_bmson_def::NoteEvent;
+    use bmsrs_bmson_model::NoteEvent;
     use bmsrs_chart::{StopEvent, TimingTrack};
     use std::path::Path;
     use std::time::Duration;

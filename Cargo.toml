@@ -9,7 +9,7 @@ members = [
     "bms/parser",
     "bms/processor",
     "bms/writer",
-    "bmson/def",
+    "bmson/model",
     "bmson/processor",
     "common/chart",
     "common/player",
@@ -41,7 +41,7 @@ bmsrs-bms-analysis.workspace = true
 bmsrs-bms-parser.workspace = true
 bmsrs-bms-values.workspace = true
 bmsrs-bms-processor.workspace = true
-bmsrs-bmson-def.workspace = true
+bmsrs-bmson-model.workspace = true
 bmsrs-bmson-processor.workspace = true
 bmsrs-chart.workspace = true
 bmsrs-player.workspace = true
@@ -87,7 +87,7 @@ criterion = "0.8"
 rowan = "0.17"
 
 # Local (path)
-bmsrs-bmson-def = { path = "bmson/def" }
+bmsrs-bmson-model = { path = "bmson/model" }
 bmsrs-bms-source = { path = "bms/source" }
 bmsrs-bms-syntax = { path = "bms/syntax" }
 bmsrs-bms-analysis = { path = "bms/analysis" }

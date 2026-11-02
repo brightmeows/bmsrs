@@ -1,10 +1,10 @@
-//! Serialization and deserialization roundtrip tests for bmsrs-bmson-def types.
+//! Serialization and deserialization roundtrip tests for bmsrs-bmson-model types.
 //!
 //! Verify that serde JSON roundtrips produce semantically equivalent results.
 
 use std::path::Path;
 
-use bmsrs_bmson_def::*;
+use bmsrs_bmson_model::*;
 
 /// Build a simple v2 chart for tests.
 fn make_test_bmson() -> Bmson<'static> {
@@ -114,11 +114,11 @@ fn bmson_null_lines_is_some_none() {
     assert!(bmson.chart_data.lines.is_none());
     assert_eq!(
         bmson.chart_data.bpm_events,
-        [] as [bmsrs_bmson_def::BpmEvent; 0]
+        [] as [bmsrs_bmson_model::BpmEvent; 0]
     );
     assert_eq!(
         bmson.chart_data.stop_events,
-        [] as [bmsrs_bmson_def::StopEvent; 0]
+        [] as [bmsrs_bmson_model::StopEvent; 0]
     );
 }
 
@@ -289,10 +289,10 @@ fn chart_data_ln_hints_roundtrip() {
 #[test]
 fn bga_default_is_empty() {
     let bga = BGA::default();
-    assert_eq!(bga.bga_header, [] as [bmsrs_bmson_def::BGAHeader<'_>; 0]);
-    assert_eq!(bga.bga_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
-    assert_eq!(bga.layer_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
-    assert_eq!(bga.poor_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.bga_header, [] as [bmsrs_bmson_model::BGAHeader<'_>; 0]);
+    assert_eq!(bga.bga_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);
+    assert_eq!(bga.layer_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);
+    assert_eq!(bga.poor_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);
 }
 
 #[test]
