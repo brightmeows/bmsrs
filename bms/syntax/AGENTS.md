@@ -50,13 +50,14 @@ SourceFile
 
 ## API
 
-- `SourceFile::parse(text)` returns `Parse`; `Parse::source_file()` / `errors()`
+- `SourceFile::parse(text)` returns `SyntaxParse`; `SyntaxParse::source_file()` / `errors()`
 - `SourceFile::parse_with(text, &ParseOptions)` supports custom header prefixes
 - `SourceFile::parse_document(&Document)` / `parse_document_with` enter the CST
   from a lossless document
 - `SourceFile::lines()` iterates all lines depth-first
-- `Line::command_name()` / `value()` / `measure()` / `channel()` / `body_chunks()`
-- `SourceFile::select_lines(rng)` returns `(Vec<Line>, BranchSelection)`;
+- `SyntaxLine::command_name()` / `value()` / `measure()` / `channel()` / `body_chunks()`
+- `SyntaxLine::content_range()` returns the first-to-last non-trivia token range
+- `SourceFile::select_lines(rng)` returns `(Vec<SyntaxLine>, BranchSelection)`;
   `rng(max)` returns `[1, max]`, and `#SETRANDOM` / `#SETSWITCH` do not call it
 - `ParseOptions.header_prefixes` defaults to `['#', '%']`; non-default prefixes
   produce a `Prefix` token

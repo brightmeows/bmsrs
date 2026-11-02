@@ -4,8 +4,10 @@ use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
 use bmsrs_bms_source::{Document, TextDecodeError};
-use bmsrs_bms_syntax::{BranchSelection, LineKind, ParseOptions, SourceFile, TextRange, TextSize};
-use bmsrs_bms_values::{BmsToken, BmsTokenizeError, parse_header_line, parse_message_line};
+use bmsrs_bms_syntax::{
+    BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
+};
+use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
 
 use bmsrs_bms_model::Bms;
 
@@ -184,7 +186,10 @@ fn build_selected(
 }
 
 /// Collect CST syntax diagnostics.
-fn syntax_warnings(parse: &bmsrs_bms_syntax::Parse, file: &SourceFile) -> Vec<BmsParseWarning> {
+fn syntax_warnings(
+    parse: &bmsrs_bms_syntax::SyntaxParse,
+    file: &SourceFile,
+) -> Vec<BmsParseWarning> {
     let lines: Vec<_> = file.lines().enumerate().collect();
     parse
         .errors()
@@ -236,7 +241,10 @@ pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<Lin
     file.lines()
         .enumerate()
         .filter_map(|(index, line)| {
-            if !matches!(line.kind(), LineKind::Header | LineKind::Message) {
+            if !matches!(
+                line.kind(),
+                SyntaxLineKind::Header | SyntaxLineKind::Message
+            ) {
                 return None;
             }
             let content = line.content_text()?;
@@ -251,10 +259,7 @@ pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<Lin
 
 /// Parse one line of content into a token.
 fn tokenize_line_with(content: &str, prefixes: &[char]) -> Result<BmsToken, BmsTokenizeError> {
-    if let Some(message) = parse_message_line(content)? {
-        return Ok(BmsToken::Message(message));
-    }
-    parse_header_line(content, prefixes)?.map_or_else(
+    BmsToken::parse_line(content, prefixes)?.map_or_else(
         || {
             Err(BmsTokenizeError::OutOfRange {
                 context: "line",
@@ -262,6 +267,6 @@ fn tokenize_line_with(content: &str, prefixes: &[char]) -> Result<BmsToken, BmsT
                 expected: "header or message",
             })
         },
-        |header| Ok(BmsToken::Header(header)),
+        Ok,
     )
 }

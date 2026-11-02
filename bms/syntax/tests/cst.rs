@@ -1,6 +1,6 @@
 //! CST parsing tests.
 
-use bmsrs_bms_syntax::{LineKind, ParseOptions, SourceFile, SyntaxKind};
+use bmsrs_bms_syntax::{ParseOptions, SourceFile, SyntaxKind, SyntaxLineKind};
 
 #[test]
 fn cst_text_is_lossless() {
@@ -63,7 +63,11 @@ fn comment_and_blank_lines_are_recognized() {
         .collect();
     assert_eq!(
         kinds,
-        vec![LineKind::Comment, LineKind::Blank, LineKind::Comment]
+        vec![
+            SyntaxLineKind::Comment,
+            SyntaxLineKind::Blank,
+            SyntaxLineKind::Comment
+        ]
     );
 }
 
@@ -75,7 +79,7 @@ fn text_line_is_recognized() {
         .lines()
         .next()
         .unwrap_or_else(|| panic!("line"));
-    assert_eq!(line.kind(), LineKind::Text);
+    assert_eq!(line.kind(), SyntaxLineKind::Text);
 }
 
 #[test]
@@ -178,5 +182,5 @@ fn custom_header_prefix_is_text_by_default() {
         .lines()
         .next()
         .unwrap_or_else(|| panic!("line"));
-    assert_eq!(line.kind(), LineKind::Text);
+    assert_eq!(line.kind(), SyntaxLineKind::Text);
 }

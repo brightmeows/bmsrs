@@ -17,7 +17,7 @@ fn parse_one(line: &str) -> Messages {
 /// base.
 fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
     let mut msgs = Messages::default();
-    if let Ok(Some(msg)) = parse_message_line(line) {
+    if let Ok(Some(msg)) = BmsMessage::parse(line) {
         msgs.concat_raw(&msg);
     }
     msgs.finalize(base);

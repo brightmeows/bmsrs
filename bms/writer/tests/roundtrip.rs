@@ -5,7 +5,7 @@
 //! the fallback-rewrite tier.
 
 use bmsrs_bms_model::Bms;
-use bmsrs_bms_model::parse_message_line;
+use bmsrs_bms_model::BmsMessage;
 use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_syntax::SourceFile;
 use proptest::prelude::*;
@@ -120,7 +120,7 @@ fn stp_events_are_written_with_position() {
 fn encode_body_roundtrips_via_parse() {
     // encode and parse are inverses for the body: concatenation reproduces the
     // original text.
-    let line = parse_message_line("#00111:010203")
+    let line = BmsMessage::parse("#00111:010203")
         .expect("valid message")
         .expect("is message");
     assert_eq!(

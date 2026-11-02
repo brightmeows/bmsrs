@@ -47,6 +47,22 @@ pub enum BmsHeader {
     Fallback(BmsHeaderFallback),
 }
 
+impl BmsHeader {
+    /// Parse a single header line into a [`BmsHeader`].
+    ///
+    /// `prefixes` controls which leading characters are recognized as header
+    /// markers (default: `#` and `%`). Returns `Ok(None)` when the line is not
+    /// a header (blank line, comment, or channel data).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BmsTokenizeError`] when a recognized header command's value
+    /// cannot be parsed into the expected type.
+    pub fn parse(line: &str, prefixes: &[char]) -> Result<Option<Self>, BmsTokenizeError> {
+        parse_header_line(line, prefixes)
+    }
+}
+
 /// Fallback type for unrecognized header commands.
 ///
 /// Captures the raw command name and value so downstream consumers (parsers,
@@ -79,10 +95,7 @@ pub struct BmsHeaderFallback {
     clippy::string_slice,
     reason = "BMS header lines are ASCII-only; byte indexing at whitespace boundaries is safe"
 )]
-pub fn parse_header_line(
-    line: &str,
-    prefixes: &[char],
-) -> Result<Option<BmsHeader>, BmsTokenizeError> {
+fn parse_header_line(line: &str, prefixes: &[char]) -> Result<Option<BmsHeader>, BmsTokenizeError> {
     let trimmed = line.trim();
 
     if trimmed.is_empty() {

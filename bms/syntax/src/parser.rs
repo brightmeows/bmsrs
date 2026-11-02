@@ -3,7 +3,7 @@
 use rowan::{GreenNode, GreenNodeBuilder, TextRange, TextSize};
 
 use crate::ast::SourceFile;
-use crate::lexer::{LineData, LineKind, lex};
+use crate::lexer::{LineData, SyntaxLineKind, lex};
 use crate::{ParseOptions, SyntaxKind};
 
 /// Diagnostic category.
@@ -57,14 +57,14 @@ impl Diagnostic {
 
 /// The result of one parse.
 #[derive(Debug, Clone)]
-pub struct Parse {
+pub struct SyntaxParse {
     /// Green tree.
     green: GreenNode,
     /// Diagnostic list.
     errors: Vec<Diagnostic>,
 }
 
-impl Parse {
+impl SyntaxParse {
     /// Return the document root node.
     #[must_use]
     pub fn source_file(&self) -> SourceFile {
@@ -87,7 +87,7 @@ impl Parse {
 /// A CST item.
 enum Item<'a> {
     /// Plain line.
-    Line(LineData<'a>),
+    SyntaxLine(LineData<'a>),
     /// `#RANDOM` block.
     Random(RandomBlock<'a>),
     /// `#SWITCH` block.
@@ -145,7 +145,7 @@ struct SwitchCase<'a> {
 }
 
 /// Parse text and build the CST.
-pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
+pub fn parse_with(text: &str, options: &ParseOptions) -> SyntaxParse {
     let lines = lex(text, options);
     let mut errors = Vec::new();
     collect_lex_errors(&lines, &mut errors);
@@ -156,7 +156,7 @@ pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
     build_items(&mut builder, &items);
     builder.finish_node();
 
-    Parse {
+    SyntaxParse {
         green: builder.finish(),
         errors,
     }
@@ -165,7 +165,7 @@ pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
 /// Collect error lines from the lexer.
 fn collect_lex_errors(lines: &[LineData<'_>], errors: &mut Vec<Diagnostic>) {
     for line in lines {
-        if line.kind == LineKind::Error {
+        if line.kind == SyntaxLineKind::Error {
             let range = line
                 .tokens
                 .iter()
@@ -208,7 +208,7 @@ fn parse_item<'a>(
     errors: &mut Vec<Diagnostic>,
 ) -> (Item<'a>, usize) {
     let Some(line) = lines.get(index) else {
-        return (Item::Line(empty_line()), end);
+        return (Item::SyntaxLine(empty_line()), end);
     };
 
     if is_random_open(line) {
@@ -222,17 +222,17 @@ fn parse_item<'a>(
             DiagnosticKind::ControlFlow,
         ));
         let mut error = line.clone();
-        error.kind = LineKind::Error;
-        (Item::Line(error), index.saturating_add(1))
+        error.kind = SyntaxLineKind::Error;
+        (Item::SyntaxLine(error), index.saturating_add(1))
     } else {
-        (Item::Line(line.clone()), index.saturating_add(1))
+        (Item::SyntaxLine(line.clone()), index.saturating_add(1))
     }
 }
 
 /// Build an empty line; only used as an out-of-bounds fallback.
 const fn empty_line<'a>() -> LineData<'a> {
     LineData {
-        kind: LineKind::Blank,
+        kind: SyntaxLineKind::Blank,
         tokens: Vec::new(),
         start: 0,
         end: 0,
@@ -453,7 +453,11 @@ fn parse_switch_inner<'a>(
             if let Some(case) = current_case.as_mut() {
                 case.skip = Some(line.clone());
             } else {
-                body.push(Item::Line(error_line(line, "#SKIP outside #CASE", errors)));
+                body.push(Item::SyntaxLine(error_line(
+                    line,
+                    "#SKIP outside #CASE",
+                    errors,
+                )));
             }
             index = index.saturating_add(1);
         } else if is_end_switch(line) {
@@ -520,7 +524,11 @@ fn push_error<'a>(
     message: &str,
     errors: &mut Vec<Diagnostic>,
 ) {
-    push_item(body, branch, Item::Line(error_line(line, message, errors)));
+    push_item(
+        body,
+        branch,
+        Item::SyntaxLine(error_line(line, message, errors)),
+    );
 }
 
 /// Mark a line as an error and record a diagnostic.
@@ -535,7 +543,7 @@ fn error_line<'a>(
         DiagnosticKind::ControlFlow,
     ));
     let mut error = line.clone();
-    error.kind = LineKind::Error;
+    error.kind = SyntaxLineKind::Error;
     error
 }
 
@@ -543,7 +551,7 @@ fn error_line<'a>(
 fn build_items(builder: &mut GreenNodeBuilder<'_>, items: &[Item<'_>]) {
     for item in items {
         match item {
-            Item::Line(line) => build_line(builder, line),
+            Item::SyntaxLine(line) => build_line(builder, line),
             Item::Random(block) => build_random(builder, block),
             Item::Switch(block) => build_switch(builder, block),
         }
@@ -553,12 +561,12 @@ fn build_items(builder: &mut GreenNodeBuilder<'_>, items: &[Item<'_>]) {
 /// Build a plain line node.
 fn build_line(builder: &mut GreenNodeBuilder<'_>, line: &LineData<'_>) {
     let kind = match line.kind {
-        LineKind::Blank => SyntaxKind::BlankLine,
-        LineKind::Comment => SyntaxKind::CommentLine,
-        LineKind::Header => SyntaxKind::HeaderLine,
-        LineKind::Message => SyntaxKind::MessageLine,
-        LineKind::Text => SyntaxKind::TextLine,
-        LineKind::Error => SyntaxKind::ErrorLine,
+        SyntaxLineKind::Blank => SyntaxKind::BlankLine,
+        SyntaxLineKind::Comment => SyntaxKind::CommentLine,
+        SyntaxLineKind::Header => SyntaxKind::HeaderLine,
+        SyntaxLineKind::Message => SyntaxKind::MessageLine,
+        SyntaxLineKind::Text => SyntaxKind::TextLine,
+        SyntaxLineKind::Error => SyntaxKind::ErrorLine,
     };
     build_node(builder, line, kind);
 }

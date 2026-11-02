@@ -1,4 +1,4 @@
-//! Line-boundary consistency between `bmsrs-bms-source` and
+//! SyntaxLine-boundary consistency between `bmsrs-bms-source` and
 //! `bmsrs-bms-syntax`.
 //!
 //! `SourceFile::parse_document` calls `Document::to_text()` and then splits
