@@ -25,38 +25,27 @@
 //! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, SongInfo, ChartInfo, ChartData, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-//!     LnTypeHint, NoteKind, NoteSide,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, Note, NoteKind, NoteSide,
 //! };
 //! use bmsrs_player::Player;
 //!
-//! let chart: Chart = Chart {
-//!     song: SongInfo::default(),
-//!     chart: ChartInfo::default(),
-//!     data: ChartData {
-//!         init_bpm: 120.0,
-//!         resolution: 240,
-//!         judge_multiplier: Some(1.0),
-//!         life_multiplier: Some(1.0),
-//!         ln_type_hint: LnTypeHint::default(),
-//!         ln_judge_hint: LnJudgeHint::default(),
-//!         ln_life_hint: LnLifeHint::default(),
-//!         judge_deltas: None,
-//!         life_deltas: None,
-//!         events: vec![Event::new(
-//!             480,
-//!             EventKind::Note {
-//!                 side: NoteSide::P1,
-//!                 lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!                 kind: NoteKind::Normal,
-//!                 role: bmsrs_chart::NoteRole::Normal,
-//!                 audio: bmsrs_chart::NoteAudio::none(),
-//!                 ext: (),
-//!             },
-//!         )],
-//!         audio_assets: vec![],
-//!     },
-//! };
+//! let data: ChartData = ChartData::new(
+//!     120.0,
+//!     240,
+//!     vec![Event::note(
+//!         480,
+//!         Note::<()>::new(
+//!             NoteSide::P1,
+//!             Lane::Key(NonZeroU8::new(1).unwrap()),
+//!             NoteKind::Normal,
+//!             bmsrs_chart::NoteRole::Normal,
+//!             bmsrs_chart::NoteAudio::none(),
+//!         ),
+//!     )],
+//!     Default::default(),
+//! )
+//! .unwrap();
+//! let chart = Chart::new(SongInfo::default(), ChartInfo::default(), data);
 //!
 //! let mut player = Player::new(chart).unwrap();
 //! assert_eq!(player.current_tick(), 0);

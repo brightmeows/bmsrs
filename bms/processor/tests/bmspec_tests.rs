@@ -12,7 +12,7 @@ use bmsrs_bms_processor::BmsProcessor;
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_syntax::SourceFile;
-use bmsrs_chart::{Chart, EventKind, NoteKind, TimingTrack};
+use bmsrs_chart::{Chart, EventKind, Note, NoteKind, TimingTrack};
 use bmsrs_player::Player;
 
 /// Chart type returned by bmsrs-bms-processor.
@@ -49,7 +49,7 @@ fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
         .events
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note { kind, .. } = &e.kind {
+            if let EventKind::Note(Note { kind, .. }) = &e.kind {
                 Some((e.tick(), *kind))
             } else {
                 None
@@ -97,10 +97,10 @@ fn long_notes(chart: &BmsChart) -> Vec<(u64, u64)> {
         .events
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Long { duration },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((e.tick(), *duration))
             } else {
@@ -473,7 +473,7 @@ fn lnobj_marker_on_invisible_channel_stays_invisible_note() {
         .events
         .iter()
         .filter_map(|e| match &e.kind {
-            EventKind::Note { kind, .. } => Some(*kind),
+            EventKind::Note(Note { kind, .. }) => Some(*kind),
             _ => None,
         })
         .collect();
@@ -1069,7 +1069,7 @@ fn custom_events_dont_affect_note_queries() {
     let note_count = player
         .events_in_range(0..2000)
         .iter()
-        .filter(|e| matches!(&e.kind, EventKind::Note { .. }))
+        .filter(|e| matches!(&e.kind, EventKind::Note(Note { .. })))
         .count();
     assert_eq!(note_count, 1, "note should still be present");
 }

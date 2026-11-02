@@ -49,8 +49,9 @@ use bmsrs_bms_parser::{
 use bmsrs_bms_parser::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
-    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, NoteAudio,
-    NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError, VideoAsset,
+    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, Note,
+    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    VideoAsset,
 };
 use thiserror::Error;
 
@@ -419,14 +420,14 @@ impl BmsConverter<'_> {
             {
                 ev.push(Event::new(
                     tick,
-                    EventKind::Note {
+                    EventKind::Note(Note {
                         side: note_side,
                         lane: note_lane,
                         kind,
                         role: NoteRole::Normal,
                         audio: NoteAudio::from(audio),
                         ext: (),
-                    },
+                    }),
                 ));
             }
         };
@@ -1201,11 +1202,11 @@ fn key_count(events: &[BmsEvent]) -> Option<u8> {
     let mut p2 = 0u8;
 
     for event in events {
-        if let EventKind::Note {
+        if let EventKind::Note(Note {
             side,
             lane: Lane::Key(key),
             ..
-        } = &event.kind
+        }) = &event.kind
         {
             let slot = if side.as_u8() == NoteSide::P1.as_u8() {
                 &mut p1

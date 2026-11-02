@@ -49,40 +49,33 @@
 //! ```
 //! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
-//!     Chart, SongInfo, ChartInfo, ChartData, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-//!     LnTypeHint, NoteKind, NoteSide,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, Note, NoteKind, NoteSide,
 //! };
 //!
-//! let chart: Chart = Chart {
-//!     song: SongInfo {
+//! let data: ChartData = ChartData::new(
+//!     120.0,
+//!     240,
+//!     vec![Event::note(
+//!         0,
+//!         Note::<()>::new(
+//!             NoteSide::P1,
+//!             Lane::Key(NonZeroU8::new(1).unwrap()),
+//!             NoteKind::Normal,
+//!             bmsrs_chart::NoteRole::Normal,
+//!             bmsrs_chart::NoteAudio::none(),
+//!         ),
+//!     )],
+//!     Default::default(),
+//! )
+//! .unwrap();
+//! let chart = Chart::new(
+//!     SongInfo {
 //!         title: "Test".into(),
 //!         ..Default::default()
 //!     },
-//!     chart: ChartInfo::default(),
-//!     data: ChartData {
-//!         init_bpm: 120.0,
-//!         resolution: 240,
-//!         judge_multiplier: Some(1.0),
-//!         life_multiplier: Some(1.0),
-//!         ln_type_hint: LnTypeHint::default(),
-//!         ln_judge_hint: LnJudgeHint::default(),
-//!         ln_life_hint: LnLifeHint::default(),
-//!         judge_deltas: None,
-//!         life_deltas: None,
-//!         events: vec![Event::new(
-//!             0,
-//!             EventKind::Note {
-//!                 side: NoteSide::P1,
-//!                 lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!                 kind: NoteKind::Normal,
-//!                 role: bmsrs_chart::NoteRole::Normal,
-//!                 audio: bmsrs_chart::NoteAudio::none(),
-//!                 ext: (),
-//!             },
-//!         )],
-//!         audio_assets: vec![],
-//!     },
-//! };
+//!     ChartInfo::default(),
+//!     data,
+//! );
 //! assert_eq!(chart.song.title, "Test");
 //! assert_eq!(chart.data.events.len(), 1);
 //! ```
@@ -97,7 +90,7 @@ pub mod timing;
 pub mod visual;
 
 pub use audio::{AudioAsset, AudioIndex};
-pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
+pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, Note, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
@@ -371,7 +364,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         let len = self.audio_assets.len();
         for event in &self.events {
             let audio_indices: &[AudioIndex] = match &event.kind {
-                EventKind::Note { audio, .. } => audio.as_slice(),
+                EventKind::Note(Note { audio, .. }) => audio.as_slice(),
                 EventKind::Bgm { audio_index } => std::slice::from_ref(audio_index),
                 _ => &[],
             };
@@ -551,6 +544,12 @@ pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
 impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Chart<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
+    /// Construct a chart from its three top-level parts.
+    #[must_use]
+    pub const fn new(song: SongInfo, chart: ChartInfo, data: ChartData<T, C>) -> Self {
+        Self { song, chart, data }
+    }
+
     /// Validate the key invariants of the chart.
     ///
     /// Checks:

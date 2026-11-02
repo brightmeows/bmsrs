@@ -3,7 +3,7 @@
 use bmsrs_bms_parser::{KeyType, NoteEvent, Position};
 use bmsrs_bms_processor::BmsProcessor;
 use bmsrs_bms_processor::layout::Bme;
-use bmsrs_chart::{EventKind, NoteKind};
+use bmsrs_chart::{EventKind, Note, NoteKind};
 
 /// visible note inside LN range should be removed;
 /// visible note outside LN range should remain.
@@ -64,10 +64,10 @@ fn visible_note_inside_lntype1_range_removed() {
         .events
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(e.tick())
             } else {
@@ -128,10 +128,10 @@ fn visible_note_at_ln_start_tick_suppressed() {
     let has_normal = chart.data.events.iter().any(|e| {
         matches!(
             &e.kind,
-            EventKind::Note {
+            EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            }
+            })
         )
     });
     assert!(!has_normal, "visible at LN start should be suppressed");
@@ -180,10 +180,10 @@ fn visible_note_at_ln_end_tick_suppressed() {
     let has_normal = chart.data.events.iter().any(|e| {
         matches!(
             &e.kind,
-            EventKind::Note {
+            EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            }
+            })
         )
     });
     assert!(!has_normal, "visible at LN end should be suppressed");
@@ -238,10 +238,10 @@ fn visible_note_on_different_lane_preserved() {
         .events
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(e.tick())
             } else {
@@ -296,10 +296,10 @@ fn visible_note_at_unpaired_ln_start_suppressed() {
     let has_normal = chart.data.events.iter().any(|e| {
         matches!(
             &e.kind,
-            EventKind::Note {
+            EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            }
+            })
         )
     });
     assert!(
@@ -375,10 +375,10 @@ fn visible_note_in_gap_between_lns_preserved() {
         .events
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(e.tick())
             } else {
@@ -451,10 +451,10 @@ fn lnobj_visible_note_inside_range_removed() {
         .events
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(e.tick())
             } else {
@@ -529,10 +529,10 @@ fn lntype2_visible_note_inside_range_removed() {
     let has_normal = chart.data.events.iter().any(|e| {
         matches!(
             &e.kind,
-            EventKind::Note {
+            EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            }
+            })
         )
     });
     assert!(!has_normal, "visible inside LN range should be suppressed");

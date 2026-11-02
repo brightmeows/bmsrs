@@ -1,4 +1,5 @@
 use bmsrs_chart::{
+    Note,
     Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
     NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo,
 };
@@ -29,12 +30,12 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
 pub const fn note(tick: u64, lane: Lane, kind: NoteKind) -> Evt {
     Event::new(
         tick,
-        EventKind::Note {
+        EventKind::Note(Note {
             side: NoteSide::P1,
             lane,
             kind,
             role: NoteRole::Normal, audio: NoteAudio::none(),
             ext: (),
-        },
+        }),
     )
 }

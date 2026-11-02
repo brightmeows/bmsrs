@@ -10,8 +10,8 @@ use std::fmt;
 use std::ops::{Bound, RangeBounds};
 
 use bmsrs_chart::{
-    CustomEvent, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteExt,
-    NoteKind, NoteRole, NoteSide,
+    CustomEvent, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, Note, NoteAudio,
+    NoteExt, NoteKind, NoteRole, NoteSide,
 };
 
 /// Stable identifier assigned by [`NoteTable`] in event order.
@@ -147,14 +147,14 @@ impl NoteTable {
         let mut by_lane: BTreeMap<(NoteSide, Lane), LaneNotes> = BTreeMap::new();
 
         for (event_index, event) in events.iter().enumerate() {
-            let EventKind::Note {
+            let EventKind::Note(Note {
                 side,
                 lane,
                 kind,
                 role,
                 audio,
                 ext,
-            } = &event.kind
+            }) = &event.kind
             else {
                 continue;
             };
@@ -276,7 +276,7 @@ mod tests {
     use super::*;
     use std::num::NonZeroU8;
 
-    use bmsrs_chart::{NoCustomEvent, NoteAudio};
+    use bmsrs_chart::{NoCustomEvent, Note, NoteAudio};
 
     const KEY1: NonZeroU8 = NonZeroU8::MIN;
 
@@ -289,14 +289,14 @@ mod tests {
     ) -> Event<(), NoCustomEvent> {
         Event::new(
             tick,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side,
                 lane,
                 kind,
                 role,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         )
     }
 

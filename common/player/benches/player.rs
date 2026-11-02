@@ -14,7 +14,7 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+    Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, Note,
     NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
 };
 use bmsrs_player::{Player, Viewport};
@@ -53,14 +53,14 @@ fn build_chart(n: usize) -> Chart {
         let tick = (i as u64) * RESOLUTION; // One note per beat.
         events.push(Event::new(
             tick,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: Lane::Key(KEY1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         ));
     }
 
@@ -167,14 +167,14 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         let tick = (i as u64) * RESOLUTION;
         events.push(Event::new(
             tick,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: Lane::Key(KEY1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         ));
     }
 
