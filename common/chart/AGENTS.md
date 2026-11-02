@@ -13,10 +13,15 @@ the player.
 | Domain | Type | Use |
 |--------|------|-----|
 | Tick | `u64` | all event positions, stop durations, LN durations |
-| Time | `Duration` | `AudioAsset.start`, `Chart::duration()` |
+| Time | `Duration` | `AudioAsset.start`, `Player::duration()` |
 | Musical time | `Duration` | `TimingTrack::tick_to_musical_duration`, excluding STOP pauses; used for audio slicing |
 
 `resolution` defines ticks per quarter note (default 240).
+
+`ChartData` stores the scalar timing configuration (`init_bpm`, `resolution`)
+and the event stream. BPM changes and stops live only in
+`EventKind::Bpm`/`EventKind::Stop`; `bmsrs-player` derives its `TimingTrack`
+from them. There is no second timing source to keep in sync.
 
 ## Generic parameters
 
@@ -66,13 +71,18 @@ queries.
 
 | Rule | Explanation |
 |------|-------------|
-| `Chart::duration()` is the render duration of `last_tick` | no extra tail after the last event |
+| `Player::duration()` is the render duration of `last_tick` | no extra tail after the last event |
 | `AudioAsset.start` is in the Time domain | defines the trigger offset of an audio asset |
 | `TimingTrack::default()` is 120 BPM | a safe default, not 0.0; `ChartData` still does not implement `Default` |
 | `LnTypeHint`/`LnJudgeHint`/`LnLifeHint` | typed enums for long-note hints in `note.rs`. `LnTypeHint` is filled by both BMS `#LNMODE` and BMSON `ln_type_hint` |
 | `Event`'s `tick()` method | uniform access to the tick field of every variant |
 | `Event::sort_key()` | the `(tick, priority)` composite key and the only same-tick ordering entry point |
-| `ChartData::validate()` | checks event ordering, then note/BGM audio indices and BGA resource indices; `UnsortedEvents` is a separate error |
+| `ChartData::new()` | sorts events, then calls `validate`; returns `Result` |
+| `ChartData::validate()` | checks positive finite `init_bpm`, positive `resolution`, event ordering, positive finite BPM events, finite SCROLL/SPEED rates, and note/BGM audio indices |
+| BPM/Stop single source | `EventKind::Bpm`/`EventKind::Stop` are authoritative; `TimingTrack::from_events` derives the timing cache |
+| Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected; reverse scrolling is not modeled |
+| Same-tick STOP | processors keep the last stop; `TimingTrack::new` also applies last-wins defensively, matching beatoraja |
+| `NoteExt` LN hint accessors | `ln_type_hint`/`ln_judge_hint`/`ln_life_hint` default to `None`; BMSON overrides them per note |
 | `judge_multiplier` / `life_multiplier` | `Option<f64>`; `None` means unspecified by the source, `Some(1.0)` means standard |
 | `ChartInfo.key_count` | total playable keys; `None` means not provided or not inferable |
 | `ChartInfo.subartists` / `title_image` | aligned with BMSON v2's chart-level ownership; BMS `#SUBARTIST` also maps to `subartists` |

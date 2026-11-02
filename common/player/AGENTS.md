@@ -2,54 +2,67 @@
 
 ## Role
 
-Pure simulation layer for `Chart<T>`. Provides time-based query APIs for game
-rendering and scheduling.
+Pure simulation layer for `Chart<T>`. Derives timing, scroll caches, and a
+stable note index from the chart event stream, then exposes time, event, note,
+and viewport queries.
 
-**No I/O, rendering, judging, or scoring.**
+**No I/O, rendering, judging, or scoring.** Judgment policy belongs to the
+caller.
 
-## Time API
+## Time and data model
 
-Every public time parameter uses `Duration`:
+`ChartData` stores `events`, `init_bpm`, and `resolution`. `Player::new`
+derives `TimingTrack` from `EventKind::Bpm` and `EventKind::Stop`; the event
+stream is the only timing source.
 
 | Method | Purpose |
 |--------|---------|
-| `Player::new(chart)` | sorts events, then validates `ChartData`; returns `Result` |
+| `Player::new(chart)` | sorts events, validates, derives timing/caches/NoteTable; returns `Result` |
 | `advance(Duration)` | pure playback-time accumulation (O(1)); ticks derived on demand |
-| `seek(Duration)` | jump to a given position |
-| `current_time() -> Duration` | current playback position (the state itself) |
-| `current_tick() -> u64` | current tick position (derived from time, O(log n)) |
+| `seek(Duration)` | jump to an absolute position |
+| `current_time() -> Duration` | current playback position (the only mutable state) |
+| `current_tick() -> u64` | rounded tick position (O(log n)) |
+| `current_tick_f64() -> f64` | continuous tick position for smooth scroll |
+| `duration_to_tick_f64(Duration)` | continuous time-to-tick conversion |
+
+During a STOP, `current_time()` keeps flowing while ticks freeze. Use
+`current_tick_f64()` for rendering positions; convert a tick through
+`tick_to_duration` when "before the pause" semantics are needed.
 
 ## Queries
 
 | Query type | Purpose |
 |------------|---------|
-| Notes | `events_in_range` plus caller-side kind filtering; `notes_for_judgement` applies the judgment-relevant filter (Normal/Long) |
-| BGM/audio | audio triggers on the timeline |
-| BGA (three layers) | Base / Layer / Layer2 animation events |
-| Visual effects | bar lines, scroll/speed changes |
+| Events | `events_in_range` (Bound-correct), `events_in_time_range([start, end))`, `next_event_after` |
+| Notes | `notes_in_range` returns `NoteRef`/`NotePoint`; `long_notes()`; `note(id)` |
+| Audio | `audio_assets()` plus time-range event queries |
+| BGA | `bga_resources()` plus time-range event queries |
+| Scroll/SPEED | `scroll_rate_at`, `scroll_position_at`, `scroll_position_at_f64`, `scroll_delta`, `spacing_at_time` |
+| Visibility | `Viewport::visible_notes_at`, `visible_long_notes_at`, `visible_lines_at` |
 
-See the `Player` impl block.
+`NoteTable` assigns stable `NoteId`s in event order and groups note ids by
+`(NoteSide, Lane)`. It does not store a `judgeable` flag.
 
 ## Non-obvious rules
 
 | Rule | Explanation |
 |------|-------------|
-| Duration is the only time interface | ticks are not exposed externally; conversion happens inside |
-| The player does not judge | judging logic belongs to the upper layer (renderer/UI) |
-| Time-driven state machine | `current_time` is the only state field; `current_tick()` is derived every time. Many instants inside a stop map to the same tick, so `tick` to `time` is not injective; using ticks as state would make small per-frame `advance` steps get stuck inside a stop forever |
-| Semantics during STOP | `current_tick()` freezes; `current_time()` keeps flowing. For "before the pause" semantics, convert `current_tick` through `tick_to_duration` |
+| events are the only timing source | `TimingTrack::from_events` derives BPM changes and stops; do not add a second timing field |
+| `NotePoint` is descriptive | `Normal + Release` is a release keysound/BSS marker; `Long + Release` is an MSS endpoint. The caller decides with its Ln/Cn/Hcn policy. There is no `notes_for_judgement` |
+| Viewport is scroll-domain | Never convert a time window to a tick range for visibility. During a STOP, future notes stay frozen on screen; Viewport uses `scroll_position_at_f64` and `spacing_at_time` |
+| SPEED is time-interpolated | Keyframes store wall-clock time; before the first keyframe, interpolate from 1.0 at time zero |
+| `events_in_time_range` is exact | It maps to a coarse tick range, then filters by `tick_to_duration(event.tick())` in `[start, end)` |
+| `events_in_range` handles `u64::MAX` | Bound matching uses `partition_point` directly, not `end_tick = u64::MAX` |
+| `Player::new` consumes the chart | `into_chart()` returns the sorted, validated chart |
 
 ## Performance benchmarks
 
-The hot-path benchmarks (`benches/player.rs`) quantify the per-frame cost of the
-playback loop, providing data for optimizing timing queries and query paths.
+The hot-path benchmarks (`benches/player.rs`) quantify per-frame timing,
+event, note, and viewport costs.
 
 ```bash
 cargo bench -p bmsrs-player --bench player -- --quick  # quick estimate
 ```
-
-Coverage: `duration_to_tick`, `tick_to_duration`, `advance`, and
-`events_in_range`.
 
 > **Performance-related changes must be verified with benchmarks**; do not
 > conclude from big-O reasoning. A large constant factor in O(log^2 n) can be

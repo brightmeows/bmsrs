@@ -183,6 +183,8 @@ Reassess them before adding support; do not assume silently.
 | `#CDDA` / `#MIDIFILE` | only stored in the `BmsAudio` sidecar; no playback abstraction | a player needs CD or MIDI sources |
 | BMSON `resolution: 0` or negative | rejects the whole file, stricter than the specification (0 should fall back to 240 and negatives should take the absolute value) | compatibility with authoring-tool defects is required |
 | BMS `#BPM 0` | returns `ZeroBpm` instead of falling back to 130 | charts with no scrolling need to be supported |
+| Negative BPM | changes are dropped with a warning; a negative initial BPM is rejected; reverse scrolling is not modeled | negative-BPM charts need support |
+| BMSON MSS | `Long + Release` is exposed as a descriptive note point; no dedicated MSS judgment state | a player implements MSS scoring/input |
 | BMS `#PLAYER` | ignored; `Bme` covers 5K/7K/10K/14K | automatic family selection by `#PLAYER` is needed |
 | BGM layering | BGM events stay separate; only judgeable notes merge `NoteAudio` | a real chart needs BGM layers merged |
 | Scope of processor semantic warnings | no `TextRange`; the editor path recomputes them with `bmsrs-bms-analysis` | the LSP needs semantic warnings located in the source text |
