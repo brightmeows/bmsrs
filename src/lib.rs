@@ -256,6 +256,11 @@ pub mod chart {
     pub use bmsrs_chart::*;
 }
 
+/// Shared pipeline result and diagnostic types.
+pub mod pipeline {
+    pub use bmsrs_pipeline::*;
+}
+
 /// Pure simulation and playback layer.
 pub mod player {
     pub use bmsrs_player::*;

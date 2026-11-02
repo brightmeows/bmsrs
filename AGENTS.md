@@ -46,6 +46,7 @@ flowchart LR
 | `bmsrs-bmson-processor` | `Bmson` to `Chart` | `Bmson` to `Chart` |
 | `bmsrs-chart` | Format-agnostic chart data model | `Chart<T>` as the central IR |
 | `bmsrs-player` | Pure simulation layer for `Chart<T>` | timeline queries, no I/O or rendering |
+| `bmsrs-pipeline` | Shared pipeline result and diagnostic types | `Outcome<T, W>` and `Diagnostic` |
 | `bmsrs` | Public re-export facade | aggregated `pub use` |
 
 `bms-lsp` lives in a separate repository: <https://github.com/brightmeows/bms-lsp>.
