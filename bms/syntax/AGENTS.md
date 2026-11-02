@@ -52,8 +52,8 @@ SourceFile
 
 - `SourceFile::parse(text)` returns `SyntaxParse`; `SyntaxParse::source_file()` / `errors()`
 - `IncrementalParser::new(text, options)` / `update(text)` / `parse()` reuses
-  the green tree for single-line content edits and falls back to a full parse
-  for structural edits
+  the green tree for single-line content edits, re-lexes only the changed line,
+  and falls back to a full parse for control-flow text or structural edits
 - `SourceFile::parse_with(text, &ParseOptions)` supports custom header prefixes
 - `SourceFile::parse_document(&Document)` / `parse_document_with` enter the CST
   from a lossless document
@@ -84,6 +84,13 @@ cargo test -p bmsrs-bms-syntax
 Public API tests live in `tests/` and cover losslessness, inline tokens, nested
 control flow, error recovery, and branch selection. Add a lossless assertion
 when adding a syntax node.
+
+```bash
+cargo bench -p bmsrs-bms-syntax --bench incremental -- --quick
+```
+
+The incremental benchmark covers 1k/10k/20k/50k lines and compares a single
+line edit against a full parse.
 
 ## Always / Ask / Never
 

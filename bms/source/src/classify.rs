@@ -13,7 +13,7 @@ use std::ops::Range;
 use crate::{LineError, LineKind, SourceEncoding};
 
 /// String and block-comment state preserved across lines.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ScanState {
     /// Whether a `/* ... */` block comment is open.
     in_block: bool,

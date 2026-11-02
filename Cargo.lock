@@ -181,6 +181,7 @@ name = "bmsrs-bms-syntax"
 version = "0.1.0"
 dependencies = [
  "bmsrs-bms-source",
+ "criterion",
  "insta",
  "proptest",
  "rowan",
