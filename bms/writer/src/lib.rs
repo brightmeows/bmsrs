@@ -10,13 +10,13 @@
 //! # Pipeline
 //!
 //! ```text
-//! bmsrs_bms_parser::Bms -> BmsWriter::write -> String (BMS text)
+//! bmsrs_bms_model::Bms -> BmsWriter::write -> String (BMS text)
 //! ```
 
 mod headers;
 mod messages;
 
-use bmsrs_bms_parser::Bms;
+use bmsrs_bms_model::Bms;
 
 /// BMS text generator.
 ///
@@ -34,7 +34,7 @@ impl BmsWriter {
     /// 2. Channel lines sorted ascending by (measure, channel); multiple lines
     ///    for the same (measure, channel) are merged into one line by position
     ///    (non-`00` overrides, `00` preserves the position), matching
-    ///    [`bmsrs_bms_parser`]'s parse-time merge semantics
+    ///    [`bmsrs_bms_model`]'s parse-time merge semantics
     /// 3. Terminated by a newline
     ///
     /// Output is Unicode text; character-encoding conversion (`Shift-JIS` and

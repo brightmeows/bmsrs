@@ -4,23 +4,24 @@
 //! external consumers would. The whole-pipeline entry point (`from_text`) has
 //! moved to the `bmsrs` facade, and its tests moved with it.
 
-use bmsrs_bms_parser::BmsBgaLayer;
-use bmsrs_bms_parser::*;
-use bmsrs_bms_parser::{
+use bmsrs_bms_model::BmsBgaLayer;
+use bmsrs_bms_model::*;
+use bmsrs_bms_model::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
     Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
+use bmsrs_bms_parser::BmsParser;
 
 /// Helper: parse a BMS string into `Bms` (default C = &str).
 fn parse(input: &str) -> Bms {
     let source = bmsrs_bms_syntax::SourceFile::parse(input);
-    Bms::from_cst(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), |_| 1).bms
 }
 
 /// Helper: parse with `C = String` to verify the owned-string pipeline works.
 fn parse_string(input: &str) -> Bms {
     let source = bmsrs_bms_syntax::SourceFile::parse(input);
-    Bms::from_cst(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), |_| 1).bms
 }
 
 // Re-export accessibility
@@ -538,11 +539,11 @@ fn unknown_channel_stays_raw() {
     // Channel FF is unknown: only in raw, no events.
     assert_eq!(
         bms.messages.bgm_events,
-        [] as [bmsrs_bms_parser::BgmEvent; 0]
+        [] as [bmsrs_bms_model::BgmEvent; 0]
     );
     assert_eq!(
         bms.messages.note_events,
-        [] as [bmsrs_bms_parser::NoteEvent; 0]
+        [] as [bmsrs_bms_model::NoteEvent; 0]
     );
     let ch = BmsChannel::from_raw("FF").unwrap();
     assert_eq!(
@@ -557,7 +558,7 @@ fn empty_message_values() {
     // Empty value: no events, but raw holds one empty-string entry.
     assert_eq!(
         bms.messages.note_events,
-        [] as [bmsrs_bms_parser::NoteEvent; 0]
+        [] as [bmsrs_bms_model::NoteEvent; 0]
     );
     let ch = BmsChannel::from_raw("11").unwrap();
     assert_eq!(
@@ -696,7 +697,7 @@ fn non_event_data_populated_after_parse() {
     // non_event_data must not be empty.
     assert_ne!(
         bms.messages.non_event_data,
-        [] as [bmsrs_bms_parser::NonEventData; 0]
+        [] as [bmsrs_bms_model::NonEventData; 0]
     );
     // Verify the BgaBaseOpacity (ch 0B) data.
     let entry = &bms.messages.non_event_data[0];
@@ -836,8 +837,8 @@ fn bmspec_bpm_basic() {
     assert_eq!(bms.timing.bpm, Some(60.0));
     assert_eq!(bms.messages.bpm_changes.len(), 1);
     match bms.messages.bpm_changes[0].value {
-        bmsrs_bms_parser::BpmValue::Absolute(v) => assert!((v - 120.0).abs() < f64::EPSILON),
-        bmsrs_bms_parser::BpmValue::Reference(_) => panic!("expected absolute BPM"),
+        bmsrs_bms_model::BpmValue::Absolute(v) => assert!((v - 120.0).abs() < f64::EPSILON),
+        bmsrs_bms_model::BpmValue::Reference(_) => panic!("expected absolute BPM"),
     }
 }
 
@@ -880,7 +881,7 @@ fn bmspec_speed_without_channel() {
     assert!((bms.timing.speed_defs.get(&idx).copied().unwrap_or(0.0) - 0.5).abs() < f64::EPSILON);
     assert_eq!(
         bms.messages.speed_events,
-        [] as [bmsrs_bms_parser::SpeedEvent; 0]
+        [] as [bmsrs_bms_model::SpeedEvent; 0]
     );
 }
 

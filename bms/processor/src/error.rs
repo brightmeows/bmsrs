@@ -1,6 +1,6 @@
 //! Processing warning type definitions.
 
-use bmsrs_bms_parser::ChannelValueWarning;
+use bmsrs_bms_model::ChannelValueWarning;
 
 /// Recoverable warnings produced while processing BMS.
 ///

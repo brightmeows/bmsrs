@@ -3,9 +3,9 @@
 //! These tests consume the `Messages` struct only through the public API, using
 //! `concat_raw` and `finalize`.
 
-use bmsrs_bms_parser::BmsBgaLayer;
-use bmsrs_bms_parser::*;
-use bmsrs_bms_parser::{BmsBase, BmsChannel, BpmIndex, WavIndex};
+use bmsrs_bms_model::BmsBgaLayer;
+use bmsrs_bms_model::*;
+use bmsrs_bms_model::{BmsBase, BmsChannel, BpmIndex, WavIndex};
 
 /// Helper: parse one standard message line (`#xxxYY:body`) through `Messages`,
 /// using Base36.
@@ -358,7 +358,7 @@ fn measure_length_default_on_invalid() {
     let msgs = parse_one("#00102:notanumber");
     assert_eq!(
         msgs.measure_lengths,
-        [] as [bmsrs_bms_parser::MeasureLength; 0]
+        [] as [bmsrs_bms_model::MeasureLength; 0]
     );
 }
 

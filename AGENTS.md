@@ -18,8 +18,9 @@ flowchart LR
     BMS[".bms file"] --> Src[bmsrs-bms-source]
     Src -->|decoded text| Syn[bmsrs-bms-syntax]
     Syn -->|CST| Par[bmsrs-bms-parser]
-    Par --> BProc[bmsrs-bms-processor]
-    Par --> Writer[bmsrs-bms-writer]
+    Par --> Model[bmsrs-bms-model]
+    Model --> BProc[bmsrs-bms-processor]
+    Model --> Writer[bmsrs-bms-writer]
     Syn --> Analysis[bmsrs-bms-analysis]
 
     BMSON[".bmson file"] --> BDef[bmsrs-bmson-model]
@@ -37,6 +38,7 @@ flowchart LR
 | `bmsrs-bms-source` | BMS source-text layer: bytes, encoding, line index, byte-faithful editing | `Vec<u8>` to `Document` |
 | `bmsrs-bms-syntax` | BMS syntax layer: rowan CST, lexing, error-tolerant parsing, control-flow queries | `&str` to `SourceFile` |
 | `bmsrs-bms-values` | BMS single-line syntax and typed values: headers/messages, indices, parsing | `&str` (one line) to typed values |
+| `bmsrs-bms-model` | BMS whole-file model: metadata, timing, resources, and channel messages | token stream to `Bms` |
 | `bmsrs-bms-parser` | BMS semantic layer: CST to `Bms` model | CST to `Bms` |
 | `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | no runtime logic |
 | `bmsrs-bms-processor` | `Bms` to format-agnostic `Chart` | `Bms` to `Chart` |
