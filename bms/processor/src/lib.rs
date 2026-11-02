@@ -817,7 +817,10 @@ impl BmsConverter<'_> {
             .iter()
             .filter_map(|bc| {
                 let tick = self.table.position_to_tick(bc.position);
-                let span = None;
+                let span = self.message_span(
+                    bc.position.measure(),
+                    &[RawChannel::BpmChange, RawChannel::ExtendedBpm],
+                );
                 let bpm = self.resolve_bpm(bc.value, tick, span);
                 if BpmChange::is_valid(bpm) {
                     Some(BpmChange { tick, bpm })
@@ -927,6 +930,17 @@ impl BmsConverter<'_> {
         map
     }
 
+    /// Return the source line span for a measure and candidate channels.
+    fn message_span(
+        &self,
+        measure: u16,
+        channels: &[RawChannel],
+    ) -> Option<bmsrs_pipeline::SourceSpan> {
+        channels
+            .iter()
+            .find_map(|channel| self.bms.messages.line_span(measure, *channel))
+    }
+
     /// Resolve a [`BpmValue`] into a concrete BPM, using the BPM definition table
     /// for references.
     fn resolve_bpm(
@@ -967,11 +981,12 @@ impl BmsConverter<'_> {
             .iter()
             .filter_map(|se| {
                 let tick = self.table.position_to_tick(se.position);
+                let span = self.message_span(se.position.measure(), &[RawChannel::Stop]);
                 if let Some(&raw) = self.bms.timing.stop_defs.get(&se.stop_id) {
                     let duration = (raw / 192.0 * RESOLUTION as f64 * 4.0).round();
                     if duration < 0.0 {
                         self.warnings.push(ProcessWarning::new(
-                            None,
+                            span,
                             ProcessWarningKind::StopDurationClipped {
                                 tick,
                                 original: duration,
@@ -985,7 +1000,7 @@ impl BmsConverter<'_> {
                 } else {
                     if let Some(key) = se.stop_id.to_index() {
                         self.warnings.push(ProcessWarning::new(
-                            None,
+                            span,
                             ProcessWarningKind::MissingStopDefinition { key, tick },
                         ));
                     }
