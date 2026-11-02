@@ -93,6 +93,7 @@ engines).
 | `key_count` | Sum of the maximum `Lane::Key` number per side across the event stream; `None` when there are no key notes |
 | Judge/life multipliers | BMS `#RANK`/`#TOTAL` are not converted into `ChartData`; both fields stay `None` |
 | `#PATH_WAV` | Joined when constructing `AudioAsset.path`; the raw prefix stays in `Processed.audio.path_wav` |
+| Warning shape | `ProcessWarning { span, kind }`; `ProcessWarningKind` carries the payload, `span` is the source line when available |
 | `#BPM 0` | Returns `ProcessError::ZeroBpm` instead of falling back to 130; the current time model cannot represent zero BPM |
 | Conversion steps belong to `BmsConverter` | `collect_*`/`build_*` are methods on the private internal `BmsConverter`, not free functions |
 | `non_event_data` index normalization | Done in the parser layer; consumed by the processor | Every 2-character value in `non_event_data` was normalized in the parser's `finalize_merged` using the pre-scanned `#BASE`. Processor lookups hit directly. The `BmsConverter.base` field was removed because it is no longer needed |

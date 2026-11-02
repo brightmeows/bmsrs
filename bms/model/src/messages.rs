@@ -14,6 +14,7 @@ use bmsrs_bms_values::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BodyCells, BpmIndex, ChannelIndex, ScrollIndex,
     SpeedIndex, StopIndex, WavIndex, base36_digit_value,
 };
+use bmsrs_pipeline::SourceSpan;
 
 // Position
 
@@ -306,6 +307,19 @@ pub struct NonEventData {
     pub values: Vec<BmsIndex>,
 }
 
+/// Source spans keyed by `(measure, channel)`.
+///
+/// Source locations are metadata, not chart semantics, so equality ignores
+/// them; writer roundtrips compare the parsed model, not its original offsets.
+#[derive(Debug, Clone, Default)]
+struct LineSpans(BTreeMap<(u16, BmsChannel), SourceSpan>);
+
+impl PartialEq for LineSpans {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
 // Message container
 
 /// Container for raw and parsed channel message data.
@@ -320,6 +334,8 @@ pub struct Messages {
     /// earlier non-`00` positions), while BGM lines are processed independently
     /// to support polyphony.
     pub raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
+    /// Whole-line source span by (measure, channel).
+    line_spans: LineSpans,
 
     /// BGM events parsed from channel `01`.
     pub bgm_events: Vec<BgmEvent>,
@@ -390,6 +406,12 @@ impl Messages {
     /// [`finalize`](Self::finalize) after receiving every message; it merges
     /// non-BGM channels by position and then parses events.
     pub fn concat_raw(&mut self, msg: &bmsrs_bms_values::BmsMessage) {
+        if let Some(span) = msg.span {
+            self.line_spans
+                .0
+                .entry((msg.track(), msg.channel()))
+                .or_insert(span);
+        }
         self.raw
             .entry(msg.track())
             .or_default()
@@ -425,6 +447,7 @@ impl Messages {
         // Take raw and header-sourced stp_events, then reset message parse
         // results so finalize can be called repeatedly.
         let raw = std::mem::take(&mut self.raw);
+        let line_spans = std::mem::take(&mut self.line_spans);
         let stp_events = std::mem::take(&mut self.stp_events);
         *self = Self::default();
 
@@ -434,8 +457,22 @@ impl Messages {
             }
         }
 
+        for warning in &mut self.warnings {
+            warning.span = line_spans
+                .0
+                .get(&(warning.measure, warning.channel))
+                .copied();
+        }
+
         self.raw = raw;
+        self.line_spans = line_spans;
         self.stp_events = stp_events;
+    }
+
+    /// Return the whole-line source span for a measure and channel.
+    #[must_use]
+    pub fn line_span(&self, measure: u16, channel: BmsChannel) -> Option<SourceSpan> {
+        self.line_spans.0.get(&(measure, channel)).copied()
     }
 
     /// Dispatch one channel's multi-line data to the corresponding finalizer.
@@ -684,6 +721,7 @@ fn parse_indexed<T>(
                 measure: context.measure,
                 channel: context.channel,
                 value: cell.text.to_owned(),
+                span: None,
             }),
         }
     }

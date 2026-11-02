@@ -39,6 +39,7 @@ lifecycle is:
 | `"00"` differs per channel | note channels mean no note; BPM ch03 means rest; LN/ext channels treat it as a value |
 | Normalization contract | every `apply` on `Timing`/`Visual`/`Gameplay` receives `base` and normalizes index keys |
 | Derived values are forbidden | store the raw literal; move damage, reference resolution, and table lookup to the processor |
+| Message source spans | `BmsMessage.span` is a whole-line `SourceSpan`; `Messages` keeps one span per `(measure, channel)` and exposes `line_span()` |
 
 ## Tests
 

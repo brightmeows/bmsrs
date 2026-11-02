@@ -1,6 +1,7 @@
 //! Channel value parse warnings.
 
 use bmsrs_bms_values::BmsChannel;
+use bmsrs_pipeline::SourceSpan;
 
 /// A channel value cannot be parsed as the type required by that channel.
 ///
@@ -23,4 +24,6 @@ pub struct ChannelValueWarning {
     pub channel: BmsChannel,
     /// Original 2-character value that could not be parsed.
     pub value: String,
+    /// Whole-line source span, when available.
+    pub span: Option<SourceSpan>,
 }

@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use bmsrs_bms_syntax::{
     IncrementalParser, ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse,
-    TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsMessage, BodyCells};
 
@@ -52,10 +51,32 @@ impl Analysis {
         if text == self.syntax.text() {
             return;
         }
+        let old_text = self.syntax.text().to_owned();
+        let changed_line = single_line_change(&old_text, text);
         self.syntax.update(text);
-        let (diagnostics, index) = analyze(self.syntax.parse(), self.syntax.options());
-        self.diagnostics = diagnostics;
-        self.index = index;
+
+        if let Some(line) = changed_line {
+            let options = self.syntax.options().clone();
+            let source = self.syntax.parse().source_file();
+            let line_starts = source
+                .lines()
+                .map(|source_line| source_line.range().start())
+                .collect();
+            self.index.remove_line(line);
+            self.index.set_line_starts(line_starts);
+            collect_line_at(
+                &source,
+                line,
+                &options.header_prefixes,
+                &mut self.index,
+                &mut self.diagnostics,
+            );
+            self.diagnostics = diagnostics_from(self.syntax.parse(), &options, &self.index);
+        } else {
+            let (diagnostics, index) = analyze(self.syntax.parse(), self.syntax.options());
+            self.diagnostics = diagnostics;
+            self.index = index;
+        }
     }
 
     /// Return the document root node.
@@ -104,6 +125,8 @@ fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<AnalysisDiagnost
         &mut index,
         &mut diagnostics,
     );
+    let line_starts = source.lines().map(|line| line.range().start()).collect();
+    index.set_line_starts(line_starts);
     add_duplicate_diagnostics(&index, &mut diagnostics);
     add_missing_reference_diagnostics(&index, &mut diagnostics);
     (diagnostics, index)
@@ -116,30 +139,68 @@ fn collect_lines(
     index: &mut SymbolIndex,
     diagnostics: &mut Vec<AnalysisDiagnostic>,
 ) {
-    for line in source.lines() {
-        match line.kind() {
-            SyntaxLineKind::Header if !line.is_directive() => {
-                let content_text = line.content_text();
-                if let Some(content) = content_text.as_deref()
-                    && let Ok(Some(message)) = BmsMessage::parse(content)
-                {
-                    let body_start = content
-                        .find(':')
-                        .map_or(0, |offset| offset.saturating_add(1));
-                    let base = content_base(&line, content).saturating_add(body_start);
-                    collect_message_refs(message.channel(), &message.body, base, index);
-                } else {
-                    collect_header(&line, prefixes, index, diagnostics);
-                }
-            }
-            SyntaxLineKind::Message => collect_message(&line, index, diagnostics),
-            _ => {}
-        }
+    for (line_index, line) in source.lines().enumerate() {
+        collect_line(line_index, &line, prefixes, index, diagnostics);
     }
+}
+
+/// Collect one line into the index and diagnostics.
+fn collect_line(
+    line_index: usize,
+    line: &SyntaxLine,
+    prefixes: &[char],
+    index: &mut SymbolIndex,
+    diagnostics: &mut Vec<AnalysisDiagnostic>,
+) {
+    let line_number = u32::try_from(line_index).unwrap_or(u32::MAX);
+    match line.kind() {
+        SyntaxLineKind::Header if !line.is_directive() => {
+            let content_text = line.content_text();
+            if let Some(content) = content_text.as_deref()
+                && let Ok(Some(message)) = BmsMessage::parse(content)
+            {
+                let body_start = content
+                    .find(':')
+                    .map_or(0, |offset| offset.saturating_add(1));
+                let base = content_base(line, content).saturating_add(body_start);
+                let line_start = usize::from(line.range().start());
+                collect_message_refs(
+                    message.channel(),
+                    &message.body,
+                    line_number,
+                    line_start,
+                    base,
+                    index,
+                );
+            } else {
+                collect_header(line_number, line, prefixes, index, diagnostics);
+            }
+        }
+        SyntaxLineKind::Message => collect_message(line_number, line, index, diagnostics),
+        _ => {}
+    }
+}
+
+/// Collect one line by index.
+fn collect_line_at(
+    source: &SourceFile,
+    line_index: u32,
+    prefixes: &[char],
+    index: &mut SymbolIndex,
+    diagnostics: &mut Vec<AnalysisDiagnostic>,
+) {
+    let Some(index_in_file) = usize::try_from(line_index).ok() else {
+        return;
+    };
+    let Some(line) = source.lines().nth(index_in_file) else {
+        return;
+    };
+    collect_line(index_in_file, &line, prefixes, index, diagnostics);
 }
 
 /// Process a header line.
 fn collect_header(
+    line_index: u32,
     line: &SyntaxLine,
     prefixes: &[char],
     index: &mut SymbolIndex,
@@ -156,11 +217,20 @@ fn collect_header(
             if let Some((kind, id)) = definition_kind(command.text())
                 && let Some(symbol_id) = SymbolId::new(&id)
             {
+                let line_start = usize::from(line.range().start());
+                let start = 0;
+                let end = u32::try_from(usize::from(line.range().end()).saturating_sub(line_start))
+                    .unwrap_or(u32::MAX);
+                let name_start = u32::try_from(
+                    usize::from(command.text_range().start()).saturating_sub(line_start),
+                )
+                .unwrap_or(u32::MAX);
+                let name_end = u32::try_from(
+                    usize::from(command.text_range().end()).saturating_sub(line_start),
+                )
+                .unwrap_or(u32::MAX);
                 index.push_definition(SymbolDefinition::new(
-                    kind,
-                    symbol_id,
-                    line.range(),
-                    command.text_range(),
+                    kind, symbol_id, line_index, start, end, name_start, name_end,
                 ));
             }
         }
@@ -176,6 +246,7 @@ fn collect_header(
 
 /// Process a channel line.
 fn collect_message(
+    line_index: u32,
     line: &SyntaxLine,
     index: &mut SymbolIndex,
     diagnostics: &mut Vec<AnalysisDiagnostic>,
@@ -200,11 +271,26 @@ fn collect_message(
         .find(':')
         .map_or(0, |offset| offset.saturating_add(1));
     let base = content_base(line, &content).saturating_add(body_start);
-    collect_message_refs(message.channel(), &message.body, base, index);
+    let line_start = usize::from(line.range().start());
+    collect_message_refs(
+        message.channel(),
+        &message.body,
+        line_index,
+        line_start,
+        base,
+        index,
+    );
 }
 
 /// Collect message references for a channel.
-fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mut SymbolIndex) {
+fn collect_message_refs(
+    channel: BmsChannel,
+    body: &str,
+    line_index: u32,
+    line_start: usize,
+    base: usize,
+    index: &mut SymbolIndex,
+) {
     let Some(kind) = reference_kind(channel) else {
         return;
     };
@@ -213,12 +299,20 @@ fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mu
         if id == "00" {
             continue;
         }
-        let range = TextRange::new(
-            text_size(base.saturating_add(cell.range.start)),
-            text_size(base.saturating_add(cell.range.end)),
-        );
+        let start = u32::try_from(
+            base.saturating_add(cell.range.start)
+                .saturating_sub(line_start),
+        )
+        .unwrap_or(u32::MAX);
+        let end = u32::try_from(
+            base.saturating_add(cell.range.end)
+                .saturating_sub(line_start),
+        )
+        .unwrap_or(u32::MAX);
         if let Some(symbol_id) = SymbolId::new(&id) {
-            index.push_reference(SymbolReference::new(kind, symbol_id, range));
+            index.push_reference(SymbolReference::new(
+                kind, symbol_id, line_index, start, end,
+            ));
         }
     }
 }
@@ -228,11 +322,6 @@ fn content_base(line: &SyntaxLine, content: &str) -> usize {
     let line_text = line.syntax().text().to_string();
     let content_offset = line_text.find(content).unwrap_or(0);
     usize::from(line.range().start()).saturating_add(content_offset)
-}
-
-/// Convert a byte offset to `TextSize`.
-fn text_size(offset: usize) -> TextSize {
-    TextSize::from(u32::try_from(offset).unwrap_or(u32::MAX))
 }
 
 /// Identify the definition kind and ID from a command name.
@@ -312,9 +401,11 @@ fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Analysis
     for ((kind, id), positions) in groups {
         if positions.len() > 1 {
             for position in positions {
-                if let Some(definition) = definitions.get(position) {
+                if let Some(definition) = definitions.get(position)
+                    && let Some(range) = index.range_of_definition(definition)
+                {
                     diagnostics.push(AnalysisDiagnostic::new(
-                        definition.range(),
+                        range,
                         Severity::Warning,
                         format!("duplicate definition of {} {}", kind.label(), id),
                         Some("duplicate-definition"),
@@ -334,13 +425,77 @@ fn add_missing_reference_diagnostics(
         let found = index.has_definition(reference.kind(), reference.id())
             || (reference.kind() == SymbolKind::Bga
                 && index.has_definition(SymbolKind::Bmp, reference.id()));
-        if !found {
+        if !found && let Some(range) = index.range_of_reference(reference) {
             diagnostics.push(AnalysisDiagnostic::new(
-                reference.range(),
+                range,
                 Severity::Warning,
                 format!("undefined {} {}", reference.kind().label(), reference.id()),
                 Some("undefined-reference"),
             ));
         }
     }
+}
+
+/// Return the changed line number when the edit is confined to one line.
+fn single_line_change(old: &str, new: &str) -> Option<u32> {
+    if old.lines().count() != new.lines().count() {
+        return None;
+    }
+    let prefix = old
+        .bytes()
+        .zip(new.bytes())
+        .take_while(|(left, right)| left == right)
+        .count();
+    let max_suffix = old.len().min(new.len()).saturating_sub(prefix);
+    let suffix = old
+        .bytes()
+        .rev()
+        .zip(new.bytes().rev())
+        .take(max_suffix)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let old_changed_end = old.len().saturating_sub(suffix);
+    let new_changed_end = new.len().saturating_sub(suffix);
+    let old_changed = old.get(prefix..old_changed_end)?;
+    let new_changed = new.get(prefix..new_changed_end)?;
+    if old_changed.contains('\n') || new_changed.contains('\n') {
+        return None;
+    }
+    let line = old
+        .get(..prefix)?
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count();
+    u32::try_from(line).ok()
+}
+
+/// Build diagnostics from a parse result and an already-built index.
+fn diagnostics_from(
+    parse: &SyntaxParse,
+    options: &ParseOptions,
+    index: &SymbolIndex,
+) -> Vec<AnalysisDiagnostic> {
+    let source = parse.source_file();
+    let mut diagnostics: Vec<_> = parse
+        .errors()
+        .iter()
+        .map(|error| {
+            let severity = match error.kind() {
+                bmsrs_bms_syntax::DiagnosticKind::Syntax => Severity::Error,
+                bmsrs_bms_syntax::DiagnosticKind::ControlFlow => Severity::Warning,
+            };
+            AnalysisDiagnostic::new(error.range(), severity, error.message(), None)
+        })
+        .collect();
+    let mut scratch = SymbolIndex::default();
+    collect_lines(
+        &source,
+        &options.header_prefixes,
+        &mut scratch,
+        &mut diagnostics,
+    );
+    add_duplicate_diagnostics(index, &mut diagnostics);
+    add_missing_reference_diagnostics(index, &mut diagnostics);
+    diagnostics.sort_by_key(|diagnostic| (diagnostic.range().start(), diagnostic.range().end()));
+    diagnostics
 }

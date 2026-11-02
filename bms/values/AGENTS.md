@@ -34,6 +34,7 @@ directly.
 | Unified line entry | `BmsToken::parse_line` tries `BmsMessage::parse` first, then `BmsHeader::parse`, so non-canonical `#1:0101` lines are messages |
 | The `#` and `%` prefixes are supplied by the caller | The caller passes the default `['#', '%']` |
 | Value types are owned | Single-line entry points do not borrow input, which simplifies cross-layer passing |
+| Line spans | `BmsMessage.span` is set by the parser; single-line parsing leaves it `None` |
 
 ## Tests
 

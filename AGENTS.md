@@ -190,7 +190,7 @@ Reassess them before adding support; do not assume silently.
 | BMSON MSS | `Long + Release` is exposed as a descriptive note point; no dedicated MSS judgment state | a player implements MSS scoring/input |
 | BMS `#PLAYER` | ignored; `Bme` covers 5K/7K/10K/14K | automatic family selection by `#PLAYER` is needed |
 | BGM layering | BGM events stay separate; only judgeable notes merge `NoteAudio` | a real chart needs BGM layers merged |
-| Scope of processor semantic warnings | no `TextRange`; the editor path recomputes them with `bmsrs-bms-analysis` | the LSP needs semantic warnings located in the source text |
+| Precision of processor warnings | line-level `SourceSpan`; the exact note/cell is not stored | the editor needs cell-level warning highlighting |
 
 ### Versioning
 

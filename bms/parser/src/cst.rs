@@ -8,6 +8,7 @@ use bmsrs_bms_syntax::{
     BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
+use bmsrs_pipeline::SourceSpan;
 
 use bmsrs_bms_model::Bms;
 
@@ -251,22 +252,30 @@ pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<Lin
             Some(LineToken {
                 line: NonZeroUsize::new(index.saturating_add(1)).unwrap_or(NonZeroUsize::MIN),
                 range: line.range(),
-                token: tokenize_line_with(&content, &options.header_prefixes),
+                token: tokenize_line_with(&content, &options.header_prefixes, line.range()),
             })
         })
         .collect()
 }
 
 /// Parse one line of content into a token.
-fn tokenize_line_with(content: &str, prefixes: &[char]) -> Result<BmsToken, BmsTokenizeError> {
-    BmsToken::parse_line(content, prefixes)?.map_or_else(
-        || {
-            Err(BmsTokenizeError::OutOfRange {
-                context: "line",
-                value: content.to_owned(),
-                expected: "header or message",
-            })
-        },
-        Ok,
-    )
+fn tokenize_line_with(
+    content: &str,
+    prefixes: &[char],
+    line_range: TextRange,
+) -> Result<BmsToken, BmsTokenizeError> {
+    let Some(mut token) = BmsToken::parse_line(content, prefixes)? else {
+        return Err(BmsTokenizeError::OutOfRange {
+            context: "line",
+            value: content.to_owned(),
+            expected: "header or message",
+        });
+    };
+    if let BmsToken::Message(message) = &mut token {
+        message.span = Some(SourceSpan::new(
+            u32::from(line_range.start()),
+            u32::from(line_range.end()),
+        ));
+    }
+    Ok(token)
 }

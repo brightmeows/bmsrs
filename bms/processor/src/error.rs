@@ -1,19 +1,57 @@
 //! Processing warning type definitions.
 
-use bmsrs_bms_model::ChannelValueWarning;
+use std::error::Error;
+use std::fmt;
 
-/// Recoverable warnings produced while processing BMS.
+use bmsrs_bms_model::ChannelValueWarning;
+use bmsrs_pipeline::SourceSpan;
+
+/// Recoverable warning produced while processing BMS.
 ///
-/// These warnings indicate anomalies in the chart, but a valid `Chart` can still
-/// be produced.
-///
-/// Missing-reference warnings (`Missing*`) and corrupted-value warnings
-/// ([`ProcessWarning::UnparsableValue`]) together form the complete observable
-/// surface of the processor layer; control-flow structure problems belong to
-/// `bmsrs-bms-syntax` diagnostics.
+/// The warning carries an optional source span and a typed
+/// [`ProcessWarningKind`]. Missing-reference warnings and corrupted-value
+/// warnings together form the complete observable surface of the processor
+/// layer; control-flow structure problems belong to `bmsrs-bms-syntax`
+/// diagnostics.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct ProcessWarning {
+    /// Whole-line source span, when the warning can be located in the source.
+    pub span: Option<SourceSpan>,
+    /// Warning payload.
+    pub kind: ProcessWarningKind,
+}
+
+impl ProcessWarning {
+    /// Construct a warning.
+    #[must_use]
+    pub const fn new(span: Option<SourceSpan>, kind: ProcessWarningKind) -> Self {
+        Self { span, kind }
+    }
+}
+
+impl fmt::Display for ProcessWarning {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+impl Error for ProcessWarning {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.kind)
+    }
+}
+
+impl From<ChannelValueWarning> for ProcessWarning {
+    fn from(warning: ChannelValueWarning) -> Self {
+        Self::new(warning.span, ProcessWarningKind::UnparsableValue(warning))
+    }
+}
+
+/// Warning payload.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
-pub enum ProcessWarning {
+pub enum ProcessWarningKind {
     /// A note references a key that is not defined in `#WAV`.
     #[error(
         "note at tick {tick} (player {player}, lane {lane}) references undefined WAV key {key}"
@@ -41,11 +79,6 @@ pub enum ProcessWarning {
     },
 
     /// A BPM change with an invalid value (zero, NaN, or infinity) was ignored.
-    ///
-    /// The filter predicate matches [`TimingTrack`](bmsrs_chart::TimingTrack)
-    /// construction ([`BpmChange::is_valid`](bmsrs_chart::BpmChange::is_valid));
-    /// invalid values enter neither the timing track nor the unified event
-    /// stream.
     #[error("invalid BPM change at tick {tick} ignored (value {bpm})")]
     InvalidBpmChangeIgnored {
         /// Tick where the event occurs.
@@ -83,9 +116,6 @@ pub enum ProcessWarning {
 
     /// A channel value cannot be parsed as the type required by that channel;
     /// the event was skipped.
-    ///
-    /// Forwards the parser layer's [`ChannelValueWarning`] (including
-    /// measure/channel/value location information).
     #[error(transparent)]
     UnparsableValue(#[from] ChannelValueWarning),
 }

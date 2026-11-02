@@ -14,6 +14,7 @@ readme.workspace = true
 
 [dependencies]
 bmsrs-bms-values-derive.workspace = true
+bmsrs-pipeline.workspace = true
 derive_more.workspace = true
 thiserror.workspace = true
 
