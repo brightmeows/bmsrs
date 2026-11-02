@@ -110,7 +110,7 @@ fn stop_at_target_tick_excludes_pause() {
 }
 
 #[test]
-fn multiple_stops_same_tick_accumulate() {
+fn multiple_stops_same_tick_keep_last() {
     let timing = TimingTrack::new(
         120.0,
         vec![],
@@ -128,7 +128,7 @@ fn multiple_stops_same_tick_accumulate() {
     )
     .unwrap();
     let result = timing.tick_to_duration(241);
-    let expected = 0.5 + 2.5 + 1.0 / 480.0;
+    let expected = 0.5 + 2.0 + 1.0 / 480.0;
     assert!((result.as_secs_f64() - expected).abs() < 1e-9);
 }
 

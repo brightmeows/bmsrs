@@ -1,6 +1,6 @@
 use bmsrs_chart::{
     Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
+    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo,
 };
 
 /// Default-parameter event type for tests.
@@ -11,7 +11,8 @@ pub fn make_chart(events: Vec<Evt>) -> Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            timing: TimingTrack::simple(120.0, 240).unwrap(),
+            init_bpm: 120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),

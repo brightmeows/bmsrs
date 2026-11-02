@@ -15,6 +15,15 @@ pub enum BmsonProcessWarning {
         tick: u64,
     },
 
+    /// A non-positive or non-finite BPM change was ignored.
+    #[error("invalid BPM change at tick {tick} ignored (bpm {bpm})")]
+    InvalidBpmChangeIgnored {
+        /// Tick where the event occurs.
+        tick: u64,
+        /// Invalid BPM value.
+        bpm: f64,
+    },
+
     /// A negative stop duration was clamped to 0.
     #[error("negative stop duration at tick {tick} clipped to 0 (original {original})")]
     StopDurationClipped {

@@ -1,14 +1,12 @@
 //! Integration tests for `bmsrs-player`.
-#![expect(clippy::unwrap_used, reason = "test code")]
-
 use std::num::NonZeroU8;
 use std::path::PathBuf;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
-    ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind,
-    NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, Chart, ChartData, ChartInfo,
+    Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole,
+    NoteSide, SongInfo, TimingTrack, TimingTrackError,
 };
 use bmsrs_player::Player;
 
@@ -34,16 +32,8 @@ fn make_test_chart() -> Chart {
         },
         chart: ChartInfo::default(),
         data: ChartData {
-            timing: TimingTrack::new(
-                120.0,
-                vec![BpmChange {
-                    tick: 960,
-                    bpm: 180.0,
-                }],
-                vec![],
-                240,
-            )
-            .unwrap(),
+            init_bpm: 120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
@@ -196,30 +186,57 @@ fn player_events_unbounded_range() {
 }
 
 #[test]
+fn player_events_in_range_includes_max_tick() {
+    let mut chart = make_test_chart();
+    chart.data.events.push(Event::bar(u64::MAX));
+    let player = Player::new(chart).unwrap();
+
+    assert_eq!(
+        player.events_in_range(..).last().map(Event::tick),
+        Some(u64::MAX)
+    );
+    assert_eq!(
+        player.events_in_range(..=u64::MAX).last().map(Event::tick),
+        Some(u64::MAX)
+    );
+}
+
+#[test]
+fn player_next_event_after_is_strict() {
+    let chart = make_test_chart();
+    let player = Player::new(chart).unwrap();
+
+    assert_eq!(player.next_event_after(240).map(Event::tick), Some(480));
+    assert_eq!(player.next_event_after(480).map(Event::tick), Some(960));
+    assert!(player.next_event_after(u64::MAX).is_none());
+}
+
+#[test]
+fn player_events_in_time_range_handles_stop() {
+    let mut chart = make_test_chart();
+    chart.data.events.push(Event::stop(240, 240));
+    chart.data.events.push(Event::bar(300));
+    let player = Player::new(chart).unwrap();
+
+    // The stop at tick 240 runs from 0.5s to 1.0s. Tick 300 activates at
+    // 1.0s + 60 ticks at 120 BPM = 1.125s.
+    let ticks: Vec<u64> = player
+        .events_in_time_range(Duration::from_secs_f64(1.0)..Duration::from_secs_f64(1.2))
+        .map(Event::tick)
+        .collect();
+    assert_eq!(ticks, vec![300]);
+}
+
+#[test]
 fn player_notes_in_range() {
     let chart = make_test_chart();
     let player = Player::new(chart).unwrap();
 
     let notes: Vec<_> = player
         .notes_in_range(..)
-        .filter_map(|e| {
-            if let EventKind::Note { .. } = &e.kind {
-                Some(e.tick())
-            } else {
-                None
-            }
-        })
+        .map(|note| note.point().tick)
         .collect();
     assert_eq!(notes, vec![480]);
-}
-
-#[test]
-fn player_notes_for_judgement() {
-    let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
-
-    // The note in the test chart is Normal → should be counted
-    assert_eq!(player.notes_for_judgement(..).count(), 1);
 }
 
 #[test]
@@ -325,16 +342,7 @@ fn player_bga_resources() {
 #[test]
 fn player_advance_with_bpm_change() {
     let mut chart = make_test_chart();
-    chart.data.timing = TimingTrack::new(
-        120.0,
-        vec![BpmChange {
-            tick: 240,
-            bpm: 240.0,
-        }],
-        vec![],
-        240,
-    )
-    .unwrap();
+    chart.data.events.push(Event::bpm(240, 240.0));
     let mut player = Player::new(chart).unwrap();
 
     // 0-240 ticks at 120 BPM = 0.5s
@@ -351,16 +359,7 @@ fn player_advance_with_bpm_change() {
 #[test]
 fn player_advance_with_stop() {
     let mut chart = make_test_chart();
-    chart.data.timing = TimingTrack::new(
-        120.0,
-        vec![],
-        vec![StopEvent {
-            tick: 240,
-            duration: 240,
-        }],
-        240,
-    )
-    .unwrap();
+    chart.data.events.push(Event::stop(240, 240));
     let mut player = Player::new(chart).unwrap();
 
     // 0 to 0.5s (240 ticks at 120 BPM): should be at tick 240
@@ -378,16 +377,7 @@ fn player_advance_with_stop() {
 #[test]
 fn frame_wise_advance_crosses_stop() {
     let mut chart = make_test_chart();
-    chart.data.timing = TimingTrack::new(
-        120.0,
-        vec![],
-        vec![StopEvent {
-            tick: 240,
-            duration: 240,
-        }],
-        240,
-    )
-    .unwrap();
+    chart.data.events.push(Event::stop(240, 240));
     let mut player = Player::new(chart).unwrap();
 
     // A 3-second 60fps frame loop: 180 frames at 1/60s. The frozen segment is
@@ -400,47 +390,14 @@ fn frame_wise_advance_crosses_stop() {
     assert!(player.current_tick() > 1000);
 }
 
-// visible_tick_range
-
 #[test]
-fn visible_tick_range_at_start_covers_negative_reaction() {
-    let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
-
-    // At tick 0, a 1s reaction clamped to 0.
-    let (start, end) = player.visible_tick_range(Duration::from_secs(1), Duration::from_secs(2));
-    assert_eq!(start, 0);
-    // 120 BPM, resolution 240: 2s = 4 beats = 960 ticks
-    assert_eq!(end, 960);
-}
-
-#[test]
-fn visible_tick_range_at_midpoint_returns_symmetric_window() {
-    let chart = make_test_chart();
-    let mut player = Player::new(chart).unwrap();
-
-    // Advance to 1s (in the 120 BPM segment: 1s = 2 beats = 480 ticks).
-    player.advance(Duration::from_secs_f64(1.0));
-    assert_eq!(player.current_tick(), 480);
-
-    let (start, end) =
-        player.visible_tick_range(Duration::from_millis(500), Duration::from_millis(500));
-    // 0.5s before is tick 240, 0.5s after is tick 720 (still in the 120 BPM
-    // segment).
-    assert_eq!(start, 240);
-    assert_eq!(end, 720);
-}
-
-#[test]
-fn player_new_accepts_negative_bpm() {
-    // Negative BPM (reverse-scroll charts) must pass through the whole chain:
-    // TimingTrack, ChartData::validate, Player::new. If any validation point
-    // still uses <=0.0, this panics.
+fn player_new_rejects_negative_bpm() {
     let chart: Chart = Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            timing: TimingTrack::simple(-120.0, 240).unwrap(),
+            init_bpm: -120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
@@ -452,8 +409,7 @@ fn player_new_accepts_negative_bpm() {
             audio_assets: vec![],
         },
     };
-    // Not panicking means success: the whole chain accepts negative BPM.
-    assert!(Player::new(chart).is_ok());
+    assert!(Player::new(chart).is_err());
 }
 
 // F7: BGM and BGA event queries
@@ -467,7 +423,8 @@ fn make_chart_with_bgm() -> Chart {
         },
         chart: ChartInfo::default(),
         data: ChartData {
-            timing: TimingTrack::simple(120.0, 240).unwrap(),
+            init_bpm: 120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
@@ -521,7 +478,8 @@ fn make_chart_with_bga() -> Chart {
             ..Default::default()
         },
         data: ChartData {
-            timing: TimingTrack::simple(120.0, 240).unwrap(),
+            init_bpm: 120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),

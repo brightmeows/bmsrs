@@ -109,17 +109,29 @@ impl ScrollCache {
     /// Position is the integral of scroll speed over time. With no SCROLL events,
     /// position is `tick / resolution` (standard beat alignment).
     #[expect(
+        clippy::cast_precision_loss,
+        reason = "tick fits in f64 for practical chart lengths"
+    )]
+    pub fn position_at(&self, tick: u64) -> f64 {
+        self.position_at_f64(tick as f64)
+    }
+
+    /// Return the cumulative scroll position at a continuous tick position.
+    ///
+    /// This is the smooth form of [`position_at`](Self::position_at); it keeps
+    /// scroll positions continuous at high refresh rates.
+    #[expect(
         clippy::indexing_slicing,
         clippy::cast_precision_loss,
         reason = "first segment at tick 0 guarantees idx >= 1; tick fits in f64"
     )]
-    pub fn position_at(&self, tick: u64) -> f64 {
+    pub fn position_at_f64(&self, tick: f64) -> f64 {
         let idx = self
             .segments
-            .partition_point(|s| s.start_tick <= tick)
+            .partition_point(|s| (s.start_tick as f64) <= tick)
             .saturating_sub(1);
         let seg = &self.segments[idx];
-        let delta = (tick - seg.start_tick) as f64 / self.resolution as f64;
+        let delta = (tick - seg.start_tick as f64) / self.resolution as f64;
         seg.rate.mul_add(delta, seg.start_position)
     }
 }

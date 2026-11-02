@@ -1,5 +1,5 @@
 use bmsrs_chart::{
-    Chart, ChartData, ChartInfo, Event, LnJudgeHint, LnLifeHint, LnTypeHint, SongInfo, TimingTrack,
+    Chart, ChartData, ChartInfo, Event, LnJudgeHint, LnLifeHint, LnTypeHint, SongInfo,
 };
 
 pub fn make_test_chart(events: Vec<Event<()>>) -> Chart {
@@ -7,7 +7,8 @@ pub fn make_test_chart(events: Vec<Event<()>>) -> Chart {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            timing: TimingTrack::simple(120.0, 240).unwrap(),
+            init_bpm: 120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),

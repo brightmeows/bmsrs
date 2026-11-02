@@ -1,15 +1,19 @@
 //! Precomputed SPEED keyframe interpolation cache.
 //!
-//! [`SpeedCache`] stores sorted SPEED keyframes and linearly interpolates
-//! spacing values between adjacent keyframes at query time.
+//! SPEED is a presentation multiplier. beatoraja interpolates it in the time
+//! domain (`LaneRenderer.getCurrentSpeed(microtime)`), so this cache stores each
+//! keyframe's wall-clock time and interpolates with
+//! [`SpeedCache::spacing_at_time`].
 
-use bmsrs_chart::{CustomEvent, Event, EventKind, NoteExt};
+use std::time::Duration;
 
-/// SPEED keyframe: tick position and spacing multiplier.
+use bmsrs_chart::{CustomEvent, Event, EventKind, NoteExt, TimingTrack};
+
+/// SPEED keyframe: wall-clock time and spacing multiplier.
 #[derive(Clone, Copy, Debug)]
 struct SpeedKeyframe {
-    /// Absolute tick position of the keyframe.
-    tick: u64,
+    /// Wall-clock time of the keyframe.
+    time: Duration,
     /// Spacing multiplier at this keyframe.
     rate: f64,
 }
@@ -17,26 +21,28 @@ struct SpeedKeyframe {
 /// SPEED spacing interpolation cache.
 ///
 /// Keyframes are collected from [`EventKind::Speed`] events at construction.
-/// `spacing_at(tick)` linearly interpolates between adjacent keyframes; before
-/// the first keyframe it returns `1.0` (the default spacing).
+/// `spacing_at_time` linearly interpolates between adjacent keyframes. Before
+/// the first keyframe it interpolates from `1.0` at time zero; after the last it
+/// returns the last keyframe's value.
 pub struct SpeedCache {
-    /// Keyframes sorted ascending by tick.
+    /// Keyframes sorted ascending by time.
     keyframes: Vec<SpeedKeyframe>,
 }
 
 impl SpeedCache {
-    /// Build the cache from a sorted event list.
+    /// Build the cache from a sorted event list and its timing track.
     ///
     /// Only `Speed` variants are visited; other event types are skipped. The
     /// input `events` must be sorted ascending by [`Event::tick`] (guaranteed by
-    /// the chart).
-    pub fn build<T: NoteExt, C: CustomEvent>(events: &[Event<T, C>]) -> Self {
+    /// the chart). The timing track converts each event tick into its wall-clock
+    /// activation time.
+    pub fn build<T: NoteExt, C: CustomEvent>(events: &[Event<T, C>], timing: &TimingTrack) -> Self {
         let keyframes: Vec<SpeedKeyframe> = events
             .iter()
-            .filter_map(|e| {
-                if let EventKind::Speed { rate } = &e.kind {
+            .filter_map(|event| {
+                if let EventKind::Speed { rate } = &event.kind {
                     Some(SpeedKeyframe {
-                        tick: e.tick(),
+                        time: timing.tick_to_duration(event.tick()),
                         rate: *rate,
                     })
                 } else {
@@ -47,56 +53,62 @@ impl SpeedCache {
         Self { keyframes }
     }
 
-    /// Return the interpolated spacing multiplier at `tick`.
+    /// Return the interpolated spacing multiplier at `time`.
     ///
-    /// With no keyframes or a query before the first keyframe, returns `1.0`.
-    /// After the last keyframe it returns the last keyframe's spacing. Between
-    /// two keyframes it performs linear interpolation.
-    pub fn spacing_at(&self, tick: u64) -> f64 {
-        // Empty keyframe table: default spacing 1.0.
+    /// With no keyframes, returns `1.0`. Before the first keyframe, interpolates
+    /// from `1.0` at time zero, matching beatoraja. After the last keyframe,
+    /// returns the last keyframe's spacing.
+    pub fn spacing_at_time(&self, time: Duration) -> f64 {
         let Some(first) = self.keyframes.first() else {
             return 1.0;
         };
-        if tick < first.tick {
-            return 1.0;
-        }
 
-        // Find the first keyframe with tick > query position.
-        let next_idx = self.keyframes.partition_point(|k| k.tick <= tick);
-        if next_idx == 0 {
-            return 1.0;
-        }
-        if next_idx >= self.keyframes.len() {
-            // keyframes is non-empty (first() already confirmed an element).
-            #[expect(clippy::unwrap_used, reason = "keyframes confirmed non-empty above")]
-            return self.keyframes.last().unwrap().rate;
-        }
+        let next_index = self
+            .keyframes
+            .partition_point(|keyframe| keyframe.time <= time);
+        let previous_keyframe = next_index
+            .checked_sub(1)
+            .and_then(|index| self.keyframes.get(index));
+        let next_keyframe = self.keyframes.get(next_index);
 
-        // Both keyframes[next_idx - 1] and keyframes[next_idx] exist:
-        // next_idx > 0 (the == 0 branch above) and next_idx < len (the >= len
-        // branch above).
-        //
-        // Direct indexing is clearer than .get().unwrap() and needs no extra
-        // expect.
-        #[expect(clippy::indexing_slicing, reason = "bounds confirmed by checks above")]
-        let (prev, next) = (&self.keyframes[next_idx - 1], &self.keyframes[next_idx]);
-        // Multiple SPEED keyframes at the same tick (malformed input) would
-        // divide by zero and produce NaN; skip interpolation and take the later
-        // keyframe's value (matching "later overrides earlier").
-        if next.tick == prev.tick {
-            return next.rate;
+        match (previous_keyframe, next_keyframe) {
+            (Some(previous), Some(next)) => {
+                interpolate(previous.time, previous.rate, next.time, next.rate, time)
+            }
+            (Some(previous), None) => previous.rate,
+            (None, Some(next)) => interpolate(Duration::ZERO, 1.0, next.time, next.rate, time),
+            (None, None) => first.rate,
         }
-        #[expect(clippy::cast_precision_loss, reason = "tick offsets fit in f64")]
-        let t = (tick - prev.tick) as f64 / (next.tick - prev.tick) as f64;
-        (next.rate - prev.rate).mul_add(t, prev.rate)
     }
+}
+
+/// Linear interpolation between two keyframes, clamped to the segment.
+fn interpolate(
+    start_time: Duration,
+    start_rate: f64,
+    end_time: Duration,
+    end_rate: f64,
+    time: Duration,
+) -> f64 {
+    if end_time <= start_time {
+        return end_rate;
+    }
+    let span = end_time.saturating_sub(start_time).as_secs_f64();
+    let elapsed = time.saturating_sub(start_time).as_secs_f64();
+    let ratio = (elapsed / span).clamp(0.0, 1.0);
+    (end_rate - start_rate).mul_add(ratio, start_rate)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bmsrs_chart::{BpmChange, NoCustomEvent};
 
-    fn make_speed_events(pairs: &[(u64, f64)]) -> Vec<Event<(), bmsrs_chart::NoCustomEvent>> {
+    fn make_timing() -> TimingTrack {
+        TimingTrack::simple(120.0, 240).unwrap()
+    }
+
+    fn make_speed_events(pairs: &[(u64, f64)]) -> Vec<Event<(), NoCustomEvent>> {
         pairs
             .iter()
             .map(|&(tick, rate)| Event::speed(tick, rate))
@@ -105,80 +117,76 @@ mod tests {
 
     #[test]
     fn no_events_returns_default() {
-        let events: Vec<Event<(), bmsrs_chart::NoCustomEvent>> = vec![];
-        let cache = SpeedCache::build(&events);
-        assert!((cache.spacing_at(0) - 1.0).abs() < 1e-9);
-        assert!((cache.spacing_at(9999) - 1.0).abs() < 1e-9);
+        let timing = make_timing();
+        let events = make_speed_events(&[]);
+        let cache = SpeedCache::build(&events, &timing);
+        assert!((cache.spacing_at_time(Duration::ZERO) - 1.0).abs() < 1e-9);
+        assert!((cache.spacing_at_time(Duration::from_secs(10)) - 1.0).abs() < 1e-9);
     }
 
     #[test]
-    fn before_first_keyframe_returns_default() {
+    fn before_first_keyframe_interpolates_from_one() {
+        let timing = make_timing();
         let events = make_speed_events(&[(480, 0.5)]);
-        let cache = SpeedCache::build(&events);
-        assert!((cache.spacing_at(0) - 1.0).abs() < 1e-9);
-        assert!((cache.spacing_at(479) - 1.0).abs() < 1e-9);
+        let cache = SpeedCache::build(&events, &timing);
+
+        // tick 240 is 0.5s at 120 BPM; the keyframe is 1.0s.
+        assert!((cache.spacing_at_time(Duration::from_secs_f64(0.5)) - 0.75).abs() < 1e-9);
     }
 
     #[test]
     fn after_last_keyframe_returns_last_rate() {
+        let timing = make_timing();
         let events = make_speed_events(&[(480, 0.5)]);
-        let cache = SpeedCache::build(&events);
-        assert!((cache.spacing_at(480) - 0.5).abs() < 1e-9);
-        assert!((cache.spacing_at(9999) - 0.5).abs() < 1e-9);
+        let cache = SpeedCache::build(&events, &timing);
+        assert!((cache.spacing_at_time(Duration::from_secs(10)) - 0.5).abs() < 1e-9);
     }
 
     #[test]
     fn at_keyframe_exact() {
+        let timing = make_timing();
         let events = make_speed_events(&[(480, 0.5)]);
-        let cache = SpeedCache::build(&events);
-        assert!((cache.spacing_at(480) - 0.5).abs() < 1e-9);
+        let cache = SpeedCache::build(&events, &timing);
+        assert!((cache.spacing_at_time(Duration::from_secs(1)) - 0.5).abs() < 1e-9);
     }
 
     #[test]
     fn interpolation_between_keyframes() {
-        // Keyframes: tick 0 at 0.5, tick 960 at 1.5.
-        // Tick 480 is the midpoint, expected 1.0.
+        let timing = make_timing();
         let events = make_speed_events(&[(0, 0.5), (960, 1.5)]);
-        let cache = SpeedCache::build(&events);
-        assert!((cache.spacing_at(0) - 0.5).abs() < 1e-9);
-        assert!((cache.spacing_at(480) - 1.0).abs() < 1e-9);
-        assert!((cache.spacing_at(960) - 1.5).abs() < 1e-9);
+        let cache = SpeedCache::build(&events, &timing);
+
+        assert!((cache.spacing_at_time(Duration::ZERO) - 0.5).abs() < 1e-9);
+        assert!((cache.spacing_at_time(Duration::from_secs(1)) - 1.0).abs() < 1e-9);
+        assert!((cache.spacing_at_time(Duration::from_secs(2)) - 1.5).abs() < 1e-9);
     }
 
     #[test]
-    fn duplicate_tick_speed_events_no_nan() {
-        // Malformed input: two SPEED keyframes at the same tick. The
-        // interpolation denominator is zero, so NaN must be avoided (return the
-        // later keyframe's value).
+    fn bpm_change_uses_time_axis() {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![BpmChange {
+                tick: 240,
+                bpm: 240.0,
+            }],
+            vec![],
+            240,
+        )
+        .unwrap();
+        let events = make_speed_events(&[(0, 1.0), (480, 2.0)]);
+        let cache = SpeedCache::build(&events, &timing);
+
+        // tick 240 is 0.5s; tick 480 is 0.75s, so the 0.5s point is two thirds
+        // of the way from 1.0 to 2.0.
+        assert!((cache.spacing_at_time(Duration::from_secs_f64(0.5)) - (5.0 / 3.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn duplicate_keyframes_do_not_produce_nan() {
+        let timing = make_timing();
         let events = make_speed_events(&[(480, 0.5), (480, 1.5), (960, 1.0)]);
-        let cache = SpeedCache::build(&events);
-        let result = cache.spacing_at(720);
+        let cache = SpeedCache::build(&events, &timing);
+        let result = cache.spacing_at_time(Duration::from_secs_f64(1.5));
         assert!(result.is_finite(), "spacing must be finite, got {result}");
-    }
-
-    #[test]
-    fn bmspec_6_multiple_speed_interpolation() {
-        // Simulate the bmspec-6 multi-value scenario:
-        // SPEED01=0.5 at tick 960 (beat 4)
-        // SPEED02=1.5 at tick 1440 (beat 6)
-        // SPEED03=1.0 at tick 1920 (beat 8)
-        let events = make_speed_events(&[(960, 0.5), (1440, 1.5), (1920, 1.0)]);
-        let cache = SpeedCache::build(&events);
-        assert!((cache.spacing_at(960) - 0.5).abs() < 1e-9, "keyframe 01");
-        // Interpolation from keyframe 01 to 02: tick 1200 is the midpoint of 960
-        // and 1440.
-        // 0.5 + (1.5 - 0.5) * 0.5 = 1.0
-        assert!(
-            (cache.spacing_at(1200) - 1.0).abs() < 1e-9,
-            "interpolation midpoint"
-        );
-        assert!((cache.spacing_at(1440) - 1.5).abs() < 1e-9, "keyframe 02");
-        // Beat 7 = tick 1680: 75% between 1440 (1.5) and 1920 (1.0).
-        // 1.5 + (1.0 - 1.5) * (1680-1440)/(1920-1440) = 1.5 + (-0.5 * 0.5) = 1.25
-        assert!(
-            (cache.spacing_at(1680) - 1.25).abs() < 1e-9,
-            "interpolation at beat 7"
-        );
-        assert!((cache.spacing_at(1920) - 1.0).abs() < 1e-9, "keyframe 03");
     }
 }

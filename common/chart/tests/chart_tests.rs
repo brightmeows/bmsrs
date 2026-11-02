@@ -2,8 +2,6 @@
 //!
 //! Covers core types such as the Chart model, `TimingTrack`, Event, and
 //! `NoteKind`.
-#![expect(clippy::unwrap_used, reason = "test code")]
-
 use std::num::NonZeroU8;
 use std::time::Duration;
 
@@ -11,6 +9,7 @@ use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
     ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
     NoCustomEvent, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
+    TimingTrackError,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -35,7 +34,8 @@ fn chart_construction_is_empty_by_default() {
         song: SongInfo::default(),
         chart: ChartInfo::default(),
         data: ChartData {
-            timing: TimingTrack::simple(120.0, 240).unwrap(),
+            init_bpm: 120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
@@ -61,7 +61,8 @@ fn chart_construction() {
         },
         chart: ChartInfo::default(),
         data: ChartData {
-            timing: TimingTrack::simple(120.0, 240).unwrap(),
+            init_bpm: 120.0,
+            resolution: 240,
             judge_multiplier: Some(1.0),
             life_multiplier: Some(1.0),
             ln_type_hint: LnTypeHint::default(),
@@ -112,7 +113,8 @@ fn chart_info_default() {
 fn chart_data_last_tick_empty() {
     // An empty event list makes last_tick() return 0.
     let data = ChartData::<(), NoCustomEvent> {
-        timing: TimingTrack::simple(120.0, 240).unwrap(),
+        init_bpm: 120.0,
+        resolution: 240,
         judge_multiplier: Some(1.0),
         life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
@@ -129,7 +131,8 @@ fn chart_data_last_tick_empty() {
 #[test]
 fn chart_data_last_tick_with_events() {
     let data: ChartData = ChartData {
-        timing: TimingTrack::simple(120.0, 240).unwrap(),
+        init_bpm: 120.0,
+        resolution: 240,
         judge_multiplier: Some(1.0),
         life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
@@ -143,30 +146,13 @@ fn chart_data_last_tick_with_events() {
     assert_eq!(data.last_tick(), 960);
 }
 
-#[test]
-fn chart_data_duration() {
-    let data: ChartData = ChartData {
-        timing: TimingTrack::simple(120.0, 240).unwrap(),
-        judge_multiplier: Some(1.0),
-        life_multiplier: Some(1.0),
-        ln_type_hint: LnTypeHint::default(),
-        ln_judge_hint: LnJudgeHint::default(),
-        ln_life_hint: LnLifeHint::default(),
-        judge_deltas: None,
-        life_deltas: None,
-        events: vec![Event::bar(960)],
-        audio_assets: vec![],
-    };
-    // 960 ticks at 120 BPM with resolution 240 = 2 seconds
-    assert_eq!(data.duration(), Duration::from_secs_f64(2.0));
-}
-
 // ChartData::validate
 
 /// Build a valid empty [`ChartData`] (matching resolution, no events).
 fn valid_chart_data() -> ChartData {
     ChartData {
-        timing: TimingTrack::simple(120.0, 240).unwrap(),
+        init_bpm: 120.0,
+        resolution: 240,
         judge_multiplier: Some(1.0),
         life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
@@ -225,6 +211,57 @@ fn validate_accepts_consistent_chart() {
     )];
 
     assert_eq!(data.validate(), Ok(()));
+}
+
+#[test]
+fn chart_data_new_sorts_events() {
+    let data = ChartData::<(), NoCustomEvent>::new(
+        120.0,
+        240,
+        vec![Event::bar(480), Event::bar(240)],
+        vec![],
+    )
+    .unwrap();
+    let ticks: Vec<u64> = data.events.iter().map(Event::tick).collect();
+    assert_eq!(ticks, vec![240, 480]);
+}
+
+#[test]
+fn chart_data_new_rejects_negative_init_bpm() {
+    let result = ChartData::<(), NoCustomEvent>::new(-120.0, 240, vec![], vec![]);
+    assert_eq!(
+        result.err(),
+        Some(ChartDataError::Timing(TimingTrackError::InvalidBpm {
+            bpm: -120.0
+        }))
+    );
+}
+
+#[test]
+fn chart_data_new_rejects_invalid_bpm_event() {
+    let result =
+        ChartData::<(), NoCustomEvent>::new(120.0, 240, vec![Event::bpm(240, -60.0)], vec![]);
+    assert_eq!(
+        result.err(),
+        Some(ChartDataError::InvalidBpmEvent {
+            tick: 240,
+            bpm: -60.0
+        })
+    );
+}
+
+#[test]
+fn chart_data_new_rejects_non_finite_visual_rate() {
+    let result = ChartData::<(), NoCustomEvent>::new(
+        120.0,
+        240,
+        vec![Event::new(240, EventKind::Scroll { rate: f64::NAN })],
+        vec![],
+    );
+    assert!(matches!(
+        result,
+        Err(ChartDataError::InvalidVisualRate { tick: 240, .. })
+    ));
 }
 
 // Event
@@ -596,42 +633,21 @@ fn timing_track_partial_eq() {
     assert_ne!(a, c);
 }
 
-/// Negative BPM roundtrip: `tick_to_duration` and `duration_to_tick` are
-/// inverses. Covers the A12 scenario.
 #[test]
-fn timing_track_negative_bpm_roundtrip() {
+fn timing_track_negative_bpm_change_is_ignored() {
     let tt = TimingTrack::new(
         120.0,
-        vec![
-            BpmChange {
-                tick: 240,
-                bpm: -60.0,
-            },
-            BpmChange {
-                tick: 720,
-                bpm: -180.0,
-            },
-            BpmChange {
-                tick: 1200,
-                bpm: 120.0,
-            },
-        ],
-        vec![StopEvent {
-            tick: 480,
-            duration: 120,
+        vec![BpmChange {
+            tick: 240,
+            bpm: -60.0,
         }],
+        vec![],
         240,
     )
     .unwrap();
 
-    for tick in [0, 120, 240, 360, 480, 600, 720, 960, 1200, 1440] {
-        let dur = tt.tick_to_duration(tick);
-        let tick_back = tt.duration_to_tick(dur);
-        assert_eq!(
-            tick_back, tick,
-            "roundtrip failed at tick {tick}: {dur:?} → {tick_back}"
-        );
-    }
+    // The negative change is dropped, so the whole chart stays at 120 BPM.
+    assert_eq!(tt.tick_to_duration(480), Duration::from_secs_f64(1.0));
 }
 
 #[test]
@@ -709,7 +725,8 @@ fn map_ext_applies_fn_to_note_variant() {
 
 fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
     ChartData {
-        timing: TimingTrack::simple(120.0, 240).unwrap(),
+        init_bpm: 120.0,
+        resolution: 240,
         judge_multiplier: Some(1.0),
         life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
@@ -742,14 +759,15 @@ fn filter_map_events_preserves_all_when_none_filtered() {
     let mapped: ChartData<(), NoCustomEvent> = data
         .filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))));
     assert_eq!(mapped.events.len(), 3);
-    assert_eq!(mapped.timing.resolution(), 240);
-    assert!((mapped.timing.init_bpm() - 120.0).abs() < f64::EPSILON);
+    assert_eq!(mapped.resolution, 240);
+    assert!((mapped.init_bpm - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
 fn filter_map_events_drops_custom_events() {
     let data = ChartData {
-        timing: TimingTrack::simple(120.0, 240).unwrap(),
+        init_bpm: 120.0,
+        resolution: 240,
         judge_multiplier: Some(1.0),
         life_multiplier: Some(1.0),
         ln_type_hint: LnTypeHint::default(),
