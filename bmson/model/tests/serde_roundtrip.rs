@@ -2,27 +2,27 @@
 //!
 //! Verify that serde JSON roundtrips produce semantically equivalent results.
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use bmsrs_bmson_model::*;
 
 /// Build a simple v2 chart for tests.
-fn make_test_bmson() -> Bmson<'static> {
+fn make_test_bmson() -> Bmson {
     Bmson {
-        version: "2.0.0",
+        version: "2.0.0".to_owned(),
         song_info: SongInfo {
-            title: "Test Song",
-            artist: "Test Artist",
-            genre: "Test Genre",
+            title: "Test Song".to_owned(),
+            artist: "Test Artist".to_owned(),
+            genre: "Test Genre".to_owned(),
         },
         chart_info: ChartInfo {
-            subtitle: "(short ver.)",
-            subartists: vec!["music:composer", "chart:charter"],
-            chart_name: "HYPER",
+            subtitle: "(short ver.)".to_owned(),
+            subartists: vec!["music:composer".to_owned(), "chart:charter".to_owned()],
+            chart_name: "HYPER".to_owned(),
             level: 8,
-            back_image: Some(Path::new("bg.png")),
+            back_image: Some(PathBuf::from("bg.png")),
             eyecatch_image: None,
-            banner_image: Some(Path::new("banner.png")),
+            banner_image: Some(PathBuf::from("banner.png")),
             preview_music: None,
             title_image: None,
             bga: BGA::default(),
@@ -131,7 +131,7 @@ fn sound_channel_roundtrip() {
         ]
     }"#;
     let ch: SoundChannel = serde_json::from_str(json).unwrap();
-    assert_eq!(ch.name, Path::new("kick.wav"));
+    assert_eq!(ch.name, PathBuf::from("kick.wav"));
     assert_eq!(ch.note_events.len(), 1);
     assert_eq!(ch.note_events[0].x, 1);
     assert_eq!(ch.note_events[0].y, 0);
@@ -188,7 +188,7 @@ fn bga_header_roundtrip() {
     let json = r#"{"id": 1, "name": "bg.png"}"#;
     let header: BGAHeader = serde_json::from_str(json).unwrap();
     assert_eq!(header.id, 1);
-    assert_eq!(header.name, Path::new("bg.png"));
+    assert_eq!(header.name, PathBuf::from("bg.png"));
 }
 
 #[test]
@@ -289,7 +289,7 @@ fn chart_data_ln_hints_roundtrip() {
 #[test]
 fn bga_default_is_empty() {
     let bga = BGA::default();
-    assert_eq!(bga.bga_header, [] as [bmsrs_bmson_model::BGAHeader<'_>; 0]);
+    assert_eq!(bga.bga_header, [] as [bmsrs_bmson_model::BGAHeader; 0]);
     assert_eq!(bga.bga_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);
     assert_eq!(bga.layer_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);
     assert_eq!(bga.poor_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);

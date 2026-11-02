@@ -91,7 +91,7 @@ use bmsrs::bmson::def::Bmson;
 use bmsrs::bmson::processor::BmsonProcessor;
 
 fn load(json: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let bmson: Bmson<'_> = serde_json::from_str(json)?;
+    let bmson: Bmson = serde_json::from_str(json)?;
     let processed = BmsonProcessor::process_default(&bmson)?;
 
     println!("events: {}", processed.chart.data.events.len());

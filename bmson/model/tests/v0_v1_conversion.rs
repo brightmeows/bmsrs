@@ -1,22 +1,22 @@
 //! Integration tests for conversion between bmson v0/v1 and v2 (root).
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use bmsrs_bmson_model::*;
 
 // v1 conversion tests
 
-fn make_v1_bmson() -> v1::Bmson<'static> {
+fn make_v1_bmson() -> v1::Bmson {
     v1::Bmson {
-        version: "1.0.0",
+        version: "1.0.0".to_owned(),
         info: v1::BmsonInfo {
-            title: "Test Song",
-            subtitle: "(short ver.)",
-            artist: "Test Artist",
-            subartists: vec!["music:composer"],
-            genre: "Test Genre",
+            title: "Test Song".to_owned(),
+            subtitle: "(short ver.)".to_owned(),
+            artist: "Test Artist".to_owned(),
+            subartists: vec!["music:composer".to_owned()],
+            genre: "Test Genre".to_owned(),
             mode_hint: ModeHint::Beat7k,
-            chart_name: "HYPER",
+            chart_name: "HYPER".to_owned(),
             level: 8,
             init_bpm: 140.0,
             judge_rank: 100.0,
@@ -36,7 +36,7 @@ fn make_v1_bmson() -> v1::Bmson<'static> {
             duration: 192,
         }],
         sound_channels: vec![v1::SoundChannel {
-            name: Path::new("kick.wav"),
+            name: PathBuf::from("kick.wav"),
             notes: vec![NoteEvent {
                 x: 1,
                 y: 0,
@@ -120,14 +120,14 @@ fn v1_with_null_arrays_handled() {
 
 // v0 conversion tests
 
-fn make_v0_bmson() -> v0::Bmson<'static> {
+fn make_v0_bmson() -> v0::Bmson {
     v0::Bmson {
         info: v0::BmsonInfo {
-            title: "Legacy Song",
+            title: "Legacy Song".to_owned(),
             subtitle: None,
-            artist: "Legacy Artist",
+            artist: "Legacy Artist".to_owned(),
             subartists: vec![],
-            genre: "Piano",
+            genre: "Piano".to_owned(),
             mode_hint: None,
             chart_name: None,
             level: 5,
@@ -146,7 +146,7 @@ fn make_v0_bmson() -> v0::Bmson<'static> {
         bpm_notes: vec![v0::EventNote { y: 0, v: 120.0 }],
         stop_events: vec![v0::EventNote { y: 960, v: 4.0 }],
         sound_channels: vec![v0::SoundChannel {
-            name: Path::new("kick.wav"),
+            name: PathBuf::from("kick.wav"),
             notes: vec![NoteEvent {
                 x: 1,
                 y: 0,

@@ -53,11 +53,7 @@ pub struct SlicedChannel {
 ///
 /// [`TimingTrack`]: bmsrs_chart::TimingTrack
 /// [`TimingTrack::tick_to_musical_duration`]: bmsrs_chart::TimingTrack::tick_to_musical_duration
-pub fn slice_channel(
-    channel: &SoundChannel<'_>,
-    timing: &TimingTrack,
-    name: &Path,
-) -> SlicedChannel {
+pub fn slice_channel(channel: &SoundChannel, timing: &TimingTrack, name: &Path) -> SlicedChannel {
     // 1. Collect unique tick positions. BTreeSet iteration is already ascending,
     //    so no second sort is needed.
     let pulses: Vec<u64> = channel
@@ -131,7 +127,6 @@ mod tests {
     use super::*;
     use bmsrs_bmson_model::NoteEvent;
     use bmsrs_chart::{StopEvent, TimingTrack};
-    use std::path::Path;
     use std::time::Duration;
 
     const RES: u64 = 240;
@@ -143,7 +138,7 @@ mod tests {
     #[test]
     fn three_unique_pulses_produce_three_assets() {
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![
                 NoteEvent {
                     x: 1,
@@ -187,7 +182,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), channel.name);
+        let result = slice_channel(&channel, &timing_120(), &channel.name);
 
         assert_eq!(result.assets.len(), 3);
         assert_eq!(result.pulse_to_index.len(), 3);
@@ -216,7 +211,7 @@ mod tests {
         )
         .unwrap();
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![
                 NoteEvent {
                     x: 1,
@@ -260,7 +255,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing, channel.name);
+        let result = slice_channel(&channel, &timing, &channel.name);
 
         assert_eq!(result.assets[1].duration, Some(Duration::from_millis(500)));
     }
@@ -268,7 +263,7 @@ mod tests {
     #[test]
     fn duplicate_pulse_deduplicated() {
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![
                 NoteEvent {
                     x: 1,
@@ -299,7 +294,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), channel.name);
+        let result = slice_channel(&channel, &timing_120(), &channel.name);
 
         assert_eq!(result.assets.len(), 1);
         assert_eq!(result.pulse_to_index.get(&240), Some(&0));
@@ -310,7 +305,7 @@ mod tests {
     #[test]
     fn first_slice_starts_at_zero() {
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![NoteEvent {
                 x: 1,
                 y: 0,
@@ -326,7 +321,7 @@ mod tests {
             }],
         };
 
-        let result = slice_channel(&channel, &timing_120(), channel.name);
+        let result = slice_channel(&channel, &timing_120(), &channel.name);
 
         assert!(result.assets[0].start.is_zero());
         assert!(result.assets[0].duration.is_none());
@@ -335,7 +330,7 @@ mod tests {
     #[test]
     fn intermediate_slice_duration_is_gap() {
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![
                 NoteEvent {
                     x: 1,
@@ -366,7 +361,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), channel.name);
+        let result = slice_channel(&channel, &timing_120(), &channel.name);
 
         // 120 BPM at resolution 240: tick 0 maps to 0s, tick 240 to 0.5s.
         assert!(result.assets[0].start.is_zero());
@@ -379,7 +374,7 @@ mod tests {
     #[test]
     fn last_slice_duration_is_none() {
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![
                 NoteEvent {
                     x: 1,
@@ -410,7 +405,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), channel.name);
+        let result = slice_channel(&channel, &timing_120(), &channel.name);
 
         assert!(result.assets.last().is_some_and(|a| a.duration.is_none()));
     }
@@ -421,7 +416,7 @@ mod tests {
         // 480 (c:true, continuation), 720 (c:false, restart), 840 (c:true,
         // continuation).
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![
                 NoteEvent {
                     x: 1,
@@ -491,7 +486,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), channel.name);
+        let result = slice_channel(&channel, &timing_120(), &channel.name);
 
         // 5 unique ticks give 5 audio assets.
         assert_eq!(result.assets.len(), 5);
@@ -515,7 +510,7 @@ mod tests {
         // Two notes at tick 240: one c:true and one c:false, so it counts as a
         // restart.
         let channel = SoundChannel {
-            name: Path::new("demo.wav"),
+            name: std::path::PathBuf::from("demo.wav"),
             note_events: vec![
                 NoteEvent {
                     x: 1,
@@ -546,7 +541,7 @@ mod tests {
             ],
         };
 
-        let result = slice_channel(&channel, &timing_120(), channel.name);
+        let result = slice_channel(&channel, &timing_120(), &channel.name);
         // The first tick always counts as a restart.
         assert!(result.assets[0].start.is_zero());
     }

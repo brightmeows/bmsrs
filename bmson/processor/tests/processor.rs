@@ -3,7 +3,7 @@
 #![expect(clippy::panic_in_result_fn, reason = "test helpers and assertions")]
 
 use std::num::NonZeroU8;
-use std::path::Path;
+use std::path::PathBuf;
 
 use bmsrs_bmson_model::{
     BGA, BGAEvent, BGAHeader, BpmEvent, ChartData, ChartInfo, KeyChannel, KeyNote, LnType,
@@ -30,18 +30,18 @@ const fn key(n: u8) -> Lane {
 }
 
 /// Build a simple v2 BMSON chart for tests.
-fn make_simple_bmson() -> bmsrs_bmson_model::Bmson<'static> {
+fn make_simple_bmson() -> bmsrs_bmson_model::Bmson {
     bmsrs_bmson_model::Bmson {
-        version: "2.0.0",
+        version: "2.0.0".to_owned(),
         song_info: SongInfo {
-            title: "Test",
-            artist: "Test Artist",
-            genre: "Test Genre",
+            title: "Test".to_owned(),
+            artist: "Test Artist".to_owned(),
+            genre: "Test Genre".to_owned(),
         },
         chart_info: ChartInfo {
-            subtitle: "",
+            subtitle: String::new(),
             subartists: vec![],
-            chart_name: "HYPER",
+            chart_name: "HYPER".to_owned(),
             level: 8,
             back_image: None,
             eyecatch_image: None,
@@ -76,7 +76,7 @@ fn make_simple_bmson() -> bmsrs_bmson_model::Bmson<'static> {
 fn process_basic_note() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("kick.wav"),
+        name: PathBuf::from("kick.wav"),
         note_events: vec![NoteEvent {
             x: 1,
             y: 0,
@@ -124,7 +124,7 @@ fn process_layered_notes_fuse_audio_layers() -> TestResult {
     let mut bmson = make_simple_bmson();
     for name in ["a.wav", "b.wav"] {
         bmson.chart_data.sound_channels.push(SoundChannel {
-            name: Path::new(name),
+            name: PathBuf::from(name),
             note_events: vec![NoteEvent {
                 x: 1,
                 y: 0,
@@ -162,7 +162,7 @@ fn process_layered_long_notes_warn_on_length_mismatch() -> TestResult {
     let mut bmson = make_simple_bmson();
     for (name, length) in [("a.wav", 240), ("b.wav", 480)] {
         bmson.chart_data.sound_channels.push(SoundChannel {
-            name: Path::new(name),
+            name: PathBuf::from(name),
             note_events: vec![NoteEvent {
                 x: 1,
                 y: 0,
@@ -197,7 +197,7 @@ fn process_layered_long_notes_warn_on_length_mismatch() -> TestResult {
 fn process_up_note_sets_release_role() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("release.wav"),
+        name: PathBuf::from("release.wav"),
         note_events: vec![NoteEvent {
             x: 1,
             y: 0,
@@ -230,7 +230,7 @@ fn process_up_note_sets_release_role() -> TestResult {
 fn beatoraja_ln_mode_overrides_ln_type_hint() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("ln.wav"),
+        name: PathBuf::from("ln.wav"),
         note_events: vec![NoteEvent {
             x: 1,
             y: 0,
@@ -272,8 +272,8 @@ fn process_beat_mode_sets_key_count() -> TestResult {
 #[test]
 fn process_maps_subartists_and_title_image_to_chart_info() -> TestResult {
     let mut bmson = make_simple_bmson();
-    bmson.chart_info.subartists = vec!["music:Composer"];
-    bmson.chart_info.title_image = Some(Path::new("title.png"));
+    bmson.chart_info.subartists = vec!["music:Composer".to_owned()];
+    bmson.chart_info.title_image = Some(PathBuf::from("title.png"));
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
 
@@ -286,7 +286,7 @@ fn process_maps_subartists_and_title_image_to_chart_info() -> TestResult {
 fn process_rejects_parent_directory_path() {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("../evil.wav"),
+        name: PathBuf::from("../evil.wav"),
         note_events: vec![],
     });
 
@@ -305,7 +305,7 @@ fn process_rejects_parent_directory_path() {
 fn process_rejects_absolute_path() {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("/etc/passwd"),
+        name: PathBuf::from("/etc/passwd"),
         note_events: vec![],
     });
 
@@ -324,7 +324,7 @@ fn process_rejects_absolute_path() {
 fn process_rejects_nul_path() {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("bad\0.wav"),
+        name: PathBuf::from("bad\0.wav"),
         note_events: vec![],
     });
 
@@ -343,7 +343,7 @@ fn process_rejects_nul_path() {
 fn process_normalizes_backslash_path() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("snd\\kick.wav"),
+        name: PathBuf::from("snd\\kick.wav"),
         note_events: vec![NoteEvent {
             x: 1,
             y: 0,
@@ -363,7 +363,7 @@ fn process_normalizes_backslash_path() -> TestResult {
 
     assert_eq!(
         chart.data.audio_assets[0].path.as_ref(),
-        Path::new("snd/kick.wav")
+        PathBuf::from("snd/kick.wav")
     );
     Ok(())
 }
@@ -372,7 +372,7 @@ fn process_normalizes_backslash_path() -> TestResult {
 fn process_beat_layout_maps_both_sides() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("p1.wav"),
+        name: PathBuf::from("p1.wav"),
         note_events: vec![
             NoteEvent {
                 x: 1,
@@ -448,7 +448,7 @@ fn process_beat_layout_maps_both_sides() -> TestResult {
 fn process_pms_layout_single_player() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("popn.wav"),
+        name: PathBuf::from("popn.wav"),
         note_events: (1..=9)
             .map(|i| NoteEvent {
                 x: i,
@@ -496,7 +496,7 @@ fn process_pms_layout_single_player() -> TestResult {
 fn process_generic_layout_n_keys() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("generic.wav"),
+        name: PathBuf::from("generic.wav"),
         note_events: (1..=5)
             .map(|i| NoteEvent {
                 x: i,
@@ -563,7 +563,7 @@ fn process_default_routes_by_mode_hint() -> TestResult {
     let mut bmson_beat = make_simple_bmson();
     bmson_beat.chart_data.mode_hint = ModeHint::Beat7k;
     bmson_beat.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("a.wav"),
+        name: PathBuf::from("a.wav"),
         note_events: vec![NoteEvent {
             x: 1,
             y: 0,
@@ -591,7 +591,7 @@ fn process_default_routes_by_mode_hint() -> TestResult {
     let mut bmson_pms = make_simple_bmson();
     bmson_pms.chart_data.mode_hint = ModeHint::Popn9k;
     bmson_pms.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("b.wav"),
+        name: PathBuf::from("b.wav"),
         note_events: vec![NoteEvent {
             x: 1,
             y: 0,
@@ -709,7 +709,7 @@ fn scroll_events_converts_negative_values() -> TestResult {
 fn key_channels_produces_invisible_notes() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.key_channels.push(KeyChannel {
-        name: Path::new("key.wav"),
+        name: PathBuf::from("key.wav"),
         notes: vec![KeyNote { x: 1, y: 0 }, KeyNote { x: 2, y: 480 }],
     });
 
@@ -744,7 +744,7 @@ fn key_channels_produces_invisible_notes() -> TestResult {
 fn mine_channels_produces_damage_notes() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.mine_channels.push(MineChannel {
-        name: Path::new("mine.wav"),
+        name: PathBuf::from("mine.wav"),
         notes: vec![
             MineNote {
                 x: 1,
@@ -819,7 +819,7 @@ fn process_bga_events() -> TestResult {
     bmson.chart_info.bga = BGA {
         bga_header: vec![BGAHeader {
             id: 1,
-            name: Path::new("bg.png"),
+            name: PathBuf::from("bg.png"),
         }],
         bga_events: vec![BGAEvent { y: 0, id: 1 }],
         layer_events: vec![BGAEvent { y: 480, id: 1 }],
@@ -856,7 +856,7 @@ fn process_bga_events() -> TestResult {
 fn process_long_note() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("ln.wav"),
+        name: PathBuf::from("ln.wav"),
         note_events: vec![NoteEvent {
             x: 1,
             y: 0,
@@ -901,7 +901,7 @@ fn process_bgm_note_skips_playable_pulse() -> TestResult {
     // BGM notes (x=0) are dropped when they share a tick with playable notes.
     let mut bmson = make_simple_bmson();
     bmson.chart_data.sound_channels.push(SoundChannel {
-        name: Path::new("playable.wav"),
+        name: PathBuf::from("playable.wav"),
         note_events: vec![
             NoteEvent {
                 x: 1,

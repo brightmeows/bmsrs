@@ -298,16 +298,16 @@ fn root_to_v0_invalid_init_bpm_errors() {
     use bmsrs_bmson_model::{ChartData, ChartInfo, SongInfo};
 
     let root = Bmson {
-        version: "2.0.0",
+        version: "2.0.0".to_owned(),
         song_info: SongInfo {
-            title: "T",
-            artist: "A",
-            genre: "G",
+            title: "T".to_owned(),
+            artist: "A".to_owned(),
+            genre: "G".to_owned(),
         },
         chart_info: ChartInfo {
-            subtitle: "",
+            subtitle: String::new(),
             subartists: vec![],
-            chart_name: "",
+            chart_name: String::new(),
             level: 1,
             back_image: None,
             eyecatch_image: None,

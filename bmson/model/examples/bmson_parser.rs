@@ -244,7 +244,7 @@ impl DetectedVersion {
 //
 
 /// Parse a BMSON JSON string into `bmsrs_bmson_model::Bmson` (auto-detecting v0/v1/v2).
-fn parse_bmson(json: &str) -> Result<bmsrs_bmson_model::Bmson<'_>, BmsonDeError> {
+fn parse_bmson(json: &str) -> Result<bmsrs_bmson_model::Bmson, BmsonDeError> {
     // 1. Run the chumsky parser for validation.
     let (value, errors) = parse_json(json);
     let had_output = value.is_some();
@@ -289,13 +289,13 @@ fn parse_bmson(json: &str) -> Result<bmsrs_bmson_model::Bmson<'_>, BmsonDeError>
 }
 
 /// Internal: dispatch to version-specific deserialization.
-fn deserialize_by_version<'a>(
-    json: &'a str,
+fn deserialize_by_version(
+    json: &str,
     version: DetectedVersion,
-) -> Result<bmsrs_bmson_model::Bmson<'a>, BmsonDeError> {
+) -> Result<bmsrs_bmson_model::Bmson, BmsonDeError> {
     match version {
         DetectedVersion::V2 => {
-            serde_json::from_str::<bmsrs_bmson_model::Bmson<'a>>(json).map_err(|e| {
+            serde_json::from_str::<bmsrs_bmson_model::Bmson>(json).map_err(|e| {
                 BmsonDeError::Deserialize {
                     version: "v2.0.0",
                     message: e.to_string(),
@@ -303,7 +303,7 @@ fn deserialize_by_version<'a>(
             })
         }
         DetectedVersion::V1 => {
-            let v1: bmsrs_bmson_model::v1::Bmson<'a> =
+            let v1: bmsrs_bmson_model::v1::Bmson =
                 serde_json::from_str(json).map_err(|e| BmsonDeError::Deserialize {
                     version: "v1.0.0",
                     message: e.to_string(),
@@ -311,7 +311,7 @@ fn deserialize_by_version<'a>(
             Ok(bmsrs_bmson_model::Bmson::from(v1))
         }
         DetectedVersion::V0 => {
-            let v0: bmsrs_bmson_model::v0::Bmson<'a> =
+            let v0: bmsrs_bmson_model::v0::Bmson =
                 serde_json::from_str(json).map_err(|e| BmsonDeError::Deserialize {
                     version: "v0.2.1",
                     message: e.to_string(),

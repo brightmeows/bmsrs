@@ -130,7 +130,7 @@ impl BmsonProcessor {
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (invalid initial BPM or zero resolution).
-    pub fn process<L>(bmson: &bmsrs_bmson_model::Bmson<'_>) -> Result<Processed, ProcessError>
+    pub fn process<L>(bmson: &bmsrs_bmson_model::Bmson) -> Result<Processed, ProcessError>
     where
         L: BmsonLayout,
     {
@@ -148,7 +148,7 @@ impl BmsonProcessor {
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (invalid initial BPM or zero resolution).
     pub fn process_nkeys(
-        bmson: &bmsrs_bmson_model::Bmson<'_>,
+        bmson: &bmsrs_bmson_model::Bmson,
         keys: u8,
     ) -> Result<Processed, ProcessError> {
         let layout = GenericLayout { keys };
@@ -172,9 +172,7 @@ impl BmsonProcessor {
     ///   `generic-nkeys` but the key count is 0 or above 255 (the index bound of
     ///   [`Lane::Key`]); otherwise every note would be dropped silently by the
     ///   empty key mapping.
-    pub fn process_default(
-        bmson: &bmsrs_bmson_model::Bmson<'_>,
-    ) -> Result<Processed, ProcessError> {
+    pub fn process_default(bmson: &bmsrs_bmson_model::Bmson) -> Result<Processed, ProcessError> {
         match &bmson.chart_data.mode_hint {
             bmsrs_bmson_model::ModeHint::Popn5k | bmsrs_bmson_model::ModeHint::Popn9k => {
                 Self::process::<Pms>(bmson)
@@ -199,7 +197,7 @@ impl BmsonProcessor {
 
     /// Public entry point for custom decode logic (internal use).
     fn process_body(
-        bmson: &bmsrs_bmson_model::Bmson<'_>,
+        bmson: &bmsrs_bmson_model::Bmson,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
     ) -> Result<Processed, ProcessError> {
         let bmson_data = &bmson.chart_data;
@@ -279,7 +277,7 @@ impl BmsonProcessor {
 /// [`BmsonProcessor::process_body`].
 struct BmsonConverter<'a> {
     /// Source BMSON document.
-    bmson: &'a bmsrs_bmson_model::Bmson<'a>,
+    bmson: &'a bmsrs_bmson_model::Bmson,
     /// Channel decode function (`x` to `(side, lane)`).
     decode: &'a dyn Fn(u64) -> Option<(NoteSide, Lane)>,
     /// Precomputed timing cache.
@@ -465,7 +463,7 @@ impl BmsonConverter<'_> {
         let mut layered: BTreeMap<(NoteSide, u8, u8, u64), LayeredNote> = BTreeMap::new();
 
         for channel in &self.bmson.chart_data.sound_channels {
-            let path = normalize_path(channel.name)?;
+            let path = normalize_path(&channel.name)?;
             let sliced = slice_channel(channel, &self.timing, &path);
 
             let channel_playable: HashSet<u64> = channel
@@ -546,7 +544,7 @@ impl BmsonConverter<'_> {
     )]
     fn process_mine_channels(&mut self) -> Result<(), ProcessError> {
         for mc in &self.bmson.mine_channels {
-            let path = normalize_path(mc.name)?;
+            let path = normalize_path(&mc.name)?;
             let mine_audio_idx = AudioIndex::new(self.audio_assets.len() as u32);
             self.audio_assets.push(AudioAsset {
                 path: Arc::from(path),
@@ -583,7 +581,7 @@ impl BmsonConverter<'_> {
     )]
     fn process_key_channels(&mut self) -> Result<(), ProcessError> {
         for kc in &self.bmson.key_channels {
-            let path = normalize_path(kc.name)?;
+            let path = normalize_path(&kc.name)?;
             let key_audio_idx = AudioIndex::new(self.audio_assets.len() as u32);
             self.audio_assets.push(AudioAsset {
                 path: Arc::from(path),
@@ -635,7 +633,7 @@ fn normalize_path(path: &Path) -> Result<PathBuf, ProcessError> {
     }
 
     let normalized = raw.replace('\\', "/");
-    let normalized_path = Path::new(&normalized);
+    let normalized_path = PathBuf::from(&normalized);
     if normalized_path.is_absolute() {
         return Err(ProcessError::UnsafePath {
             path: raw.into_owned(),
@@ -686,7 +684,7 @@ fn normalize_optional_path(option: Option<&Path>) -> Result<Option<String>, Proc
 ///
 /// Returns [`TimingTrackError::InvalidBpm`] when `data.init_bpm` is invalid
 /// (zero or non-finite).
-fn build_timing(data: &bmsrs_bmson_model::ChartData<'_>) -> Result<TimingTrack, TimingTrackError> {
+fn build_timing(data: &bmsrs_bmson_model::ChartData) -> Result<TimingTrack, TimingTrackError> {
     TimingTrack::new(
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
@@ -749,7 +747,7 @@ const fn ln_life_to_hint(ll: bmsrs_bmson_model::LnLife) -> LnLifeHint {
 /// into `bga_resources`: `bga_header` ids may be sparse or huge, and renumbering
 /// lets renderers safely index the resource table. Duplicate raw ids use the
 /// last occurrence (consistent with the schema note, since insert overwrites).
-fn build_bga_id_map(bga: &bmsrs_bmson_model::BGA<'_>) -> BTreeMap<u64, BgaResourceId> {
+fn build_bga_id_map(bga: &bmsrs_bmson_model::BGA) -> BTreeMap<u64, BgaResourceId> {
     bga.bga_header
         .iter()
         .enumerate()
@@ -764,23 +762,23 @@ fn build_bga_id_map(bga: &bmsrs_bmson_model::BGA<'_>) -> BTreeMap<u64, BgaResour
 }
 
 /// Build [`SongInfo`] from BMSON song information.
-fn build_song_info(bmson: &bmsrs_bmson_model::Bmson<'_>) -> SongInfo {
+fn build_song_info(bmson: &bmsrs_bmson_model::Bmson) -> SongInfo {
     SongInfo {
-        title: bmson.song_info.title.to_owned(),
-        artist: bmson.song_info.artist.to_owned(),
-        genre: bmson.song_info.genre.to_owned(),
+        title: bmson.song_info.title.clone(),
+        artist: bmson.song_info.artist.clone(),
+        genre: bmson.song_info.genre.clone(),
     }
 }
 
 /// Build [`ChartInfo`] from BMSON chart information.
-fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson<'_>) -> Result<ChartInfo, ProcessError> {
+fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, ProcessError> {
     let bga = &bmson.chart_info.bga;
     let bga_resources: Vec<BgaResource> = bga
         .bga_header
         .iter()
         .map(|h| {
             Ok(BgaResource {
-                path: normalize_path(h.name)?,
+                path: normalize_path(&h.name)?,
                 // BMSON has no crop/placement concept (images and videos are
                 // just paths).
                 crop: None,
@@ -789,8 +787,8 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson<'_>) -> Result<ChartInfo, P
         .collect::<Result<_, ProcessError>>()?;
 
     Ok(ChartInfo {
-        subtitle: bmson.chart_info.subtitle.to_owned(),
-        chart_name: bmson.chart_info.chart_name.to_owned(),
+        subtitle: bmson.chart_info.subtitle.clone(),
+        chart_name: bmson.chart_info.chart_name.clone(),
         level: bmson.chart_info.level,
         subartists: bmson
             .chart_info
@@ -798,11 +796,11 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson<'_>) -> Result<ChartInfo, P
             .iter()
             .map(std::string::ToString::to_string)
             .collect(),
-        title_image: normalize_optional_path(bmson.chart_info.title_image)?,
-        back_image: normalize_optional_path(bmson.chart_info.back_image)?,
-        eyecatch_image: normalize_optional_path(bmson.chart_info.eyecatch_image)?,
-        banner_image: normalize_optional_path(bmson.chart_info.banner_image)?,
-        preview_music: normalize_optional_path(bmson.chart_info.preview_music)?,
+        title_image: normalize_optional_path(bmson.chart_info.title_image.as_deref())?,
+        back_image: normalize_optional_path(bmson.chart_info.back_image.as_deref())?,
+        eyecatch_image: normalize_optional_path(bmson.chart_info.eyecatch_image.as_deref())?,
+        banner_image: normalize_optional_path(bmson.chart_info.banner_image.as_deref())?,
+        preview_music: normalize_optional_path(bmson.chart_info.preview_music.as_deref())?,
         bga_resources,
         // BMSON has no #VIDEOFILE/#MOVIE concept.
         video: None,

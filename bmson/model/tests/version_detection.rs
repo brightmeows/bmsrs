@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use bmsrs_bmson_model::{DetectedVersion, ModeHint};
 
@@ -105,7 +105,7 @@ fn detect_then_parse_v2() {
         bmsrs_bmson_model::DetectedVersion::detect(v2_json()).unwrap(),
         DetectedVersion::V2
     );
-    let bmson: bmsrs_bmson_model::Bmson<'_> = serde_json::from_str(v2_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = serde_json::from_str(v2_json()).unwrap();
     assert_eq!(bmson.version, "2.0.0");
     assert_eq!(bmson.song_info.title, "T");
 }
@@ -116,8 +116,8 @@ fn detect_then_parse_v1() {
         bmsrs_bmson_model::DetectedVersion::detect(v1_json()).unwrap(),
         DetectedVersion::V1
     );
-    let v1: bmsrs_bmson_model::v1::Bmson<'_> = serde_json::from_str(v1_json()).unwrap();
-    let bmson: bmsrs_bmson_model::Bmson<'_> = v1.into();
+    let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = v1.into();
     assert_eq!(bmson.version, "1.0.0");
     assert_eq!(bmson.song_info.title, "T");
 }
@@ -128,8 +128,8 @@ fn detect_then_parse_v0() {
         bmsrs_bmson_model::DetectedVersion::detect(v0_json()).unwrap(),
         DetectedVersion::V0
     );
-    let v0: bmsrs_bmson_model::v0::Bmson<'_> = serde_json::from_str(v0_json()).unwrap();
-    let bmson: bmsrs_bmson_model::Bmson<'_> = v0.try_into().unwrap();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(v0_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = v0.try_into().unwrap();
     assert_eq!(bmson.version, "0.2.1");
     assert_eq!(bmson.song_info.title, "T");
 }
@@ -141,8 +141,8 @@ fn from_slice_v0_negative_bpm_error() {
         "soundChannel": [],
         "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
     }"#;
-    let v0: bmsrs_bmson_model::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
-    let err: Result<bmsrs_bmson_model::Bmson<'_>, _> = v0.try_into();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json).unwrap();
+    let err: Result<bmsrs_bmson_model::Bmson, _> = v0.try_into();
     assert!(err.is_err());
 }
 
@@ -156,11 +156,11 @@ fn v0_accepts_snake_case_top_level_keys() {
         "sound_channels": [{ "name": "kick.wav", "notes": [] }],
         "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
     }"#;
-    let v0: bmsrs_bmson_model::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(v0.bpm_notes.len(), 1);
     assert_eq!(v0.bpm_notes[0].y, 960);
     assert_eq!(v0.sound_channels.len(), 1);
-    assert_eq!(v0.sound_channels[0].name, Path::new("kick.wav"));
+    assert_eq!(v0.sound_channels[0].name, PathBuf::from("kick.wav"));
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn v0_serialization_still_writes_camel_case() {
         "sound_channels": [],
         "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
     }"#;
-    let v0: bmsrs_bmson_model::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json).unwrap();
     let out = serde_json::to_string(&v0).unwrap();
     assert!(out.contains("\"bpmNotes\""), "canonical key is camelCase");
     assert!(
@@ -186,7 +186,7 @@ fn v0_serialization_still_writes_camel_case() {
 
 #[test]
 fn serialize_v2_then_detect() {
-    let v2: bmsrs_bmson_model::Bmson<'_> = serde_json::from_str(v2_json()).unwrap();
+    let v2: bmsrs_bmson_model::Bmson = serde_json::from_str(v2_json()).unwrap();
     let out = serde_json::to_string(&v2).unwrap();
     assert_eq!(
         bmsrs_bmson_model::DetectedVersion::detect(&out).unwrap(),
@@ -196,11 +196,11 @@ fn serialize_v2_then_detect() {
 
 #[test]
 fn serialize_v1_then_detect() {
-    let bmson: bmsrs_bmson_model::Bmson<'_> = {
-        let v1: bmsrs_bmson_model::v1::Bmson<'_> = serde_json::from_str(v1_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = {
+        let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json()).unwrap();
         v1.into()
     };
-    let v1_back: bmsrs_bmson_model::v1::Bmson<'_> = bmson.into();
+    let v1_back: bmsrs_bmson_model::v1::Bmson = bmson.into();
     let out = serde_json::to_string(&v1_back).unwrap();
     assert_eq!(
         bmsrs_bmson_model::DetectedVersion::detect(&out).unwrap(),
@@ -222,8 +222,8 @@ fn detect_v1_with_mode_hint() {
         bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V1
     );
-    let v1: bmsrs_bmson_model::v1::Bmson<'_> = serde_json::from_str(json).unwrap();
-    let bmson: bmsrs_bmson_model::Bmson<'_> = v1.into();
+    let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(json).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = v1.into();
     assert_eq!(bmson.chart_data.mode_hint, ModeHint::Popn9k);
 }
 
