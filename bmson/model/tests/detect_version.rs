@@ -2,7 +2,7 @@
 //!
 //! Verify that version detection handles v0/v1/v2 JSON and various edge cases.
 
-use bmsrs_bmson_def::DetectedVersion;
+use bmsrs_bmson_model::DetectedVersion;
 
 #[test]
 fn detect_v2_from_full_json() {

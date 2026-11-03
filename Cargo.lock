@@ -116,7 +116,7 @@ dependencies = [
  "bmsrs-bms-syntax",
  "bmsrs-bms-values",
  "bmsrs-bms-writer",
- "bmsrs-bmson-def",
+ "bmsrs-bmson-model",
  "bmsrs-bmson-processor",
  "bmsrs-chart",
  "bmsrs-pipeline",
@@ -205,7 +205,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bmsrs-bmson-def"
+name = "bmsrs-bmson-model"
 version = "0.1.0"
 dependencies = [
  "chumsky",
@@ -220,7 +220,7 @@ dependencies = [
 name = "bmsrs-bmson-processor"
 version = "0.1.0"
 dependencies = [
- "bmsrs-bmson-def",
+ "bmsrs-bmson-model",
  "bmsrs-chart",
  "serde_json",
  "thiserror",

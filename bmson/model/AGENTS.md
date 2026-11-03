@@ -1,4 +1,4 @@
-# bmsrs-bmson-def
+# bmsrs-bmson-model
 
 ## Role
 
@@ -13,7 +13,7 @@ Type definitions for the bmson JSON format (v0/v1/v2).
 | `lib.rs` (root) | v2-specific types (`Bmson` v2, `SongInfo`, `ChartInfo`, `ChartData`), defined at the crate root without a separate module |
 
 `v0` and `v1` are **independent modules**, each with its own `Bmson`, `BmsonInfo`,
-and `SoundChannel`. Import them from `bmsrs_bmson_def::v0` or `bmsrs_bmson_def::v1`.
+and `SoundChannel`. Import them from `bmsrs_bmson_model::v0` or `bmsrs_bmson_model::v1`.
 
 ## Version detection
 
@@ -31,7 +31,7 @@ directly through `serde_json::from_str`/`to_string`. `chumsky` is used by the
 ## Example
 
 ```bash
-cargo run --example bmson_parser -p bmsrs-bmson-def
+cargo run --example bmson_parser -p bmsrs-bmson-model
 ```
 
 ## Non-obvious rules

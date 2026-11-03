@@ -1,14 +1,14 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use std::path::Path;
+use std::path::PathBuf;
 
-use bmsrs_bmson_def::{DetectedVersion, ModeHint};
+use bmsrs_bmson_model::{DetectedVersion, ModeHint};
 
 #[test]
 fn detect_v2() {
     let json = r#"{"version":"2.0.0","song_info":{}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V2
     );
 }
@@ -17,7 +17,7 @@ fn detect_v2() {
 fn detect_v1() {
     let json = r#"{"version":"1.0.0","info":{}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V1
     );
 }
@@ -26,7 +26,7 @@ fn detect_v1() {
 fn detect_v0_no_version() {
     let json = r#"{"info":{"title":"T"}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V0
     );
 }
@@ -35,7 +35,7 @@ fn detect_v0_no_version() {
 fn detect_v0_version_starts_with_zero() {
     let json = r#"{"version":"0.2.1","info":{}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V0
     );
 }
@@ -43,24 +43,24 @@ fn detect_v0_version_starts_with_zero() {
 #[test]
 fn detect_unknown_version_error() {
     let json = r#"{"version":"3.0.0"}"#;
-    let err = bmsrs_bmson_def::DetectedVersion::detect(json).unwrap_err();
-    assert!(matches!(err, bmsrs_bmson_def::BmsonError::UnknownVersion(ref v) if v == "3.0.0"));
+    let err = bmsrs_bmson_model::DetectedVersion::detect(json).unwrap_err();
+    assert!(matches!(err, bmsrs_bmson_model::BmsonError::UnknownVersion(ref v) if v == "3.0.0"));
 }
 
 #[test]
 fn detect_non_string_version_error() {
     let json = r#"{"version":123}"#;
-    let err = bmsrs_bmson_def::DetectedVersion::detect(json).unwrap_err();
+    let err = bmsrs_bmson_model::DetectedVersion::detect(json).unwrap_err();
     assert!(matches!(
         err,
-        bmsrs_bmson_def::BmsonError::UnknownVersion(_)
+        bmsrs_bmson_model::BmsonError::UnknownVersion(_)
     ));
 }
 
 #[test]
 fn detect_empty_json_is_v0() {
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect("{}").unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect("{}").unwrap(),
         DetectedVersion::V0
     );
 }
@@ -102,10 +102,10 @@ const fn v0_json() -> &'static str {
 #[test]
 fn detect_then_parse_v2() {
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(v2_json()).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(v2_json()).unwrap(),
         DetectedVersion::V2
     );
-    let bmson: bmsrs_bmson_def::Bmson<'_> = serde_json::from_str(v2_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = serde_json::from_str(v2_json()).unwrap();
     assert_eq!(bmson.version, "2.0.0");
     assert_eq!(bmson.song_info.title, "T");
 }
@@ -113,11 +113,11 @@ fn detect_then_parse_v2() {
 #[test]
 fn detect_then_parse_v1() {
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(v1_json()).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(v1_json()).unwrap(),
         DetectedVersion::V1
     );
-    let v1: bmsrs_bmson_def::v1::Bmson<'_> = serde_json::from_str(v1_json()).unwrap();
-    let bmson: bmsrs_bmson_def::Bmson<'_> = v1.into();
+    let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = v1.into();
     assert_eq!(bmson.version, "1.0.0");
     assert_eq!(bmson.song_info.title, "T");
 }
@@ -125,11 +125,11 @@ fn detect_then_parse_v1() {
 #[test]
 fn detect_then_parse_v0() {
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(v0_json()).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(v0_json()).unwrap(),
         DetectedVersion::V0
     );
-    let v0: bmsrs_bmson_def::v0::Bmson<'_> = serde_json::from_str(v0_json()).unwrap();
-    let bmson: bmsrs_bmson_def::Bmson<'_> = v0.try_into().unwrap();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(v0_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = v0.try_into().unwrap();
     assert_eq!(bmson.version, "0.2.1");
     assert_eq!(bmson.song_info.title, "T");
 }
@@ -141,8 +141,8 @@ fn from_slice_v0_negative_bpm_error() {
         "soundChannel": [],
         "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
     }"#;
-    let v0: bmsrs_bmson_def::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
-    let err: Result<bmsrs_bmson_def::Bmson<'_>, _> = v0.try_into();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json).unwrap();
+    let err: Result<bmsrs_bmson_model::Bmson, _> = v0.try_into();
     assert!(err.is_err());
 }
 
@@ -156,11 +156,11 @@ fn v0_accepts_snake_case_top_level_keys() {
         "sound_channels": [{ "name": "kick.wav", "notes": [] }],
         "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
     }"#;
-    let v0: bmsrs_bmson_def::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(v0.bpm_notes.len(), 1);
     assert_eq!(v0.bpm_notes[0].y, 960);
     assert_eq!(v0.sound_channels.len(), 1);
-    assert_eq!(v0.sound_channels[0].name, Path::new("kick.wav"));
+    assert_eq!(v0.sound_channels[0].name, PathBuf::from("kick.wav"));
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn v0_serialization_still_writes_camel_case() {
         "sound_channels": [],
         "bga": { "bgaHeader": [], "bgaNotes": [], "layerNotes": [], "poorNotes": [] }
     }"#;
-    let v0: bmsrs_bmson_def::v0::Bmson<'_> = serde_json::from_str(json).unwrap();
+    let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json).unwrap();
     let out = serde_json::to_string(&v0).unwrap();
     assert!(out.contains("\"bpmNotes\""), "canonical key is camelCase");
     assert!(
@@ -186,24 +186,24 @@ fn v0_serialization_still_writes_camel_case() {
 
 #[test]
 fn serialize_v2_then_detect() {
-    let v2: bmsrs_bmson_def::Bmson<'_> = serde_json::from_str(v2_json()).unwrap();
+    let v2: bmsrs_bmson_model::Bmson = serde_json::from_str(v2_json()).unwrap();
     let out = serde_json::to_string(&v2).unwrap();
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(&out).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(&out).unwrap(),
         DetectedVersion::V2
     );
 }
 
 #[test]
 fn serialize_v1_then_detect() {
-    let bmson: bmsrs_bmson_def::Bmson<'_> = {
-        let v1: bmsrs_bmson_def::v1::Bmson<'_> = serde_json::from_str(v1_json()).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = {
+        let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json()).unwrap();
         v1.into()
     };
-    let v1_back: bmsrs_bmson_def::v1::Bmson<'_> = bmson.into();
+    let v1_back: bmsrs_bmson_model::v1::Bmson = bmson.into();
     let out = serde_json::to_string(&v1_back).unwrap();
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(&out).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(&out).unwrap(),
         DetectedVersion::V1
     );
 }
@@ -219,11 +219,11 @@ fn detect_v1_with_mode_hint() {
         "bga": { "bga_header": [], "bga_events": [], "layer_events": [], "poor_events": [] }
     }"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V1
     );
-    let v1: bmsrs_bmson_def::v1::Bmson<'_> = serde_json::from_str(json).unwrap();
-    let bmson: bmsrs_bmson_def::Bmson<'_> = v1.into();
+    let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(json).unwrap();
+    let bmson: bmsrs_bmson_model::Bmson = v1.into();
     assert_eq!(bmson.chart_data.mode_hint, ModeHint::Popn9k);
 }
 
@@ -232,7 +232,7 @@ fn detect_version_string_with_extra_whitespace() {
     // The scanner handles whitespace between "version" and the value.
     let json = r#"{  "version"  :  "2.0.0"  ,"song_info":{}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V2
     );
 }
@@ -241,7 +241,7 @@ fn detect_version_string_with_extra_whitespace() {
 fn detect_version_first_in_object() {
     let json = r#"{"version":"1.0.0"}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V1
     );
 }
@@ -251,7 +251,7 @@ fn detect_version_not_first_key() {
     // The version field may appear after other fields.
     let json = r#"{"x":1,"version":"2.0.0","y":2}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V2
     );
 }
@@ -261,7 +261,7 @@ fn nested_version_before_top_level_ignored() {
     // A nested version does not interfere with top-level version detection.
     let json = r#"{"chart_name": {"version": "1.0.0"}, "version": "2.0.0"}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V2
     );
 }
@@ -272,7 +272,7 @@ fn nested_version_after_top_level_ignored() {
     // correctly.
     let json = r#"{"version": "2.0.0", "chart_name": {"version": "1.0.0"}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V2
     );
 }
@@ -282,7 +282,7 @@ fn version_string_in_value_not_confused() {
     // "version" appearing as a value (not a key) must not affect detection.
     let json = r#"{"title": "version 2.0.0", "chart_info": {"chart_name": "version1"}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V0
     );
 }
@@ -292,7 +292,7 @@ fn version_with_trailing_whitespace_parsed() {
     // The version string value has trailing whitespace.
     let json = r#"{"version": "2.0.0 ", "song_info": {}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V2
     );
 }
@@ -302,7 +302,7 @@ fn version_with_trailing_content_parsed() {
     // The version string value is followed by extra non-SemVer content.
     let json = r#"{"version": "2.0.0+20250101", "song_info": {}}"#;
     assert_eq!(
-        bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(),
+        bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(),
         DetectedVersion::V2
     );
 }

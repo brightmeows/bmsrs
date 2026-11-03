@@ -49,7 +49,7 @@ pub use common::{
 };
 
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::PathBuf;
 
 /// Custom judgment-window offsets introduced by the DJ.NEXT player.
 ///
@@ -103,27 +103,26 @@ pub struct LifeDeltas {
 /// specification.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Bmson<'a> {
+pub struct Bmson {
     /// bmson format version string.
     ///
     /// Must be a valid `SemVer` string. v2 files use `"2.0.0"`. If `version` is
     /// missing (`null`), the player should reject the file or treat it as a
     /// legacy format.
     ///
-    #[serde(borrow)]
-    pub version: &'a str,
+    pub version: String,
 
     /// Song-level metadata (title, artist, genre).
     #[serde(rename = "song_info")]
-    pub song_info: SongInfo<'a>,
+    pub song_info: SongInfo,
 
     /// Chart-level metadata (difficulty, images, BGA).
     #[serde(rename = "chart_info")]
-    pub chart_info: ChartInfo<'a>,
+    pub chart_info: ChartInfo,
 
     /// Chart data (notes, timing, sound channels).
     #[serde(rename = "chart_data")]
-    pub chart_data: ChartData<'a>,
+    pub chart_data: ChartData,
 
     /// Scroll speed change events (beatoraja 0.7.6+).
     #[serde(default)]
@@ -131,11 +130,11 @@ pub struct Bmson<'a> {
 
     /// Mine (landmine) channels (beatoraja extension).
     #[serde(default)]
-    pub mine_channels: Vec<MineChannel<'a>>,
+    pub mine_channels: Vec<MineChannel>,
 
     /// Invisible ("key") channels (beatoraja extension).
     #[serde(default)]
-    pub key_channels: Vec<KeyChannel<'a>>,
+    pub key_channels: Vec<KeyChannel>,
 }
 
 /// Song-level metadata (v2.0.0-rc1).
@@ -144,27 +143,24 @@ pub struct Bmson<'a> {
 /// **song itself**, not a specific chart.
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SongInfo<'a> {
+pub struct SongInfo {
     /// Song title.
     ///
     /// Players must display it as-is and must not split it on separators such as
     /// `()` or `--`.
     ///
-    #[serde(borrow)]
-    pub title: &'a str,
+    pub title: String,
 
     /// Main artist.
     ///
     /// Usually the music composer. May contain multiple names separated by
     /// `vs`, `feat.`, and so on.
     ///
-    #[serde(borrow)]
-    pub artist: &'a str,
+    pub artist: String,
 
     /// Song genre.
     ///
-    #[serde(borrow)]
-    pub genre: &'a str,
+    pub genre: String,
 }
 
 /// Chart-level metadata (v2.0.0-rc1).
@@ -173,14 +169,14 @@ pub struct SongInfo<'a> {
 /// chart arrangement of a song.
 ///
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChartInfo<'a> {
+pub struct ChartInfo {
     /// Chart subtitle.
     ///
     /// Displayed in a smaller font below [`SongInfo::title`]. May contain `\n`
     /// for a multi-line subtitle.
     ///
-    #[serde(borrow, default)]
-    pub subtitle: &'a str,
+    #[serde(default)]
+    pub subtitle: String,
 
     /// Contributors other than the main artist.
     ///
@@ -189,14 +185,14 @@ pub struct ChartInfo<'a> {
     /// defaults to `other`.
     ///
     #[serde(default, deserialize_with = "null_to_default")]
-    pub subartists: Vec<&'a str>,
+    pub subartists: Vec<String>,
 
     /// Chart name / difficulty label.
     ///
     /// Examples: `"BEGINNER"`, `"HYPER"`, `"ANOTHER"`.
     ///
-    #[serde(borrow, default)]
-    pub chart_name: &'a str,
+    #[serde(default)]
+    pub chart_name: String,
 
     /// Numeric difficulty level.
     ///
@@ -211,7 +207,7 @@ pub struct ChartInfo<'a> {
         deserialize_with = "de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub back_image: Option<&'a Path>,
+    pub back_image: Option<PathBuf>,
 
     /// Eyecatch image shown **while the song loads**.
     ///
@@ -220,7 +216,7 @@ pub struct ChartInfo<'a> {
         deserialize_with = "de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub eyecatch_image: Option<&'a Path>,
+    pub eyecatch_image: Option<PathBuf>,
 
     /// Banner image used on the **song selection and result screens**.
     ///
@@ -231,7 +227,7 @@ pub struct ChartInfo<'a> {
         deserialize_with = "de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub banner_image: Option<&'a Path>,
+    pub banner_image: Option<PathBuf>,
 
     /// Path to a short preview audio file.
     ///
@@ -240,7 +236,7 @@ pub struct ChartInfo<'a> {
         deserialize_with = "de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub preview_music: Option<&'a Path>,
+    pub preview_music: Option<PathBuf>,
 
     /// Title image shown **before gameplay starts**.
     ///
@@ -251,11 +247,11 @@ pub struct ChartInfo<'a> {
         deserialize_with = "de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub title_image: Option<&'a Path>,
+    pub title_image: Option<PathBuf>,
 
     /// Background animation data.
     #[serde(rename = "bga")]
-    pub bga: BGA<'a>,
+    pub bga: BGA,
 }
 
 /// Actual chart data (v2.0.0-rc1).
@@ -264,8 +260,7 @@ pub struct ChartInfo<'a> {
 /// long-note hints, and optional DJ.NEXT extensions.
 ///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "'de: 'a"))]
-pub struct ChartData<'a> {
+pub struct ChartData {
     /// Game mode hint.
     ///
     /// Players should check this field to confirm the chart is compatible with
@@ -378,7 +373,7 @@ pub struct ChartData<'a> {
 
     /// Sound channels; each channel binds one audio file to its notes.
     #[serde(default)]
-    pub sound_channels: Vec<SoundChannel<'a>>,
+    pub sound_channels: Vec<SoundChannel>,
 
     /// Custom judgment-window offsets (DJ.NEXT extension).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -444,7 +439,7 @@ pub enum DetectedVersion {
 ///
 /// ```rust
 /// let json = r#"{"version":"2.0.0","song_info":{}}"#;
-/// assert_eq!(bmsrs_bmson_def::DetectedVersion::detect(json).unwrap(), bmsrs_bmson_def::DetectedVersion::V2);
+/// assert_eq!(bmsrs_bmson_model::DetectedVersion::detect(json).unwrap(), bmsrs_bmson_model::DetectedVersion::V2);
 /// ```
 ///
 /// # Errors

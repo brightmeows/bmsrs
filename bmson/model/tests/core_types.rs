@@ -1,8 +1,8 @@
 #![expect(missing_docs, reason = "integration tests")]
 
-use std::path::Path;
+use std::path::PathBuf;
 
-use bmsrs_bmson_def::{
+use bmsrs_bmson_model::{
     BGA, ChartData, ChartInfo, JudgementDeltas, LifeDeltas, LnJudge, LnLife, LnMode, LnType,
     NoteEvent,
 };
@@ -55,11 +55,11 @@ fn bga_v0_camelcase_aliases() {
     let bga: BGA = serde_json::from_str(json).unwrap();
     assert_eq!(bga.bga_header.len(), 1);
     assert_eq!(bga.bga_header[0].id, 1);
-    assert_eq!(bga.bga_header[0].name, Path::new("bg.png"));
+    assert_eq!(bga.bga_header[0].name, PathBuf::from("bg.png"));
     assert_eq!(bga.bga_events.len(), 1);
     assert_eq!(bga.bga_events[0].y, 0);
-    assert_eq!(bga.layer_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
-    assert_eq!(bga.poor_events, [] as [bmsrs_bmson_def::BGAEvent; 0]);
+    assert_eq!(bga.layer_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);
+    assert_eq!(bga.poor_events, [] as [bmsrs_bmson_model::BGAEvent; 0]);
 }
 
 #[test]
@@ -116,17 +116,17 @@ fn null_arrays_become_empty() {
     let cd: ChartData =
         serde_json::from_str(r#"{"init_bpm": 120, "bpm_events": null, "stop_events": null}"#)
             .unwrap();
-    assert_eq!(cd.bpm_events, [] as [bmsrs_bmson_def::BpmEvent; 0]);
-    assert_eq!(cd.stop_events, [] as [bmsrs_bmson_def::StopEvent; 0]);
+    assert_eq!(cd.bpm_events, [] as [bmsrs_bmson_model::BpmEvent; 0]);
+    assert_eq!(cd.stop_events, [] as [bmsrs_bmson_model::StopEvent; 0]);
 
     let cd_no_events: ChartData = serde_json::from_str(r#"{"init_bpm": 120}"#).unwrap();
     assert_eq!(
         cd_no_events.bpm_events,
-        [] as [bmsrs_bmson_def::BpmEvent; 0]
+        [] as [bmsrs_bmson_model::BpmEvent; 0]
     );
     assert_eq!(
         cd_no_events.stop_events,
-        [] as [bmsrs_bmson_def::StopEvent; 0]
+        [] as [bmsrs_bmson_model::StopEvent; 0]
     );
 }
 
@@ -138,7 +138,7 @@ fn title_image_chart_info() {
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
     let info: ChartInfo = serde_json::from_str(json).unwrap();
-    assert_eq!(info.title_image, Some(Path::new("title.png")));
+    assert_eq!(info.title_image, Some(PathBuf::from("title.png")));
 }
 
 #[test]
@@ -287,7 +287,7 @@ fn bmson_scroll_events() {
             {"y": 480, "rate": -1.0}
         ]
     }"#;
-    let root: bmsrs_bmson_def::Bmson = serde_json::from_str(json).unwrap();
+    let root: bmsrs_bmson_model::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(root.scroll_events.len(), 3);
     assert!((root.scroll_events[1].rate - 2.5).abs() < 1e-10);
     assert!((root.scroll_events[2].rate - -1.0).abs() < 1e-10);
@@ -308,9 +308,9 @@ fn bmson_mine_channels() {
             ]
         }]
     }"#;
-    let root: bmsrs_bmson_def::Bmson = serde_json::from_str(json).unwrap();
+    let root: bmsrs_bmson_model::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(root.mine_channels.len(), 1);
-    assert_eq!(root.mine_channels[0].name, Path::new("mine.wav"));
+    assert_eq!(root.mine_channels[0].name, PathBuf::from("mine.wav"));
     assert!((root.mine_channels[0].notes[0].damage - 10.5).abs() < 1e-10);
 }
 
@@ -329,7 +329,7 @@ fn bmson_key_channels() {
             ]
         }]
     }"#;
-    let root: bmsrs_bmson_def::Bmson = serde_json::from_str(json).unwrap();
+    let root: bmsrs_bmson_model::Bmson = serde_json::from_str(json).unwrap();
     assert_eq!(root.key_channels.len(), 1);
     assert_eq!(root.key_channels[0].notes[1].x, 2);
 }
@@ -342,39 +342,39 @@ fn bmson_extensions_absent_default_empty() {
         "chart_info": {"level": 1, "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}},
         "chart_data": {"init_bpm": 120}
     }"#;
-    let root: bmsrs_bmson_def::Bmson = serde_json::from_str(json).unwrap();
-    assert_eq!(root.scroll_events, [] as [bmsrs_bmson_def::ScrollEvent; 0]);
+    let root: bmsrs_bmson_model::Bmson = serde_json::from_str(json).unwrap();
+    assert_eq!(
+        root.scroll_events,
+        [] as [bmsrs_bmson_model::ScrollEvent; 0]
+    );
     assert_eq!(
         root.mine_channels,
-        [] as [bmsrs_bmson_def::MineChannel<'_>; 0]
+        [] as [bmsrs_bmson_model::MineChannel; 0]
     );
-    assert_eq!(
-        root.key_channels,
-        [] as [bmsrs_bmson_def::KeyChannel<'_>; 0]
-    );
+    assert_eq!(root.key_channels, [] as [bmsrs_bmson_model::KeyChannel; 0]);
 }
 
 #[test]
 fn bga_header_round_trip() {
     let json = r#"{"bga_header": [{"id": 1, "name": "bg.png"}], "bga_events": [], "layer_events": [], "poor_events": []}"#;
-    let bga: bmsrs_bmson_def::BGA = serde_json::from_str(json).unwrap();
-    assert_eq!(bga.bga_header[0].name, Path::new("bg.png"));
+    let bga: bmsrs_bmson_model::BGA = serde_json::from_str(json).unwrap();
+    assert_eq!(bga.bga_header[0].name, PathBuf::from("bg.png"));
 
     let serialized = serde_json::to_string(&bga).unwrap();
-    let bga2: bmsrs_bmson_def::BGA = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(bga2.bga_header[0].name, Path::new("bg.png"));
+    let bga2: bmsrs_bmson_model::BGA = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(bga2.bga_header[0].name, PathBuf::from("bg.png"));
     assert_eq!(bga.bga_header[0].id, bga2.bga_header[0].id);
 }
 
 #[test]
 fn sound_channel_round_trip() {
     let json = r#"{"name": "kick.wav", "note_events": [{"x": 1, "y": 0, "l": 0, "c": false}]}"#;
-    let ch: bmsrs_bmson_def::SoundChannel = serde_json::from_str(json).unwrap();
-    assert_eq!(ch.name, Path::new("kick.wav"));
+    let ch: bmsrs_bmson_model::SoundChannel = serde_json::from_str(json).unwrap();
+    assert_eq!(ch.name, PathBuf::from("kick.wav"));
 
     let serialized = serde_json::to_string(&ch).unwrap();
-    let ch2: bmsrs_bmson_def::SoundChannel = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(ch2.name, Path::new("kick.wav"));
+    let ch2: bmsrs_bmson_model::SoundChannel = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(ch2.name, PathBuf::from("kick.wav"));
     assert_eq!(ch.note_events, ch2.note_events);
 }
 
@@ -388,10 +388,10 @@ fn chart_info_image_round_trip() {
         "back_image": "bg.png",
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
-    let info: bmsrs_bmson_def::ChartInfo = serde_json::from_str(json).unwrap();
-    assert_eq!(info.back_image, Some(Path::new("bg.png")));
+    let info: bmsrs_bmson_model::ChartInfo = serde_json::from_str(json).unwrap();
+    assert_eq!(info.back_image, Some(PathBuf::from("bg.png")));
 
     let serialized = serde_json::to_string(&info).unwrap();
-    let info2: bmsrs_bmson_def::ChartInfo = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(info2.back_image, Some(Path::new("bg.png")));
+    let info2: bmsrs_bmson_model::ChartInfo = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(info2.back_image, Some(PathBuf::from("bg.png")));
 }

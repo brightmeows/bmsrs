@@ -22,7 +22,7 @@ flowchart LR
     Par --> Writer[bmsrs-bms-writer]
     Syn --> Analysis[bmsrs-bms-analysis]
 
-    BMSON[".bmson file"] --> BDef[bmsrs-bmson-def]
+    BMSON[".bmson file"] --> BDef[bmsrs-bmson-model]
     BDef --> BMProc[bmsrs-bmson-processor]
 
     BProc --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
@@ -42,7 +42,7 @@ flowchart LR
 | `bmsrs-bms-processor` | `Bms` to format-agnostic `Chart` | `Bms` to `Chart` |
 | `bmsrs-bms-writer` | BMS generator: rewrites the full `Bms` model as BMS text | `Bms` to `String` |
 | `bmsrs-bms-analysis` | BMS analysis layer: diagnostics, symbol index, editor data | `&str` to `Analysis` |
-| `bmsrs-bmson-def` | bmson JSON type definitions (v0/v1/v2) | data model only |
+| `bmsrs-bmson-model` | bmson JSON type definitions (v0/v1/v2) | data model only |
 | `bmsrs-bmson-processor` | `Bmson` to `Chart` | `Bmson` to `Chart` |
 | `bmsrs-chart` | Format-agnostic chart data model | `Chart<T>` as the central IR |
 | `bmsrs-player` | Pure simulation layer for `Chart<T>` | timeline queries, no I/O or rendering |

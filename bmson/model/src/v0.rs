@@ -27,7 +27,7 @@
 //! | `t` (inside Note, beatoraja extension) | `t` |
 
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::PathBuf;
 
 use crate::{LnMode, ModeHint};
 
@@ -44,10 +44,9 @@ use crate::{LnMode, ModeHint};
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "'de: 'a"))]
-pub struct Bmson<'a> {
+pub struct Bmson {
     /// Metadata object.
-    pub info: BmsonInfo<'a>,
+    pub info: BmsonInfo,
 
     /// Barlines (v0 includes the `k` field). The JSON key is `"lines"` (same as
     /// v1/v2).
@@ -75,60 +74,52 @@ pub struct Bmson<'a> {
 
     /// Sound channels (JSON key `soundChannel`, alias `sound_channels`).
     #[serde(rename = "soundChannel", alias = "sound_channels", default)]
-    pub sound_channels: Vec<SoundChannel<'a>>,
+    pub sound_channels: Vec<SoundChannel>,
 
     /// Background animation data.
     #[serde(rename = "bga")]
-    pub bga: crate::BGA<'a>,
+    pub bga: crate::BGA,
 
     /// Scroll speed events.
     #[serde(default)]
     pub scroll_events: Vec<crate::ScrollEvent>,
     /// Mine channels.
     #[serde(default)]
-    pub mine_channels: Vec<crate::MineChannel<'a>>,
+    pub mine_channels: Vec<crate::MineChannel>,
     /// Invisible key channels.
     #[serde(default)]
-    pub key_channels: Vec<crate::KeyChannel<'a>>,
+    pub key_channels: Vec<crate::KeyChannel>,
 }
 
 /// Metadata object for v0.2.1.
 ///
 /// Many fields are optional here because earlier versions did not have them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BmsonInfo<'a> {
+pub struct BmsonInfo {
     /// Song title.
-    #[serde(borrow)]
-    pub title: &'a str,
+    pub title: String,
 
     /// Subtitle.
-    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
-    pub subtitle: Option<&'a str>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
 
     /// Main artist.
-    #[serde(borrow)]
-    pub artist: &'a str,
+    pub artist: String,
 
     /// Other contributors (`["key:value", ...]`).
     #[serde(default, deserialize_with = "crate::null_to_default")]
-    pub subartists: Vec<&'a str>,
+    pub subartists: Vec<String>,
 
     /// Genre.
-    #[serde(borrow)]
-    pub genre: &'a str,
+    pub genre: String,
 
     /// Game mode hint (JSON key `modeHint`). Not present in original v0.
     #[serde(rename = "modeHint", default, skip_serializing_if = "Option::is_none")]
     pub mode_hint: Option<ModeHint>,
 
     /// Chart name (JSON key `chartName`).
-    #[serde(
-        rename = "chartName",
-        borrow,
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub chart_name: Option<&'a str>,
+    #[serde(rename = "chartName", default, skip_serializing_if = "Option::is_none")]
+    pub chart_name: Option<String>,
 
     /// Numeric difficulty level.
     ///
@@ -154,7 +145,7 @@ pub struct BmsonInfo<'a> {
         deserialize_with = "crate::de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub back_image: Option<&'a Path>,
+    pub back_image: Option<PathBuf>,
 
     /// Eyecatch image (JSON key `eyecatchImage`).
     #[serde(
@@ -163,7 +154,7 @@ pub struct BmsonInfo<'a> {
         deserialize_with = "crate::de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub eyecatch_image: Option<&'a Path>,
+    pub eyecatch_image: Option<PathBuf>,
 
     /// Banner image (JSON key `bannerImage`).
     #[serde(
@@ -172,7 +163,7 @@ pub struct BmsonInfo<'a> {
         deserialize_with = "crate::de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub banner_image: Option<&'a Path>,
+    pub banner_image: Option<PathBuf>,
 
     /// Preview audio (JSON key `previewMusic`).
     #[serde(
@@ -181,7 +172,7 @@ pub struct BmsonInfo<'a> {
         deserialize_with = "crate::de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub preview_music: Option<&'a Path>,
+    pub preview_music: Option<PathBuf>,
 
     /// Title image (JSON key `titleImage`).
     #[serde(
@@ -190,7 +181,7 @@ pub struct BmsonInfo<'a> {
         deserialize_with = "crate::de_opt_path",
         skip_serializing_if = "Option::is_none"
     )]
-    pub title_image: Option<&'a Path>,
+    pub title_image: Option<PathBuf>,
 
     /// Beat resolution (default 240).
     #[serde(
@@ -243,11 +234,10 @@ pub struct EventNote {
 ///
 /// Uses the field name `"notes"` (rather than v2's `"note_events"`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "'de: 'a"))]
-pub struct SoundChannel<'a> {
+pub struct SoundChannel {
     /// Audio file name.
     #[serde(deserialize_with = "crate::de_path")]
-    pub name: &'a Path,
+    pub name: PathBuf,
     /// Notes referencing this audio file.
     pub notes: Vec<crate::NoteEvent>,
 }
@@ -276,10 +266,10 @@ impl TryFromV0Error {
 
 impl std::error::Error for TryFromV0Error {}
 
-impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
+impl TryFrom<Bmson> for crate::Bmson {
     type Error = TryFromV0Error;
 
-    fn try_from(v0: Bmson<'a>) -> Result<Self, Self::Error> {
+    fn try_from(v0: Bmson) -> Result<Self, Self::Error> {
         let info = v0.info;
 
         if info.init_bpm <= 0.0 {
@@ -296,9 +286,9 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
         };
 
         let chart_info = ChartInfo {
-            subtitle: info.subtitle.unwrap_or(""),
+            subtitle: info.subtitle.unwrap_or_default(),
             subartists: info.subartists,
-            chart_name: info.chart_name.unwrap_or(""),
+            chart_name: info.chart_name.unwrap_or_default(),
             level: info.level,
             back_image: info.back_image,
             eyecatch_image: info.eyecatch_image,
@@ -360,7 +350,7 @@ impl<'a> TryFrom<Bmson<'a>> for crate::Bmson<'a> {
         };
 
         Ok(Self {
-            version: "0.2.1",
+            version: "0.2.1".to_owned(),
             song_info,
             chart_info,
             chart_data,
@@ -379,10 +369,10 @@ fn convert_bar_lines(lines: Vec<BarLine>) -> Vec<crate::BarLine> {
         .collect()
 }
 
-impl<'a> TryFrom<crate::Bmson<'a>> for Bmson<'a> {
+impl TryFrom<crate::Bmson> for Bmson {
     type Error = TryFromV0Error;
 
-    fn try_from(root: crate::Bmson<'a>) -> Result<Self, Self::Error> {
+    fn try_from(root: crate::Bmson) -> Result<Self, Self::Error> {
         let init_bpm = root.chart_data.init_bpm;
         if init_bpm <= 0.0 {
             return Err(TryFromV0Error::new(format!(
@@ -481,6 +471,6 @@ impl<'a> TryFrom<crate::Bmson<'a>> for Bmson<'a> {
 /// Used when converting the root [`Bmson`] to [`v0::Bmson`](Bmson), mapping
 /// empty `&str` fields to `None` so they serialize as absent.
 #[must_use]
-pub(crate) const fn some_if_nonempty(s: &str) -> Option<&str> {
+pub(crate) fn some_if_nonempty(s: String) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }

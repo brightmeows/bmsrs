@@ -26,7 +26,7 @@ The project uses Rust 2024 edition with MSRV 1.95.
 |-------|------------|--------|
 | BMS bytes | `bmsrs-bms-source`, `bmsrs-bms-syntax`, `bmsrs-bms-parser` | `Bms` |
 | `Bms` | `bmsrs-bms-processor` | `Chart` |
-| BMSON JSON | `bmsrs-bmson-def`, `bmsrs-bmson-processor` | `Chart` |
+| BMSON JSON | `bmsrs-bmson-model`, `bmsrs-bmson-processor` | `Chart` |
 | `Chart` | `bmsrs-player` | timeline queries |
 
 `bmsrs-bms-analysis` consumes the CST directly, providing diagnostics, a symbol index,
@@ -43,7 +43,7 @@ and editor data. `bmsrs-bms-writer` rewrites `Bms` canonically as BMS text.
 | `bmsrs-bms-processor` | `Bms` to `Chart` |
 | `bmsrs-bms-writer` | canonical rewrite of `Bms` as BMS text |
 | `bmsrs-bms-analysis` | diagnostics, symbol index, and editor data |
-| `bmsrs-bmson-def` | BMSON v0, v1, and v2 type definitions |
+| `bmsrs-bmson-model` | BMSON v0, v1, and v2 type definitions |
 | `bmsrs-bmson-processor` | `Bmson` to `Chart` |
 | `bmsrs-chart` | format-agnostic `Chart<T>` central IR |
 | `bmsrs-player` | pure simulation layer for `Chart` |
@@ -91,7 +91,7 @@ use bmsrs::bmson::def::Bmson;
 use bmsrs::bmson::processor::BmsonProcessor;
 
 fn load(json: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let bmson: Bmson<'_> = serde_json::from_str(json)?;
+    let bmson: Bmson = serde_json::from_str(json)?;
     let processed = BmsonProcessor::process_default(&bmson)?;
 
     println!("events: {}", processed.chart.data().events().len());
