@@ -427,6 +427,7 @@ impl BmsConverter<'_> {
             }
         };
 
+        let base = self.bms.gameplay.base.unwrap_or_default();
         let mut check_wav =
             |wav_id: &WavIndex, player: u8, lane: u8, tick: u64| -> Option<AudioIndex> {
                 let audio = wav_map.get(wav_id).copied();
@@ -435,7 +436,7 @@ impl BmsConverter<'_> {
                 // outside the WAV table's definition range and does not produce
                 // a missing-definition warning.
                 if audio.is_none()
-                    && let Some(key) = wav_id.0.to_index()
+                    && let Some(key) = wav_id.0.to_index_in(base)
                 {
                     self.warnings.push(ProcessWarning::MissingWavDefinition {
                         key,
@@ -917,13 +918,14 @@ impl BmsConverter<'_> {
     /// Resolve a [`BpmValue`] into a concrete BPM, using the BPM definition table
     /// for references.
     fn resolve_bpm(&mut self, value: BpmValue, tick: u64) -> f64 {
+        let base = self.bms.gameplay.base.unwrap_or_default();
         match value {
             BpmValue::Absolute(bpm) => bpm,
             BpmValue::Reference(id) => {
                 if let Some(bpm) = self.bms.timing.bpm_defs.get(&id).copied() {
                     bpm
                 } else {
-                    if let Some(key) = id.to_index() {
+                    if let Some(key) = id.to_index_in(base) {
                         self.warnings
                             .push(ProcessWarning::MissingBpmDefinition { key, tick });
                     }
@@ -941,6 +943,7 @@ impl BmsConverter<'_> {
     #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     fn build_stops_from_defs(&mut self) -> Vec<StopEvent> {
+        let base = self.bms.gameplay.base.unwrap_or_default();
         self.bms
             .messages
             .stop_events
@@ -960,7 +963,7 @@ impl BmsConverter<'_> {
                         duration: duration.max(0.0) as u64,
                     })
                 } else {
-                    if let Some(key) = se.stop_id.to_index() {
+                    if let Some(key) = se.stop_id.to_index_in(base) {
                         self.warnings
                             .push(ProcessWarning::MissingStopDefinition { key, tick });
                     }

@@ -829,6 +829,22 @@ fn base36_wav_indices_case_insensitive() {
 }
 
 #[test]
+fn base16_wav_indices_are_case_insensitive_and_resolve() {
+    // Legacy hexadecimal charts use the same two-character index shape. The
+    // compatibility declaration selects Base16 normalization and decoding.
+    let bms = parse("#BASE 16\n#WAV0F kick.wav\n#WAV0f snare.wav\n#00111:0F\n");
+    assert_eq!(bms.gameplay.base, Some(BmsBase::Base16));
+    assert_eq!(bms.audio.wav_files.len(), 1);
+    let idx: WavIndex = "0F".parse().unwrap();
+    assert_eq!(
+        bms.audio.wav_files.get(&idx).map(String::as_str),
+        Some("snare.wav")
+    );
+    assert_eq!(bms.messages.note_events.len(), 1);
+    assert_eq!(bms.messages.note_events[0].wav_id, idx);
+}
+
+#[test]
 fn bmspec_bpm_basic() {
     // Equivalent to bmspec-1-05-BPM: #BPM 60, #00003:0078, object at 3s.
     // Parser layer: verify the BPM change is parsed correctly.

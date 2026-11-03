@@ -58,6 +58,10 @@ pub(crate) const fn is_base62(b: u8) -> bool {
 #[non_exhaustive]
 pub enum BmsBase {
     /// Hexadecimal (`0`-`9`, `A`-`F`, `a`-`f`; 16 values per position).
+    ///
+    /// This is the original BMS index format. `#BASE 16` selects it as a
+    /// compatibility mode; valid legacy charts use only hex digits and cap at
+    /// 256 slots.
     #[bms_token("16")]
     Base16,
     /// Base-36 uppercase (`0`-`9`, `A`-`Z`; 36 values per position).
@@ -84,21 +88,42 @@ impl BmsBase {
         }
     }
 
-    /// Decode a two-character string into a numeric value in this base (Base36
-    /// decoding).
+    /// Decode a two-character string into a numeric value in this base.
     ///
-    /// Base36 and Base62 use the same digit mapping; for Base16 use
-    /// [`BmsIndex::as_u8_hex`]. The input must be exactly 2 characters and
-    /// every character must be valid.
+    /// The decode is base-aware: hexadecimal for [`Base16`](Self::Base16),
+    /// Base36 for [`Base36`](Self::Base36), and case-sensitive Base62 for
+    /// [`Base62`](Self::Base62). The input must be exactly 2 characters and
+    /// every character must be valid in this base.
     #[must_use]
     pub fn decode(self, s: &str) -> Option<u16> {
         match s.as_bytes() {
             [b1, b2] => {
-                let hi = base36_digit_value(*b1)?;
-                let lo = base36_digit_value(*b2)?;
-                Some(hi * 36 + lo)
+                let hi = self.digit_value(*b1)?;
+                let lo = self.digit_value(*b2)?;
+                Some(hi * self.radix() + lo)
             }
             _ => None,
+        }
+    }
+
+    /// Return the numeric value of one digit in this base.
+    const fn digit_value(self, b: u8) -> Option<u16> {
+        match self {
+            Self::Base16 => match hex_digit_value(b) {
+                Some(value) => Some(value as u16),
+                None => None,
+            },
+            Self::Base36 => base36_digit_value(b),
+            Self::Base62 => base62_digit_value(b),
+        }
+    }
+
+    /// Return the numeric radix of this base.
+    const fn radix(self) -> u16 {
+        match self {
+            Self::Base16 => 16,
+            Self::Base36 => 36,
+            Self::Base62 => 62,
         }
     }
 }
@@ -197,12 +222,20 @@ impl BmsIndex {
     /// happen for IDs constructed through [`TryFrom`] / [`FromStr`]).
     #[must_use]
     pub fn to_index(&self) -> Option<u16> {
-        let hi = base36_digit_value(self.bytes[0])?;
+        self.to_index_in(BmsBase::Base36)
+    }
+
+    /// Convert this index to a numeric value using `base`.
+    ///
+    /// Unlike [`to_index`](Self::to_index), this honors the character set and
+    /// radix of `base`: `"FF"` is 255 in Base16, 555 in Base36, and 945 in
+    /// case-sensitive Base62.
+    #[must_use]
+    pub fn to_index_in(&self, base: BmsBase) -> Option<u16> {
         if self.bytes[1] == 0 {
-            Some(hi)
+            base.digit_value(self.bytes[0])
         } else {
-            let lo = base36_digit_value(self.bytes[1])?;
-            Some(hi * 36 + lo)
+            base.decode(self.as_str())
         }
     }
 
@@ -311,6 +344,16 @@ pub const fn base36_digit_value(b: u8) -> Option<u16> {
         b'0'..=b'9' => Some((b - b'0') as u16),
         b'A'..=b'Z' => Some((b - b'A') as u16 + 10),
         b'a'..=b'z' => Some((b - b'a') as u16 + 10),
+        _ => None,
+    }
+}
+
+/// Decode a single Base-62 ASCII byte into a value (0-61).
+const fn base62_digit_value(b: u8) -> Option<u16> {
+    match b {
+        b'0'..=b'9' => Some((b - b'0') as u16),
+        b'A'..=b'Z' => Some((b - b'A') as u16 + 10),
+        b'a'..=b'z' => Some((b - b'a') as u16 + 36),
         _ => None,
     }
 }

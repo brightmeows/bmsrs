@@ -159,9 +159,9 @@ fn detect_base(tokens: &[BmsToken]) -> BmsBase {
 /// case-insensitivity even in Base62 files.
 #[must_use]
 pub(crate) const fn family_base(global: BmsBase, is_base62_family: bool) -> BmsBase {
-    if is_base62_family {
-        global
-    } else {
-        BmsBase::Base36
+    match global {
+        BmsBase::Base16 => BmsBase::Base16,
+        _ if is_base62_family => global,
+        _ => BmsBase::Base36,
     }
 }
