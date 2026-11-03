@@ -23,7 +23,7 @@ mod syntax_kind;
 pub use ast::{SourceFile, SyntaxLine};
 pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, SyntaxToken};
 pub use lexer::SyntaxLineKind;
-pub use parser::{Diagnostic, DiagnosticKind, SyntaxParse};
+pub use parser::{Diagnostic, DiagnosticKind, IncrementalParser, SyntaxParse};
 pub use rowan::{TextRange, TextSize};
 pub use select::{BlockDecision, BranchSelection};
 pub use syntax_kind::SyntaxKind;

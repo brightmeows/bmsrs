@@ -1,5 +1,8 @@
 //! Resource definition and reference indices.
 
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
+
 use bmsrs_bms_syntax::{TextRange, TextSize};
 
 /// Resource kind.
@@ -49,13 +52,61 @@ impl SymbolKind {
     }
 }
 
+/// A normalized 1-2 character resource ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SymbolId {
+    /// ASCII bytes, zero-padded when shorter than two.
+    bytes: [u8; 2],
+    /// Number of valid bytes.
+    len: u8,
+}
+
+impl SymbolId {
+    /// Construct an ID from ASCII alphanumerics, uppercasing lowercase input.
+    #[must_use]
+    pub fn new(id: &str) -> Option<Self> {
+        let mut bytes = [0u8; 2];
+        let mut len = 0u8;
+        for byte in id.bytes() {
+            if !byte.is_ascii_alphanumeric() || len >= 2 {
+                return None;
+            }
+            let slot = bytes.get_mut(usize::from(len))?;
+            *slot = byte.to_ascii_uppercase();
+            len = len.saturating_add(1);
+        }
+        (len != 0).then_some(Self { bytes, len })
+    }
+
+    /// Return the ID as a string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.bytes
+            .get(..usize::from(self.len))
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .unwrap_or_default()
+    }
+}
+
+impl PartialOrd for SymbolId {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SymbolId {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_str().cmp(other.as_str())
+    }
+}
+
 /// A resource definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolDefinition {
     /// Resource kind.
     kind: SymbolKind,
-    /// Normalized ID (uppercase).
-    id: String,
+    /// Normalized ID.
+    id: SymbolId,
     /// Whole-line range.
     range: TextRange,
     /// Command-name token range.
@@ -66,7 +117,7 @@ impl SymbolDefinition {
     /// Construct a definition.
     pub(crate) const fn new(
         kind: SymbolKind,
-        id: String,
+        id: SymbolId,
         range: TextRange,
         name_range: TextRange,
     ) -> Self {
@@ -87,7 +138,7 @@ impl SymbolDefinition {
     /// Return the ID.
     #[must_use]
     pub fn id(&self) -> &str {
-        &self.id
+        self.id.as_str()
     }
 
     /// Return the whole-line range.
@@ -108,15 +159,15 @@ impl SymbolDefinition {
 pub struct SymbolReference {
     /// Resource kind.
     kind: SymbolKind,
-    /// Normalized ID (uppercase).
-    id: String,
+    /// Normalized ID.
+    id: SymbolId,
     /// Reference token range.
     range: TextRange,
 }
 
 impl SymbolReference {
     /// Construct a reference.
-    pub(crate) const fn new(kind: SymbolKind, id: String, range: TextRange) -> Self {
+    pub(crate) const fn new(kind: SymbolKind, id: SymbolId, range: TextRange) -> Self {
         Self { kind, id, range }
     }
 
@@ -129,7 +180,7 @@ impl SymbolReference {
     /// Return the ID.
     #[must_use]
     pub fn id(&self) -> &str {
-        &self.id
+        self.id.as_str()
     }
 
     /// Return the reference range.
@@ -140,25 +191,32 @@ impl SymbolReference {
 }
 
 /// Definition and reference index.
+///
+/// Definitions and references are keyed by their start offset, so iteration is
+/// source order and `definition_at`/`reference_at` are logarithmic. Secondary
+/// maps by `(kind, id)` make `definitions_for`/`references_for` logarithmic as
+/// well.
 #[derive(Debug, Clone, Default)]
 pub struct SymbolIndex {
-    /// Definition list.
-    definitions: Vec<SymbolDefinition>,
-    /// Reference list.
-    references: Vec<SymbolReference>,
+    /// Definitions keyed by `name_range.start`.
+    definitions: BTreeMap<TextSize, SymbolDefinition>,
+    /// References keyed by `range.start`.
+    references: BTreeMap<TextSize, SymbolReference>,
+    /// Definition starts grouped by `(kind, id)`.
+    definition_keys: BTreeMap<(SymbolKind, SymbolId), BTreeSet<TextSize>>,
+    /// Reference starts grouped by `(kind, id)`.
+    reference_keys: BTreeMap<(SymbolKind, SymbolId), BTreeSet<TextSize>>,
 }
 
 impl SymbolIndex {
-    /// Return all definitions.
-    #[must_use]
-    pub fn definitions(&self) -> &[SymbolDefinition] {
-        &self.definitions
+    /// Iterate over all definitions in source order.
+    pub fn definitions(&self) -> impl Iterator<Item = &SymbolDefinition> {
+        self.definitions.values()
     }
 
-    /// Return all references.
-    #[must_use]
-    pub fn references(&self) -> &[SymbolReference] {
-        &self.references
+    /// Iterate over all references in source order.
+    pub fn references(&self) -> impl Iterator<Item = &SymbolReference> {
+        self.references.values()
     }
 
     /// Look up definitions with the given kind and ID.
@@ -167,8 +225,12 @@ impl SymbolIndex {
         kind: SymbolKind,
         id: &str,
     ) -> impl Iterator<Item = &SymbolDefinition> {
-        self.definitions.iter().filter(move |definition| {
-            definition.kind == kind && definition.id.eq_ignore_ascii_case(id)
+        let symbol_key = SymbolId::new(id).map(|symbol| (kind, symbol));
+        let starts = symbol_key.and_then(|key| self.definition_keys.get(&key));
+        starts.into_iter().flat_map(move |start_set| {
+            start_set
+                .iter()
+                .filter_map(move |start| self.definitions.get(start))
         })
     }
 
@@ -178,44 +240,61 @@ impl SymbolIndex {
         kind: SymbolKind,
         id: &str,
     ) -> impl Iterator<Item = &SymbolReference> {
-        self.references.iter().filter(move |reference| {
-            reference.kind == kind && reference.id.eq_ignore_ascii_case(id)
+        let symbol_key = SymbolId::new(id).map(|symbol| (kind, symbol));
+        let starts = symbol_key.and_then(|key| self.reference_keys.get(&key));
+        starts.into_iter().flat_map(move |start_set| {
+            start_set
+                .iter()
+                .filter_map(move |start| self.references.get(start))
         })
     }
 
     /// Return whether a definition exists.
     #[must_use]
     pub fn has_definition(&self, kind: SymbolKind, id: &str) -> bool {
-        self.definitions_for(kind, id).next().is_some()
+        SymbolId::new(id).is_some_and(|symbol| self.definition_keys.contains_key(&(kind, symbol)))
     }
 
     /// Look up the definition at the given offset.
     #[must_use]
     pub fn definition_at(&self, offset: TextSize) -> Option<&SymbolDefinition> {
         self.definitions
-            .iter()
-            .find(|definition| contains(definition.name_range, offset))
+            .range(..=offset)
+            .next_back()
+            .map(|(_, definition)| definition)
+            .filter(|definition| contains(definition.name_range, offset))
     }
 
     /// Look up the reference at the given offset.
     #[must_use]
     pub fn reference_at(&self, offset: TextSize) -> Option<&SymbolReference> {
         self.references
-            .iter()
-            .find(|reference| contains(reference.range, offset))
+            .range(..=offset)
+            .next_back()
+            .map(|(_, reference)| reference)
+            .filter(|reference| contains(reference.range, offset))
     }
 
     /// Append a definition.
     pub(crate) fn push_definition(&mut self, definition: SymbolDefinition) {
-        self.definitions.push(definition);
+        let start = definition.name_range.start();
+        self.definition_keys
+            .entry((definition.kind, definition.id))
+            .or_default()
+            .insert(start);
+        self.definitions.insert(start, definition);
     }
 
     /// Append a reference.
     pub(crate) fn push_reference(&mut self, reference: SymbolReference) {
-        self.references.push(reference);
+        let start = reference.range.start();
+        self.reference_keys
+            .entry((reference.kind, reference.id))
+            .or_default()
+            .insert(start);
+        self.references.insert(start, reference);
     }
 }
-
 /// Return whether a range contains an offset.
 fn contains(range: TextRange, offset: TextSize) -> bool {
     range.start() <= offset && offset < range.end()

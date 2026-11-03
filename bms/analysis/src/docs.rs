@@ -34,7 +34,7 @@ pub struct ChannelDoc {
 const MEMO: &str = "https://hitkey.nekokan.dyndns.info/cmdsJP.htm";
 
 /// Header command table.
-pub static HEADER_DOCS: &[HeaderDoc] = &[
+static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "TITLE",
         title: "#TITLE",
@@ -518,7 +518,7 @@ pub static HEADER_DOCS: &[HeaderDoc] = &[
 ];
 
 /// Channel table.
-pub static CHANNEL_DOCS: &[ChannelDoc] = &[
+static CHANNEL_DOCS: &[ChannelDoc] = &[
     ChannelDoc {
         code: "01",
         title: "01 BGM",
@@ -677,48 +677,55 @@ pub static CHANNEL_DOCS: &[ChannelDoc] = &[
     },
 ];
 
-/// Look up the description for a header command.
-#[must_use]
-pub fn header_doc(command: &str) -> Option<&'static HeaderDoc> {
-    let raw_command = command.trim_start_matches(['#', '%']);
-    HEADER_DOCS
-        .iter()
-        .filter(|doc| {
-            raw_command
-                .get(..doc.command.len())
-                .is_some_and(|prefix| prefix.eq_ignore_ascii_case(doc.command))
-                && raw_command.get(doc.command.len()..).is_some_and(|suffix| {
-                    suffix.is_empty()
-                        || (suffix.len() <= 2
-                            && suffix.chars().all(|ch| ch.is_ascii_alphanumeric()))
-                })
-        })
-        .max_by_key(|doc| doc.command.len())
-}
+/// Documentation lookup and completion tables.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Docs;
 
-/// Return all header command descriptions.
-#[must_use]
-pub const fn header_completions() -> &'static [HeaderDoc] {
-    HEADER_DOCS
-}
-
-/// Look up the description for a channel.
-#[must_use]
-pub fn channel_doc(code: &str) -> Option<ChannelDoc> {
-    let normalized = code.trim().to_ascii_uppercase();
-    if let Some(doc) = CHANNEL_DOCS
-        .iter()
-        .find(|doc| doc.code.eq_ignore_ascii_case(&normalized))
-    {
-        return Some(*doc);
+impl Docs {
+    /// Look up the description for a header command.
+    #[must_use]
+    pub fn header(command: &str) -> Option<HeaderDoc> {
+        let raw_command = command.trim_start_matches(['#', '%']);
+        HEADER_DOCS
+            .iter()
+            .filter(|doc| {
+                raw_command
+                    .get(..doc.command.len())
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case(doc.command))
+                    && raw_command.get(doc.command.len()..).is_some_and(|suffix| {
+                        suffix.is_empty()
+                            || (suffix.len() <= 2
+                                && suffix.chars().all(|ch| ch.is_ascii_alphanumeric()))
+                    })
+            })
+            .max_by_key(|doc| doc.command.len())
+            .copied()
     }
-    note_channel_doc(&normalized)
-}
 
-/// Return all channel descriptions.
-#[must_use]
-pub const fn channel_completions() -> &'static [ChannelDoc] {
-    CHANNEL_DOCS
+    /// Return all header command descriptions.
+    #[must_use]
+    pub const fn headers() -> &'static [HeaderDoc] {
+        HEADER_DOCS
+    }
+
+    /// Look up the description for a channel.
+    #[must_use]
+    pub fn channel(code: &str) -> Option<ChannelDoc> {
+        let normalized = code.trim().to_ascii_uppercase();
+        if let Some(doc) = CHANNEL_DOCS
+            .iter()
+            .find(|doc| doc.code.eq_ignore_ascii_case(&normalized))
+        {
+            return Some(*doc);
+        }
+        note_channel_doc(&normalized)
+    }
+
+    /// Return all channel descriptions.
+    #[must_use]
+    pub const fn channels() -> &'static [ChannelDoc] {
+        CHANNEL_DOCS
+    }
 }
 
 /// Description for a note channel group.

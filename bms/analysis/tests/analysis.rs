@@ -72,19 +72,19 @@ fn invalid_header_value_is_reported() {
 
 #[test]
 fn header_doc_matches_command_with_id() {
-    let found = bmsrs_bms_analysis::header_doc("#WAV01");
+    let found = bmsrs_bms_analysis::Docs::header("#WAV01");
     assert_eq!(found.map(|doc| doc.command), Some("WAV"));
 }
 
 #[test]
 fn header_doc_matches_at_bga() {
-    let found = bmsrs_bms_analysis::header_doc("#@BGA01");
+    let found = bmsrs_bms_analysis::Docs::header("#@BGA01");
     assert_eq!(found.map(|doc| doc.command), Some("@BGA"));
 }
 
 #[test]
 fn channel_doc_matches_note_group() {
-    let found = bmsrs_bms_analysis::channel_doc("11");
+    let found = bmsrs_bms_analysis::Docs::channel("11");
     assert_eq!(found.map(|doc| doc.title), Some("1P visible notes"));
 }
 
@@ -97,5 +97,34 @@ fn noncanonical_message_line_indexes_references() {
             .references_for(SymbolKind::Wav, "01")
             .count(),
         2
+    );
+}
+
+#[test]
+fn update_refreshes_diagnostics_and_index() {
+    let mut analysis = Analysis::from_text("#TITLE A\n");
+    analysis.update("#WAV01 a.wav\n#00111:0100\n");
+    assert_eq!(
+        analysis
+            .index()
+            .definitions_for(SymbolKind::Wav, "01")
+            .count(),
+        1
+    );
+    assert_eq!(
+        analysis
+            .index()
+            .references_for(SymbolKind::Wav, "01")
+            .count(),
+        1
+    );
+    assert_eq!(analysis.diagnostics().len(), 0);
+
+    analysis.update("#WAV01 a.wav\n#00111:0200\n");
+    assert!(
+        analysis
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message().contains("undefined WAV 02"))
     );
 }

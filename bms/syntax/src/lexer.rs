@@ -20,7 +20,7 @@ pub struct LexToken<'a> {
 
 impl LexToken<'_> {
     /// Return the token's end offset.
-    pub(crate) const fn end(&self) -> usize {
+    pub const fn end(&self) -> usize {
         self.start.saturating_add(self.text.len())
     }
 }
@@ -57,7 +57,7 @@ pub struct LineData<'a> {
 
 impl LineData<'_> {
     /// Return the header command name, if present.
-    pub(crate) fn command_name(&self) -> Option<&str> {
+    pub fn command_name(&self) -> Option<&str> {
         self.tokens
             .iter()
             .find(|token| token.kind == SyntaxKind::CommandName)
@@ -67,17 +67,17 @@ impl LineData<'_> {
 
 /// A raw line fragment.
 #[derive(Debug, Clone, Copy)]
-struct RawLine<'a> {
+pub struct RawLine<'a> {
     /// Content without the line terminator.
-    body: &'a str,
+    pub body: &'a str,
     /// Line terminator.
-    newline: &'a str,
+    pub newline: &'a str,
     /// Line start offset.
-    start: usize,
+    pub start: usize,
 }
 
 /// Split text into lines, preserving terminators.
-fn split_lines(text: &str) -> Vec<RawLine<'_>> {
+pub fn split_lines(text: &str) -> Vec<RawLine<'_>> {
     let bytes = text.as_bytes();
     let mut lines = Vec::new();
     let mut start = 0usize;
@@ -123,17 +123,56 @@ fn split_lines(text: &str) -> Vec<RawLine<'_>> {
     lines
 }
 
+/// Return the line beginning at `start`.
+pub fn raw_line_at(text: &str, start: usize) -> Option<RawLine<'_>> {
+    let bytes = text.as_bytes();
+    let mut index = start;
+    while index < bytes.len()
+        && bytes.get(index) != Some(&b'\n')
+        && bytes.get(index) != Some(&b'\r')
+    {
+        index += 1;
+    }
+    let newline_end = if bytes.get(index) == Some(&b'\r') && bytes.get(index + 1) == Some(&b'\n') {
+        index + 2
+    } else if index < bytes.len() {
+        index + 1
+    } else {
+        index
+    };
+    Some(RawLine {
+        body: text.get(start..index)?,
+        newline: text.get(index..newline_end)?,
+        start,
+    })
+}
+
+/// Lex line by line, returning the scan state after each line.
+pub fn lex_with_states<'a>(
+    text: &'a str,
+    options: &ParseOptions,
+) -> (Vec<LineData<'a>>, Vec<ScanState>) {
+    let mut state = ScanState::default();
+    let mut lines = Vec::new();
+    let mut states = Vec::new();
+    for line in split_lines(text) {
+        lines.push(lex_line(line, &mut state, options));
+        states.push(state);
+    }
+    (lines, states)
+}
+
 /// Lex line by line.
 pub fn lex<'a>(text: &'a str, options: &ParseOptions) -> Vec<LineData<'a>> {
-    let mut state = ScanState::default();
-    split_lines(text)
-        .into_iter()
-        .map(|line| lex_line(line, &mut state, options))
-        .collect()
+    lex_with_states(text, options).0
 }
 
 /// Lex one line.
-fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState, options: &ParseOptions) -> LineData<'a> {
+pub fn lex_line<'a>(
+    line: RawLine<'a>,
+    state: &mut ScanState,
+    options: &ParseOptions,
+) -> LineData<'a> {
     let scanned = state.scan(line.body);
     let mut tokens = Vec::new();
 

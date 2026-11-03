@@ -12,8 +12,9 @@ repository.
 |------|-------------|
 | `Analysis::diagnostics()` | CST syntax and control-flow diagnostics, tokenizer errors, duplicate definitions, missing references |
 | `Analysis::index()` | definitions and references for WAV / BMP / BGA / BPM / STOP / SCROLL / SPEED / EXRANK / CHANGEOPTION / TEXT / SEEK |
-| `header_doc()` | English header command descriptions, matched by command prefix (`WAV01` gives `WAV`) |
-| `channel_doc()` | English channel descriptions, including note-channel groups |
+| `Analysis::update(text)` | refresh the CST through `IncrementalParser` and rebuild diagnostics/index |
+| `Docs::header()` | English header command descriptions, matched by command prefix (`WAV01` gives `WAV`) |
+| `Docs::channel()` | English channel descriptions, including note-channel groups |
 
 `docs.rs` is a manually maintained summary; the BMS command memo linked from
 each entry is authoritative. Check the memo before changing a summary; do not
@@ -46,7 +47,7 @@ treat `docs.rs` as the specification text.
 cargo test -p bmsrs-bms-analysis
 ```
 
-Coverage: definition/reference indices, missing references, duplicate
+Coverage: definition/reference indices, incremental updates, missing references, duplicate
 definitions, BGA to BMP fallback, control-flow diagnostics, header value errors,
 and documentation lookup.
 

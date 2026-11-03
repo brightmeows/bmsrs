@@ -3,7 +3,9 @@
 use rowan::{GreenNode, GreenNodeBuilder, TextRange, TextSize};
 
 use crate::ast::SourceFile;
-use crate::lexer::{LineData, SyntaxLineKind, lex};
+use crate::lexer::{LineData, SyntaxLineKind, lex, lex_line, lex_with_states, raw_line_at};
+use bmsrs_bms_source::ScanState;
+
 use crate::{ParseOptions, SyntaxKind};
 
 /// Diagnostic category.
@@ -147,9 +149,14 @@ struct SwitchCase<'a> {
 /// Parse text and build the CST.
 pub fn parse_with(text: &str, options: &ParseOptions) -> SyntaxParse {
     let lines = lex(text, options);
+    parse_lines(&lines)
+}
+
+/// Build a CST from already-lexed lines.
+fn parse_lines(lines: &[LineData<'_>]) -> SyntaxParse {
     let mut errors = Vec::new();
-    collect_lex_errors(&lines, &mut errors);
-    let items = parse_items(&lines, 0, lines.len(), &mut errors);
+    collect_lex_errors(lines, &mut errors);
+    let items = parse_items(lines, 0, lines.len(), &mut errors);
 
     let mut builder = GreenNodeBuilder::new();
     builder.start_node(SyntaxKind::SourceFile.raw());
@@ -702,4 +709,225 @@ fn is_control_directive(line: &LineData<'_>) -> bool {
 fn is_command(line: &LineData<'_>, command: &str) -> bool {
     line.command_name()
         .is_some_and(|name| name.eq_ignore_ascii_case(command))
+}
+
+/// Stateful incremental parser.
+///
+/// `IncrementalParser` owns the current text and CST. For a single-line content
+/// edit it reparses that line and splices the new green node into the existing
+/// tree with `GreenNode::replace_child`; structural edits fall back to a full
+/// reparse.
+#[derive(Debug, Clone)]
+pub struct IncrementalParser {
+    /// Current source text.
+    text: String,
+    /// Parse options.
+    options: ParseOptions,
+    /// Current parse result.
+    parse: SyntaxParse,
+    /// Scan state after each line.
+    line_states: Vec<ScanState>,
+    /// Whether the current text contains control-flow directives.
+    has_control_flow: bool,
+}
+
+impl IncrementalParser {
+    /// Create a parser and parse the initial text.
+    #[must_use]
+    pub fn new(text: &str, options: ParseOptions) -> Self {
+        let (lines, line_states) = lex_with_states(text, &options);
+        Self {
+            text: text.to_owned(),
+            options,
+            parse: parse_lines(&lines),
+            line_states,
+            has_control_flow: contains_control_flow(text),
+        }
+    }
+
+    /// Return the current source text.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Return the current parse result.
+    #[must_use]
+    pub const fn parse(&self) -> &SyntaxParse {
+        &self.parse
+    }
+
+    /// Return the parse options.
+    #[must_use]
+    pub const fn options(&self) -> &ParseOptions {
+        &self.options
+    }
+
+    /// Replace the source text and update the CST.
+    pub fn update(&mut self, text: &str) {
+        if text == self.text {
+            return;
+        }
+        if let Some(parse) = self.try_line_update(text) {
+            self.parse = parse;
+        } else {
+            let (lines, line_states) = lex_with_states(text, &self.options);
+            self.parse = parse_lines(&lines);
+            self.line_states = line_states;
+            self.has_control_flow = contains_control_flow(text);
+        }
+        text.clone_into(&mut self.text);
+    }
+
+    /// Attempt a single-line green-tree splice.
+    fn try_line_update(&self, new_text: &str) -> Option<SyntaxParse> {
+        if self.has_control_flow {
+            return None;
+        }
+        let (prefix, suffix) = common_affix(&self.text, new_text);
+        let changed_start = prefix;
+        let changed_end = new_text.len().saturating_sub(suffix);
+        let old_changed_end = self.text.len().saturating_sub(suffix);
+        if changed_start >= changed_end
+            || new_text
+                .get(changed_start..changed_end)
+                .is_none_or(|slice| slice.contains('\n'))
+            || self
+                .text
+                .get(changed_start..old_changed_end)
+                .is_none_or(|slice| slice.contains('\n'))
+            || contains_control_flow(new_text.get(changed_start..changed_end).unwrap_or_default())
+        {
+            return None;
+        }
+
+        let offset = TextSize::from(u32::try_from(changed_start).ok()?);
+        let (line_index, old_line) = self
+            .parse
+            .source_file()
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.range().start() <= offset && offset < line.range().end())?;
+        if old_line.is_directive() {
+            return None;
+        }
+
+        let state_before = if line_index == 0 {
+            ScanState::default()
+        } else {
+            *self.line_states.get(line_index - 1)?
+        };
+        let line_start = usize::from(old_line.range().start());
+        let raw = raw_line_at(new_text, line_start)?;
+        let mut state = state_before;
+        let new_line = lex_line(raw, &mut state, &self.options);
+        if *self.line_states.get(line_index)? != state {
+            return None;
+        }
+        if is_control_directive(&new_line) {
+            return None;
+        }
+
+        let mut builder = GreenNodeBuilder::new();
+        build_line(&mut builder, &new_line);
+        let mut new_green = builder.finish();
+
+        let mut old_node = old_line.syntax().clone();
+        loop {
+            let parent = old_node.parent()?;
+            let index = parent
+                .children_with_tokens()
+                .position(|child| child.as_node() == Some(&old_node))
+                .unwrap_or_else(|| old_node.index());
+            new_green = parent.green().replace_child(index, new_green.into());
+            if parent.parent().is_none() {
+                break;
+            }
+            old_node = parent;
+        }
+
+        let old_range = old_line.range();
+        let length_delta = i64::try_from(new_text.len()).unwrap_or(i64::MAX)
+            - i64::try_from(self.text.len()).unwrap_or(i64::MAX);
+        let mut errors: Vec<_> = self
+            .parse
+            .errors()
+            .iter()
+            .filter(|error| !ranges_intersect(error.range(), old_range))
+            .map(|error| {
+                let range = if error.range().start() >= old_range.end() {
+                    shift_range(error.range(), length_delta)
+                } else {
+                    error.range()
+                };
+                Diagnostic::new(range, error.message(), error.kind())
+            })
+            .collect();
+        collect_lex_errors(std::slice::from_ref(&new_line), &mut errors);
+        errors.sort_by_key(|error| (error.range().start(), error.range().end()));
+
+        Some(SyntaxParse {
+            green: new_green,
+            errors,
+        })
+    }
+}
+
+/// Return the common prefix and suffix lengths.
+fn common_affix(old: &str, new: &str) -> (usize, usize) {
+    let prefix = old
+        .bytes()
+        .zip(new.bytes())
+        .take_while(|(left, right)| left == right)
+        .count();
+    let max_suffix = old.len().min(new.len()).saturating_sub(prefix);
+    let suffix = old
+        .bytes()
+        .rev()
+        .zip(new.bytes().rev())
+        .take(max_suffix)
+        .take_while(|(left, right)| left == right)
+        .count();
+    (prefix, suffix)
+}
+
+/// Return whether two half-open ranges overlap.
+fn ranges_intersect(left: TextRange, right: TextRange) -> bool {
+    left.start() < right.end() && right.start() < left.end()
+}
+
+/// Shift a range by a signed byte delta, clamping at zero.
+fn shift_range(range: TextRange, delta: i64) -> TextRange {
+    let start = i64::from(u32::from(range.start()))
+        .saturating_add(delta)
+        .max(0);
+    let end = i64::from(u32::from(range.end()))
+        .saturating_add(delta)
+        .max(0);
+    TextRange::new(
+        TextSize::from(u32::try_from(start).unwrap_or(u32::MAX)),
+        TextSize::from(u32::try_from(end).unwrap_or(u32::MAX)),
+    )
+}
+
+/// Return whether the text contains a control-flow directive.
+fn contains_control_flow(text: &str) -> bool {
+    [
+        "#RANDOM",
+        "#SETRANDOM",
+        "#IF",
+        "#ELSEIF",
+        "#ELSE",
+        "#ENDIF",
+        "#IFEND",
+        "#SWITCH",
+        "#SETSWITCH",
+        "#CASE",
+        "#SKIP",
+        "#DEF",
+        "#ENDSW",
+        "#ENDRANDOM",
+    ]
+    .iter()
+    .any(|directive| text.contains(directive))
 }

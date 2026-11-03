@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1e4367b3e9c7e237a0a3fddab3bf2c45b4a119b0ff1bee88fe771582c9df744c # shrinks to lines = ["#TITLE A", "#TITLE A", "#RANDOM 1"], index = 0, replacement = ".AA A A ."
+cc c567318183020c6e105e67ae3ebe3921a06b9f6c826a7facea6ed4a4d64a47b2 # shrinks to lines = ["#TITLE A", "#TITLE A", "#TITLE A", "#IF 1", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#RANDOM 1", "#RANDOM 1"], index = 0, replacement = "a"
+cc 9952339049880187c7812a28f6f1b25660c419d0f330f9797c3f2f40686bb6da # shrinks to lines = ["#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#RANDOM 1", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#TITLE A", "#IF 1", "#TITLE A", "// comment", "#TITLE A", "#TITLE A", "#ENDIF", "#TITLE A", "#TITLE A"], index = 16, replacement = "a"
