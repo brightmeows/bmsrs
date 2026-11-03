@@ -27,9 +27,11 @@ flowchart LR
 | Domain | Type | Use |
 |--------|------|-----|
 | Tick | `u64` | all event positions, stop durations, LN durations |
-| Time | `Duration` | `AudioAsset.start`, `Chart::duration()`, player public API |
+| Time | `Duration` | `AudioAsset.start`, `Player::duration()`, player public API |
 
-`TimingTrack` (precomputed segments, O(log n) queries) bridges the two domains;
+`ChartData` stores the scalar timing configuration (`init_bpm`, `resolution`)
+and the event stream. `bmsrs-player` derives `TimingTrack` from
+`EventKind::Bpm`/`EventKind::Stop`; the event stream is the only timing source.
 `BpmLookup` serves lightweight BPM queries before constructing a `TimingTrack`.
 Both live in `bmsrs-chart`.
 

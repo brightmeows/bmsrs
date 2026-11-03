@@ -32,8 +32,9 @@ use std::time::Duration;
 use bmsrs_bmson_def::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
-    ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio,
-    NoteExt, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
+    NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
+    TimingTrackError,
 };
 use thiserror::Error;
 
@@ -62,7 +63,19 @@ pub struct BmsonNoteExt {
     pub ln_life_hint: Option<LnLifeHint>,
 }
 
-impl NoteExt for BmsonNoteExt {}
+impl NoteExt for BmsonNoteExt {
+    fn ln_type_hint(&self) -> Option<LnTypeHint> {
+        self.ln_type_hint
+    }
+
+    fn ln_judge_hint(&self) -> Option<LnJudgeHint> {
+        self.ln_judge_hint
+    }
+
+    fn ln_life_hint(&self) -> Option<LnLifeHint> {
+        self.ln_life_hint
+    }
+}
 
 /// Errors that can occur while processing BMSON.
 #[derive(Debug, Error)]
@@ -75,6 +88,9 @@ pub enum ProcessError {
     /// a misleading error.
     #[error(transparent)]
     Timing(#[from] TimingTrackError),
+    /// Chart data construction or validation failed.
+    #[error(transparent)]
+    ChartData(#[from] ChartDataError),
     /// The `generic-nkeys` mode key count must be positive and within `u8`
     /// (the index bound of [`Lane::Key`]).
     #[error("generic-nkeys key count must be in 1..=255, got {0}")]
@@ -210,14 +226,19 @@ impl BmsonProcessor {
         let song_info = build_song_info(bmson);
         let chart_info = build_chart_info(bmson)?;
 
-        let mut data = ChartData {
-            timing,
-            judge_multiplier: Some(bmson_data.judge_multiplier),
-            life_multiplier: Some(bmson_data.life_multiplier),
-            ln_type_hint: ln_type_to_hint(bmson_data.ln_type_hint),
-            ln_judge_hint: ln_judge_to_hint(bmson_data.ln_judge_hint),
-            ln_life_hint: ln_life_to_hint(bmson_data.ln_life_hint),
-            judge_deltas: bmson_data
+        let mut data = ChartData::new(
+            timing.init_bpm(),
+            timing.resolution(),
+            conv.events,
+            conv.audio_assets,
+        )?;
+        data.judge_multiplier = Some(bmson_data.judge_multiplier);
+        data.life_multiplier = Some(bmson_data.life_multiplier);
+        data.ln_type_hint = ln_type_to_hint(bmson_data.ln_type_hint);
+        data.ln_judge_hint = ln_judge_to_hint(bmson_data.ln_judge_hint);
+        data.ln_life_hint = ln_life_to_hint(bmson_data.ln_life_hint);
+        data.judge_deltas =
+            bmson_data
                 .judge_deltas
                 .as_ref()
                 .map(|d| bmsrs_chart::JudgementDeltas {
@@ -225,20 +246,16 @@ impl BmsonProcessor {
                     great: d.great,
                     good: d.good,
                     miss: d.miss,
-                }),
-            life_deltas: bmson_data
-                .life_deltas
-                .as_ref()
-                .map(|d| bmsrs_chart::LifeDeltas {
-                    perfect: d.perfect,
-                    great: d.great,
-                    good: d.good,
-                    miss: d.miss,
-                }),
-            events: conv.events,
-            audio_assets: conv.audio_assets,
-        };
-        data.sort_events();
+                });
+        data.life_deltas = bmson_data
+            .life_deltas
+            .as_ref()
+            .map(|d| bmsrs_chart::LifeDeltas {
+                perfect: d.perfect,
+                great: d.great,
+                good: d.good,
+                miss: d.miss,
+            });
 
         Ok(Processed {
             chart: Chart {
@@ -367,13 +384,19 @@ fn merge_layered_note(
 }
 
 impl BmsonConverter<'_> {
-    /// Collect BPM change events. BPM changes with value 0 are skipped with a
+    /// Collect BPM change events. Non-positive BPM changes are skipped with a
     /// warning.
     fn collect_bpm_events(&mut self) {
         for e in &self.bmson.chart_data.bpm_events {
             if e.bpm == 0.0 {
                 self.warnings
                     .push(BmsonProcessWarning::ZeroBpmChangeIgnored { tick: e.y });
+            } else if !BpmChange::is_valid(e.bpm) {
+                self.warnings
+                    .push(BmsonProcessWarning::InvalidBpmChangeIgnored {
+                        tick: e.y,
+                        bpm: e.bpm,
+                    });
             } else {
                 self.events.push(Event::bpm(e.y, e.bpm));
             }
@@ -383,11 +406,10 @@ impl BmsonConverter<'_> {
     /// Collect stop events.
     fn collect_stop_events(&mut self) {
         self.events.extend(
-            self.bmson
-                .chart_data
-                .stop_events
+            self.timing
+                .stops()
                 .iter()
-                .map(|e| Event::stop(e.y, e.duration)),
+                .map(|stop| Event::stop(stop.tick, stop.duration)),
         );
     }
 

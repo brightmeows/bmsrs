@@ -16,9 +16,10 @@
 //!
 //! # Time model
 //!
-//! All event positions are absolute [`u64`] ticks. The global
-//! [`TimingTrack::resolution`](TimingTrack::resolution) defines ticks per quarter
-//! note (default 240). Wall-clock time is obtained through
+//! All event positions are absolute [`u64`] ticks.
+//! [`ChartData::resolution`] defines ticks per quarter note (default 240).
+//! BPM changes and stops live in the event stream; `bmsrs-player` derives a
+//! [`TimingTrack`] from them. Wall-clock time is obtained through
 //! [`TimingTrack::tick_to_duration`].
 //!
 //! # Unified event timeline
@@ -49,7 +50,7 @@
 //! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
 //!     Chart, SongInfo, ChartInfo, ChartData, Event, EventKind, Lane, LnJudgeHint, LnLifeHint,
-//!     LnTypeHint, NoteKind, NoteSide, TimingTrack,
+//!     LnTypeHint, NoteKind, NoteSide,
 //! };
 //!
 //! let chart: Chart = Chart {
@@ -59,7 +60,8 @@
 //!     },
 //!     chart: ChartInfo::default(),
 //!     data: ChartData {
-//!         timing: TimingTrack::simple(120.0, 240).unwrap(),
+//!         init_bpm: 120.0,
+//!         resolution: 240,
 //!         judge_multiplier: Some(1.0),
 //!         life_multiplier: Some(1.0),
 //!         ln_type_hint: LnTypeHint::default(),
@@ -188,6 +190,22 @@ impl Eq for LifeDeltas {}
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ChartDataError {
+    /// The initial BPM or beat resolution is invalid.
+    Timing(TimingTrackError),
+    /// A BPM event carries a non-positive or non-finite value.
+    InvalidBpmEvent {
+        /// Tick where the invalid BPM event occurs.
+        tick: u64,
+        /// Invalid BPM value.
+        bpm: f64,
+    },
+    /// A SCROLL or SPEED event carries a non-finite rate.
+    InvalidVisualRate {
+        /// Tick where the invalid event occurs.
+        tick: u64,
+        /// Invalid rate value.
+        rate: f64,
+    },
     /// An event references an out-of-range audio asset index.
     DanglingAudioIndex {
         /// Out-of-range index value.
@@ -212,6 +230,19 @@ pub enum ChartDataError {
 impl fmt::Display for ChartDataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Timing(error) => error.fmt(f),
+            Self::InvalidBpmEvent { tick, bpm } => {
+                write!(
+                    f,
+                    "invalid BPM event at tick {tick}: {bpm} (must be positive finite)"
+                )
+            }
+            Self::InvalidVisualRate { tick, rate } => {
+                write!(
+                    f,
+                    "invalid visual rate at tick {tick}: {rate} (must be finite)"
+                )
+            }
             Self::DanglingAudioIndex { index, len } => {
                 write!(f, "audio index {index} out of range (0..{len})")
             }
@@ -225,18 +256,24 @@ impl fmt::Display for ChartDataError {
 
 impl std::error::Error for ChartDataError {}
 
+impl From<TimingTrackError> for ChartDataError {
+    fn from(error: TimingTrackError) -> Self {
+        Self::Timing(error)
+    }
+}
+
 /// Gameplay data, corresponding to BMSON v2's `ChartData`.
 ///
-/// Does not implement [`Default`]: a valid state requires a [`timing`](TimingTrack)
-/// with a valid initial BPM and a positive `resolution`, so there is no
-/// meaningful zero default. Callers must provide the timing track explicitly
-/// (processors construct it with literals). Beat resolution is owned solely by
-/// [`TimingTrack`] and queried through
-/// [`TimingTrack::resolution`](TimingTrack::resolution).
+/// Does not implement [`Default`]: a valid state requires a positive initial BPM
+/// and a positive `resolution`, so there is no meaningful zero default. BPM
+/// changes and stops live in `events`; the player derives a
+/// [`TimingTrack`] from them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
-    /// Timing track used for tick to second conversion.
-    pub timing: TimingTrack,
+    /// BPM in effect at tick 0.
+    pub init_bpm: f64,
+    /// Ticks per quarter note (beat resolution).
+    pub resolution: u64,
     /// Judgment window multiplier (`Some(1.0)` is standard); `None` means the
     /// source did not specify it.
     pub judge_multiplier: Option<f64>,
@@ -263,34 +300,67 @@ pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
 impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for ChartData<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
+    /// Construct chart data, sort events, and validate the result.
+    ///
+    /// `init_bpm` and `resolution` are the scalar timing configuration; BPM
+    /// changes and stops live only in `events`. The player derives its
+    /// [`TimingTrack`] from these events, so the event stream is the single
+    /// source of truth for timing changes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChartDataError`] when the initial BPM or resolution is invalid,
+    /// an event value is invalid, or an audio reference is out of range.
+    pub fn new(
+        init_bpm: f64,
+        resolution: u64,
+        mut events: Vec<Event<T, C>>,
+        audio_assets: Vec<AudioAsset>,
+    ) -> Result<Self, ChartDataError> {
+        events.sort_by_key(Event::sort_key);
+        let data = Self {
+            init_bpm,
+            resolution,
+            judge_multiplier: None,
+            life_multiplier: None,
+            ln_type_hint: LnTypeHint::default(),
+            ln_judge_hint: LnJudgeHint::default(),
+            ln_life_hint: LnLifeHint::default(),
+            judge_deltas: None,
+            life_deltas: None,
+            events,
+            audio_assets,
+        };
+        data.validate()?;
+        Ok(data)
+    }
+
     /// Return the tick of the last event in the chart data.
     #[must_use]
     pub fn last_tick(&self) -> u64 {
         self.events.last().map_or(0, Event::tick)
     }
 
-    /// Return the total duration of the chart data.
-    #[must_use]
-    #[inline]
-    pub fn duration(&self) -> std::time::Duration {
-        self.timing.tick_to_duration(self.last_tick())
-    }
-
     /// Validate the key invariants of the chart data.
     ///
     /// Checks:
+    /// - `init_bpm` is positive and finite, and `resolution` is positive
     /// - events are sorted ascending by [`Event::sort_key`]
+    /// - BPM events are positive and finite; SCROLL/SPEED rates are finite
     /// - reference integrity: audio indices of `Note`/`Bgm` events fall within
     ///   [`audio_assets`](Self::audio_assets)
-    ///
-    /// Timing track validity (valid initial BPM and positive resolution) is
-    /// guaranteed by [`TimingTrack`] construction, so invalid states cannot exist
-    /// after construction.
     ///
     /// # Errors
     ///
     /// Returns [`ChartDataError`] when any check fails.
     pub fn validate(&self) -> Result<(), ChartDataError> {
+        if !BpmChange::is_valid(self.init_bpm) {
+            return Err(TimingTrackError::InvalidBpm { bpm: self.init_bpm }.into());
+        }
+        if self.resolution == 0 {
+            return Err(TimingTrackError::ZeroResolution.into());
+        }
+
         if self.events.windows(2).any(|pair| match pair {
             [left, right] => left.sort_key() > right.sort_key(),
             _ => false,
@@ -305,6 +375,21 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
                 EventKind::Bgm { audio_index } => std::slice::from_ref(audio_index),
                 _ => &[],
             };
+            match &event.kind {
+                EventKind::Bpm { bpm } if !BpmChange::is_valid(*bpm) => {
+                    return Err(ChartDataError::InvalidBpmEvent {
+                        tick: event.tick(),
+                        bpm: *bpm,
+                    });
+                }
+                EventKind::Scroll { rate } | EventKind::Speed { rate } if !rate.is_finite() => {
+                    return Err(ChartDataError::InvalidVisualRate {
+                        tick: event.tick(),
+                        rate: *rate,
+                    });
+                }
+                _ => {}
+            }
             for &audio_index in audio_indices {
                 if audio_index.get() as usize >= len {
                     return Err(ChartDataError::DanglingAudioIndex {
@@ -418,7 +503,8 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
     ) -> ChartData<U, D> {
         let Self {
-            timing,
+            init_bpm,
+            resolution,
             judge_multiplier,
             life_multiplier,
             ln_type_hint,
@@ -430,7 +516,8 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
             audio_assets,
         } = self;
         ChartData {
-            timing,
+            init_bpm,
+            resolution,
             judge_multiplier,
             life_multiplier,
             ln_type_hint,
@@ -457,7 +544,7 @@ pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     pub song: SongInfo,
     /// Chart-level metadata and resources.
     pub chart: ChartInfo,
-    /// Gameplay data (timing, events, audio).
+    /// Gameplay data (timing configuration, events, audio).
     pub data: ChartData<T, C>,
 }
 

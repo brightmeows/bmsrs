@@ -82,10 +82,13 @@ fn missing_bpm_definition_produces_warning() {
     });
 
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
-    assert!(
-        warnings
-            .iter()
-            .any(|w| matches!(w, ProcessWarning::MissingBpmDefinition { .. }))
+    let count = warnings
+        .iter()
+        .filter(|w| matches!(w, ProcessWarning::MissingBpmDefinition { .. }))
+        .count();
+    assert_eq!(
+        count, 1,
+        "a missing BPM definition must warn exactly once, got {warnings:?}"
     );
 }
 

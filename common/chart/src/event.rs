@@ -22,7 +22,7 @@ use std::fmt::Debug;
 
 use crate::audio::AudioIndex;
 use crate::mode::{Lane, NoteSide};
-use crate::note::{NoteAudio, NoteKind, NoteRole};
+use crate::note::{LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 use crate::visual::{BgaLayer, BgaResourceId};
 
 // EventKind enum
@@ -332,7 +332,22 @@ impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Event<T, C> {}
 /// Trait for format-specific per-note extension data.
 ///
 /// The built-in `()` implements this trait at zero cost.
-pub trait NoteExt: Clone + Debug + PartialEq + Eq + Default {}
+pub trait NoteExt: Clone + Debug + PartialEq + Eq + Default {
+    /// Per-note long-note type override, if the format provides one.
+    fn ln_type_hint(&self) -> Option<LnTypeHint> {
+        None
+    }
+
+    /// Per-note long-note judgment override, if the format provides one.
+    fn ln_judge_hint(&self) -> Option<LnJudgeHint> {
+        None
+    }
+
+    /// Per-note long-note life override, if the format provides one.
+    fn ln_life_hint(&self) -> Option<LnLifeHint> {
+        None
+    }
+}
 
 impl NoteExt for () {}
 

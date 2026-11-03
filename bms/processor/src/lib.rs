@@ -49,9 +49,8 @@ use bmsrs_bms_parser::{
 use bmsrs_bms_parser::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
-    ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
-    VideoAsset,
+    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, NoteAudio,
+    NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError, VideoAsset,
 };
 use thiserror::Error;
 
@@ -74,6 +73,9 @@ pub enum ProcessError {
     /// a misleading error.
     #[error(transparent)]
     Timing(#[from] TimingTrackError),
+    /// Chart data construction or validation failed.
+    #[error(transparent)]
+    ChartData(#[from] ChartDataError),
     /// Initial BPM is zero.
     ///
     /// In some implementations BMS `#BPM 0` means the chart does not scroll, but
@@ -252,7 +254,7 @@ impl BmsProcessor {
         conv.collect_bga(&bmp_map);
 
         // BPM changes (priority 2).
-        conv.collect_bpm_events();
+        conv.collect_bpm_events(timing.bpm_changes());
 
         // Stop events (priority 3): iterate the timing stop events again.
         conv.collect_stop_events(timing.stops());
@@ -269,19 +271,8 @@ impl BmsProcessor {
         let (song, chart_info) = conv.build_metadata(&bmp_map);
         let ln_type_hint = conv.ln_type_hint();
 
-        let mut data = ChartData {
-            timing,
-            judge_multiplier: None,
-            life_multiplier: None,
-            ln_type_hint,
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: conv.events,
-            audio_assets,
-        };
-        data.sort_events();
+        let mut data = ChartData::new(init_bpm, RESOLUTION, conv.events, audio_assets)?;
+        data.ln_type_hint = ln_type_hint;
 
         // Warning aggregation: parser-layer value parse warnings come first (by
         // file position), followed by processor-layer missing-reference and
@@ -578,21 +569,15 @@ impl BmsConverter<'_> {
         }
     }
 
-    /// Build BPM events (for the unified timeline).
+    /// Build BPM events from the already-normalized BPM change list.
     ///
-    /// Invalid values (zero, NaN, infinity; predicate
-    /// [`BpmChange::is_valid`]) are skipped with a warning, matching the filter
-    /// semantics of timing track construction.
-    fn collect_bpm_events(&mut self) {
-        for bc in &self.bms.messages.bpm_changes {
-            let tick = self.table.position_to_tick(bc.position);
-            let bpm = self.resolve_bpm(bc.value, tick);
-            if BpmChange::is_valid(bpm) {
-                self.events.push(Event::bpm(tick, bpm));
-            } else {
-                self.warnings
-                    .push(ProcessWarning::InvalidBpmChangeIgnored { tick, bpm });
-            }
+    /// The list is produced by [`build_bpm_changes`](Self::build_bpm_changes),
+    /// so invalid values have already been filtered and warned about. Emitting
+    /// from the same list keeps the event stream and the derived timing track
+    /// identical and avoids resolving each BPM reference twice.
+    fn collect_bpm_events(&mut self, changes: &[BpmChange]) {
+        for change in changes {
+            self.events.push(Event::bpm(change.tick, change.bpm));
         }
     }
 
@@ -827,7 +812,13 @@ impl BmsConverter<'_> {
             .filter_map(|bc| {
                 let tick = self.table.position_to_tick(bc.position);
                 let bpm = self.resolve_bpm(bc.value, tick);
-                BpmChange::is_valid(bpm).then_some(BpmChange { tick, bpm })
+                if BpmChange::is_valid(bpm) {
+                    Some(BpmChange { tick, bpm })
+                } else {
+                    self.warnings
+                        .push(ProcessWarning::InvalidBpmChangeIgnored { tick, bpm });
+                    None
+                }
             })
             .collect();
         // Deduplication must happen after sorting by tick: two equal-value

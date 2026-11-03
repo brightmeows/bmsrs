@@ -54,7 +54,7 @@ impl NoteSide {
 /// distinguish multiple scratches (such as DSC/FPP dual scratch) and multiple
 /// keys within the same side.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Lane {
     /// Regular playable key. One-based index within its side, ordered left to
     /// right according to the mode family's physical layout.

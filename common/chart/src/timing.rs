@@ -12,11 +12,13 @@
 
 use std::time::Duration;
 
+use crate::{CustomEvent, Event, EventKind, NoteExt};
+
 /// Errors that occur during `TimingTrack` construction or validation.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum TimingTrackError {
-    /// Initial BPM is invalid (must be non-zero and finite).
+    /// Initial BPM is invalid (must be positive and finite).
     InvalidBpm {
         /// Invalid BPM value.
         bpm: f64,
@@ -29,7 +31,7 @@ impl std::fmt::Display for TimingTrackError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidBpm { bpm } => {
-                write!(f, "invalid initial BPM: {bpm} (must be non-zero finite)")
+                write!(f, "invalid initial BPM: {bpm} (must be positive finite)")
             }
             Self::ZeroResolution => write!(f, "resolution must be positive, got 0"),
         }
@@ -114,15 +116,16 @@ pub struct BpmChange {
 }
 
 impl BpmChange {
-    /// Return whether a BPM value is valid (finite and non-zero).
+    /// Return whether a BPM value is valid (finite and positive).
     ///
-    /// BPM changes with invalid values (`0.0`, `NaN`, `+/-Inf`) are dropped during
+    /// BPM changes with non-positive or non-finite values are dropped during
     /// timing track construction, keeping the previous valid BPM, matching
     /// beatoraja behavior. Both processors share this predicate so the timing
-    /// track and the unified event stream filter identically.
+    /// track and the unified event stream filter identically. Negative BPM is
+    /// not modeled as reverse scrolling; beatoraja ignores it.
     #[must_use]
     pub const fn is_valid(bpm: f64) -> bool {
-        bpm.is_finite() && bpm != 0.0
+        bpm.is_finite() && bpm > 0.0
     }
 }
 
@@ -166,7 +169,7 @@ impl TimingTrack {
     ///
     /// - Returns [`TimingTrackError::ZeroResolution`] when `resolution == 0`.
     /// - Returns [`TimingTrackError::InvalidBpm`] when `init_bpm` is invalid
-    ///   (zero, NaN, or infinity).
+    ///   (zero, negative, NaN, or infinity).
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     pub fn new(
         init_bpm: f64,
@@ -177,7 +180,7 @@ impl TimingTrack {
         if resolution == 0 {
             return Err(TimingTrackError::ZeroResolution);
         }
-        if !init_bpm.is_finite() || init_bpm == 0.0 {
+        if !BpmChange::is_valid(init_bpm) {
             return Err(TimingTrackError::InvalidBpm { bpm: init_bpm });
         }
 
@@ -189,6 +192,19 @@ impl TimingTrack {
         // bpm_at_tick see the same set; bpm_segments is built from that same set.
         bpm_changes.retain(|bc| BpmChange::is_valid(bc.bpm));
         stops.sort_by_key(|s| s.tick);
+        // beatoraja's TimeLine.setStop overwrites, so multiple stops at the same
+        // tick keep the last one.
+        let mut deduped_stops: Vec<StopEvent> = Vec::with_capacity(stops.len());
+        for stop in stops {
+            if let Some(last) = deduped_stops.last_mut()
+                && last.tick == stop.tick
+            {
+                *last = stop;
+            } else {
+                deduped_stops.push(stop);
+            }
+        }
+        stops = deduped_stops;
 
         // Build BPM segments
         let mut bpm_segments = vec![BpmSegment {
@@ -245,10 +261,49 @@ impl TimingTrack {
     ///
     /// # Errors
     ///
-    /// Returns [`TimingTrackError::InvalidBpm`] when `init_bpm` is invalid, and
-    /// [`TimingTrackError::ZeroResolution`] when `resolution == 0`.
+    /// Returns [`TimingTrackError::InvalidBpm`] when `init_bpm` is invalid
+    /// (non-positive or non-finite), and [`TimingTrackError::ZeroResolution`]
+    /// when `resolution == 0`.
     pub fn simple(init_bpm: f64, resolution: u64) -> Result<Self, TimingTrackError> {
         Self::new(init_bpm, Vec::new(), Vec::new(), resolution)
+    }
+
+    /// Build a timing track from a chart event stream.
+    ///
+    /// BPM changes and stops are read from [`EventKind::Bpm`] and
+    /// [`EventKind::Stop`]. Invalid BPM events are skipped defensively; callers
+    /// that need to report them should run
+    /// [`ChartData::validate`](crate::ChartData::validate) first. Multiple stops
+    /// at the same tick keep the last one, matching beatoraja.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimingTrackError`] when `init_bpm` or `resolution` is invalid.
+    pub fn from_events<T: NoteExt, C: CustomEvent>(
+        init_bpm: f64,
+        resolution: u64,
+        events: &[Event<T, C>],
+    ) -> Result<Self, TimingTrackError> {
+        let mut bpm_changes = Vec::new();
+        let mut stops = Vec::new();
+        for event in events {
+            match &event.kind {
+                EventKind::Bpm { bpm } => {
+                    if BpmChange::is_valid(*bpm) {
+                        bpm_changes.push(BpmChange {
+                            tick: event.tick(),
+                            bpm: *bpm,
+                        });
+                    }
+                }
+                EventKind::Stop { duration } => stops.push(StopEvent {
+                    tick: event.tick(),
+                    duration: *duration,
+                }),
+                _ => {}
+            }
+        }
+        Self::new(init_bpm, bpm_changes, stops, resolution)
     }
 
     /// Convert a tick position into wall-clock time [`Duration`].
@@ -308,27 +363,28 @@ impl TimingTrack {
         seg.start_seconds + (tick - seg.start_tick) as f64 / res * 60.0 / seg.bpm.abs()
     }
 
-    /// Convert wall-clock time [`Duration`] into the nearest tick position.
+    /// Convert wall-clock time [`Duration`] into a continuous tick position.
     ///
     /// This is the inverse of [`tick_to_duration`](Self::tick_to_duration). Time
-    /// spent inside a stop does not advance ticks.
+    /// spent inside a stop does not advance ticks, so the result is constant
+    /// within a stop. Unlike [`duration_to_tick`](Self::duration_to_tick), the
+    /// result is not rounded, which keeps scroll positions smooth at high refresh
+    /// rates.
     ///
     /// Performs a binary search over precomputed inverse segments, O(log n).
     #[must_use]
-    #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     #[expect(
-        clippy::cast_possible_truncation,
-        reason = "rounded result is within u64 range"
+        clippy::cast_precision_loss,
+        reason = "tick values fit in f64 mantissa for practical chart lengths"
     )]
-    #[expect(clippy::cast_sign_loss, reason = "remaining time is non-negative")]
     #[expect(
         clippy::indexing_slicing,
         reason = "inv non-empty (always has initial seg); idx from saturating_sub on partition_point"
     )]
-    pub fn duration_to_tick(&self, duration: Duration) -> u64 {
+    pub fn duration_to_tick_f64(&self, duration: Duration) -> f64 {
         let target = duration.as_secs_f64();
         if target <= 0.0 {
-            return 0;
+            return 0.0;
         }
 
         let idx = self
@@ -339,13 +395,30 @@ impl TimingTrack {
 
         if seg.bpm == 0.0 {
             // Frozen segment (inside a stop): ticks do not advance.
-            return seg.tick;
+            return seg.tick as f64;
         }
 
         // Interpolate within a linear segment: dt seconds maps to
         // dt * res * |bpm| / 60 ticks.
         let dt = target - seg.sec_lo;
-        seg.tick + (dt * self.resolution as f64 * seg.bpm.abs() / 60.0).round() as u64
+        seg.tick as f64 + dt * self.resolution as f64 * seg.bpm.abs() / 60.0
+    }
+
+    /// Convert wall-clock time [`Duration`] into the nearest tick position.
+    ///
+    /// This is the rounded form of
+    /// [`duration_to_tick_f64`](Self::duration_to_tick_f64). Time spent inside a
+    /// stop does not advance ticks.
+    ///
+    /// Performs a binary search over precomputed inverse segments, O(log n).
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "rounded result is within u64 range"
+    )]
+    #[expect(clippy::cast_sign_loss, reason = "remaining time is non-negative")]
+    pub fn duration_to_tick(&self, duration: Duration) -> u64 {
+        self.duration_to_tick_f64(duration).round() as u64
     }
 
     /// Return the BPM in effect at `tick`.
@@ -743,6 +816,53 @@ mod tests {
     }
 
     #[test]
+    fn multiple_stops_at_same_tick_keep_last() {
+        let timing = TimingTrack::new(
+            120.0,
+            vec![],
+            vec![
+                StopEvent {
+                    tick: 240,
+                    duration: 120,
+                },
+                StopEvent {
+                    tick: 240,
+                    duration: 240,
+                },
+            ],
+            RES,
+        )
+        .unwrap();
+
+        assert_eq!(timing.stops().len(), 1);
+        assert_eq!(timing.stops()[0].duration, 240);
+        // 0.5s at 120 BPM plus the 0.5s stop; the first stop is discarded.
+        assert_eq!(
+            timing.tick_to_duration(241),
+            Duration::from_secs_f64(1.0 + 1.0 / 480.0)
+        );
+    }
+
+    #[test]
+    fn from_events_uses_bpm_and_stop_events() {
+        let events: Vec<Event<(), crate::NoCustomEvent>> = vec![
+            Event::bpm(240, 240.0),
+            Event::stop(480, 240),
+            Event::bar(960),
+        ];
+        let timing = TimingTrack::from_events(120.0, RES, &events).unwrap();
+
+        assert_eq!(timing.bpm_changes().len(), 1);
+        assert_eq!(timing.stops().len(), 1);
+        // 0..240 at 120 BPM = 0.5s; 240..480 at 240 BPM = 0.25s; stop at 480
+        // is before the queried tick.
+        assert_eq!(
+            timing.tick_to_duration(481),
+            Duration::from_secs_f64(0.5 + 0.25 + 0.25 + 1.0 / 960.0)
+        );
+    }
+
+    #[test]
     fn extreme_stop_does_not_panic() {
         let timing = TimingTrack::new(
             0.1,
@@ -767,9 +887,9 @@ mod tests {
     }
 
     #[test]
-    fn new_accepts_negative_init_bpm() {
-        let timing = TimingTrack::new(-120.0, vec![], vec![], RES).unwrap();
-        assert!((timing.init_bpm() - (-120.0)).abs() < 1e-9);
+    fn new_rejects_negative_init_bpm() {
+        let result = TimingTrack::new(-120.0, vec![], vec![], RES);
+        assert_eq!(result, Err(TimingTrackError::InvalidBpm { bpm: -120.0 }));
     }
 
     #[test]

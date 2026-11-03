@@ -12,11 +12,21 @@ use bmsrs_bms_processor::BmsProcessor;
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_syntax::SourceFile;
-use bmsrs_chart::{Chart, EventKind, NoteKind};
+use bmsrs_chart::{Chart, EventKind, NoteKind, TimingTrack};
 use bmsrs_player::Player;
 
 /// Chart type returned by bmsrs-bms-processor.
 type BmsChart = Chart<(), BmsCustomEvent>;
+
+#[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
+fn timing(chart: &BmsChart) -> TimingTrack {
+    TimingTrack::from_events(
+        chart.data.init_bpm,
+        chart.data.resolution,
+        &chart.data.events,
+    )
+    .expect("processed chart timing should be valid")
+}
 
 /// Pipeline helper: BMS text to `Chart<(), BmsCustomEvent>`.
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
@@ -256,7 +266,7 @@ fn bmspec_1_05_bpm_change() {
     let note_tick = notes.first().map_or(0, |(t, _)| *t);
     assert_eq!(note_tick, 960, "note at tick 960");
 
-    let dur = chart.data.timing.tick_to_duration(note_tick);
+    let dur = timing(&chart).tick_to_duration(note_tick);
     // 0-480 ticks at 60 BPM: 480/240 * 60/60 = 2.0s
     // 480-960 ticks at 120 BPM: 480/240 * 60/120 = 1.0s
     // Total: 3.0s
@@ -299,7 +309,7 @@ fn bmspec_1_05_multiple_bpm_changes() {
 
     // Times:
     // 0-240 ticks at 100 BPM: 240/240 * 60/100 = 0.6s → note 01 at 0.6s ✓
-    let dur0 = chart.data.timing.tick_to_duration(240);
+    let dur0 = timing(&chart).tick_to_duration(240);
     assert!(
         (dur0.as_secs_f64() - 0.6).abs() < 1e-4,
         "note 01 should be at 0.6s, got {dur0:?}"
@@ -330,7 +340,7 @@ fn bmspec_1_05_extended_bpm() {
 
     let notes = all_notes(&chart);
     assert_eq!(notes[0].0, 960, "note at tick 960");
-    let dur = chart.data.timing.tick_to_duration(notes[0].0);
+    let dur = timing(&chart).tick_to_duration(notes[0].0);
     assert!(
         (dur.as_secs_f64() - 3.0).abs() < 1e-6,
         "expected 3.0s, got {dur:?}"
@@ -369,7 +379,7 @@ fn bmspec_1_06_basic_stop() {
     //   1440-1680 = 240 ticks at 60 BPM = 1.0s
     //   Total = 4.0 + 4.0 + 1.0 = 9.0s.
 
-    let dur1 = chart.data.timing.tick_to_duration(notes[0].0);
+    let dur1 = timing(&chart).tick_to_duration(notes[0].0);
 
     // bmspec: obj 01 at 4s
     assert!(
@@ -401,7 +411,7 @@ fn bmspec_1_06_stop_on_same_beat_as_bpm_matches_expected_timing() {
     //   tick 960-1920 at 120 BPM = 2.0s
     //   Total = 7.0s.
     // If BPM changed after STOP: STOP 480 ticks at 60 BPM = 2.0s, total 8.0s.
-    let dur = chart.data.timing.tick_to_duration(notes[0].0);
+    let dur = timing(&chart).tick_to_duration(notes[0].0);
     assert!(
         (dur.as_secs_f64() - 7.0).abs() < 1e-6,
         "expected note at 7.0s (BPM before STOP), got {dur:?}"
@@ -814,37 +824,49 @@ fn bmspec_6_speed_interpolation() {
     let player = Player::new(chart).unwrap();
 
     // Before the first keyframe: 1.0 (default).
-    assert!((player.spacing_at(0) - 1.0).abs() < 1e-9, "before first kf");
+    assert!(
+        (player.spacing_at_time(player.tick_to_duration(0)) - 1.0).abs() < 1e-9,
+        "before first kf"
+    );
 
     // keyframe 01: tick 960 (beat 4), rate 0.5
-    assert!((player.spacing_at(960) - 0.5).abs() < 1e-9, "kf 01");
+    assert!(
+        (player.spacing_at_time(player.tick_to_duration(960)) - 0.5).abs() < 1e-9,
+        "kf 01"
+    );
 
     // Interpolation from keyframe 01 to 02: tick 1200 is the midpoint of 960
     // and 1440.
     // 0.5 + (1.5 - 0.5) * 0.5 = 1.0
     assert!(
-        (player.spacing_at(1200) - 1.0).abs() < 1e-9,
+        (player.spacing_at_time(player.tick_to_duration(1200)) - 1.0).abs() < 1e-9,
         "linear interpolation midpoint"
     );
 
     // keyframe 02: tick 1440 (beat 6), rate 1.5
-    assert!((player.spacing_at(1440) - 1.5).abs() < 1e-9, "kf 02");
+    assert!(
+        (player.spacing_at_time(player.tick_to_duration(1440)) - 1.5).abs() < 1e-9,
+        "kf 02"
+    );
 
     // Interpolation from keyframe 02 to 03: tick 1680 (beat 7) is 75% between
     // 1440 and 1920.
     // 1.5 + (1.0 - 1.5) * (1680 - 1440) / (1920 - 1440)
     // = 1.5 + (-0.5) * 0.5 = 1.25
     assert!(
-        (player.spacing_at(1680) - 1.25).abs() < 1e-9,
+        (player.spacing_at_time(player.tick_to_duration(1680)) - 1.25).abs() < 1e-9,
         "interpolation at beat 7"
     );
 
     // keyframe 03: tick 1920 (beat 8), rate 1.0
-    assert!((player.spacing_at(1920) - 1.0).abs() < 1e-9, "kf 03");
+    assert!(
+        (player.spacing_at_time(player.tick_to_duration(1920)) - 1.0).abs() < 1e-9,
+        "kf 03"
+    );
 
     // After the last keyframe: stays at 1.0.
     assert!(
-        (player.spacing_at(2400) - 1.0).abs() < 1e-9,
+        (player.spacing_at_time(player.tick_to_duration(2400)) - 1.0).abs() < 1e-9,
         "after last kf"
     );
 }

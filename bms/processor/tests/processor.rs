@@ -10,7 +10,17 @@ use bmsrs_bms_parser::{BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{EventKind, NoteKind};
+use bmsrs_chart::{CustomEvent, EventKind, NoteExt, NoteKind, TimingTrack};
+
+#[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
+fn timing<T: NoteExt, C: CustomEvent>(chart: &bmsrs_chart::Chart<T, C>) -> TimingTrack {
+    TimingTrack::from_events(
+        chart.data.init_bpm,
+        chart.data.resolution,
+        &chart.data.events,
+    )
+    .expect("processed chart timing should be valid")
+}
 
 /// Shorthand for constructing a valid [`ChannelPos`] in tests.
 fn ch(player: u8, lane: u8) -> ChannelPos {
@@ -256,18 +266,11 @@ fn process_zero_bpm_returns_error() {
 }
 
 #[test]
-fn process_negative_bpm_is_accepted() {
-    // Negative BPM is used for reverse scrolling; timing uses |bpm|.
+fn process_negative_bpm_is_rejected() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(-120.0);
     let result = BmsProcessor::process::<Bme>(&bms);
-    assert!(result.is_ok());
-    let chart = result.unwrap().chart;
-    // Absolute BPM is 120, so 240 ticks = 0.5s.
-    assert_eq!(
-        chart.data.timing.tick_to_duration(240),
-        std::time::Duration::from_millis(500)
-    );
+    assert!(result.is_err());
 }
 
 #[test]
@@ -504,8 +507,8 @@ fn process_bpm_change_reference_resolved() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    assert_eq!(chart.data.timing.bpm_changes().len(), 1);
-    assert!((chart.data.timing.bpm_changes()[0].bpm - 200.0).abs() < 1e-9);
+    assert_eq!(timing(&chart).bpm_changes().len(), 1);
+    assert!((timing(&chart).bpm_changes()[0].bpm - 200.0).abs() < 1e-9);
 }
 
 #[test]
@@ -536,7 +539,7 @@ fn process_bpm_changes_dedup_preserves_mid_change() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     // At 3/4 of measure 0 (tick 720), BPM should be back to 120.
-    assert!((chart.data.timing.bpm_at_tick(720) - 120.0).abs() < 1e-9);
+    assert!((timing(&chart).bpm_at_tick(720) - 120.0).abs() < 1e-9);
 }
 
 #[test]
@@ -757,7 +760,7 @@ fn dedup_adjacent_same_bpm() {
     });
 
     let chart = BmsProcessor::process_default(&bms).unwrap().chart;
-    let bpm_events: Vec<_> = chart.data.timing.bpm_changes().to_vec();
+    let bpm_events: Vec<_> = timing(&chart).bpm_changes().to_vec();
     assert_eq!(bpm_events.len(), 2);
     assert!((bpm_events[0].bpm - 120.0).abs() < f64::EPSILON);
     assert!((bpm_events[1].bpm - 140.0).abs() < f64::EPSILON);
