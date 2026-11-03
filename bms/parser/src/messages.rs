@@ -308,18 +308,89 @@ pub struct NonEventData {
 
 // Message container
 
-/// Container for raw and parsed channel message data.
+/// Builder for the raw channel-message phase.
+///
+/// Collects raw line bodies and `#STP` events. [`finish`](Self::finish) consumes
+/// the builder and produces a finalized [`Messages`], so a caller cannot forget
+/// to run the parse phase.
+#[derive(Debug, Default)]
+pub struct MessagesBuilder {
+    /// Raw value strings stored by (measure, channel), in file order.
+    raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
+    /// Position-based stops from the `#STP` header command.
+    stp_events: Vec<StpEvent>,
+}
+
+impl MessagesBuilder {
+    /// Create an empty builder.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Append one message's value to the raw store.
+    ///
+    /// Each line for the same `(measure, channel)` is stored as a separate entry
+    /// in the inner `Vec`, preserving file order.
+    pub fn push_message(&mut self, msg: &bmsrs_bms_values::BmsMessage) {
+        self.raw
+            .entry(msg.track())
+            .or_default()
+            .entry(msg.channel())
+            .or_default()
+            .push(msg.body.clone());
+    }
+
+    /// Append a position-based stop from an `#STP` header.
+    pub fn push_stp(&mut self, event: StpEvent) {
+        self.stp_events.push(event);
+    }
+
+    /// Consume the builder and parse every collected message.
+    ///
+    /// For each `(measure, channel)`:
+    ///
+    /// - **BGM** (`ch01`): each line is processed independently, producing
+    ///   events with that line's denominator (supports polyphony).
+    /// - **`ch02`** (measure length): only the **last** line is used (last-wins
+    ///   scalar-like channel).
+    /// - **`ch03`** (BPM change via hexadecimal): merged by position like other
+    ///   playable channels. `"00"` entries are filtered out (a rest means no BPM
+    ///   change).
+    /// - **Every other channel** (including `chA6` options): all lines are
+    ///   **merged by position** through `merge_channel` before parsing,
+    ///   following the specification rule that later lines override non-`"00"`
+    ///   positions while `"00"` preserves them.
+    ///
+    /// `base` controls index normalization: in standard Base36 mode indices are
+    /// uppercased for case-insensitive lookup; in Base62 mode the original case
+    /// is preserved.
+    #[must_use]
+    pub fn finish(self, base: BmsBase) -> Messages {
+        let Self { raw, stp_events } = self;
+        let mut messages = Messages {
+            stp_events,
+            ..Messages::default()
+        };
+        for (&measure, channels) in &raw {
+            for (&channel, lines) in channels {
+                messages.finalize_channel(channel, lines, measure, base);
+            }
+        }
+        messages.raw = raw;
+        messages
+    }
+}
+
+/// Finalized channel message data.
+///
+/// Construct through [`MessagesBuilder`]; the raw store is kept for the writer
+/// and exposed read-only through [`raw`](Self::raw).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Messages {
     /// Raw value strings stored by (measure, channel), preserving each line
     /// separately.
-    ///
-    /// Multiple lines for the same `(measure, channel)` are stored as separate
-    /// entries in a `Vec`, in file order. During [`finalize`](Self::finalize),
-    /// non-BGM channels are **merged by position** (later lines override
-    /// earlier non-`00` positions), while BGM lines are processed independently
-    /// to support polyphony.
-    pub raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
+    raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
 
     /// BGM events parsed from channel `01`.
     pub bgm_events: Vec<BgmEvent>,
@@ -358,8 +429,7 @@ pub struct Messages {
     ///
     pub non_event_data: Vec<NonEventData>,
 
-    /// Channel value parse warnings (collected during finalize; cleared first on
-    /// repeated calls).
+    /// Channel value parse warnings collected during the finalize phase.
     ///
     /// 2-character values whose shape is valid but do not satisfy that channel's
     /// parse rule (for example, ch03 requires hexadecimal and the value contains
@@ -383,59 +453,10 @@ fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
 }
 
 impl Messages {
-    /// Append one message's value to the `raw` store.
-    ///
-    /// Each line for the same `(measure, channel)` is stored as a separate entry
-    /// in the inner `Vec`, preserving file order. Call
-    /// [`finalize`](Self::finalize) after receiving every message; it merges
-    /// non-BGM channels by position and then parses events.
-    pub fn concat_raw(&mut self, msg: &bmsrs_bms_values::BmsMessage) {
-        self.raw
-            .entry(msg.track())
-            .or_default()
-            .entry(msg.channel())
-            .or_default()
-            .push(msg.body.clone());
-    }
-
-    /// Finalize event parsing from the raw multi-line store.
-    ///
-    /// Must be called after **all** channel messages have been added through
-    /// [`concat_raw`](Self::concat_raw). For each `(measure, channel)`:
-    ///
-    /// - **BGM** (`ch01`): each line is processed independently, producing
-    ///   events with that line's denominator (supports polyphony).
-    /// - **`ch02`** (measure length): only the **last** line is used (last-wins
-    ///   scalar-like channel).
-    /// - **`ch03`** (BPM change via hexadecimal): merged by position like other
-    ///   playable channels. `"00"` entries are filtered out (a rest means no BPM
-    ///   change).
-    /// - **Every other channel** (including `chA6` options): all lines are
-    ///   **merged by position** through `merge_channel` before parsing,
-    ///   following the specification rule that later lines override non-`"00"`
-    ///   positions while `"00"` preserves them.
-    ///
-    /// Existing parse results are cleared before re-parsing, so repeated calls
-    /// are safe.
-    ///
-    /// `base` controls index normalization: in standard Base36 mode indices are
-    /// uppercased for case-insensitive lookup; in Base62 mode the original case
-    /// is preserved.
-    pub fn finalize(&mut self, base: BmsBase) {
-        // Take raw and header-sourced stp_events, then reset message parse
-        // results so finalize can be called repeatedly.
-        let raw = std::mem::take(&mut self.raw);
-        let stp_events = std::mem::take(&mut self.stp_events);
-        *self = Self::default();
-
-        for (&measure, channels) in &raw {
-            for (&channel, lines) in channels {
-                self.finalize_channel(channel, lines, measure, base);
-            }
-        }
-
-        self.raw = raw;
-        self.stp_events = stp_events;
+    /// Return the raw value strings, grouped by measure and channel.
+    #[must_use]
+    pub const fn raw(&self) -> &BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>> {
+        &self.raw
     }
 
     /// Dispatch one channel's multi-line data to the corresponding finalizer.
@@ -915,7 +936,7 @@ impl Messages {
 
     /// Dispatch a note channel to the corresponding handler.
     ///
-    /// Called from [`finalize`](Self::finalize). The second channel byte is
+    /// Called from the message finalizer. The second channel byte is
     /// Base36-decoded to obtain `lane` (`'1'`-`'9'` for 1-9, `'A'`-`'Z'` for
     /// 10-35); the first byte determines the player side and note kind (visible,
     /// invisible, long note, or mine).

@@ -105,12 +105,8 @@ pub struct BgaResource {
 /// BMSON has no corresponding concept, so its processor produces no video
 /// resources.
 ///
-/// # `Eq` guarantee
-///
-/// `fps` is an `Option<f64>`, so [`Eq`] is implemented manually; `fps` comes
-/// from BMS parsing and is guaranteed to contain no NaN (following the
-/// [`Damage`](crate::Damage) pattern). `colors` and `delay_frames` use `u32` to
-/// avoid floating-point issues.
+/// `fps` is an `Option<f64>`, so this type only implements `PartialEq`.
+/// `colors` and `delay_frames` use `u32` to avoid floating-point issues.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VideoAsset {
     /// Video file path (relative to the directory containing the chart file).
@@ -162,6 +158,3 @@ impl VideoAsset {
         self
     }
 }
-
-// fps is guaranteed not to be NaN (BMS parse values are not NaN), so Eq is safe.
-impl Eq for VideoAsset {}

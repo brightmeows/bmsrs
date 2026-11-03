@@ -77,8 +77,11 @@ queries.
 | `LnTypeHint`/`LnJudgeHint`/`LnLifeHint` | typed enums for long-note hints in `note.rs`. `LnTypeHint` is filled by both BMS `#LNMODE` and BMSON `ln_type_hint` |
 | `Event`'s `tick()` method | uniform access to the tick field of every variant |
 | `Event::sort_key()` | the `(tick, priority)` composite key and the only same-tick ordering entry point |
-| `ChartData::new()` | sorts events, then calls `validate`; returns `Result` |
-| `ChartData::validate()` | checks positive finite `init_bpm`, positive `resolution`, event ordering, positive finite BPM events, finite SCROLL/SPEED rates, and note/BGM audio indices |
+| `ChartData::new()` | sorts events, validates, and returns the only public constructor result; fields are private |
+| `ChartData::validate()` | private constructor guard: positive finite `init_bpm`, positive `resolution`, event ordering, positive finite BPM events, finite SCROLL/SPEED rates, and note/BGM audio indices |
+| `ChartData::try_map_events` / `try_filter_map_events` | re-sort and revalidate after a transformation; return `Result` |
+| `Chart::new()` | validates BGA resource references; the embedded `ChartData` is already valid |
+| `Player::new` | infallible; consumes an already validated `Chart` |
 | BPM/Stop single source | `EventKind::Bpm`/`EventKind::Stop` are authoritative; `TimingTrack::from_events` derives the timing cache |
 | Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected; reverse scrolling is not modeled |
 | Same-tick STOP | processors keep the last stop; `TimingTrack::new` also applies last-wins defensively, matching beatoraja |
@@ -90,7 +93,7 @@ queries.
 | `BgaResource.crop` | source crop rectangle and target offset (BMS `#BGA`/`#@BGA`). `None` means the whole image. BMSON has no crop concept and always uses `None` |
 | `BgaResource` has no `id` | the vector index into `bga_resources` is the unique resource id; events reference it through `BgaResourceId` |
 | `ChartInfo.video` | background video (BMS `#VIDEOFILE`/`#MOVIE`). BMSON has no such concept and always uses `None` |
-| `VideoAsset`'s `Eq` | `fps: Option<f64>` prevents deriving `Eq`; implemented manually (guaranteed no NaN, following `Damage`). `colors`/`delay_frames` use `u32` to avoid the issue |
+| `VideoAsset` equality | `fps: Option<f64>` keeps the type at `PartialEq`; no manual `Eq` promise. `colors`/`delay_frames` use `u32` to avoid the issue |
 | `CropRect` is all integers | source rectangle and offset are `i32`, so `Eq` derives naturally |
 
 ## Known limitations (not in the IR)
