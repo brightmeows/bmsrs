@@ -450,10 +450,6 @@ impl PartialEq for TimingTrack {
     }
 }
 
-// init_bpm is guaranteed not to be NaN (validated by TimingTrack::new), so
-// PartialEq satisfies Eq's reflexivity requirement.
-impl Eq for TimingTrack {}
-
 /// A segment of the timing track with constant BPM.
 #[derive(Clone, Debug)]
 struct BpmSegment {

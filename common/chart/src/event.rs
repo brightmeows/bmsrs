@@ -219,10 +219,6 @@ impl<T, C: CustomEvent> EventKind<T, C> {
     }
 }
 
-// Manual Eq: all f64 fields (Bpm.bpm, Scroll.rate, Speed.rate) are guaranteed to
-// contain no NaN, so PartialEq satisfies Eq's reflexivity requirement.
-impl<T: Eq, C: Eq + CustomEvent> Eq for EventKind<T, C> {}
-
 // Event struct
 
 /// A single timed event in a chart.
@@ -243,11 +239,6 @@ impl<T: Eq, C: Eq + CustomEvent> Eq for EventKind<T, C> {}
 /// assert_eq!(ev.kind.priority(), 0);
 /// ```
 ///
-/// # `Eq` guarantee
-///
-/// `Event` implements [`Eq`] manually. Variants with `f64` fields (`Bpm`,
-/// `Scroll`, `Speed`) guarantee that their float fields contain no `NaN`, so
-/// `PartialEq` satisfies `Eq`'s reflexivity requirement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Event<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// Tick position.
@@ -323,9 +314,6 @@ impl<T: NoteExt, C: CustomEvent> Event<T, C> {
         Self::new(tick, EventKind::Speed { rate })
     }
 }
-
-// Manual Eq implementation.
-impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Event<T, C> {}
 
 // NoteExt trait
 

@@ -90,7 +90,7 @@ queries.
 | `BgaResource.crop` | source crop rectangle and target offset (BMS `#BGA`/`#@BGA`). `None` means the whole image. BMSON has no crop concept and always uses `None` |
 | `BgaResource` has no `id` | the vector index into `bga_resources` is the unique resource id; events reference it through `BgaResourceId` |
 | `ChartInfo.video` | background video (BMS `#VIDEOFILE`/`#MOVIE`). BMSON has no such concept and always uses `None` |
-| `VideoAsset`'s `Eq` | `fps: Option<f64>` prevents deriving `Eq`; implemented manually (guaranteed no NaN, following `Damage`). `colors`/`delay_frames` use `u32` to avoid the issue |
+| `VideoAsset` equality | `fps: Option<f64>` keeps the type at `PartialEq`; no manual `Eq` promise. `colors`/`delay_frames` use `u32` to avoid the issue |
 | `CropRect` is all integers | source rectangle and offset are `i32`, so `Eq` derives naturally |
 
 ## Known limitations (not in the IR)

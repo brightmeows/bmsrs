@@ -115,7 +115,7 @@ pub struct SongInfo {
 }
 
 /// Chart-level metadata and resources, corresponding to BMSON v2's `ChartInfo`.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChartInfo {
     /// Song subtitle (may be empty).
     pub subtitle: String,
@@ -168,11 +168,8 @@ pub struct JudgementDeltas {
 /// negative values drain life. Sourced from BMSON `life_deltas`; BMS charts have
 /// no such concept (processors fill `None`).
 ///
-/// Guaranteed to contain no NaN (BMSON is deserialized through serde, and JSON
-/// cannot contain NaN).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct LifeDeltas {
-    // Manual Eq: guaranteed to contain no NaN.
     /// Life change on PERFECT (percentage, may be negative).
     pub perfect: f64,
     /// Life change on GREAT (percentage, may be negative).
@@ -182,9 +179,6 @@ pub struct LifeDeltas {
     /// Life change on MISS (percentage, may be negative).
     pub miss: f64,
 }
-
-// LifeDeltas is guaranteed to contain no NaN, so Eq is safe.
-impl Eq for LifeDeltas {}
 
 /// `ChartData` validation error type.
 #[derive(Debug, Clone, PartialEq)]
@@ -295,9 +289,6 @@ pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// Audio assets referenced by note and BGM events.
     pub audio_assets: Vec<AudioAsset>,
 }
-
-// judge_multiplier and life_multiplier are guaranteed to contain no NaN.
-impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for ChartData<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// Construct chart data, sort events, and validate the result.
@@ -547,8 +538,6 @@ pub struct Chart<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// Gameplay data (timing configuration, events, audio).
     pub data: ChartData<T, C>,
 }
-
-impl<T: NoteExt + Eq, C: CustomEvent + Eq> Eq for Chart<T, C> {}
 
 impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
     /// Validate the key invariants of the chart.
