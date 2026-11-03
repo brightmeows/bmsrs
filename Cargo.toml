@@ -4,6 +4,7 @@ members = [
     "bms/source",
     "bms/syntax",
     "bms/analysis",
+    "bms/model",
     "bms/values",
     "bms/values-derive",
     "bms/parser",
@@ -38,6 +39,7 @@ bmsrs-bms-writer.workspace = true
 bmsrs-bms-source.workspace = true
 bmsrs-bms-syntax.workspace = true
 bmsrs-bms-analysis.workspace = true
+bmsrs-bms-model.workspace = true
 bmsrs-bms-parser.workspace = true
 bmsrs-bms-values.workspace = true
 bmsrs-bms-processor.workspace = true
@@ -91,6 +93,7 @@ bmsrs-bmson-model = { path = "bmson/model" }
 bmsrs-bms-source = { path = "bms/source" }
 bmsrs-bms-syntax = { path = "bms/syntax" }
 bmsrs-bms-analysis = { path = "bms/analysis" }
+bmsrs-bms-model = { path = "bms/model" }
 bmsrs-bms-parser = { path = "bms/parser" }
 bmsrs-bms-values = { path = "bms/values" }
 bmsrs-bms-values-derive = { path = "bms/values-derive" }

@@ -74,6 +74,18 @@ pub struct BmsMessage {
 }
 
 impl BmsMessage {
+    /// Parse one channel data line (`#ADDR:body`).
+    ///
+    /// Returns `Ok(None)` when the line does not look like a channel message.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BmsTokenizeError`] when the line looks like a channel message
+    /// but has an invalid address or channel suffix.
+    pub fn parse(line: &str) -> Result<Option<Self>, BmsTokenizeError> {
+        parse_message_line(line)
+    }
+
     /// Return the zero-based measure number.
     #[inline]
     #[must_use]
@@ -92,7 +104,7 @@ impl BmsMessage {
     ///
     /// Line-level editors use this to rebuild a [`BmsMessage`] when repacking
     /// channel data, forming the unpack/pack inverse of
-    /// [`parse_message_line`](crate::parse_message_line).
+    /// [`BmsMessage::parse`].
     ///
     /// `channel` must be a 1-2 character Base62 identifier; lowercase input is
     /// normalized to uppercase at construction, matching parse behavior.
@@ -171,7 +183,7 @@ impl TryFrom<BmsToken> for BmsMessage {
     clippy::string_slice,
     reason = "BMS message lines are ASCII-only (hex digits, Base62 chars, colons); byte indexing is safe"
 )]
-pub fn parse_message_line(line: &str) -> Result<Option<BmsMessage>, BmsTokenizeError> {
+fn parse_message_line(line: &str) -> Result<Option<BmsMessage>, BmsTokenizeError> {
     if line.is_empty() || !line.starts_with('#') {
         return Ok(None);
     }

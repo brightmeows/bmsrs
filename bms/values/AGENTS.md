@@ -30,7 +30,8 @@ directly.
 | Rule | Explanation |
 |------|-------------|
 | `BmsIndex` comparison is case-sensitive | Standard BMS normalizes to uppercase in the parser; Base62 preserves the original case |
-| A leading `##` is not a header | `parse_header_line` returns `Ok(None)`; the syntax layer classifies it as a comment |
+| A leading `##` is not a header | `BmsHeader::parse` returns `Ok(None)`; the syntax layer classifies it as a comment |
+| Unified line entry | `BmsToken::parse_line` tries `BmsMessage::parse` first, then `BmsHeader::parse`, so non-canonical `#1:0101` lines are messages |
 | The `#` and `%` prefixes are supplied by the caller | The caller passes the default `['#', '%']` |
 | Value types are owned | Single-line entry points do not borrow input, which simplifies cross-layer passing |
 

@@ -1,6 +1,6 @@
 //! Control-flow branch selection queries.
 
-use crate::{Line, SourceFile, SyntaxKind, SyntaxNode};
+use crate::{SourceFile, SyntaxKind, SyntaxLine, SyntaxNode};
 
 /// Decision for a single control-flow block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,7 +48,10 @@ impl SourceFile {
     /// `next(max)` should return a value in `[1, max]`; `#SETRANDOM` /
     /// `#SETSWITCH` do not call it.
     #[must_use]
-    pub fn select_lines(&self, mut next: impl FnMut(u64) -> u64) -> (Vec<Line>, BranchSelection) {
+    pub fn select_lines(
+        &self,
+        mut next: impl FnMut(u64) -> u64,
+    ) -> (Vec<SyntaxLine>, BranchSelection) {
         let mut selection = BranchSelection::default();
         let mut lines = Vec::new();
         select_children(self.syntax(), &mut next, &mut selection, &mut lines);
@@ -61,7 +64,7 @@ fn select_children(
     parent: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
     selection: &mut BranchSelection,
-    lines: &mut Vec<Line>,
+    lines: &mut Vec<SyntaxLine>,
 ) {
     for child in parent.children() {
         select_node(&child, next, selection, lines);
@@ -73,7 +76,7 @@ fn select_node(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
     selection: &mut BranchSelection,
-    lines: &mut Vec<Line>,
+    lines: &mut Vec<SyntaxLine>,
 ) {
     match node.kind() {
         SyntaxKind::RandomBlock => select_random(node, next, selection, lines),
@@ -86,7 +89,7 @@ fn select_node(
         }
         kind if kind.is_directive() => {}
         _ => {
-            if let Some(line) = Line::cast(node.clone()) {
+            if let Some(line) = SyntaxLine::cast(node.clone()) {
                 lines.push(line);
             } else {
                 select_children(node, next, selection, lines);
@@ -100,7 +103,7 @@ fn select_random(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
     selection: &mut BranchSelection,
-    lines: &mut Vec<Line>,
+    lines: &mut Vec<SyntaxLine>,
 ) {
     let value = block_value(node, next);
     let mut first_selected = 0usize;
@@ -132,7 +135,7 @@ fn select_chain(
     value: u64,
     next: &mut impl FnMut(u64) -> u64,
     selection: &mut BranchSelection,
-    lines: &mut Vec<Line>,
+    lines: &mut Vec<SyntaxLine>,
 ) -> usize {
     let branches: Vec<_> = chain
         .children()
@@ -153,7 +156,7 @@ fn select_switch(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
     selection: &mut BranchSelection,
-    lines: &mut Vec<Line>,
+    lines: &mut Vec<SyntaxLine>,
 ) {
     let value = block_value(node, next);
     let cases: Vec<_> = node
@@ -192,7 +195,7 @@ fn select_body(
     node: &SyntaxNode,
     next: &mut impl FnMut(u64) -> u64,
     selection: &mut BranchSelection,
-    lines: &mut Vec<Line>,
+    lines: &mut Vec<SyntaxLine>,
 ) {
     for child in node.children() {
         if !child.kind().is_directive() {
@@ -206,7 +209,7 @@ fn block_value(node: &SyntaxNode, next: &mut impl FnMut(u64) -> u64) -> u64 {
     let directive = node
         .children()
         .find(|child| child.kind().is_directive())
-        .and_then(Line::cast);
+        .and_then(SyntaxLine::cast);
     let Some(directive_line) = directive else {
         return 0;
     };
@@ -228,7 +231,8 @@ fn block_value(node: &SyntaxNode, next: &mut impl FnMut(u64) -> u64) -> u64 {
 
 /// Return whether a branch matches the random value.
 fn branch_matches(branch: &SyntaxNode, value: u64) -> bool {
-    let Some(line) = Line::cast(branch.children().next().unwrap_or_else(|| branch.clone())) else {
+    let Some(line) = SyntaxLine::cast(branch.children().next().unwrap_or_else(|| branch.clone()))
+    else {
         return false;
     };
     let Some(command) = line.command_name() else {
@@ -244,7 +248,8 @@ fn branch_matches(branch: &SyntaxNode, value: u64) -> bool {
 
 /// Return whether a case matches the random value.
 fn case_matches(case: &SyntaxNode, value: u64) -> bool {
-    let Some(line) = Line::cast(case.children().next().unwrap_or_else(|| case.clone())) else {
+    let Some(line) = SyntaxLine::cast(case.children().next().unwrap_or_else(|| case.clone()))
+    else {
         return false;
     };
     let Some(command) = line.command_name() else {

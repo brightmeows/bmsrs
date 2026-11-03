@@ -4,10 +4,12 @@ use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
 use bmsrs_bms_source::{Document, TextDecodeError};
-use bmsrs_bms_syntax::{BranchSelection, LineKind, ParseOptions, SourceFile, TextRange, TextSize};
-use bmsrs_bms_values::{BmsToken, BmsTokenizeError, parse_header_line, parse_message_line};
+use bmsrs_bms_syntax::{
+    BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
+};
+use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
 
-use crate::Bms;
+use bmsrs_bms_model::Bms;
 
 /// Error-handling strategy for token extraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -21,7 +23,7 @@ pub enum ErrorStrategy {
 
 /// Warning categories produced by CST or document parsing.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CstWarningKind {
+pub enum BmsParseWarningKind {
     /// Single-line value parse error.
     Tokenize(BmsTokenizeError),
     /// Document decode error.
@@ -32,24 +34,24 @@ pub enum CstWarningKind {
 
 /// A parse warning with a line number.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CstWarning {
+pub struct BmsParseWarning {
     /// One-based line number.
     pub line: NonZeroUsize,
     /// Text range.
     pub range: TextRange,
     /// Warning category.
-    pub kind: CstWarningKind,
+    pub kind: BmsParseWarningKind,
 }
 
 /// Result of building `Bms` from a CST.
 #[derive(Debug, Clone)]
-pub struct CstParse {
+pub struct BmsParse {
     /// Semantic model.
     pub bms: Bms,
     /// Control-flow selection record.
     pub selection: BranchSelection,
     /// Warnings.
-    pub warnings: Vec<CstWarning>,
+    pub warnings: Vec<BmsParseWarning>,
 }
 
 /// Typed token result for one line.
@@ -63,30 +65,34 @@ pub struct LineToken {
     pub token: Result<BmsToken, BmsTokenizeError>,
 }
 
-impl Bms {
+/// BMS semantic parser.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BmsParser;
+
+impl BmsParser {
     /// Select branches from the CST and build `Bms`.
     ///
     /// `rng(max)` returns a value in `[1, max]`; `#SETRANDOM` / `#SETSWITCH`
     /// do not call it.
     #[must_use]
-    pub fn from_cst(file: &SourceFile, rng: impl FnMut(u64) -> u64) -> CstParse {
-        Self::from_cst_with(file, &ParseOptions::default(), rng)
+    pub fn parse(file: &SourceFile, rng: impl FnMut(u64) -> u64) -> BmsParse {
+        Self::parse_with(file, &ParseOptions::default(), rng)
     }
 
     /// Select branches from the CST with parse options and build `Bms`.
     #[must_use]
-    pub fn from_cst_with(
+    pub fn parse_with(
         file: &SourceFile,
         options: &ParseOptions,
         rng: impl FnMut(u64) -> u64,
-    ) -> CstParse {
+    ) -> BmsParse {
         let all_tokens = tokenize_lines_with(file, options);
         let (bms, selection, selected_ranges) = build_selected(file, &all_tokens, rng);
         let warnings = token_warnings(&all_tokens)
             .into_iter()
             .filter(|warning| selected_ranges.contains(&warning.range))
             .collect();
-        CstParse {
+        BmsParse {
             bms,
             selection,
             warnings,
@@ -98,32 +104,32 @@ impl Bms {
     ///
     /// # Errors
     ///
-    /// Returns [`CstWarning`] when document decoding fails or when `FailFast`
+    /// Returns [`BmsParseWarning`] when document decoding fails or when `FailFast`
     /// encounters the first warning.
-    pub fn from_document(
+    pub fn parse_document(
         document: &Document,
         rng: impl FnMut(u64) -> u64,
         strategy: ErrorStrategy,
-    ) -> Result<CstParse, CstWarning> {
-        Self::from_document_with(document, &ParseOptions::default(), rng, strategy)
+    ) -> Result<BmsParse, BmsParseWarning> {
+        Self::parse_document_with(document, &ParseOptions::default(), rng, strategy)
     }
 
     /// Build `Bms` from a lossless document with parse options.
     ///
     /// # Errors
     ///
-    /// Returns [`CstWarning`] when document decoding fails or when `FailFast`
+    /// Returns [`BmsParseWarning`] when document decoding fails or when `FailFast`
     /// encounters the first warning.
-    pub fn from_document_with(
+    pub fn parse_document_with(
         document: &Document,
         options: &ParseOptions,
         rng: impl FnMut(u64) -> u64,
         strategy: ErrorStrategy,
-    ) -> Result<CstParse, CstWarning> {
-        let text = document.try_to_text().map_err(|error| CstWarning {
+    ) -> Result<BmsParse, BmsParseWarning> {
+        let text = document.try_to_text().map_err(|error| BmsParseWarning {
             line: NonZeroUsize::MIN,
             range: TextRange::empty(TextSize::from(0)),
-            kind: CstWarningKind::Decode(error),
+            kind: BmsParseWarningKind::Decode(error),
         })?;
         let parse = SourceFile::parse_with(&text, options);
         let file = parse.source_file();
@@ -139,7 +145,7 @@ impl Bms {
         }
 
         let (bms, selection, _selected_ranges) = build_selected(&file, &all_tokens, rng);
-        Ok(CstParse {
+        Ok(BmsParse {
             bms,
             selection,
             warnings,
@@ -180,7 +186,10 @@ fn build_selected(
 }
 
 /// Collect CST syntax diagnostics.
-fn syntax_warnings(parse: &bmsrs_bms_syntax::Parse, file: &SourceFile) -> Vec<CstWarning> {
+fn syntax_warnings(
+    parse: &bmsrs_bms_syntax::SyntaxParse,
+    file: &SourceFile,
+) -> Vec<BmsParseWarning> {
     let lines: Vec<_> = file.lines().enumerate().collect();
     parse
         .errors()
@@ -196,24 +205,24 @@ fn syntax_warnings(parse: &bmsrs_bms_syntax::Parse, file: &SourceFile) -> Vec<Cs
                     })
                 })
                 .unwrap_or(NonZeroUsize::MIN);
-            CstWarning {
+            BmsParseWarning {
                 line,
                 range: error.range(),
-                kind: CstWarningKind::Syntax(error.message().to_owned()),
+                kind: BmsParseWarningKind::Syntax(error.message().to_owned()),
             }
         })
         .collect()
 }
 
 /// Collect single-line token errors.
-fn token_warnings(tokens: &[LineToken]) -> Vec<CstWarning> {
+fn token_warnings(tokens: &[LineToken]) -> Vec<BmsParseWarning> {
     tokens
         .iter()
         .filter_map(|line| {
-            line.token.as_ref().err().map(|error| CstWarning {
+            line.token.as_ref().err().map(|error| BmsParseWarning {
                 line: line.line,
                 range: line.range,
-                kind: CstWarningKind::Tokenize(error.clone()),
+                kind: BmsParseWarningKind::Tokenize(error.clone()),
             })
         })
         .collect()
@@ -232,7 +241,10 @@ pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<Lin
     file.lines()
         .enumerate()
         .filter_map(|(index, line)| {
-            if !matches!(line.kind(), LineKind::Header | LineKind::Message) {
+            if !matches!(
+                line.kind(),
+                SyntaxLineKind::Header | SyntaxLineKind::Message
+            ) {
                 return None;
             }
             let content = line.content_text()?;
@@ -247,10 +259,7 @@ pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<Lin
 
 /// Parse one line of content into a token.
 fn tokenize_line_with(content: &str, prefixes: &[char]) -> Result<BmsToken, BmsTokenizeError> {
-    if let Some(message) = parse_message_line(content)? {
-        return Ok(BmsToken::Message(message));
-    }
-    parse_header_line(content, prefixes)?.map_or_else(
+    BmsToken::parse_line(content, prefixes)?.map_or_else(
         || {
             Err(BmsTokenizeError::OutOfRange {
                 context: "line",
@@ -258,6 +267,6 @@ fn tokenize_line_with(content: &str, prefixes: &[char]) -> Result<BmsToken, BmsT
                 expected: "header or message",
             })
         },
-        |header| Ok(BmsToken::Header(header)),
+        Ok,
     )
 }

@@ -2,8 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use bmsrs_bms_syntax::{Line, LineKind, Parse, ParseOptions, SourceFile, TextRange, TextSize};
-use bmsrs_bms_values::{BmsChannel, BodyCells, parse_header_line, parse_message_line};
+use bmsrs_bms_syntax::{
+    ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse, TextRange, TextSize,
+};
+use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsMessage, BodyCells};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};
@@ -12,7 +14,7 @@ use crate::index::{SymbolDefinition, SymbolIndex, SymbolKind, SymbolReference};
 #[derive(Debug, Clone)]
 pub struct Analysis {
     /// CST and syntax diagnostics.
-    parse: Parse,
+    parse: SyntaxParse,
     /// Diagnostic list.
     diagnostics: Vec<AnalysisDiagnostic>,
     /// Symbol index.
@@ -93,10 +95,10 @@ fn collect_lines(
 ) {
     for line in source.lines() {
         match line.kind() {
-            LineKind::Header if !line.is_directive() => {
+            SyntaxLineKind::Header if !line.is_directive() => {
                 let content_text = line.content_text();
                 if let Some(content) = content_text.as_deref()
-                    && let Ok(Some(message)) = parse_message_line(content)
+                    && let Ok(Some(message)) = BmsMessage::parse(content)
                 {
                     let body_start = content
                         .find(':')
@@ -107,7 +109,7 @@ fn collect_lines(
                     collect_header(&line, prefixes, index, diagnostics);
                 }
             }
-            LineKind::Message => collect_message(&line, index, diagnostics),
+            SyntaxLineKind::Message => collect_message(&line, index, diagnostics),
             _ => {}
         }
     }
@@ -115,7 +117,7 @@ fn collect_lines(
 
 /// Process a header line.
 fn collect_header(
-    line: &Line,
+    line: &SyntaxLine,
     prefixes: &[char],
     index: &mut SymbolIndex,
     diagnostics: &mut Vec<AnalysisDiagnostic>,
@@ -126,7 +128,7 @@ fn collect_header(
     let Some(content) = line.content_text() else {
         return;
     };
-    match parse_header_line(&content, prefixes) {
+    match BmsHeader::parse(&content, prefixes) {
         Ok(Some(_header)) => {
             if let Some((kind, id)) = definition_kind(command.text()) {
                 index.push_definition(SymbolDefinition::new(
@@ -149,14 +151,14 @@ fn collect_header(
 
 /// Process a channel line.
 fn collect_message(
-    line: &Line,
+    line: &SyntaxLine,
     index: &mut SymbolIndex,
     diagnostics: &mut Vec<AnalysisDiagnostic>,
 ) {
     let Some(content) = line.content_text() else {
         return;
     };
-    let message = match parse_message_line(&content) {
+    let message = match BmsMessage::parse(&content) {
         Ok(Some(message)) => message,
         Ok(None) => return,
         Err(error) => {
@@ -195,7 +197,7 @@ fn collect_message_refs(channel: BmsChannel, body: &str, base: usize, index: &mu
 }
 
 /// Return the start offset of the content span within the whole line text.
-fn content_base(line: &Line, content: &str) -> usize {
+fn content_base(line: &SyntaxLine, content: &str) -> usize {
     let line_text = line.syntax().text().to_string();
     let content_offset = line_text.find(content).unwrap_or(0);
     usize::from(line.range().start()).saturating_add(content_offset)

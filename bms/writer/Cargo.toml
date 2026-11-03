@@ -13,9 +13,10 @@ rust-version.workspace = true
 readme.workspace = true
 
 [dependencies]
-bmsrs-bms-parser.workspace = true
+bmsrs-bms-model.workspace = true
 
 [dev-dependencies]
+bmsrs-bms-parser.workspace = true
 bmsrs-bms-syntax.workspace = true
 proptest.workspace = true
 

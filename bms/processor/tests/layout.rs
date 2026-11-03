@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_parser::{Bms, KeyType, LongNoteEvent, MineEvent, NoteEvent, Position};
+use bmsrs_bms_model::{Bms, KeyType, LongNoteEvent, MineEvent, NoteEvent, Position};
 use bmsrs_bms_processor::layout::PmsLayout;
 
 #[test]

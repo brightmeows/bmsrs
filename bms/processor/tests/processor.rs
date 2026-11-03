@@ -3,10 +3,10 @@
 use std::num::NonZeroU8;
 use std::path::Path;
 
-use bmsrs_bms_parser::{
+use bmsrs_bms_model::{
     BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position,
 };
-use bmsrs_bms_parser::{BpmIndex, LnObjIndex};
+use bmsrs_bms_model::{BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
 use bmsrs_chart::mode::{Lane, NoteSide};

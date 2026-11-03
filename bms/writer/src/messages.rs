@@ -1,12 +1,12 @@
 //! Channel line (message) serialization.
 
-use bmsrs_bms_parser::BmsChannel;
-use bmsrs_bms_parser::Messages;
+use bmsrs_bms_model::BmsChannel;
+use bmsrs_bms_model::Messages;
 
 /// Serialize all channel lines.
 ///
 /// Output is ascending by (measure, channel). Merge semantics match
-/// [`bmsrs_bms_parser`] parsing:
+/// [`bmsrs_bms_model`] parsing:
 /// - channel `01` (BGM): multiple lines are kept independently (polyphony
 ///   support)
 /// - channel `02` (measure length): only the last line is emitted

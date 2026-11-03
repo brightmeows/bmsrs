@@ -1,0 +1,161 @@
+//! Structured whole-file model for the BMS format.
+//!
+//! [`Bms`] aggregates the header groups, resource definitions, timing, and
+//! channel messages parsed from a BMS file. It is a faithful mapping: derived
+//! values and reference resolution belong to `bmsrs-bms-processor`.
+
+mod audio;
+mod display;
+mod gameplay;
+mod messages;
+mod metadata;
+mod timing;
+mod visual;
+mod warnings;
+
+// Re-export all public types from the submodules.
+pub use audio::{Audio, OwnedExWavParams};
+pub use bmsrs_bms_values::*;
+pub use display::Display;
+pub use gameplay::Gameplay;
+pub use messages::{
+    BgaEvent, BgmEvent, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength,
+    Messages, MessagesBuilder, MineEvent, NonEventData, NoteEvent, Position, ScrollEvent,
+    SpeedEvent, StopEvent, StpEvent,
+};
+pub use metadata::Metadata;
+pub use timing::Timing;
+pub use visual::{OwnedExBmpParams, OwnedSwBgaParams, Visual};
+pub use warnings::ChannelValueWarning;
+
+// Bms: root document model
+
+/// Structured representation of a BMS file built from a flat token stream.
+///
+/// Each sub-structure corresponds to exactly one tokenizer header group, so the
+/// `process_header` method can route directly to a submodule's `apply` method.
+/// The only exception is `#STP` (Timing to Messages), which crosses
+/// sub-structure boundaries because it uses the same position model as channel
+/// events.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Bms {
+    /// Song and chart identity metadata (from `BmsHeaderMetadata`).
+    pub metadata: metadata::Metadata,
+    /// Gameplay behavior settings (from `BmsHeaderGameplay`).
+    pub gameplay: gameplay::Gameplay,
+    /// Timing definitions (from `BmsHeaderTiming`).
+    pub timing: timing::Timing,
+    /// Display resources and difficulty markers (from `BmsHeaderDisplay`).
+    pub display: display::Display,
+    /// Audio resource definitions (from `BmsHeaderResDefAudio`).
+    pub audio: audio::Audio,
+    /// Visual and BGA resource definitions (from `BmsHeaderResDefVisual`).
+    pub visual: visual::Visual,
+    /// Channel message data (raw data plus parsed events).
+    pub messages: messages::Messages,
+    /// Unrecognized or engine-specific header commands.
+    pub fallback_headers: Vec<(String, String)>,
+}
+
+impl Bms {
+    /// Build `Bms` from a flat token stream (without control-flow commands).
+    ///
+    /// Two-phase processing:
+    /// 1. Pre-scan for `#BASE` to determine the radix base.
+    /// 2. Process every token with the correct base, normalizing index keys
+    ///    (`WavIndex`, `BmpIndex`, and so on) for case-insensitive comparison
+    ///    in standard (Base36) BMS files.
+    pub fn from_flat_tokens(tokens: impl IntoIterator<Item = BmsToken>) -> Self {
+        let mut bms = Self::default();
+
+        // Pre-scan #BASE. Collect the token iterator first because it is
+        // iterated twice (once for BASE, once for processing).
+        let all_tokens: Vec<_> = tokens.into_iter().collect();
+        let bms_base = detect_base(&all_tokens);
+        let mut messages = messages::MessagesBuilder::new();
+
+        for token in &all_tokens {
+            match token {
+                BmsToken::Header(header) => {
+                    bms.process_header(header, bms_base, &mut messages);
+                }
+                BmsToken::Message(msg) => messages.push_message(msg),
+            }
+        }
+
+        bms.messages = messages.finish(bms_base);
+        bms
+    }
+
+    // Header dispatch: pure routing to the submodule apply() methods
+
+    /// Route a header command to the corresponding submodule's `apply` method.
+    ///
+    /// `base` is the radix base determined by `#BASE` (defaults to
+    /// [`BmsBase::Base36`]).
+    fn process_header(
+        &mut self,
+        header: &BmsHeader,
+        base: BmsBase,
+        messages: &mut messages::MessagesBuilder,
+    ) {
+        match header {
+            BmsHeader::Metadata(m) => self.metadata.apply(m),
+            BmsHeader::Gameplay(g) => self.gameplay.apply(g, base),
+            BmsHeader::Timing(t) => {
+                self.timing.apply(t, base);
+                // #STP crosses sub-structure boundaries.
+                if let BmsHeaderTiming::Stp { params } = t {
+                    messages.push_stp(messages::StpEvent {
+                        position: messages::Position::new(
+                            params.measure,
+                            u32::from(params.position),
+                            1000,
+                        ),
+                        duration_ms: params.duration_ms,
+                    });
+                }
+            }
+            BmsHeader::ResDefAudio(a) => self.audio.apply(a, base),
+            BmsHeader::ResDefVisual(v) => self.visual.apply(v, base),
+            BmsHeader::Display(d) => self.display.apply(d),
+            BmsHeader::ControlFlow(_) => { /* skipped, not stored in Bms */ }
+            BmsHeader::Fallback(f) => self
+                .fallback_headers
+                .push((f.command.clone(), f.value.clone())),
+        }
+    }
+}
+
+/// Pre-scan tokens for `#BASE` to determine the radix base.
+///
+/// Defaults to [`BmsBase::Base36`] when no `#BASE` header command is found.
+fn detect_base(tokens: &[BmsToken]) -> BmsBase {
+    tokens
+        .iter()
+        .find_map(|token| {
+            if let BmsToken::Header(BmsHeader::Gameplay(BmsHeaderGameplay::Base(b))) = token {
+                Some(*b)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(BmsBase::Base36)
+}
+
+/// Return the effective base for one definition family.
+///
+/// The Base62 specification (`#BASE 62`) lists exactly seven families that
+/// switch to case-sensitive Base62: `#WAVxx`, `#BMPxx`, `#BPMxx`, `#STOPxx`,
+/// `#SCROLLxx`, `#SPEEDxx`, and `#LNOBJ`. Every other definition family
+/// (`#TEXTxx`, `#EXRANKxx`, `#CHANGEOPTIONxx`, `#SEEKxx`, `#ARGBxx`,
+/// `#SWBGAxx`, and the `#BGA`/`#@BGA` crop namespace) keeps Base36
+/// case-insensitivity even in Base62 files.
+#[must_use]
+pub(crate) const fn family_base(global: BmsBase, is_base62_family: bool) -> BmsBase {
+    match global {
+        BmsBase::Base16 => BmsBase::Base16,
+        _ if is_base62_family => global,
+        _ => BmsBase::Base36,
+    }
+}

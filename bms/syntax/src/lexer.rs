@@ -1,4 +1,4 @@
-//! Line-oriented BMS lexing: splitting lines, recognizing trivia, and lexing
+//! SyntaxLine-oriented BMS lexing: splitting lines, recognizing trivia, and lexing
 //! line content.
 
 use std::ops::Range;
@@ -27,7 +27,7 @@ impl LexToken<'_> {
 
 /// Syntactic classification of a line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineKind {
+pub enum SyntaxLineKind {
     /// Blank line.
     Blank,
     /// Comment-only line.
@@ -46,7 +46,7 @@ pub enum LineKind {
 #[derive(Debug, Clone)]
 pub struct LineData<'a> {
     /// Syntactic classification.
-    pub kind: LineKind,
+    pub kind: SyntaxLineKind,
     /// Token list.
     pub tokens: Vec<LexToken<'a>>,
     /// Line start byte offset (including prefix trivia).
@@ -152,9 +152,9 @@ fn lex_line<'a>(line: RawLine<'a>, state: &mut ScanState, options: &ParseOptions
     } else {
         push_trivia(line.body, 0..line.body.len(), line.start, &mut tokens);
         if line.body.trim().is_empty() {
-            LineKind::Blank
+            SyntaxLineKind::Blank
         } else {
-            LineKind::Comment
+            SyntaxLineKind::Comment
         }
     };
 
@@ -183,18 +183,18 @@ fn lex_content<'a>(
     absolute: usize,
     options: &ParseOptions,
     tokens: &mut Vec<LexToken<'a>>,
-) -> LineKind {
+) -> SyntaxLineKind {
     if text.starts_with("##") {
         push_token(tokens, SyntaxKind::Comment, text, absolute);
-        return LineKind::Comment;
+        return SyntaxLineKind::Comment;
     }
 
     let Some(prefix) = text.chars().next() else {
-        return LineKind::Blank;
+        return SyntaxLineKind::Blank;
     };
     if !options.header_prefixes.contains(&prefix) {
         push_token(tokens, SyntaxKind::Text, text, absolute);
-        return LineKind::Text;
+        return SyntaxLineKind::Text;
     }
 
     let (prefix_kind, prefix_len) = match prefix {
@@ -233,7 +233,7 @@ fn lex_content<'a>(
             absolute.saturating_add(body_start),
             tokens,
         );
-        return LineKind::Message;
+        return SyntaxLineKind::Message;
     }
 
     lex_header(text, absolute, prefix_kind, prefix_len, tokens)
@@ -261,7 +261,7 @@ fn lex_header<'a>(
     prefix_kind: SyntaxKind,
     prefix_len: usize,
     tokens: &mut Vec<LexToken<'a>>,
-) -> LineKind {
+) -> SyntaxLineKind {
     push_token(
         tokens,
         prefix_kind,
@@ -278,7 +278,7 @@ fn lex_header<'a>(
     let command = rest.get(..command_end).unwrap_or_default();
     if command.is_empty() {
         push_token(tokens, SyntaxKind::ErrorToken, rest, rest_start);
-        return LineKind::Error;
+        return SyntaxLineKind::Error;
     }
     push_token(tokens, SyntaxKind::CommandName, command, rest_start);
 
@@ -307,7 +307,7 @@ fn lex_header<'a>(
         }
     }
 
-    LineKind::Header
+    SyntaxLineKind::Header
 }
 
 /// Split the channel body into two-character chunks.

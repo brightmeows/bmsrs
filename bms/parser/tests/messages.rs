@@ -3,9 +3,9 @@
 //! These tests consume the `Messages` struct only through the public API, using
 //! `MessagesBuilder`.
 
-use bmsrs_bms_parser::BmsBgaLayer;
-use bmsrs_bms_parser::*;
-use bmsrs_bms_parser::{BmsBase, BmsChannel, BpmIndex, WavIndex};
+use bmsrs_bms_model::BmsBgaLayer;
+use bmsrs_bms_model::*;
+use bmsrs_bms_model::{BmsBase, BmsChannel, BpmIndex, WavIndex};
 
 /// Helper: parse one standard message line (`#xxxYY:body`) through `Messages`,
 /// using Base36.
@@ -17,7 +17,7 @@ fn parse_one(line: &str) -> Messages {
 /// base.
 fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
     let mut builder = MessagesBuilder::new();
-    if let Ok(Some(msg)) = parse_message_line(line) {
+    if let Ok(Some(msg)) = BmsMessage::parse(line) {
         builder.push_message(&msg);
     }
     builder.finish(base)
@@ -357,7 +357,7 @@ fn measure_length_default_on_invalid() {
     let msgs = parse_one("#00102:notanumber");
     assert_eq!(
         msgs.measure_lengths,
-        [] as [bmsrs_bms_parser::MeasureLength; 0]
+        [] as [bmsrs_bms_model::MeasureLength; 0]
     );
 }
 

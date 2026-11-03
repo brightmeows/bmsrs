@@ -28,7 +28,7 @@ treat `docs.rs` as the specification text.
 - References: non-`00` two-character values in channel bodies; the channel kind
   determines the resource kind
 - Non-canonical addresses (such as `#1:0101`) fall back to
-  `parse_message_line` on Header lines and still build reference indices
+  `BmsMessage::parse` on Header lines and still build reference indices
 - BGA channels (04/06/07/0A) may fall back to `#BMPxx` definitions
 - IDs are uppercased for case-insensitive matching
 

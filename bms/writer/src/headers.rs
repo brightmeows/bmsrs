@@ -1,16 +1,16 @@
 //! Header command serialization.
 //!
 //! Rebuilds the tokenizer's domain enum values from the domain fields of
-//! [`Bms`](bmsrs_bms_parser::Bms) and reuses the derive-generated `format_header` to
+//! [`Bms`](bmsrs_bms_model::Bms) and reuses the derive-generated `format_header` to
 //! format command names and values, guaranteeing that the write path uses the
 //! same format templates as the parse path.
 
-use bmsrs_bms_parser::{
+use bmsrs_bms_model::{
     ArgbParams, AtBgaParams, BgaParams, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ExBmpParams, ExWavParams,
     SwBgaParams, WavCmdParams,
 };
-use bmsrs_bms_parser::{Bms, OwnedExWavParams, OwnedSwBgaParams};
+use bmsrs_bms_model::{Bms, OwnedExWavParams, OwnedSwBgaParams};
 
 /// Serialize all header command lines.
 ///
@@ -47,7 +47,7 @@ macro_rules! push_header {
 }
 
 /// Serialize the metadata domain.
-fn metadata(m: &bmsrs_bms_parser::Metadata, out: &mut Vec<String>) {
+fn metadata(m: &bmsrs_bms_model::Metadata, out: &mut Vec<String>) {
     let headers = [
         m.title.clone().map(BmsHeaderMetadata::Title),
         m.subtitle.clone().map(BmsHeaderMetadata::Subtitle),
@@ -75,7 +75,7 @@ fn metadata(m: &bmsrs_bms_parser::Metadata, out: &mut Vec<String>) {
 }
 
 /// Serialize the gameplay domain.
-fn gameplay(g: &bmsrs_bms_parser::Gameplay, out: &mut Vec<String>) {
+fn gameplay(g: &bmsrs_bms_model::Gameplay, out: &mut Vec<String>) {
     let scalars = [
         g.player.map(BmsHeaderGameplay::Player),
         g.rank.map(BmsHeaderGameplay::Rank),
@@ -115,7 +115,7 @@ fn gameplay(g: &bmsrs_bms_parser::Gameplay, out: &mut Vec<String>) {
 }
 
 /// Serialize the timing domain.
-fn timing(t: &bmsrs_bms_parser::Timing, out: &mut Vec<String>) {
+fn timing(t: &bmsrs_bms_model::Timing, out: &mut Vec<String>) {
     let scalars = [
         t.bpm.map(BmsHeaderTiming::Bpm),
         t.base_bpm.map(BmsHeaderTiming::BaseBpm),
@@ -162,7 +162,7 @@ fn timing(t: &bmsrs_bms_parser::Timing, out: &mut Vec<String>) {
 }
 
 /// Serialize the display domain.
-fn display(d: &bmsrs_bms_parser::Display, out: &mut Vec<String>) {
+fn display(d: &bmsrs_bms_model::Display, out: &mut Vec<String>) {
     let headers = [
         d.stage_file.clone().map(BmsHeaderDisplay::StageFile),
         d.banner.clone().map(BmsHeaderDisplay::Banner),
@@ -178,7 +178,7 @@ fn display(d: &bmsrs_bms_parser::Display, out: &mut Vec<String>) {
 }
 
 /// Serialize the audio domain.
-fn audio(a: &bmsrs_bms_parser::Audio, out: &mut Vec<String>) {
+fn audio(a: &bmsrs_bms_model::Audio, out: &mut Vec<String>) {
     for (id, filename) in &a.wav_files {
         push_header!(
             BmsHeaderResDefAudio::Wav {
@@ -220,7 +220,7 @@ fn audio(a: &bmsrs_bms_parser::Audio, out: &mut Vec<String>) {
 }
 
 /// Serialize the visual domain.
-fn visual(v: &bmsrs_bms_parser::Visual, out: &mut Vec<String>) {
+fn visual(v: &bmsrs_bms_model::Visual, out: &mut Vec<String>) {
     for (id, filename) in &v.bmp_files {
         push_header!(
             BmsHeaderResDefVisual::Bmp {
@@ -315,7 +315,7 @@ fn visual(v: &bmsrs_bms_parser::Visual, out: &mut Vec<String>) {
 }
 
 /// Serialize video-related scalar fields.
-fn video_scalars(v: &bmsrs_bms_parser::Visual, out: &mut Vec<String>) {
+fn video_scalars(v: &bmsrs_bms_model::Visual, out: &mut Vec<String>) {
     let scalars = [
         v.video_file.clone().map(BmsHeaderResDefVisual::VideoFile),
         v.movie.clone().map(BmsHeaderResDefVisual::Movie),
@@ -331,7 +331,7 @@ fn video_scalars(v: &bmsrs_bms_parser::Visual, out: &mut Vec<String>) {
 }
 
 /// Serialize `#STP` events (ascending by measure).
-fn stp(events: &[bmsrs_bms_parser::StpEvent], out: &mut Vec<String>) {
+fn stp(events: &[bmsrs_bms_model::StpEvent], out: &mut Vec<String>) {
     for event in events {
         let measure = event.position.measure();
         let position = event.position.numer();

@@ -15,8 +15,8 @@ readme.workspace = true
 [dependencies]
 bmsrs-bms-source.workspace = true
 bmsrs-bms-syntax.workspace = true
+bmsrs-bms-model.workspace = true
 bmsrs-bms-values.workspace = true
-thiserror.workspace = true
 
 [lib]
 

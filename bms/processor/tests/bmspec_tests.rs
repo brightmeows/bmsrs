@@ -7,7 +7,8 @@
 //!
 //! Beat conversion: 1 beat = resolution (240) ticks.
 
-use bmsrs_bms_parser::Bms;
+use bmsrs_bms_model::Bms;
+use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_processor::BmsProcessor;
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::Bme;
@@ -39,7 +40,7 @@ fn process(bms_text: &str) -> BmsChart {
 /// Parse BMS text with random value 1.
 fn parse_bms(bms_text: &str) -> Bms {
     let source = SourceFile::parse(bms_text);
-    Bms::from_cst(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), |_| 1).bms
 }
 
 /// Extract every Note event (including kind information).
@@ -606,7 +607,7 @@ fn bmspec_3_scroll_initial_speed() {
 /// Pins branch values with `SETRANDOM` / `SETSWITCH`.
 fn process_with_cf(bms_text: &str) -> BmsChart {
     let source = SourceFile::parse(bms_text);
-    let bms = Bms::from_cst(&source.source_file(), |_| 0).bms;
+    let bms = BmsParser::parse(&source.source_file(), |_| 0).bms;
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
     BmsProcessor::process::<Bme>(&bms)
         .expect("process should succeed")
@@ -753,10 +754,10 @@ fn bmspec_1_08_wav_references() {
          #WAVAA zz.ogg\n",
     );
 
-    let wav01: bmsrs_bms_parser::WavIndex = "01".parse().unwrap();
-    let wav_zz: bmsrs_bms_parser::WavIndex = "ZZ".parse().unwrap();
-    let wav_aa: bmsrs_bms_parser::WavIndex = "AA".parse().unwrap();
-    let wav02: bmsrs_bms_parser::WavIndex = "02".parse().unwrap();
+    let wav01: bmsrs_bms_model::WavIndex = "01".parse().unwrap();
+    let wav_zz: bmsrs_bms_model::WavIndex = "ZZ".parse().unwrap();
+    let wav_aa: bmsrs_bms_model::WavIndex = "AA".parse().unwrap();
+    let wav02: bmsrs_bms_model::WavIndex = "02".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav01).map(String::as_str),

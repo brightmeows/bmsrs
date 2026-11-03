@@ -5,7 +5,7 @@
 //! fallback, `#SKIP` fall-through, multiple blocks, nesting, zero values, and
 //! deep nesting.
 
-use bmsrs_bms_syntax::{Line, SourceFile};
+use bmsrs_bms_syntax::{SourceFile, SyntaxLine};
 
 /// Test RNG that returns preset random values in order.
 struct SequenceRng {
@@ -38,7 +38,7 @@ fn file(text: &str) -> SourceFile {
 }
 
 /// Extract WAV file names from the selected lines.
-fn wavs(lines: &[Line]) -> Vec<String> {
+fn wavs(lines: &[SyntaxLine]) -> Vec<String> {
     lines
         .iter()
         .filter_map(|line| {

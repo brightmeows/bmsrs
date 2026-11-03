@@ -2,7 +2,7 @@
 
 use rowan::{TextRange, TextSize};
 
-use crate::{LineKind, Parse, ParseOptions, SyntaxKind, SyntaxNode, SyntaxToken};
+use crate::{ParseOptions, SyntaxKind, SyntaxLineKind, SyntaxNode, SyntaxParse, SyntaxToken};
 
 /// Document root node.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -11,19 +11,19 @@ pub struct SourceFile(pub(crate) SyntaxNode);
 impl SourceFile {
     /// Parse text and return the CST.
     #[must_use]
-    pub fn parse(text: &str) -> Parse {
+    pub fn parse(text: &str) -> SyntaxParse {
         Self::parse_with(text, &ParseOptions::default())
     }
 
     /// Parse text with options.
     #[must_use]
-    pub fn parse_with(text: &str, options: &ParseOptions) -> Parse {
+    pub fn parse_with(text: &str, options: &ParseOptions) -> SyntaxParse {
         crate::parser::parse_with(text, options)
     }
 
     /// Parse from a lossless document.
     #[must_use]
-    pub fn parse_document(document: &bmsrs_bms_source::Document) -> Parse {
+    pub fn parse_document(document: &bmsrs_bms_source::Document) -> SyntaxParse {
         Self::parse(&document.to_text())
     }
 
@@ -32,7 +32,7 @@ impl SourceFile {
     pub fn parse_document_with(
         document: &bmsrs_bms_source::Document,
         options: &ParseOptions,
-    ) -> Parse {
+    ) -> SyntaxParse {
         Self::parse_with(&document.to_text(), options)
     }
 
@@ -50,8 +50,8 @@ impl SourceFile {
     }
 
     /// Iterate over all lines depth-first.
-    pub fn lines(&self) -> impl Iterator<Item = Line> {
-        self.0.descendants().filter_map(Line::cast)
+    pub fn lines(&self) -> impl Iterator<Item = SyntaxLine> {
+        self.0.descendants().filter_map(SyntaxLine::cast)
     }
 
     /// Return the token at the given offset.
@@ -63,9 +63,9 @@ impl SourceFile {
 
 /// A line (or control-flow directive line).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Line(SyntaxNode);
+pub struct SyntaxLine(SyntaxNode);
 
-impl Line {
+impl SyntaxLine {
     /// Wrap a node as a line; returns `None` when the kind does not match.
     #[must_use]
     pub fn cast(node: SyntaxNode) -> Option<Self> {
@@ -106,14 +106,14 @@ impl Line {
 
     /// Return the line classification.
     #[must_use]
-    pub fn kind(&self) -> LineKind {
+    pub fn kind(&self) -> SyntaxLineKind {
         match self.0.kind() {
-            SyntaxKind::BlankLine => LineKind::Blank,
-            SyntaxKind::CommentLine => LineKind::Comment,
-            SyntaxKind::MessageLine => LineKind::Message,
-            SyntaxKind::TextLine => LineKind::Text,
-            SyntaxKind::ErrorLine => LineKind::Error,
-            _ => LineKind::Header,
+            SyntaxKind::BlankLine => SyntaxLineKind::Blank,
+            SyntaxKind::CommentLine => SyntaxLineKind::Comment,
+            SyntaxKind::MessageLine => SyntaxLineKind::Message,
+            SyntaxKind::TextLine => SyntaxLineKind::Text,
+            SyntaxKind::ErrorLine => SyntaxLineKind::Error,
+            _ => SyntaxLineKind::Header,
         }
     }
 
@@ -166,6 +166,28 @@ impl Line {
             .children_with_tokens()
             .filter_map(rowan::NodeOrToken::into_token)
             .filter(|token| token.kind() == SyntaxKind::BodyChunk)
+    }
+
+    /// Return the content range with leading and trailing trivia excluded.
+    ///
+    /// The range covers the first through last non-trivia token, including any
+    /// inline whitespace between them.
+    #[must_use]
+    pub fn content_range(&self) -> Option<TextRange> {
+        let mut content: Option<TextRange> = None;
+        for element in self.0.children_with_tokens() {
+            let Some(token) = element.into_token() else {
+                continue;
+            };
+            if token.kind().is_trivia() {
+                continue;
+            }
+            let range = token.text_range();
+            content = Some(content.map_or(range, |current| {
+                TextRange::new(current.start(), range.end())
+            }));
+        }
+        content
     }
 
     /// Return the content text with leading and trailing trivia removed.

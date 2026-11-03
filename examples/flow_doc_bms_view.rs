@@ -1,7 +1,7 @@
 //! Example: select control-flow branches on a rowan CST and inspect each round.
 //!
 //! `SourceFile::select_lines` keeps every branch in the CST and returns only the
-//! selected lines for a random value; `Bms::from_cst` performs semantic lowering
+//! selected lines for a random value; `BmsParser::parse` performs semantic lowering
 //! on the same CST. This example evaluates the same chart with random values 1
 //! and 2, showing the selected lines and titles for each round.
 //!
@@ -15,7 +15,7 @@
 // `println!` in favor of `tracing` does not apply here.
 #![expect(clippy::print_stdout, reason = "example prints to stdout by design")]
 
-use bmsrs::bms::parser::Bms;
+use bmsrs::bms::parser::BmsParser;
 use bmsrs::bms::syntax::SourceFile;
 
 /// A minimal chart with one `#RANDOM` block; each branch has its own title and
@@ -43,7 +43,7 @@ fn main() {
 
     for value in 1..=2 {
         let (lines, selection) = file.select_lines(|_| value);
-        let parsed = Bms::from_cst(&file, |_| value);
+        let parsed = BmsParser::parse(&file, |_| value);
         println!(
             "value {value}: {} selected lines, {} decisions, title {:?}",
             lines.len(),
