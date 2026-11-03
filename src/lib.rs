@@ -495,7 +495,7 @@ pub mod bmson {
     }
 
     /// BMSON type system (v0/v1/v2).
-    pub mod def {
+    pub mod model {
         pub use bmsrs_bmson_model::{v0, v1, *};
     }
 

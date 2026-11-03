@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let processed = bmsrs::bms::process(&parsed.value)?;
     let chart = processed.value.chart;
 
-    let mut player = Player::new(chart)?;
+    let mut player = Player::new(chart);
     player.advance(Duration::from_secs(1));
 
     println!("current tick: {}", player.current_tick());
@@ -92,7 +92,7 @@ fn load(json: &str) -> Result<(), Box<dyn std::error::Error>> {
     let bmson = bmsrs::bmson::parse_str(json)?;
     let processed = bmsrs::bmson::process(&bmson)?;
 
-    println!("events: {}", processed.value.chart.data.events.len());
+    println!("events: {}", processed.value.chart.data().events().len());
     Ok(())
 }
 ```

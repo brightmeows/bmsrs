@@ -274,8 +274,8 @@ impl BmsProcessor {
         let (song, chart_info) = conv.build_metadata(&bmp_map);
         let ln_type_hint = conv.ln_type_hint();
 
-        let mut data = ChartData::new(init_bpm, RESOLUTION, conv.events, audio_assets)?;
-        data.ln_type_hint = ln_type_hint;
+        let data = ChartData::new(init_bpm, RESOLUTION, conv.events, audio_assets)?
+            .with_ln_type_hint(ln_type_hint);
 
         // Warning aggregation: parser-layer value parse warnings come first (by
         // file position), followed by processor-layer missing-reference and
@@ -292,11 +292,7 @@ impl BmsProcessor {
         let audio = BmsAudio::from(&bms.audio);
 
         Ok(Processed {
-            chart: Chart {
-                song,
-                chart: chart_info,
-                data,
-            },
+            chart: Chart::new(song, chart_info, data)?,
             warnings,
             gameplay,
             audio,
@@ -434,6 +430,7 @@ impl BmsConverter<'_> {
             }
         };
 
+        let base = self.bms.gameplay.base.unwrap_or_default();
         let mut check_wav =
             |wav_id: &WavIndex, player: u8, lane: u8, tick: u64| -> Option<AudioIndex> {
                 let audio = wav_map.get(wav_id).copied();
@@ -442,7 +439,7 @@ impl BmsConverter<'_> {
                 // outside the WAV table's definition range and does not produce
                 // a missing-definition warning.
                 if audio.is_none()
-                    && let Some(key) = wav_id.0.to_index()
+                    && let Some(key) = wav_id.0.to_index_in(base)
                 {
                     self.warnings.push(ProcessWarning::new(
                         None,
@@ -949,13 +946,14 @@ impl BmsConverter<'_> {
         tick: u64,
         span: Option<bmsrs_pipeline::SourceSpan>,
     ) -> f64 {
+        let base = self.bms.gameplay.base.unwrap_or_default();
         match value {
             BpmValue::Absolute(bpm) => bpm,
             BpmValue::Reference(id) => {
                 if let Some(bpm) = self.bms.timing.bpm_defs.get(&id).copied() {
                     bpm
                 } else {
-                    if let Some(key) = id.to_index() {
+                    if let Some(key) = id.to_index_in(base) {
                         self.warnings.push(ProcessWarning::new(
                             span,
                             ProcessWarningKind::MissingBpmDefinition { key, tick },
@@ -975,6 +973,7 @@ impl BmsConverter<'_> {
     #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     fn build_stops_from_defs(&mut self) -> Vec<StopEvent> {
+        let base = self.bms.gameplay.base.unwrap_or_default();
         self.bms
             .messages
             .stop_events
@@ -998,7 +997,7 @@ impl BmsConverter<'_> {
                         duration: duration.max(0.0) as u64,
                     })
                 } else {
-                    if let Some(key) = se.stop_id.to_index() {
+                    if let Some(key) = se.stop_id.to_index_in(base) {
                         self.warnings.push(ProcessWarning::new(
                             span,
                             ProcessWarningKind::MissingStopDefinition { key, tick },

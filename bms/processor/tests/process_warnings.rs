@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_model::{Bms, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
+use bmsrs_bms_model::{Bms, BmsBase, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{BmsProcessor, ProcessWarningKind};
 
@@ -26,6 +26,26 @@ fn missing_wav_key_produces_warning() {
             .iter()
             .any(|w| matches!(w.kind, ProcessWarningKind::MissingWavDefinition { .. }))
     );
+}
+
+#[test]
+fn base16_missing_wav_key_uses_hex_numeric_value() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.base = Some(BmsBase::Base16);
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: bmsrs_bms_model::KeyType::Visible,
+        wav_id: "FF".parse().unwrap(),
+    });
+
+    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
+    assert!(warnings.iter().any(|warning| matches!(
+        warning.kind,
+        ProcessWarningKind::MissingWavDefinition { key: 255, .. }
+    )));
 }
 
 #[test]
