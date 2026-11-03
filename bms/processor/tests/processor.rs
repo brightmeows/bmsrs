@@ -15,9 +15,9 @@ use bmsrs_chart::{CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
 #[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
 fn timing<T: NoteExt, C: CustomEvent>(chart: &bmsrs_chart::Chart<T, C>) -> TimingTrack {
     TimingTrack::from_events(
-        chart.data.init_bpm,
-        chart.data.resolution,
-        &chart.data.events,
+        chart.data().init_bpm(),
+        chart.data().resolution(),
+        chart.data().events(),
     )
     .expect("processed chart timing should be valid")
 }
@@ -97,8 +97,8 @@ fn process_basic_note() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let notes: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -117,7 +117,7 @@ fn process_basic_note() {
         .collect();
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0], (0, NoteSide::P1, key(1), NoteKind::Normal));
-    assert_eq!(chart.data.audio_assets.len(), 1);
+    assert_eq!(chart.data().audio_assets().len(), 1);
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn process_key_count_uses_used_lanes() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    assert_eq!(chart.chart.key_count, Some(7));
+    assert_eq!(chart.chart_info().key_count, Some(7));
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn process_applies_path_wav_to_audio_asset() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     assert_eq!(
-        chart.data.audio_assets[0].path.as_ref(),
+        chart.data().audio_assets()[0].path.as_ref(),
         Path::new("snd/kick.wav")
     );
 }
@@ -213,7 +213,7 @@ fn process_default_detects_oct_fp_layout() {
     });
 
     let chart = BmsProcessor::process_default(&bms).unwrap().chart;
-    let lane = chart.data.events.iter().find_map(|event| {
+    let lane = chart.data().events().iter().find_map(|event| {
         if let EventKind::Note(Note { lane, .. }) = &event.kind {
             Some(*lane)
         } else {
@@ -243,8 +243,8 @@ fn process_key7_note_lands_on_key_seven() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let notes: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note { lane, ext: (), .. }) = &e.kind {
@@ -287,8 +287,8 @@ fn process_nan_bpm_change_never_enters_event_stream() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
     let has_bpm_event = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .any(|e| matches!(e.kind, EventKind::Bpm { .. }));
     assert!(!has_bpm_event);
@@ -327,8 +327,8 @@ fn process_bgm_events_mapped() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let bgm: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { .. } = &e.kind {
@@ -352,9 +352,9 @@ fn process_metadata_from_headers() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    assert_eq!(chart.song.title, "Test Song");
-    assert_eq!(chart.song.artist, "Test Artist");
-    assert_eq!(chart.song.genre, "Test Genre");
+    assert_eq!(chart.song().title, "Test Song");
+    assert_eq!(chart.song().artist, "Test Artist");
+    assert_eq!(chart.song().genre, "Test Genre");
 }
 
 #[test]
@@ -384,8 +384,8 @@ fn process_default_uses_bme_and_maps_both_sides() {
     let chart = BmsProcessor::process_default(&bms).unwrap().chart;
 
     let positions: Vec<(NoteSide, Lane)> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note { side, lane, .. }) = &e.kind {
@@ -429,8 +429,8 @@ fn process_lnobj_produces_long_note() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let lns: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -472,8 +472,8 @@ fn lnobj_preserves_long_note_channel_events_as_normal() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let normals: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -550,8 +550,8 @@ fn process_bar_lines_generated() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let bar_lines: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| matches!(&e.kind, EventKind::Bar).then_some(e.tick()))
         .collect();
@@ -578,8 +578,8 @@ fn process_invisible_note_mapped() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let notes: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note { kind, ext: (), .. }) = &e.kind {
@@ -693,8 +693,8 @@ fn lnobj_end_marker_plays_bgm() {
 
     // Collect BGM events from the chart.
     let bgm_ticks: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Bgm { audio_index } = &e.kind {
@@ -734,8 +734,8 @@ fn lnobj_bgm_no_event_for_unmatched_lno() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let bgm_count = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter(|e| matches!(&e.kind, EventKind::Bgm { .. }))
         .count();

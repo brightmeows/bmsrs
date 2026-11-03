@@ -69,11 +69,30 @@ fn display_output() {
 }
 
 #[test]
-fn to_index_base62() {
+fn to_index_base36() {
     assert_eq!(BmsIndex::try_from("00").unwrap().to_index(), Some(0));
     assert_eq!(BmsIndex::try_from("01").unwrap().to_index(), Some(1));
     assert_eq!(BmsIndex::try_from("ZZ").unwrap().to_index(), Some(1295));
     assert_eq!(BmsIndex::try_from("0A").unwrap().to_index(), Some(10));
+}
+
+#[test]
+fn to_index_in_respects_base() {
+    let hex = BmsIndex::try_from("FF").unwrap();
+    assert_eq!(hex.to_index_in(BmsBase::Base16), Some(255));
+    assert_eq!(hex.to_index_in(BmsBase::Base36), Some(555));
+    assert_eq!(hex.to_index_in(BmsBase::Base62), Some(945));
+
+    let lower = BmsIndex::try_from("aa").unwrap();
+    assert_eq!(lower.to_index_in(BmsBase::Base62), Some(2268));
+}
+
+#[test]
+fn decode_respects_base() {
+    assert_eq!(BmsBase::Base16.decode("FF"), Some(255));
+    assert_eq!(BmsBase::Base36.decode("FF"), Some(555));
+    assert_eq!(BmsBase::Base62.decode("aa"), Some(2268));
+    assert_eq!(BmsBase::Base16.decode("GG"), None);
 }
 
 #[test]

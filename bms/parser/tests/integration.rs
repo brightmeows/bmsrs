@@ -194,7 +194,7 @@ fn full_header_parse() {
     assert_eq!(bms.display.preview.as_deref(), Some("preview.ogg"));
 
     // No messages, no fallback
-    assert!(bms.messages.raw.is_empty());
+    assert!(bms.messages.raw().is_empty());
     assert_eq!(
         bms.fallback_headers,
         [] as [(std::string::String, std::string::String); 0]
@@ -445,7 +445,7 @@ fn bgm_multi_line_polyphony() {
     let bms = parse("#00101:AABB\n#00101:CCDD");
     let ch = BmsChannel::from_raw("01").unwrap();
     assert_eq!(
-        bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
+        bms.messages.raw().get(&1).and_then(|m| m.get(&ch)),
         Some(&vec!["AABB".to_owned(), "CCDD".to_owned()])
     );
     // Each BGM line is independent: 2 + 2 = 4 events total.
@@ -518,7 +518,7 @@ fn empty_input() {
     assert!(bms.display.stage_file.is_none());
     assert!(bms.audio.wav_files.is_empty());
     assert!(bms.visual.bmp_files.is_empty());
-    assert!(bms.messages.raw.is_empty());
+    assert!(bms.messages.raw().is_empty());
     assert_eq!(
         bms.fallback_headers,
         [] as [(std::string::String, std::string::String); 0]
@@ -547,7 +547,7 @@ fn unknown_channel_stays_raw() {
     );
     let ch = BmsChannel::from_raw("FF").unwrap();
     assert_eq!(
-        bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
+        bms.messages.raw().get(&1).and_then(|m| m.get(&ch)),
         Some(&vec!["1122".to_owned()])
     );
 }
@@ -562,7 +562,7 @@ fn empty_message_values() {
     );
     let ch = BmsChannel::from_raw("11").unwrap();
     assert_eq!(
-        bms.messages.raw.get(&1).and_then(|m| m.get(&ch)),
+        bms.messages.raw().get(&1).and_then(|m| m.get(&ch)),
         Some(&vec![String::new()])
     );
 }
@@ -629,7 +629,7 @@ fn default_bms_is_empty() {
     let bms = Bms::default();
     assert!(bms.metadata.title.is_none());
     assert!(bms.audio.wav_files.is_empty());
-    assert!(bms.messages.raw.is_empty());
+    assert!(bms.messages.raw().is_empty());
     assert_eq!(
         bms.fallback_headers,
         [] as [(std::string::String, std::string::String); 0]
@@ -830,6 +830,22 @@ fn base36_wav_indices_case_insensitive() {
 }
 
 #[test]
+fn base16_wav_indices_are_case_insensitive_and_resolve() {
+    // Legacy hexadecimal charts use the same two-character index shape. The
+    // compatibility declaration selects Base16 normalization and decoding.
+    let bms = parse("#BASE 16\n#WAV0F kick.wav\n#WAV0f snare.wav\n#00111:0F\n");
+    assert_eq!(bms.gameplay.base, Some(BmsBase::Base16));
+    assert_eq!(bms.audio.wav_files.len(), 1);
+    let idx: WavIndex = "0F".parse().unwrap();
+    assert_eq!(
+        bms.audio.wav_files.get(&idx).map(String::as_str),
+        Some("snare.wav")
+    );
+    assert_eq!(bms.messages.note_events.len(), 1);
+    assert_eq!(bms.messages.note_events[0].wav_id, idx);
+}
+
+#[test]
 fn bmspec_bpm_basic() {
     // Equivalent to bmspec-1-05-BPM: #BPM 60, #00003:0078, object at 3s.
     // Parser layer: verify the BPM change is parsed correctly.
@@ -936,7 +952,7 @@ fn wav_definitions_stored() {
 fn message_storage() {
     let bms = parse("#00101:1122");
     let ch = BmsChannel::from_raw("01").unwrap();
-    let measure_map = bms.messages.raw.get(&1);
+    let measure_map = bms.messages.raw().get(&1);
     assert!(measure_map.is_some());
     assert_eq!(
         measure_map
@@ -951,7 +967,7 @@ fn message_storage() {
 fn message_concat_same_channel() {
     let bms = parse("#00101:1122\n#00101:3344");
     let ch = BmsChannel::from_raw("01").unwrap();
-    let measure_map = bms.messages.raw.get(&1);
+    let measure_map = bms.messages.raw().get(&1);
     let lines = measure_map.and_then(|m| m.get(&ch));
     assert_eq!(lines, Some(&vec!["1122".to_owned(), "3344".to_owned()]));
     assert_eq!(bms.messages.bgm_events.len(), 4);
@@ -983,7 +999,7 @@ fn lib_mixed_headers_and_messages() {
     let ch = BmsChannel::from_raw("11").unwrap();
     assert_eq!(
         bms.messages
-            .raw
+            .raw()
             .get(&1)
             .and_then(|m| m.get(&ch))
             .and_then(|v| v.first().map(String::as_str)),
@@ -1008,7 +1024,7 @@ fn default_is_all_none_empty() {
     assert!(bms.metadata.artist.is_none());
     assert!(bms.timing.bpm.is_none());
     assert!(bms.audio.wav_files.is_empty());
-    assert!(bms.messages.raw.is_empty());
+    assert!(bms.messages.raw().is_empty());
     assert_eq!(
         bms.fallback_headers,
         [] as [(std::string::String, std::string::String); 0]

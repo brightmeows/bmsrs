@@ -80,12 +80,10 @@ proptest! {
             text.push_str(&cells.concat());
             text.push('\n');
         }
-        let mut before = parse(&text);
+        let before = parse(&text);
         let written = BmsWriter::write(&before);
-        let mut after = parse(&written);
-        before.messages.raw.clear();
-        after.messages.raw.clear();
-        prop_assert_eq!(before, after);
+        let after = parse(&written);
+        prop_assert_eq!(BmsWriter::write(&after), written);
     }
 }
 

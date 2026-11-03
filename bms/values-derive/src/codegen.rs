@@ -12,12 +12,6 @@ use crate::parse::{BmsTokenTemplate, Placeholder};
 struct GenericsCtx<'a> {
     /// Ident of the enum's first type parameter (such as `C`), if any.
     type_param_ident: Option<&'a syn::Ident>,
-    /// The enum's first lifetime, if any.
-    #[expect(dead_code, reason = "retained for API compatibility with downstream")]
-    first_lifetime: Option<&'a syn::Lifetime>,
-    /// Synthetic `'header` lifetime used in generated signatures.
-    #[expect(dead_code, reason = "retained for API compatibility with downstream")]
-    header_lifetime: &'a syn::Lifetime,
 }
 
 /// Return `true` when the attribute is `#[doc(hidden)]`.
@@ -40,7 +34,6 @@ pub fn generate_impl(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let first_lifetime_param = generics.lifetimes().next();
-    let first_lifetime = first_lifetime_param.map(|lt| &lt.lifetime);
     let type_param = generics.type_params().next();
     let type_param_ident = type_param.map(|tp| &tp.ident);
 
@@ -52,17 +45,10 @@ pub fn generate_impl(
         quote! { where 'header: #lifetime }
     });
 
-    let header_lifetime = syn::Lifetime::new("'header", proc_macro2::Span::call_site());
-    let generics_ctx = GenericsCtx {
-        type_param_ident,
-        first_lifetime,
-        header_lifetime: &header_lifetime,
-    };
+    let generics_ctx = GenericsCtx { type_param_ident };
     let error_type = quote! { crate::BmsTokenizeError };
     let try_match_body = generate_try_match_body(data_enum, templates, fallbacks, &generics_ctx);
     let format_body = generate_format_body(data_enum, templates);
-
-    let format_where = TokenStream::new();
 
     quote! {
         impl #impl_generics #enum_name #ty_generics #where_clause {
@@ -83,7 +69,6 @@ pub fn generate_impl(
             #[doc(hidden)]
             #[must_use]
             pub fn format_header(&self) -> (String, String)
-            #format_where
             {
                 match self {
                     #format_body
@@ -569,11 +554,7 @@ fn gen_field_parse(
     is_fallback: bool,
     generics: &GenericsCtx,
 ) -> TokenStream {
-    let GenericsCtx {
-        type_param_ident,
-        first_lifetime: _,
-        header_lifetime: _,
-    } = generics;
+    let GenericsCtx { type_param_ident } = generics;
     // Case 1: field type matches a generic type parameter, use From::from.
     // (Only matches when the enum still has generic parameters; the current
     // code uses String uniformly, so this usually does not trigger.)

@@ -16,13 +16,17 @@ semantic interpretation. Derived values belong to `bmsrs-bms-processor`.
 ## Lifecycle
 
 `Bms::from_flat_tokens` pre-scans `#BASE`, processes every token with the
-correct radix, and calls `Messages::finalize(base)`. The two-phase message
-lifecycle is:
+correct radix, and finishes the builder with `MessagesBuilder::finish(base)`.
+The builder-to-finalized type-state lifecycle is:
 
 | Phase | Method | Purpose |
 |-------|--------|---------|
-| Collect | `Messages::concat_raw` | append body strings to `(measure, channel)` |
-| Finalize | `Messages::finalize(base)` | parse events, position-merge, normalize indices |
+| 1. Collect | `MessagesBuilder::push_message` / `push_stp` | append body strings and `#STP` events |
+| 2. Finalize | `MessagesBuilder::finish(base)` | consume the builder, parse events, position-merge, normalize indices |
+
+`MessagesBuilder::finish` consumes the builder, so a caller cannot forget or
+repeat the finalize phase. `Messages` keeps the raw store private and exposes
+it through `raw()` for the writer.
 
 ## Header dispatch
 
