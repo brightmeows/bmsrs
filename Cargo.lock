@@ -119,6 +119,7 @@ dependencies = [
  "bmsrs-bmson-def",
  "bmsrs-bmson-processor",
  "bmsrs-chart",
+ "bmsrs-pipeline",
  "bmsrs-player",
  "encoding_rs",
  "rayon",
@@ -227,6 +228,10 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-chart"
+version = "0.1.0"
+
+[[package]]
+name = "bmsrs-pipeline"
 version = "0.1.0"
 
 [[package]]

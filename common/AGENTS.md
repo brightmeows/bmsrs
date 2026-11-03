@@ -21,6 +21,7 @@ flowchart LR
 |-------|----------------|
 | `bmsrs-chart` | `Chart<T>` central IR: format-agnostic model of events, timing, and notes |
 | `bmsrs-player` | pure simulation layer for `Chart<T>`: time-based query interface |
+| `bmsrs-pipeline` | shared pipeline result and diagnostic types: `Outcome<T, W>`, `SourceSpan`, `Diagnostic` |
 
 ## Time model
 
