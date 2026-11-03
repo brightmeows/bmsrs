@@ -273,8 +273,9 @@ impl TimingTrack {
     /// BPM changes and stops are read from [`EventKind::Bpm`] and
     /// [`EventKind::Stop`]. Invalid BPM events are skipped defensively; callers
     /// that need to report them should run
-    /// [`ChartData::validate`](crate::ChartData::validate) first. Multiple stops
-    /// at the same tick keep the last one, matching beatoraja.
+    /// construct the chart through [`ChartData::new`](crate::ChartData::new) or a
+    /// fallible event transformation first. Multiple stops at the same tick keep
+    /// the last one, matching beatoraja.
     ///
     /// # Errors
     ///

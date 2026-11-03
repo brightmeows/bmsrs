@@ -271,8 +271,8 @@ impl BmsProcessor {
         let (song, chart_info) = conv.build_metadata(&bmp_map);
         let ln_type_hint = conv.ln_type_hint();
 
-        let mut data = ChartData::new(init_bpm, RESOLUTION, conv.events, audio_assets)?;
-        data.ln_type_hint = ln_type_hint;
+        let data = ChartData::new(init_bpm, RESOLUTION, conv.events, audio_assets)?
+            .with_ln_type_hint(ln_type_hint);
 
         // Warning aggregation: parser-layer value parse warnings come first (by
         // file position), followed by processor-layer missing-reference and
@@ -289,11 +289,7 @@ impl BmsProcessor {
         let audio = BmsAudio::from(&bms.audio);
 
         Ok(Processed {
-            chart: Chart {
-                song,
-                chart: chart_info,
-                data,
-            },
+            chart: Chart::new(song, chart_info, data)?,
             warnings,
             gameplay,
             audio,

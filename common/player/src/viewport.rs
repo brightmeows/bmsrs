@@ -170,7 +170,7 @@ impl Viewport {
         let cursor_position = player.scroll_position_at_f64(cursor_tick);
         let max_delta = self.max_scroll_delta(player, time);
 
-        player.chart().data.events.iter().filter_map(move |event| {
+        player.events().iter().filter_map(move |event| {
             if max_delta <= 0.0 {
                 return None;
             }
@@ -230,30 +230,18 @@ mod tests {
     use std::num::NonZeroU8;
 
     use bmsrs_chart::{
-        Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-        NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo,
+        Chart, ChartData, ChartInfo, Event, EventKind, Lane, NoteAudio, NoteKind, NoteRole,
+        NoteSide, SongInfo,
     };
 
     const KEY1: NonZeroU8 = NonZeroU8::MIN;
 
     fn chart(events: Vec<Event>) -> Chart {
-        Chart {
-            song: SongInfo::default(),
-            chart: ChartInfo::default(),
-            data: ChartData {
-                init_bpm: 120.0,
-                resolution: 240,
-                judge_multiplier: Some(1.0),
-                life_multiplier: Some(1.0),
-                ln_type_hint: LnTypeHint::default(),
-                ln_judge_hint: LnJudgeHint::default(),
-                ln_life_hint: LnLifeHint::default(),
-                judge_deltas: None,
-                life_deltas: None,
-                events,
-                audio_assets: vec![],
-            },
-        }
+        let data = ChartData::new(120.0, 240, events, vec![])
+            .unwrap()
+            .with_judge_multiplier(Some(1.0))
+            .with_life_multiplier(Some(1.0));
+        Chart::new(SongInfo::default(), ChartInfo::default(), data).unwrap()
     }
 
     fn note(tick: u64) -> Event {
@@ -272,7 +260,7 @@ mod tests {
 
     #[test]
     fn future_note_is_visible() {
-        let player = Player::new(chart(vec![Event::bar(0), note(240)])).unwrap();
+        let player = Player::new(chart(vec![Event::bar(0), note(240)]));
         let viewport = Viewport::new(1.0, 1.0);
         let visible: Vec<_> = viewport.visible_notes_at(&player, Duration::ZERO).collect();
         assert_eq!(visible.len(), 1);
@@ -285,8 +273,7 @@ mod tests {
             Event::bar(240),
             note(300),
             Event::stop(240, 240),
-        ]))
-        .unwrap();
+        ]));
         let viewport = Viewport::new(1.0, 1.0);
         assert_eq!(
             viewport
@@ -309,8 +296,7 @@ mod tests {
                 ext: (),
             },
         );
-        let player =
-            Player::new(chart(vec![long, Event::bar(240), Event::stop(240, 240)])).unwrap();
+        let player = Player::new(chart(vec![long, Event::bar(240), Event::stop(240, 240)]));
         let viewport = Viewport::new(1.0, 1.0);
         assert_eq!(
             viewport
@@ -326,8 +312,7 @@ mod tests {
             Event::speed(0, 1.0),
             Event::speed(480, 2.0),
             note(480),
-        ]))
-        .unwrap();
+        ]));
         let viewport = Viewport::new(1.0, 1.0);
         // At tick 240 (0.5s), SPEED should be 1.0, so 480 ticks is two beats
         // away and still inside the four-beat viewport.
@@ -341,7 +326,7 @@ mod tests {
 
     #[test]
     fn constant_mode_ignores_speed() {
-        let player = Player::new(chart(vec![Event::speed(0, 0.25), note(480)])).unwrap();
+        let player = Player::new(chart(vec![Event::speed(0, 0.25), note(480)]));
         let viewport = Viewport::new(1.0, 1.0).with_constant(true);
         assert_eq!(
             viewport.visible_notes_at(&player, Duration::ZERO).count(),

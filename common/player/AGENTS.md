@@ -11,13 +11,13 @@ caller.
 
 ## Time and data model
 
-`ChartData` stores `events`, `init_bpm`, and `resolution`. `Player::new`
-derives `TimingTrack` from `EventKind::Bpm` and `EventKind::Stop`; the event
-stream is the only timing source.
+`ChartData` exposes `events`, `init_bpm`, and `resolution` through getters.
+`Player::new` derives `TimingTrack` from `EventKind::Bpm` and `EventKind::Stop`;
+the event stream is the only timing source.
 
 | Method | Purpose |
 |--------|---------|
-| `Player::new(chart)` | sorts events, validates, derives timing/caches/NoteTable; returns `Result` |
+| `Player::new(chart)` | derives timing/caches/NoteTable from an already validated `Chart`; infallible |
 | `advance(Duration)` | pure playback-time accumulation (O(1)); ticks derived on demand |
 | `seek(Duration)` | jump to an absolute position |
 | `current_time() -> Duration` | current playback position (the only mutable state) |
@@ -53,7 +53,7 @@ During a STOP, `current_time()` keeps flowing while ticks freeze. Use
 | SPEED is time-interpolated | Keyframes store wall-clock time; before the first keyframe, interpolate from 1.0 at time zero |
 | `events_in_time_range` is exact | It maps to a coarse tick range, then filters by `tick_to_duration(event.tick())` in `[start, end)` |
 | `events_in_range` handles `u64::MAX` | Bound matching uses `partition_point` directly, not `end_tick = u64::MAX` |
-| `Player::new` consumes the chart | `into_chart()` returns the sorted, validated chart |
+| `Player::new` consumes the chart | `into_chart()` returns the validated chart |
 
 ## Performance benchmarks
 
