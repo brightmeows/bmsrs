@@ -14,8 +14,8 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    Chart, ChartData, ChartInfo, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, Note,
-    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
+    Chart, ChartData, ChartInfo, Event, EventKind, Lane, Note, NoteAudio, NoteKind, NoteRole,
+    NoteSide, SongInfo, TimingTrack,
 };
 use bmsrs_player::{Player, Viewport};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
@@ -31,9 +31,9 @@ const FRAME: Duration = Duration::from_nanos(16_666_667);
 /// Build the timing track for a benchmark chart.
 fn timing(chart: &Chart) -> TimingTrack {
     TimingTrack::from_events(
-        chart.data.init_bpm,
-        chart.data.resolution,
-        &chart.data.events,
+        chart.data().init_bpm(),
+        chart.data().resolution(),
+        chart.data().events(),
     )
     .expect("bench chart timing should be valid")
 }
@@ -46,6 +46,7 @@ fn timing(chart: &Chart) -> TimingTrack {
     clippy::cast_precision_loss,
     reason = "indices fit in f64 for benchmark sizes"
 )]
+#[expect(clippy::unwrap_used, reason = "benchmark fixture construction")]
 fn build_chart(n: usize) -> Chart {
     let mut events = Vec::with_capacity(n + n / 50 + 4);
 
@@ -82,25 +83,11 @@ fn build_chart(n: usize) -> Chart {
         ));
     }
 
-    events.sort_by_key(Event::sort_key);
-
-    Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: ChartData {
-            init_bpm: 120.0,
-            resolution: RESOLUTION,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            events,
-            judge_deltas: None,
-            life_deltas: None,
-            audio_assets: vec![],
-        },
-    }
+    let data = ChartData::new(120.0, RESOLUTION, events, vec![])
+        .unwrap()
+        .with_judge_multiplier(Some(1.0))
+        .with_life_multiplier(Some(1.0));
+    Chart::new(SongInfo::default(), ChartInfo::default(), data).unwrap()
 }
 
 /// Benchmark: `TimingTrack::duration_to_tick` (`O(log n)` binary search).
@@ -112,7 +99,7 @@ fn bench_timing_track_duration_to_tick(c: &mut Criterion) {
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
         let timing = timing(&chart);
-        let last_tick = chart.data.last_tick();
+        let last_tick = chart.data().last_tick();
         let target = timing.tick_to_duration(last_tick * 9 / 10);
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| black_box(timing.duration_to_tick(target)));
@@ -127,7 +114,7 @@ fn bench_timing_cache_tick_to_duration(c: &mut Criterion) {
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
         let timing = timing(&chart);
-        let tick = chart.data.last_tick() * 9 / 10;
+        let tick = chart.data().last_tick() * 9 / 10;
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| black_box(timing.tick_to_duration(tick)));
         });
@@ -143,9 +130,9 @@ fn bench_player_advance(c: &mut Criterion) {
     let mut group = c.benchmark_group("player::advance (per-frame)");
     for &n in &[500usize, 2000, 8000] {
         let chart = build_chart(n);
-        let last_tick = chart.data.last_tick();
+        let last_tick = chart.data().last_tick();
         let seek_target = timing(&chart).tick_to_duration(last_tick * 9 / 10);
-        let mut player = Player::new(chart).expect("valid chart for benchmark");
+        let mut player = Player::new(chart);
         player.seek(seek_target);
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, _| {
             b.iter(|| player.advance(FRAME));
@@ -159,6 +146,7 @@ fn bench_player_advance(c: &mut Criterion) {
 ///
 /// `bgm_per_beat` controls the BGM count per beat. Used to quantify the cost of
 /// filtering Note events out of a window containing many BGM events under AOS.
+#[expect(clippy::unwrap_used, reason = "benchmark fixture construction")]
 fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
     let mut events = Vec::with_capacity(n_notes * (1 + bgm_per_beat) + 4);
 
@@ -187,29 +175,20 @@ fn build_dense_chart(n_notes: usize, bgm_per_beat: usize) -> Chart {
         }
     }
 
-    events.sort_by_key(Event::sort_key);
-
-    Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: ChartData {
-            init_bpm: 120.0,
-            resolution: RESOLUTION,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            events,
-            judge_deltas: None,
-            life_deltas: None,
-            audio_assets: vec![bmsrs_chart::AudioAsset::from_path_buf(
-                std::path::PathBuf::from("dense.wav"),
-                Duration::ZERO,
-                None,
-            )],
-        },
-    }
+    let data = ChartData::new(
+        120.0,
+        RESOLUTION,
+        events,
+        vec![bmsrs_chart::AudioAsset::from_path_buf(
+            std::path::PathBuf::from("dense.wav"),
+            Duration::ZERO,
+            None,
+        )],
+    )
+    .unwrap()
+    .with_judge_multiplier(Some(1.0))
+    .with_life_multiplier(Some(1.0));
+    Chart::new(SongInfo::default(), ChartInfo::default(), data).unwrap()
 }
 
 /// Benchmark: `Player::events_in_range` / `notes_in_range` (per-frame renderer
@@ -223,9 +202,9 @@ fn bench_player_events_in_range(c: &mut Criterion) {
     for &n in &[2000usize, 8000] {
         // Standard chart (no BGM).
         let chart = build_chart(n);
-        let mid_tick = chart.data.last_tick() / 2;
+        let mid_tick = chart.data().last_tick() / 2;
         let seek_target = timing(&chart).tick_to_duration(mid_tick);
-        let mut player = Player::new(chart).expect("valid chart for benchmark");
+        let mut player = Player::new(chart);
         player.seek(seek_target);
         let start = mid_tick;
         let end = mid_tick + 480;
@@ -245,9 +224,9 @@ fn bench_player_events_in_range(c: &mut Criterion) {
     // real BMS. Fixed 2000 notes; the window contains about 20 notes and 200 BGM
     // events.
     let chart = build_dense_chart(2000, 10);
-    let mid_tick = chart.data.last_tick() / 2;
+    let mid_tick = chart.data().last_tick() / 2;
     let seek_target = timing(&chart).tick_to_duration(mid_tick);
-    let mut player = Player::new(chart).expect("valid chart for benchmark");
+    let mut player = Player::new(chart);
     player.seek(seek_target);
     let start = mid_tick;
     let end = mid_tick + 480;
@@ -262,9 +241,9 @@ fn bench_player_events_in_range(c: &mut Criterion) {
 fn bench_viewport(c: &mut Criterion) {
     let mut group = c.benchmark_group("player::viewport");
     let chart = build_chart(2000);
-    let player = Player::new(chart).expect("valid chart for benchmark");
+    let player = Player::new(chart);
     let viewport = Viewport::new(2.0, 0.8);
-    let time = player.tick_to_duration(player.chart().data.last_tick() / 2);
+    let time = player.tick_to_duration(player.chart().data().last_tick() / 2);
 
     group.bench_function("visible_notes_at", |b| {
         b.iter(|| black_box(viewport.visible_notes_at(&player, time).count()));

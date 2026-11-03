@@ -19,7 +19,7 @@ pub enum ProcessWarning {
         "note at tick {tick} (player {player}, lane {lane}) references undefined WAV key {key}"
     )]
     MissingWavDefinition {
-        /// Undefined WAV key (Base36 numeric value).
+        /// Undefined WAV key (numeric value in the chart's base).
         key: u16,
         /// Player number of the referencing note.
         player: u8,
