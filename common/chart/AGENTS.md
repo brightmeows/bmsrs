@@ -36,6 +36,7 @@ Core note fields:
 
 | Type | Purpose |
 |------|---------|
+| `Note<T>` | playable note payload: side, lane, kind, role, audio, ext; `EventKind::Note(Note<T>)` |
 | `NoteAudio` | audio layer set: `None` / `One(AudioIndex)` / `Many(Box<[AudioIndex]>)`; `Many` has at least two layers |
 | `NoteRole` | `Normal` / `Release`, orthogonal to `NoteKind`, survives erasing `NoteExt` |
 | `AudioIndex` / `BgaResourceId` | dedicated newtypes preventing audio and BGA indices from being assigned to each other |
@@ -77,10 +78,10 @@ queries.
 | `LnTypeHint`/`LnJudgeHint`/`LnLifeHint` | typed enums for long-note hints in `note.rs`. `LnTypeHint` is filled by both BMS `#LNMODE` and BMSON `ln_type_hint` |
 | `Event`'s `tick()` method | uniform access to the tick field of every variant |
 | `Event::sort_key()` | the `(tick, priority)` composite key and the only same-tick ordering entry point |
-| `ChartData::new()` | sorts events, validates, and returns the only public constructor result; fields are private |
+| `ChartData::new(init_bpm, resolution, events, audio_assets)` | sorts events, validates, and returns the only public constructor result; fields are private |
 | `ChartData::validate()` | private constructor guard: positive finite `init_bpm`, positive `resolution`, event ordering, positive finite BPM events, finite SCROLL/SPEED rates, and note/BGM audio indices |
 | `ChartData::try_map_events` / `try_filter_map_events` | re-sort and revalidate after a transformation; return `Result` |
-| `Chart::new()` | validates BGA resource references; the embedded `ChartData` is already valid |
+| `Chart::new(song, chart, data)` | validates BGA resource references; the embedded `ChartData` is already valid |
 | `Player::new` | infallible; consumes an already validated `Chart` |
 | BPM/Stop single source | `EventKind::Bpm`/`EventKind::Stop` are authoritative; `TimingTrack::from_events` derives the timing cache |
 | Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected; reverse scrolling is not modeled |

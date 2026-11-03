@@ -7,12 +7,13 @@
 //!
 //! Beat conversion: 1 beat = resolution (240) ticks.
 
-use bmsrs_bms_parser::Bms;
+use bmsrs_bms_model::Bms;
+use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_processor::BmsProcessor;
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_syntax::SourceFile;
-use bmsrs_chart::{Chart, EventKind, NoteKind, TimingTrack};
+use bmsrs_chart::{Chart, EventKind, Note, NoteKind, TimingTrack};
 use bmsrs_player::Player;
 
 /// Chart type returned by bmsrs-bms-processor.
@@ -39,7 +40,7 @@ fn process(bms_text: &str) -> BmsChart {
 /// Parse BMS text with random value 1.
 fn parse_bms(bms_text: &str) -> Bms {
     let source = SourceFile::parse(bms_text);
-    Bms::from_cst(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), |_| 1).bms
 }
 
 /// Extract every Note event (including kind information).
@@ -49,7 +50,7 @@ fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note { kind, .. } = &e.kind {
+            if let EventKind::Note(Note { kind, .. }) = &e.kind {
                 Some((e.tick(), *kind))
             } else {
                 None
@@ -97,10 +98,10 @@ fn long_notes(chart: &BmsChart) -> Vec<(u64, u64)> {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Long { duration },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((e.tick(), *duration))
             } else {
@@ -473,7 +474,7 @@ fn lnobj_marker_on_invisible_channel_stays_invisible_note() {
         .events()
         .iter()
         .filter_map(|e| match &e.kind {
-            EventKind::Note { kind, .. } => Some(*kind),
+            EventKind::Note(Note { kind, .. }) => Some(*kind),
             _ => None,
         })
         .collect();
@@ -606,7 +607,7 @@ fn bmspec_3_scroll_initial_speed() {
 /// Pins branch values with `SETRANDOM` / `SETSWITCH`.
 fn process_with_cf(bms_text: &str) -> BmsChart {
     let source = SourceFile::parse(bms_text);
-    let bms = Bms::from_cst(&source.source_file(), |_| 0).bms;
+    let bms = BmsParser::parse(&source.source_file(), |_| 0).bms;
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
     BmsProcessor::process::<Bme>(&bms)
         .expect("process should succeed")
@@ -753,10 +754,10 @@ fn bmspec_1_08_wav_references() {
          #WAVAA zz.ogg\n",
     );
 
-    let wav01: bmsrs_bms_parser::WavIndex = "01".parse().unwrap();
-    let wav_zz: bmsrs_bms_parser::WavIndex = "ZZ".parse().unwrap();
-    let wav_aa: bmsrs_bms_parser::WavIndex = "AA".parse().unwrap();
-    let wav02: bmsrs_bms_parser::WavIndex = "02".parse().unwrap();
+    let wav01: bmsrs_bms_model::WavIndex = "01".parse().unwrap();
+    let wav_zz: bmsrs_bms_model::WavIndex = "ZZ".parse().unwrap();
+    let wav_aa: bmsrs_bms_model::WavIndex = "AA".parse().unwrap();
+    let wav02: bmsrs_bms_model::WavIndex = "02".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav01).map(String::as_str),
@@ -1078,7 +1079,7 @@ fn custom_events_dont_affect_note_queries() {
     let note_count = player
         .events_in_range(0..2000)
         .iter()
-        .filter(|e| matches!(&e.kind, EventKind::Note { .. }))
+        .filter(|e| matches!(&e.kind, EventKind::Note(Note { .. })))
         .count();
     assert_eq!(note_count, 1, "note should still be present");
 }

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, Chart, ChartData, ChartInfo,
-    Event, EventKind, Lane, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
+    Event, EventKind, Lane, Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
     TimingTrackError,
 };
 use bmsrs_player::Player;
@@ -34,14 +34,14 @@ fn make_test_chart_with(extra_events: Vec<Event>) -> Chart {
         Event::bgm(240, AudioIndex::new(0)),
         Event::new(
             480,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         ),
         Event::bar(960),
         Event::bpm(960, 180.0),

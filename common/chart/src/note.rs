@@ -1,8 +1,7 @@
 //! Note kind definitions.
 //!
-//! Note positions (`NoteSide`, `Lane`) are carried directly in
-//! [`EventKind::Note`](crate::EventKind::Note). Per-note format extensions use
-//! the [`NoteExt`](crate::NoteExt) trait.
+//! Note positions (`NoteSide`, `Lane`) are carried in [`Note`](crate::Note).
+//! Per-note format extensions use the [`NoteExt`](crate::NoteExt) trait.
 
 use std::fmt::Debug;
 

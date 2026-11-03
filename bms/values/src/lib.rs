@@ -10,7 +10,7 @@
 //! - [`enum@BmsToken`] represents one meaningful line in a BMS file.
 //! - [`BmsHeader`] covers all header commands, grouped by semantic domain.
 //! - [`BmsMessage`] covers channel data lines (`#xxxYY:values`).
-//! - [`parse_header_line`] / [`parse_message_line`] are the single-line entry
+//! - [`BmsHeader::parse`] / [`BmsMessage::parse`] are the single-line entry
 //!   points.
 //!
 //! The submodules are private; all public types are re-exported from the crate
@@ -32,7 +32,6 @@ pub use bmsrs_bms_values_derive::{BmsIndexNewtype, BmsTokenAttr};
 pub use body::{BodyCells, Cell};
 pub use channel::BmsChannel;
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
-pub use header::parse_header_line;
 pub use header::{
     ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
     ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams, WavCmdKind,
@@ -48,7 +47,6 @@ pub use index::{
     WavIndex, base36_digit_value,
 };
 pub use message::BmsMessage;
-pub use message::parse_message_line;
 
 /// Unified trait for BMS header values.
 ///
@@ -113,4 +111,23 @@ pub enum BmsToken {
     Header(BmsHeader),
     /// Channel data line (`#xxxYY:values`).
     Message(BmsMessage),
+}
+
+impl BmsToken {
+    /// Parse one line into a header or channel message token.
+    ///
+    /// Message parsing is attempted first so non-canonical addresses such as
+    /// `#1:0101` are recognized even when the syntax layer classifies the line
+    /// as a header.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BmsTokenizeError`] when a recognized command's value cannot
+    /// be parsed.
+    pub fn parse_line(line: &str, prefixes: &[char]) -> Result<Option<Self>, BmsTokenizeError> {
+        if let Some(message) = BmsMessage::parse(line)? {
+            return Ok(Some(Self::Message(message)));
+        }
+        BmsHeader::parse(line, prefixes).map(|header| header.map(Self::Header))
+    }
 }

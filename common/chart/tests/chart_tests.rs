@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
-    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent, NoteAudio, NoteKind,
-    NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent, Note, NoteAudio,
+    NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -46,14 +46,14 @@ fn chart_construction() {
         240,
         vec![Event::new(
             0,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         )],
         vec![],
     )
@@ -137,14 +137,14 @@ fn validate_accepts_consistent_chart() {
         240,
         vec![Event::new(
             0,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::one(AudioIndex::new(0)),
                 ext: (),
-            },
+            }),
         )],
         vec![AudioAsset::from_path_buf(
             std::path::PathBuf::from("a.wav"),
@@ -216,14 +216,14 @@ fn event_tick_accessor() {
     assert_eq!(
         Event::<()>::new(
             100,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         )
         .tick(),
         100
@@ -240,28 +240,28 @@ fn event_priority_order() {
         Event::<()>::bar(0).priority()
             < Event::<()>::new(
                 0,
-                EventKind::Note {
+                EventKind::Note(Note {
                     side: NoteSide::P1,
                     lane: key(1),
                     kind: NoteKind::Normal,
                     role: NoteRole::Normal,
                     audio: NoteAudio::none(),
                     ext: (),
-                },
+                }),
             )
             .priority()
     );
     assert!(
         Event::<()>::new(
             0,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: key(1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         )
         .priority()
             < Event::<()>::new(0, EventKind::Bpm { bpm: 120.0 },).priority()
@@ -305,7 +305,7 @@ fn event_bga_fields() {
 fn event_note_with_ext() {
     let ev = Event::<()>::new(
         240,
-        EventKind::Note {
+        EventKind::Note(Note {
             side: NoteSide::P2,
             lane: Lane::Scratch(nz(1)),
             kind: NoteKind::Mine {
@@ -314,16 +314,16 @@ fn event_note_with_ext() {
             role: NoteRole::Normal,
             audio: NoteAudio::one(AudioIndex::new(0)),
             ext: (),
-        },
+        }),
     );
     assert_eq!(ev.tick(), 240);
-    if let EventKind::Note {
+    if let EventKind::Note(Note {
         side,
         lane,
         kind,
         audio,
         ..
-    } = ev.kind
+    }) = ev.kind
     {
         assert_eq!(side, NoteSide::P2);
         assert_eq!(lane, Lane::Scratch(nz(1)));
@@ -647,18 +647,18 @@ fn map_ext_preserves_non_note_variants() {
 
 #[test]
 fn map_ext_applies_fn_to_note_variant() {
-    let kind = EventKind::<i32, NoCustomEvent>::Note {
+    let kind = EventKind::<i32, NoCustomEvent>::Note(Note {
         side: NoteSide::P1,
         lane: key(1),
         kind: NoteKind::Normal,
         role: NoteRole::Normal,
         audio: NoteAudio::none(),
         ext: 42,
-    };
+    });
     let mapped = kind.map_ext(|e| {
         assert_eq!(e, 42);
     });
-    if let EventKind::Note { ext, .. } = mapped {
+    if let EventKind::Note(Note { ext, .. }) = mapped {
         assert_eq!(ext, ());
     } else {
         panic!("expected Note");
@@ -676,14 +676,14 @@ fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
             Event::bar(0),
             Event::new(
                 240,
-                EventKind::Note {
+                EventKind::Note(Note {
                     side: NoteSide::P1,
                     lane: key(1),
                     kind: NoteKind::Normal,
                     role: NoteRole::Normal,
                     audio: NoteAudio::none(),
                     ext: (),
-                },
+                }),
             ),
             Event::bpm(480, 180.0),
         ],

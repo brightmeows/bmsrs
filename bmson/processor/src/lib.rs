@@ -33,7 +33,7 @@ use bmsrs_bmson_model::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
     ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
+    Note, NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
     TimingTrackError,
 };
 use thiserror::Error;
@@ -519,14 +519,14 @@ impl BmsonConverter<'_> {
         for ((side, _, _, tick), note) in layered {
             self.events.push(Event::new(
                 tick,
-                EventKind::Note {
+                EventKind::Note(Note {
                     side,
                     lane: note.lane,
                     kind: note.kind,
                     role: note.role,
                     audio: NoteAudio::from_indices(note.audio),
                     ext: note.ext,
-                },
+                }),
             ));
         }
 
@@ -555,7 +555,7 @@ impl BmsonConverter<'_> {
                 };
                 self.events.push(Event::new(
                     mn.y,
-                    EventKind::Note {
+                    EventKind::Note(Note {
                         side,
                         lane,
                         kind: NoteKind::Mine {
@@ -564,7 +564,7 @@ impl BmsonConverter<'_> {
                         role: NoteRole::Normal,
                         audio: NoteAudio::one(mine_audio_idx),
                         ext: BmsonNoteExt::default(),
-                    },
+                    }),
                 ));
             }
         }
@@ -592,14 +592,14 @@ impl BmsonConverter<'_> {
                 };
                 self.events.push(Event::new(
                     kn.y,
-                    EventKind::Note {
+                    EventKind::Note(Note {
                         side,
                         lane,
                         kind: NoteKind::Invisible,
                         role: NoteRole::Normal,
                         audio: NoteAudio::one(key_audio_idx),
                         ext: BmsonNoteExt::default(),
-                    },
+                    }),
                 ));
             }
         }

@@ -1,6 +1,6 @@
 //! BMS to `Chart` conversion processor.
 //!
-//! [`BmsProcessor`] converts `bmsrs_bms_parser::Bms` into a format-agnostic `Chart`
+//! [`BmsProcessor`] converts `bmsrs_bms_model::Bms` into a format-agnostic `Chart`
 //! by applying a [`BmsLayout`] mode family (such as [`Bme`], `Pms`, or
 //! `Nanasi`).
 //!
@@ -10,7 +10,7 @@
 //! # Pipeline
 //!
 //! ```text
-//! bmsrs_bms_parser::Bms -> BmsProcessor::process::<L>(bms) -> Chart<(), NoCustomEvent>
+//! bmsrs_bms_model::Bms -> BmsProcessor::process::<L>(bms) -> Chart<(), NoCustomEvent>
 //! ```
 //!
 //! # Mode families
@@ -42,15 +42,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use bmsrs_bms_parser::{
+use bmsrs_bms_model::{
     Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
     OwnedExWavParams, PlayerMode, Rank, SeekIndex, WavCmdParams, WavIndex,
 };
-use bmsrs_bms_parser::{Bms, BpmValue, Gameplay, KeyType};
+use bmsrs_bms_model::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
-    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, NoteAudio,
-    NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError, VideoAsset,
+    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, Note,
+    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    VideoAsset,
 };
 use thiserror::Error;
 
@@ -368,7 +369,7 @@ impl BmsConverter<'_> {
                 consumed,
             );
         }
-        if self.bms.gameplay.ln_type == Some(bmsrs_bms_parser::LnType::Type2) {
+        if self.bms.gameplay.ln_type == Some(bmsrs_bms_model::LnType::Type2) {
             return (
                 pair_lntype2(&self.bms.messages.long_note_events, self.table),
                 HashSet::new(),
@@ -415,14 +416,14 @@ impl BmsConverter<'_> {
             {
                 ev.push(Event::new(
                     tick,
-                    EventKind::Note {
+                    EventKind::Note(Note {
                         side: note_side,
                         lane: note_lane,
                         kind,
                         role: NoteRole::Normal,
                         audio: NoteAudio::from(audio),
                         ext: (),
-                    },
+                    }),
                 ));
             }
         };
@@ -543,7 +544,7 @@ impl BmsConverter<'_> {
     /// Collect BGM events for LNOBJ end markers.
     ///
     /// Per the BMS specification, when an
-    /// [`#LNOBJ`](bmsrs_bms_parser::BmsHeaderGameplay::LnObj) end marker crosses the
+    /// [`#LNOBJ`](bmsrs_bms_model::BmsHeaderGameplay::LnObj) end marker crosses the
     /// judgment line, its WAV file plays as BGM. This function walks the
     /// `consumed` note indices returned by [`pair_lnobj`] and emits one BGM event
     /// for each end marker.
@@ -661,7 +662,7 @@ impl BmsConverter<'_> {
                 // channels (99, A0, A1-A5, A6, 05) use Base36 indices. Every
                 // value has already been normalized by base in the parser layer,
                 // so lookups need no further normalization.
-                let tick = self.table.position_to_tick(bmsrs_bms_parser::Position::new(
+                let tick = self.table.position_to_tick(bmsrs_bms_model::Position::new(
                     item.measure,
                     i as u32,
                     total,
@@ -1200,11 +1201,11 @@ fn key_count(events: &[BmsEvent]) -> Option<u8> {
     let mut p2 = 0u8;
 
     for event in events {
-        if let EventKind::Note {
+        if let EventKind::Note(Note {
             side,
             lane: Lane::Key(key),
             ..
-        } = &event.kind
+        }) = &event.kind
         {
             let slot = if side.as_u8() == NoteSide::P1.as_u8() {
                 &mut p1

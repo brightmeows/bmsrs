@@ -13,7 +13,7 @@ use bmsrs_bmson_processor::layout::{Beat, GenericLayout, Pms};
 use bmsrs_bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor, ProcessError};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{
-    BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, NoteKind, NoteRole,
+    BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, Note, NoteKind, NoteRole,
 };
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
@@ -99,13 +99,13 @@ fn process_basic_note() -> TestResult {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 side,
                 lane,
                 kind,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((e.tick(), *side, *lane, *kind))
             } else {
@@ -146,11 +146,11 @@ fn process_layered_notes_fuse_audio_layers() -> TestResult {
         .data()
         .events()
         .iter()
-        .filter(|event| matches!(event.kind, EventKind::Note { .. }))
+        .filter(|event| matches!(event.kind, EventKind::Note(Note { .. })))
         .collect();
 
     assert_eq!(notes.len(), 1);
-    let EventKind::Note { audio, .. } = &notes[0].kind else {
+    let EventKind::Note(Note { audio, .. }) = &notes[0].kind else {
         panic!("expected a note event");
     };
     assert_eq!(audio.len(), 2);
@@ -215,7 +215,7 @@ fn process_up_note_sets_release_role() -> TestResult {
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
     let role = chart.data().events().iter().find_map(|event| {
-        if let EventKind::Note { role, .. } = &event.kind {
+        if let EventKind::Note(Note { role, .. }) = &event.kind {
             Some(*role)
         } else {
             None
@@ -248,7 +248,7 @@ fn beatoraja_ln_mode_overrides_ln_type_hint() -> TestResult {
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.chart;
     let hint = chart.data().events().iter().find_map(|event| {
-        if let EventKind::Note { ext, .. } = &event.kind {
+        if let EventKind::Note(Note { ext, .. }) = &event.kind {
             ext.ln_type_hint
         } else {
             None
@@ -423,12 +423,12 @@ fn process_beat_layout_maps_both_sides() -> TestResult {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 side,
                 lane,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((*side, *lane))
             } else {
@@ -473,11 +473,11 @@ fn process_pms_layout_single_player() -> TestResult {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 side,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(*side)
             } else {
@@ -521,12 +521,12 @@ fn process_generic_layout_n_keys() -> TestResult {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 side,
                 lane,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((*side, *lane))
             } else {
@@ -581,10 +581,10 @@ fn process_default_routes_by_mode_hint() -> TestResult {
     let chart_beat = BmsonProcessor::process_default(&bmson_beat)?.chart;
     assert!(chart_beat.data().events().iter().any(|e| matches!(
         &e.kind,
-        EventKind::Note {
+        EventKind::Note(Note {
             ext: BmsonNoteExt { .. },
             ..
-        }
+        })
     )));
 
     // PMS
@@ -609,10 +609,10 @@ fn process_default_routes_by_mode_hint() -> TestResult {
     let chart_pms = BmsonProcessor::process_default(&bmson_pms)?.chart;
     assert!(chart_pms.data().events().iter().any(|e| matches!(
         &e.kind,
-        EventKind::Note {
+        EventKind::Note(Note {
             ext: BmsonNoteExt { .. },
             ..
-        }
+        })
     )));
 
     Ok(())
@@ -720,12 +720,12 @@ fn key_channels_produces_invisible_notes() -> TestResult {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Invisible,
                 lane,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((e.tick(), *lane))
             } else {
@@ -766,12 +766,12 @@ fn mine_channels_produces_damage_notes() -> TestResult {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Mine { damage },
                 lane,
                 ext: BmsonNoteExt { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((e.tick(), *lane, damage.get()))
             } else {
@@ -879,11 +879,11 @@ fn process_long_note() -> TestResult {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Long { duration },
                 ext: BmsonNoteExt { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(*duration)
             } else {
@@ -941,10 +941,10 @@ fn process_bgm_note_skips_playable_pulse() -> TestResult {
         .filter(|e| {
             matches!(
                 &e.kind,
-                EventKind::Note {
+                EventKind::Note(Note {
                     ext: BmsonNoteExt { .. },
                     ..
-                }
+                })
             )
         })
         .count();

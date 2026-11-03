@@ -39,6 +39,7 @@ and editor data. `bmsrs-bms-writer` rewrites `Bms` canonically as BMS text.
 | `bmsrs-bms-source` | BMS source-text layer: bytes, encoding, line index, byte-faithful editing |
 | `bmsrs-bms-syntax` | BMS syntax layer: rowan CST, lexing, control-flow queries |
 | `bmsrs-bms-values` | BMS single-line syntax and typed values |
+| `bmsrs-bms-model` | BMS whole-file model: metadata, timing, resources, and messages |
 | `bmsrs-bms-parser` | BMS semantic layer: CST to `Bms` |
 | `bmsrs-bms-processor` | `Bms` to `Chart` |
 | `bmsrs-bms-writer` | canonical rewrite of `Bms` as BMS text |

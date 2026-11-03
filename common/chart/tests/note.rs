@@ -3,27 +3,27 @@
 use std::num::NonZeroU8;
 
 use bmsrs_chart::{
-    AudioIndex, Damage, Event, EventKind, Lane, NoteAudio, NoteKind, NoteRole, NoteSide,
+    AudioIndex, Damage, Event, EventKind, Lane, Note, NoteAudio, NoteKind, NoteRole, NoteSide,
 };
 
 #[test]
 fn event_note_fields() {
     let ev: Event<()> = Event::new(
         240,
-        EventKind::Note {
+        EventKind::Note(Note {
             side: NoteSide::P1,
             lane: Lane::Key(NonZeroU8::new(5).unwrap()),
             kind: NoteKind::Long { duration: 480 },
             role: NoteRole::Normal,
             audio: NoteAudio::none(),
             ext: (),
-        },
+        }),
     );
     assert_eq!(ev.tick(), 240);
     match ev.kind {
-        EventKind::Note {
+        EventKind::Note(Note {
             side, lane, kind, ..
-        } => {
+        }) => {
             assert_eq!(side, NoteSide::P1);
             assert_eq!(lane, Lane::Key(NonZeroU8::new(5).unwrap()));
             assert_eq!(kind, NoteKind::Long { duration: 480 });

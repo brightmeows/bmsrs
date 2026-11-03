@@ -49,27 +49,25 @@
 //! ```
 //! use std::num::NonZeroU8;
 //! use bmsrs_chart::{
-//!     Chart, ChartData, ChartInfo, Event, EventKind, Lane, NoteKind, NoteSide, SongInfo,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, Note, NoteKind, NoteSide,
 //! };
 //!
 //! let data: ChartData = ChartData::new(
 //!     120.0,
 //!     240,
-//!     vec![Event::new(
+//!     vec![Event::note(
 //!         0,
-//!         EventKind::Note {
-//!             side: NoteSide::P1,
-//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!             kind: NoteKind::Normal,
-//!             role: bmsrs_chart::NoteRole::Normal,
-//!             audio: bmsrs_chart::NoteAudio::none(),
-//!             ext: (),
-//!         },
+//!         Note::<()>::new(
+//!             NoteSide::P1,
+//!             Lane::Key(NonZeroU8::new(1).unwrap()),
+//!             NoteKind::Normal,
+//!             bmsrs_chart::NoteRole::Normal,
+//!             bmsrs_chart::NoteAudio::none(),
+//!         ),
 //!     )],
 //!     vec![],
 //! )
 //! .unwrap();
-//!
 //! let chart: Chart = Chart::new(
 //!     SongInfo {
 //!         title: "Test".into(),
@@ -93,7 +91,7 @@ pub mod timing;
 pub mod visual;
 
 pub use audio::{AudioAsset, AudioIndex};
-pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, NoteExt};
+pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, Note, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
@@ -486,7 +484,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
                         rate: *rate,
                     });
                 }
-                EventKind::Note { audio, .. } => {
+                EventKind::Note(Note { audio, .. }) => {
                     for &audio_index in audio.as_slice() {
                         if audio_index.get() as usize >= len {
                             return Err(ChartDataError::DanglingAudioIndex {

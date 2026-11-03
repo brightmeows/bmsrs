@@ -25,7 +25,7 @@ pub mod bms {
             /// Text range.
             range: syntax::TextRange,
             /// Tokenizer error.
-            error: parser::BmsTokenizeError,
+            error: values::BmsTokenizeError,
         },
         /// Document decode error.
         #[error("decode error at {range:?}: {error}")]
@@ -55,7 +55,7 @@ pub mod bms {
             /// Text range.
             range: syntax::TextRange,
             /// Tokenizer error.
-            error: parser::BmsTokenizeError,
+            error: values::BmsTokenizeError,
         },
         /// Document decoding failed.
         #[error("decode warning at {range:?}: {error}")]
@@ -67,7 +67,7 @@ pub mod bms {
         },
     }
 
-    /// Build [`Bms`](parser::Bms) from raw BMS text.
+    /// Build [`Bms`](model::Bms) from raw BMS text.
     ///
     /// Pipeline: CST parsing, control-flow branch selection, single-line value
     /// parsing, then `Bms`.
@@ -79,11 +79,11 @@ pub mod bms {
         text: &str,
         rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
-    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
         from_text_with(text, &syntax::ParseOptions::default(), rng, error_strategy)
     }
 
-    /// Build [`Bms`](parser::Bms) from raw BMS text with parse options.
+    /// Build [`Bms`](model::Bms) from raw BMS text with parse options.
     ///
     /// # Errors
     ///
@@ -94,12 +94,12 @@ pub mod bms {
         options: &syntax::ParseOptions,
         rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
-    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
         let document = source::Document::from_text(text);
         from_document(&document, options, rng, error_strategy)
     }
 
-    /// Build [`Bms`](parser::Bms) from raw BMS bytes, detecting the encoding
+    /// Build [`Bms`](model::Bms) from raw BMS bytes, detecting the encoding
     /// automatically.
     ///
     /// Unlike [`from_text`], this preserves `bmsrs-bms-source`'s encoding
@@ -114,7 +114,7 @@ pub mod bms {
         bytes: Vec<u8>,
         rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
-    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
         from_bytes_with(
             bytes,
             &source::DocumentOptions::default(),
@@ -123,7 +123,7 @@ pub mod bms {
         )
     }
 
-    /// Build [`Bms`](parser::Bms) from raw BMS bytes with document decoding
+    /// Build [`Bms`](model::Bms) from raw BMS bytes with document decoding
     /// options.
     ///
     /// # Errors
@@ -135,7 +135,7 @@ pub mod bms {
         document_options: &source::DocumentOptions,
         rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
-    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
+    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
         let document = source::Document::from_bytes_with(bytes, document_options);
         from_document(
             &document,
@@ -151,27 +151,31 @@ pub mod bms {
         options: &syntax::ParseOptions,
         rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
-    ) -> Result<(parser::Bms, Vec<FromTextWarning>), FromTextError> {
-        let parsed = parser::Bms::from_document_with(document, options, rng, error_strategy)
-            .map_err(from_cst_error)?;
+    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
+        let parsed = parser::BmsParser::parse_document_with(document, options, rng, error_strategy)
+            .map_err(from_parse_error)?;
         Ok((
             parsed.bms,
-            parsed.warnings.into_iter().map(from_cst_warning).collect(),
+            parsed
+                .warnings
+                .into_iter()
+                .map(from_parse_warning)
+                .collect(),
         ))
     }
 
     /// Convert a parser-layer warning into a facade warning.
-    fn from_cst_warning(warning: parser::CstWarning) -> FromTextWarning {
+    fn from_parse_warning(warning: parser::BmsParseWarning) -> FromTextWarning {
         match warning.kind {
-            parser::CstWarningKind::Syntax(message) => FromTextWarning::Syntax {
+            parser::BmsParseWarningKind::Syntax(message) => FromTextWarning::Syntax {
                 range: warning.range,
                 message,
             },
-            parser::CstWarningKind::Tokenize(error) => FromTextWarning::Tokenize {
+            parser::BmsParseWarningKind::Tokenize(error) => FromTextWarning::Tokenize {
                 range: warning.range,
                 error,
             },
-            parser::CstWarningKind::Decode(error) => FromTextWarning::Decode {
+            parser::BmsParseWarningKind::Decode(error) => FromTextWarning::Decode {
                 range: warning.range,
                 error,
             },
@@ -179,17 +183,17 @@ pub mod bms {
     }
 
     /// Convert a parser-layer warning into a facade error.
-    fn from_cst_error(warning: parser::CstWarning) -> FromTextError {
+    fn from_parse_error(warning: parser::BmsParseWarning) -> FromTextError {
         match warning.kind {
-            parser::CstWarningKind::Syntax(message) => FromTextError::Syntax {
+            parser::BmsParseWarningKind::Syntax(message) => FromTextError::Syntax {
                 range: warning.range,
                 message,
             },
-            parser::CstWarningKind::Tokenize(error) => FromTextError::Tokenize {
+            parser::BmsParseWarningKind::Tokenize(error) => FromTextError::Tokenize {
                 range: warning.range,
                 error,
             },
-            parser::CstWarningKind::Decode(error) => FromTextError::Decode {
+            parser::BmsParseWarningKind::Decode(error) => FromTextError::Decode {
                 range: warning.range,
                 error,
             },
@@ -206,11 +210,14 @@ pub mod bms {
         pub use bmsrs_bms_syntax::*;
     }
 
-    /// BMS semantic layer: typed headers/messages and the `Bms` model.
+    /// BMS whole-file model: metadata, timing, resources, and channel messages.
+    pub mod model {
+        pub use bmsrs_bms_model::*;
+    }
+
+    /// BMS parser layer: CST to [`model::Bms`].
     ///
-    /// Canonical path for `Bms` and `Messages`. The canonical path for value types
-    /// (`WavIndex` and so on) is [`values`]; the re-export here is only a
-    /// convenience alias for parser users.
+    /// Value types (`WavIndex` and so on) live in [`values`].
     pub mod parser {
         pub use bmsrs_bms_parser::*;
     }

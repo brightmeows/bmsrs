@@ -5,7 +5,7 @@
 //! module builds a cumulative tick table and converts [`Position`] to absolute
 //! ticks.
 
-use bmsrs_bms_parser::Position;
+use bmsrs_bms_model::Position;
 
 /// Table mapping measure numbers to cumulative tick positions.
 ///
@@ -26,7 +26,7 @@ impl MeasureTable {
     /// `length_ratio` is the BMS `#xxx02` value (`1.0` means 4/4).
     pub(crate) fn new(
         max_measure: u16,
-        measure_lengths: &[bmsrs_bms_parser::MeasureLength],
+        measure_lengths: &[bmsrs_bms_model::MeasureLength],
         resolution: u64,
     ) -> Self {
         let ticks_per_measure = resolution * 4;
@@ -107,7 +107,7 @@ impl MeasureTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bmsrs_bms_parser::MeasureLength;
+    use bmsrs_bms_model::MeasureLength;
 
     const RES: u64 = 240;
 

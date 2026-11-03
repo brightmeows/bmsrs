@@ -334,7 +334,7 @@ mod tests {
     use std::num::NonZeroU8;
 
     use bmsrs_chart::{
-        Chart, ChartData, ChartInfo, Event, EventKind, Lane, NoteAudio, NoteKind, NoteRole,
+        Chart, ChartData, ChartInfo, Event, EventKind, Lane, Note, NoteAudio, NoteKind, NoteRole,
         NoteSide, SongInfo,
     };
 
@@ -351,14 +351,14 @@ mod tests {
     fn note(tick: u64) -> Event {
         Event::new(
             tick,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: Lane::Key(KEY1),
                 kind: NoteKind::Normal,
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         )
     }
 
@@ -391,14 +391,14 @@ mod tests {
     fn active_long_note_is_visible() {
         let long = Event::new(
             200,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: Lane::Key(KEY1),
                 kind: NoteKind::Long { duration: 200 },
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         );
         let player = Player::new(chart(vec![long, Event::bar(240), Event::stop(240, 240)]));
         let viewport = Viewport::new(1.0, 1.0);
@@ -541,14 +541,14 @@ mod tests {
     fn reverse_section_long_note_body_crosses_lower_window() {
         let long = Event::new(
             480,
-            EventKind::Note {
+            EventKind::Note(Note {
                 side: NoteSide::P1,
                 lane: Lane::Key(KEY1),
                 kind: NoteKind::Long { duration: 480 },
                 role: NoteRole::Normal,
                 audio: NoteAudio::none(),
                 ext: (),
-            },
+            }),
         );
         let player = Player::new(chart(vec![Event::bar(0), Event::scroll(480, -1.0), long]));
         let viewport = Viewport::new(1.0, 1.0);

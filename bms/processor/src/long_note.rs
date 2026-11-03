@@ -13,8 +13,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use bmsrs_bms_parser::{KeyType, LnObjIndex, WavIndex};
-use bmsrs_bms_parser::{LongNoteEvent, NoteEvent};
+use bmsrs_bms_model::{KeyType, LnObjIndex, WavIndex};
+use bmsrs_bms_model::{LongNoteEvent, NoteEvent};
 
 use crate::position::MeasureTable;
 
@@ -230,8 +230,8 @@ pub fn pair_lnobj(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bmsrs_bms_parser::LnObjIndex;
-    use bmsrs_bms_parser::Position;
+    use bmsrs_bms_model::LnObjIndex;
+    use bmsrs_bms_model::Position;
 
     fn make_table() -> MeasureTable {
         MeasureTable::new(4, &[], 240)
@@ -251,7 +251,7 @@ mod tests {
             position: Position::new(measure, numer, 8),
             player,
             lane,
-            key_type: bmsrs_bms_parser::KeyType::Visible,
+            key_type: bmsrs_bms_model::KeyType::Visible,
             wav_id: wav.parse().unwrap(),
         }
     }

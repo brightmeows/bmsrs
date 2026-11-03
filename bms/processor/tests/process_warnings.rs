@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_parser::{Bms, BmsBase, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
+use bmsrs_bms_model::{Bms, BmsBase, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{BmsProcessor, ProcessWarning};
 
@@ -16,7 +16,7 @@ fn missing_wav_key_produces_warning() {
         position: Position::new(0, 0, 8),
         player: 1,
         lane: 1,
-        key_type: bmsrs_bms_parser::KeyType::Visible,
+        key_type: bmsrs_bms_model::KeyType::Visible,
         wav_id: "ZZ".parse().unwrap(),
     });
 
@@ -37,7 +37,7 @@ fn base16_missing_wav_key_uses_hex_numeric_value() {
         position: Position::new(0, 0, 8),
         player: 1,
         lane: 1,
-        key_type: bmsrs_bms_parser::KeyType::Visible,
+        key_type: bmsrs_bms_model::KeyType::Visible,
         wav_id: "FF".parse().unwrap(),
     });
 
@@ -82,7 +82,7 @@ fn normal_chart_produces_no_warnings() {
         position: Position::new(0, 0, 8),
         player: 1,
         lane: 1,
-        key_type: bmsrs_bms_parser::KeyType::Visible,
+        key_type: bmsrs_bms_model::KeyType::Visible,
         wav_id: "01".parse().unwrap(),
     });
 
@@ -94,7 +94,7 @@ fn normal_chart_produces_no_warnings() {
 fn missing_bpm_definition_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    let bpm_id: bmsrs_bms_parser::BpmIndex = "ZZ".parse().unwrap();
+    let bpm_id: bmsrs_bms_model::BpmIndex = "ZZ".parse().unwrap();
     // Reference an undefined BPM key.
     bms.messages.bpm_changes.push(BpmChange {
         position: Position::new(1, 0, 8),
@@ -121,7 +121,7 @@ fn process_still_returns_ok_with_warnings() {
         position: Position::new(0, 0, 8),
         player: 1,
         lane: 1,
-        key_type: bmsrs_bms_parser::KeyType::Visible,
+        key_type: bmsrs_bms_model::KeyType::Visible,
         wav_id: "ZZ".parse().unwrap(),
     });
 
@@ -143,6 +143,6 @@ fn unparsable_bpm_value_produces_warning() {
 
     assert!(warnings.iter().any(|w| matches!(
         w,
-        ProcessWarning::UnparsableValue(bmsrs_bms_parser::ChannelValueWarning { measure: 0, .. })
+        ProcessWarning::UnparsableValue(bmsrs_bms_model::ChannelValueWarning { measure: 0, .. })
     )));
 }

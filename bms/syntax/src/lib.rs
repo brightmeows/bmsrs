@@ -20,10 +20,10 @@ mod parser;
 mod select;
 mod syntax_kind;
 
-pub use ast::{Line, SourceFile};
+pub use ast::{SourceFile, SyntaxLine};
 pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, SyntaxToken};
-pub use lexer::LineKind;
-pub use parser::{Diagnostic, DiagnosticKind, Parse};
+pub use lexer::SyntaxLineKind;
+pub use parser::{Diagnostic, DiagnosticKind, SyntaxParse};
 pub use rowan::{TextRange, TextSize};
 pub use select::{BlockDecision, BranchSelection};
 pub use syntax_kind::SyntaxKind;

@@ -206,7 +206,7 @@ impl PmsLayout {
     /// - When both indicators appear, Standard wins (a safe default).
     /// - When no event indicates either, returns Standard.
     #[must_use]
-    pub fn detect(bms: &bmsrs_bms_parser::Bms) -> Self {
+    pub fn detect(bms: &bmsrs_bms_model::Bms) -> Self {
         let mut has_standard = false;
         let mut has_bme = false;
 

@@ -1,12 +1,10 @@
-//! Integration tests for [`parse_message_line`] and [`BmsMessage`] parsing.
+//! Integration tests for [`BmsMessage::parse`] and [`BmsMessage`] parsing.
 
-use bmsrs_bms_values::{
-    BmsChannel, BmsMessage, BmsTokenizeError, ChannelIndex, parse_message_line,
-};
+use bmsrs_bms_values::{BmsChannel, BmsMessage, BmsTokenizeError, ChannelIndex};
 
 /// Helper that avoids turbofish in test calls.
 fn parse_msg(s: &str) -> Result<Option<BmsMessage>, BmsTokenizeError> {
-    parse_message_line(s)
+    BmsMessage::parse(s)
 }
 
 #[expect(clippy::unwrap_used, reason = "test helper panics on invalid input")]

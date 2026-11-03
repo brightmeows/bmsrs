@@ -3,14 +3,14 @@
 use std::num::NonZeroU8;
 use std::path::Path;
 
-use bmsrs_bms_parser::{
+use bmsrs_bms_model::{
     BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position,
 };
-use bmsrs_bms_parser::{BpmIndex, LnObjIndex};
+use bmsrs_bms_model::{BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{CustomEvent, EventKind, NoteExt, NoteKind, TimingTrack};
+use bmsrs_chart::{CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
 
 #[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
 fn timing<T: NoteExt, C: CustomEvent>(chart: &bmsrs_chart::Chart<T, C>) -> TimingTrack {
@@ -101,13 +101,13 @@ fn process_basic_note() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 side,
                 lane,
                 kind,
                 ext: (),
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some((e.tick(), *side, *lane, *kind))
             } else {
@@ -214,7 +214,7 @@ fn process_default_detects_oct_fp_layout() {
 
     let chart = BmsProcessor::process_default(&bms).unwrap().chart;
     let lane = chart.data().events().iter().find_map(|event| {
-        if let EventKind::Note { lane, .. } = &event.kind {
+        if let EventKind::Note(Note { lane, .. }) = &event.kind {
             Some(*lane)
         } else {
             None
@@ -247,7 +247,7 @@ fn process_key7_note_lands_on_key_seven() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note { lane, ext: (), .. } = &e.kind {
+            if let EventKind::Note(Note { lane, ext: (), .. }) = &e.kind {
                 Some(*lane)
             } else {
                 None
@@ -388,7 +388,7 @@ fn process_default_uses_bme_and_maps_both_sides() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note { side, lane, .. } = &e.kind {
+            if let EventKind::Note(Note { side, lane, .. }) = &e.kind {
                 Some((*side, *lane))
             } else {
                 None
@@ -433,10 +433,10 @@ fn process_lnobj_produces_long_note() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Long { .. },
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(e.tick())
             } else {
@@ -476,10 +476,10 @@ fn lnobj_preserves_long_note_channel_events_as_normal() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note {
+            if let EventKind::Note(Note {
                 kind: NoteKind::Normal,
                 ..
-            } = &e.kind
+            }) = &e.kind
             {
                 Some(e.tick())
             } else {
@@ -582,7 +582,7 @@ fn process_invisible_note_mapped() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note { kind, ext: (), .. } = &e.kind {
+            if let EventKind::Note(Note { kind, ext: (), .. }) = &e.kind {
                 Some(*kind)
             } else {
                 None

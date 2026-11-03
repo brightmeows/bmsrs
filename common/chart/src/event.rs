@@ -7,7 +7,7 @@
 //! avoiding a repeated `tick` field on every variant.
 //!
 //! Generic parameters:
-//! - `T`: per-note extension data (carried in [`EventKind::Note`]).
+//! - `T`: per-note extension data (carried in [`Note`]).
 //! - `C`: format-specific custom event type (carried in [`EventKind::Custom`]).
 //!
 //! # Ordering
@@ -34,20 +34,7 @@ use crate::visual::{BgaLayer, BgaResourceId};
 #[derive(Clone, Debug, PartialEq)]
 pub enum EventKind<T, C: CustomEvent = NoCustomEvent> {
     /// Playable note.
-    Note {
-        /// Player side.
-        side: NoteSide,
-        /// Key / scratch / pedal.
-        lane: Lane,
-        /// Note kind (normal, long, mine, invisible).
-        kind: NoteKind,
-        /// Note role during gameplay (normal or release).
-        role: NoteRole,
-        /// Audio layers played by this note.
-        audio: NoteAudio,
-        /// Format-specific extension data (`()` when there is none).
-        ext: T,
-    },
+    Note(Note<T>),
     /// BGM (background music) event: triggers audio without gameplay interaction.
     Bgm {
         /// Index into [`crate::ChartData::audio_assets`].
@@ -102,7 +89,7 @@ impl<T, C: CustomEvent> EventKind<T, C> {
     pub const fn priority(&self) -> u8 {
         match self {
             Self::Bar => 0,
-            Self::Note { .. } | Self::Bga { .. } | Self::Bgm { .. } => 1,
+            Self::Note(_) | Self::Bga { .. } | Self::Bgm { .. } => 1,
             Self::Bpm { .. } => 2,
             Self::Stop { .. } => 3,
             Self::Scroll { .. } => 4,
@@ -134,21 +121,7 @@ impl<T, C: CustomEvent> EventKind<T, C> {
         F: FnOnce(C) -> D,
     {
         match self {
-            Self::Note {
-                side,
-                lane,
-                kind,
-                role,
-                audio,
-                ext,
-            } => EventKind::Note {
-                side,
-                lane,
-                kind,
-                role,
-                audio,
-                ext,
-            },
+            Self::Note(note) => EventKind::Note(note),
             Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
             Self::Bpm { bpm } => EventKind::Bpm { bpm },
             Self::Stop { duration } => EventKind::Stop { duration },
@@ -171,18 +144,18 @@ impl<T, C: CustomEvent> EventKind<T, C> {
     ///
     /// ```
     /// use std::num::NonZeroU8;
-    /// use bmsrs_chart::{EventKind, Lane, NoteKind, NoteSide};
+    /// use bmsrs_chart::{EventKind, Lane, Note, NoteKind, NoteSide};
     ///
-    /// let kind = EventKind::<i32, bmsrs_chart::NoCustomEvent>::Note {
+    /// let kind = EventKind::<i32, bmsrs_chart::NoCustomEvent>::Note(Note {
     ///     side: NoteSide::P1,
     ///     lane: Lane::Key(NonZeroU8::new(1).unwrap()),
     ///     kind: NoteKind::Normal,
     ///     role: bmsrs_chart::NoteRole::Normal,
     ///     audio: bmsrs_chart::NoteAudio::none(),
     ///     ext: 42,
-    /// };
+    /// });
     /// let mapped = kind.map_ext(|_| ());
-    /// if let EventKind::Note { ext, .. } = mapped {
+    /// if let EventKind::Note(Note { ext, .. }) = mapped {
     ///     assert_eq!(ext, ());
     /// }
     /// ```
@@ -192,21 +165,7 @@ impl<T, C: CustomEvent> EventKind<T, C> {
         F: FnOnce(T) -> U,
     {
         match self {
-            Self::Note {
-                side,
-                lane,
-                kind,
-                role,
-                audio,
-                ext,
-            } => EventKind::Note {
-                side,
-                lane,
-                kind,
-                role,
-                audio,
-                ext: f(ext),
-            },
+            Self::Note(note) => EventKind::Note(note.map_ext(f)),
             Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
             Self::Bpm { bpm } => EventKind::Bpm { bpm },
             Self::Stop { duration } => EventKind::Stop { duration },
@@ -313,6 +272,12 @@ impl<T: NoteExt, C: CustomEvent> Event<T, C> {
     pub const fn speed(tick: u64, rate: f64) -> Self {
         Self::new(tick, EventKind::Speed { rate })
     }
+
+    /// Create a note event from a [`Note`].
+    #[must_use]
+    pub const fn note(tick: u64, note: Note<T>) -> Self {
+        Self::new(tick, EventKind::Note(note))
+    }
 }
 
 // NoteExt trait
@@ -338,6 +303,68 @@ pub trait NoteExt: Clone + Debug + PartialEq + Eq + Default {
 }
 
 impl NoteExt for () {}
+
+/// A playable note payload.
+///
+/// Groups the six fields that always travel together: player side, lane, note
+/// kind, gameplay role, audio layers, and format-specific extension data.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Note<T = ()> {
+    /// Player side.
+    pub side: NoteSide,
+    /// Key / scratch / pedal.
+    pub lane: Lane,
+    /// Note kind (normal, long, mine, invisible).
+    pub kind: NoteKind,
+    /// Note role during gameplay (normal or release).
+    pub role: NoteRole,
+    /// Audio layers played by this note.
+    pub audio: NoteAudio,
+    /// Format-specific extension data (`()` when there is none).
+    pub ext: T,
+}
+
+impl<T> Note<T> {
+    /// Replace the extension data.
+    #[must_use]
+    pub fn with_ext(self, ext: T) -> Self {
+        Self { ext, ..self }
+    }
+
+    /// Map the extension data.
+    #[must_use]
+    pub fn map_ext<U>(self, f: impl FnOnce(T) -> U) -> Note<U> {
+        Note {
+            side: self.side,
+            lane: self.lane,
+            kind: self.kind,
+            role: self.role,
+            audio: self.audio,
+            ext: f(self.ext),
+        }
+    }
+}
+
+impl<T: NoteExt> Note<T> {
+    /// Construct a note with default extension data.
+    #[must_use]
+    pub fn new(
+        side: NoteSide,
+        lane: Lane,
+        kind: NoteKind,
+        role: NoteRole,
+        audio: NoteAudio,
+    ) -> Self {
+        Self {
+            side,
+            lane,
+            kind,
+            role,
+            audio,
+            ext: T::default(),
+        }
+    }
+}
 
 // CustomEvent trait
 

@@ -25,23 +25,22 @@
 //! use std::num::NonZeroU8;
 //! use std::time::Duration;
 //! use bmsrs_chart::{
-//!     Chart, ChartData, ChartInfo, Event, EventKind, Lane, NoteKind, NoteSide, SongInfo,
+//!     Chart, SongInfo, ChartInfo, ChartData, Event, Lane, Note, NoteKind, NoteSide,
 //! };
 //! use bmsrs_player::Player;
 //!
 //! let data: ChartData = ChartData::new(
 //!     120.0,
 //!     240,
-//!     vec![Event::new(
+//!     vec![Event::note(
 //!         480,
-//!         EventKind::Note {
-//!             side: NoteSide::P1,
-//!             lane: Lane::Key(NonZeroU8::new(1).unwrap()),
-//!             kind: NoteKind::Normal,
-//!             role: bmsrs_chart::NoteRole::Normal,
-//!             audio: bmsrs_chart::NoteAudio::none(),
-//!             ext: (),
-//!         },
+//!         Note::<()>::new(
+//!             NoteSide::P1,
+//!             Lane::Key(NonZeroU8::new(1).unwrap()),
+//!             NoteKind::Normal,
+//!             bmsrs_chart::NoteRole::Normal,
+//!             bmsrs_chart::NoteAudio::none(),
+//!         ),
 //!     )],
 //!     vec![],
 //! )

@@ -1,9 +1,9 @@
 //! Control-flow selection tests.
 
-use bmsrs_bms_syntax::{Line, SourceFile};
+use bmsrs_bms_syntax::{SourceFile, SyntaxLine};
 
 /// Extract the `#TITLE` values from the selected lines.
-fn titles(lines: &[Line]) -> Vec<String> {
+fn titles(lines: &[SyntaxLine]) -> Vec<String> {
     lines
         .iter()
         .filter_map(|line| {

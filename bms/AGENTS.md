@@ -13,7 +13,8 @@ flowchart LR
     Raw[".bms bytes"] --> Src[bmsrs-bms-source]
     Src -->|decoded text| Syn[bmsrs-bms-syntax]
     Syn -->|CST| Par[bmsrs-bms-parser]
-    Par --> Proc[bmsrs-bms-processor]
+    Par --> Model[bmsrs-bms-model]
+    Model --> Proc[bmsrs-bms-processor]
     Proc --> Chart["Chart&lt;T&gt;"]
     Syn --> Analysis[bmsrs-bms-analysis]
 ```
@@ -24,6 +25,7 @@ flowchart LR
 | 1 values | `bmsrs-bms-values` | single-line text to typed headers/messages, indices, and values |
 | 2 syntax | `bmsrs-bms-syntax` | decoded text to rowan CST; lexing, error-tolerant parsing, control-flow queries |
 | 3 semantics | `bmsrs-bms-parser` | CST to `Bms`; aggregate and faithful model |
+| 3 model | `bmsrs-bms-model` | whole-file `Bms` model, header groups, and channel messages |
 | derivation | `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro, no runtime logic |
 | 4 conversion | `bmsrs-bms-processor` | `Bms` to `Chart` |
 | 5 analysis | `bmsrs-bms-analysis` | diagnostics, symbol index, and editor data |

@@ -4,8 +4,9 @@
 //! original `Bms` model when parsed again; this is the verification baseline for
 //! the fallback-rewrite tier.
 
-use bmsrs_bms_parser::Bms;
-use bmsrs_bms_parser::parse_message_line;
+use bmsrs_bms_model::Bms;
+use bmsrs_bms_model::BmsMessage;
+use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_syntax::SourceFile;
 use proptest::prelude::*;
 
@@ -14,7 +15,7 @@ use bmsrs_bms_writer::BmsWriter;
 /// Parse BMS text into `Bms`, ignoring tokenizer warnings.
 fn parse(text: &str) -> Bms {
     let source = SourceFile::parse(text);
-    Bms::from_cst(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), |_| 1).bms
 }
 
 #[test]
@@ -117,11 +118,11 @@ fn stp_events_are_written_with_position() {
 fn encode_body_roundtrips_via_parse() {
     // encode and parse are inverses for the body: concatenation reproduces the
     // original text.
-    let line = parse_message_line("#00111:010203")
+    let line = BmsMessage::parse("#00111:010203")
         .expect("valid message")
         .expect("is message");
     assert_eq!(
         line.body,
-        bmsrs_bms_parser::BmsMessage::encode_body(["01", "02", "03"])
+        bmsrs_bms_model::BmsMessage::encode_body(["01", "02", "03"])
     );
 }
