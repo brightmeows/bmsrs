@@ -55,7 +55,7 @@ use bmsrs_chart::{
 };
 use thiserror::Error;
 
-pub use crate::error::ProcessWarning;
+pub use crate::error::{ProcessWarning, ProcessWarningKind};
 
 use crate::custom_event::BmsCustomEvent;
 use crate::layout::{Bme, BmsLayout, ChannelPos, DscOctFp, Pms, PmsBme, PmsLayout};
@@ -235,8 +235,10 @@ impl BmsProcessor {
 
         // Collect unpaired long-note warnings.
         for &(player, lane, tick) in &unpaired_starts {
-            conv.warnings
-                .push(ProcessWarning::UnterminatedLongNote { player, lane, tick });
+            conv.warnings.push(ProcessWarning::new(
+                None,
+                ProcessWarningKind::UnterminatedLongNote { player, lane, tick },
+            ));
         }
 
         // Barlines first (priority 0).
@@ -283,7 +285,7 @@ impl BmsProcessor {
             .warnings
             .iter()
             .cloned()
-            .map(ProcessWarning::UnparsableValue)
+            .map(ProcessWarning::from)
             .collect();
         warnings.extend(conv.warnings);
         let gameplay = BmsGameplay::from(&bms.gameplay);
@@ -439,12 +441,15 @@ impl BmsConverter<'_> {
                 if audio.is_none()
                     && let Some(key) = wav_id.0.to_index_in(base)
                 {
-                    self.warnings.push(ProcessWarning::MissingWavDefinition {
-                        key,
-                        player,
-                        lane,
-                        tick,
-                    });
+                    self.warnings.push(ProcessWarning::new(
+                        None,
+                        ProcessWarningKind::MissingWavDefinition {
+                            key,
+                            player,
+                            lane,
+                            tick,
+                        },
+                    ));
                 }
                 audio
             };
@@ -809,12 +814,18 @@ impl BmsConverter<'_> {
             .iter()
             .filter_map(|bc| {
                 let tick = self.table.position_to_tick(bc.position);
-                let bpm = self.resolve_bpm(bc.value, tick);
+                let span = self.message_span(
+                    bc.position.measure(),
+                    &[RawChannel::BpmChange, RawChannel::ExtendedBpm],
+                );
+                let bpm = self.resolve_bpm(bc.value, tick, span);
                 if BpmChange::is_valid(bpm) {
                     Some(BpmChange { tick, bpm })
                 } else {
-                    self.warnings
-                        .push(ProcessWarning::InvalidBpmChangeIgnored { tick, bpm });
+                    self.warnings.push(ProcessWarning::new(
+                        span,
+                        ProcessWarningKind::InvalidBpmChangeIgnored { tick, bpm },
+                    ));
                     None
                 }
             })
@@ -916,9 +927,25 @@ impl BmsConverter<'_> {
         map
     }
 
+    /// Return the source line span for a measure and candidate channels.
+    fn message_span(
+        &self,
+        measure: u16,
+        channels: &[RawChannel],
+    ) -> Option<bmsrs_pipeline::SourceSpan> {
+        channels
+            .iter()
+            .find_map(|channel| self.bms.messages.line_span(measure, *channel))
+    }
+
     /// Resolve a [`BpmValue`] into a concrete BPM, using the BPM definition table
     /// for references.
-    fn resolve_bpm(&mut self, value: BpmValue, tick: u64) -> f64 {
+    fn resolve_bpm(
+        &mut self,
+        value: BpmValue,
+        tick: u64,
+        span: Option<bmsrs_pipeline::SourceSpan>,
+    ) -> f64 {
         let base = self.bms.gameplay.base.unwrap_or_default();
         match value {
             BpmValue::Absolute(bpm) => bpm,
@@ -927,8 +954,10 @@ impl BmsConverter<'_> {
                     bpm
                 } else {
                     if let Some(key) = id.to_index_in(base) {
-                        self.warnings
-                            .push(ProcessWarning::MissingBpmDefinition { key, tick });
+                        self.warnings.push(ProcessWarning::new(
+                            span,
+                            ProcessWarningKind::MissingBpmDefinition { key, tick },
+                        ));
                     }
                     120.0
                 }
@@ -951,13 +980,17 @@ impl BmsConverter<'_> {
             .iter()
             .filter_map(|se| {
                 let tick = self.table.position_to_tick(se.position);
+                let span = self.message_span(se.position.measure(), &[RawChannel::Stop]);
                 if let Some(&raw) = self.bms.timing.stop_defs.get(&se.stop_id) {
                     let duration = (raw / 192.0 * RESOLUTION as f64 * 4.0).round();
                     if duration < 0.0 {
-                        self.warnings.push(ProcessWarning::StopDurationClipped {
-                            tick,
-                            original: duration,
-                        });
+                        self.warnings.push(ProcessWarning::new(
+                            span,
+                            ProcessWarningKind::StopDurationClipped {
+                                tick,
+                                original: duration,
+                            },
+                        ));
                     }
                     Some(StopEvent {
                         tick,
@@ -965,8 +998,10 @@ impl BmsConverter<'_> {
                     })
                 } else {
                     if let Some(key) = se.stop_id.to_index_in(base) {
-                        self.warnings
-                            .push(ProcessWarning::MissingStopDefinition { key, tick });
+                        self.warnings.push(ProcessWarning::new(
+                            span,
+                            ProcessWarningKind::MissingStopDefinition { key, tick },
+                        ));
                     }
                     None
                 }

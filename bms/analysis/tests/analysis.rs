@@ -128,3 +128,34 @@ fn update_refreshes_diagnostics_and_index() {
             .any(|diagnostic| diagnostic.message().contains("undefined WAV 02"))
     );
 }
+
+#[test]
+fn update_shifts_line_starts_for_later_entries() {
+    let mut analysis = Analysis::from_text("#WAV01 a.wav\n#00111:0100\n#WAV02 b.wav\n");
+    analysis.update("#WAV01 a-longer.wav\n#00111:0100\n#WAV02 b.wav\n");
+
+    assert_eq!(
+        analysis
+            .index()
+            .definitions_for(SymbolKind::Wav, "02")
+            .count(),
+        1
+    );
+    assert_eq!(
+        analysis
+            .index()
+            .references_for(SymbolKind::Wav, "01")
+            .count(),
+        1
+    );
+
+    let offset = analysis.text().find("WAV02").unwrap();
+    let text_offset = bmsrs_bms_syntax::TextSize::from(u32::try_from(offset).unwrap());
+    assert_eq!(
+        analysis
+            .index()
+            .definition_at(text_offset)
+            .map(bmsrs_bms_analysis::SymbolDefinition::id),
+        Some("02")
+    );
+}

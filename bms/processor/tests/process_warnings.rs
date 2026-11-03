@@ -2,7 +2,7 @@
 
 use bmsrs_bms_model::{Bms, BmsBase, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
 use bmsrs_bms_processor::layout::Bme;
-use bmsrs_bms_processor::{BmsProcessor, ProcessWarning};
+use bmsrs_bms_processor::{BmsProcessor, ProcessWarningKind};
 
 #[test]
 fn missing_wav_key_produces_warning() {
@@ -24,7 +24,7 @@ fn missing_wav_key_produces_warning() {
     assert!(
         warnings
             .iter()
-            .any(|w| matches!(w, ProcessWarning::MissingWavDefinition { .. }))
+            .any(|w| matches!(w.kind, ProcessWarningKind::MissingWavDefinition { .. }))
     );
 }
 
@@ -43,8 +43,8 @@ fn base16_missing_wav_key_uses_hex_numeric_value() {
 
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
     assert!(warnings.iter().any(|warning| matches!(
-        warning,
-        ProcessWarning::MissingWavDefinition { key: 255, .. }
+        warning.kind,
+        ProcessWarningKind::MissingWavDefinition { key: 255, .. }
     )));
 }
 
@@ -67,7 +67,7 @@ fn untermined_long_note_produces_warning() {
     assert!(
         warnings
             .iter()
-            .any(|w| matches!(w, ProcessWarning::UnterminatedLongNote { .. }))
+            .any(|w| matches!(w.kind, ProcessWarningKind::UnterminatedLongNote { .. }))
     );
 }
 
@@ -104,7 +104,7 @@ fn missing_bpm_definition_produces_warning() {
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
     let count = warnings
         .iter()
-        .filter(|w| matches!(w, ProcessWarning::MissingBpmDefinition { .. }))
+        .filter(|w| matches!(&w.kind, ProcessWarningKind::MissingBpmDefinition { .. }))
         .count();
     assert_eq!(
         count, 1,
@@ -142,7 +142,10 @@ fn unparsable_bpm_value_produces_warning() {
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
 
     assert!(warnings.iter().any(|w| matches!(
-        w,
-        ProcessWarning::UnparsableValue(bmsrs_bms_model::ChannelValueWarning { measure: 0, .. })
+        w.kind,
+        ProcessWarningKind::UnparsableValue(bmsrs_bms_model::ChannelValueWarning {
+            measure: 0,
+            ..
+        })
     )));
 }

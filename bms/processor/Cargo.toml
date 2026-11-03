@@ -15,6 +15,7 @@ readme.workspace = true
 [dependencies]
 bmsrs-bms-model.workspace = true
 bmsrs-chart.workspace = true
+bmsrs-pipeline.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

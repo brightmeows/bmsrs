@@ -14,6 +14,7 @@ use bmsrs_bms_values::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BodyCells, BpmIndex, ChannelIndex, ScrollIndex,
     SpeedIndex, StopIndex, WavIndex, base36_digit_value,
 };
+use bmsrs_pipeline::SourceSpan;
 
 // Position
 
@@ -306,6 +307,14 @@ pub struct NonEventData {
     pub values: Vec<BmsIndex>,
 }
 
+/// Source spans keyed by `(measure, channel)`.
+///
+/// Source locations are metadata, not chart semantics, so [`Messages`]'s
+/// hand-written `PartialEq` skips this field; writer roundtrips compare the
+/// parsed model, not its original offsets.
+#[derive(Debug, Clone, Default)]
+struct LineSpans(BTreeMap<(u16, BmsChannel), SourceSpan>);
+
 // Message container
 
 /// Builder for the raw channel-message phase.
@@ -319,6 +328,8 @@ pub struct MessagesBuilder {
     raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
     /// Position-based stops from the `#STP` header command.
     stp_events: Vec<StpEvent>,
+    /// Whole-line source span by (measure, channel).
+    line_spans: LineSpans,
 }
 
 impl MessagesBuilder {
@@ -333,6 +344,12 @@ impl MessagesBuilder {
     /// Each line for the same `(measure, channel)` is stored as a separate entry
     /// in the inner `Vec`, preserving file order.
     pub fn push_message(&mut self, msg: &bmsrs_bms_values::BmsMessage) {
+        if let Some(span) = msg.span {
+            self.line_spans
+                .0
+                .entry((msg.track(), msg.channel()))
+                .or_insert(span);
+        }
         self.raw
             .entry(msg.track())
             .or_default()
@@ -367,8 +384,13 @@ impl MessagesBuilder {
     /// is preserved.
     #[must_use]
     pub fn finish(self, base: BmsBase) -> Messages {
-        let Self { raw, stp_events } = self;
+        let Self {
+            raw,
+            stp_events,
+            line_spans,
+        } = self;
         let mut messages = Messages {
+            line_spans,
             stp_events,
             ..Messages::default()
         };
@@ -376,6 +398,13 @@ impl MessagesBuilder {
             for (&channel, lines) in channels {
                 messages.finalize_channel(channel, lines, measure, base);
             }
+        }
+        for warning in &mut messages.warnings {
+            warning.span = messages
+                .line_spans
+                .0
+                .get(&(warning.measure, warning.channel))
+                .copied();
         }
         messages.raw = raw;
         messages
@@ -386,11 +415,13 @@ impl MessagesBuilder {
 ///
 /// Construct through [`MessagesBuilder`]; the raw store is kept for the writer
 /// and exposed read-only through [`raw`](Self::raw).
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct Messages {
     /// Raw value strings stored by (measure, channel), preserving each line
     /// separately.
     raw: BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>>,
+    /// Whole-line source span by (measure, channel).
+    line_spans: LineSpans,
 
     /// BGM events parsed from channel `01`.
     pub bgm_events: Vec<BgmEvent>,
@@ -439,6 +470,28 @@ pub struct Messages {
     pub warnings: Vec<ChannelValueWarning>,
 }
 
+/// Source spans are metadata, not chart semantics, so equality skips
+/// `line_spans`; writer roundtrips compare the parsed model, not its original
+/// offsets.
+impl PartialEq for Messages {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw == other.raw
+            && self.bgm_events == other.bgm_events
+            && self.note_events == other.note_events
+            && self.long_note_events == other.long_note_events
+            && self.mine_events == other.mine_events
+            && self.bpm_changes == other.bpm_changes
+            && self.stop_events == other.stop_events
+            && self.scroll_events == other.scroll_events
+            && self.speed_events == other.speed_events
+            && self.bga_events == other.bga_events
+            && self.measure_lengths == other.measure_lengths
+            && self.stp_events == other.stp_events
+            && self.non_event_data == other.non_event_data
+            && self.warnings == other.warnings
+    }
+}
+
 /// Convert the enumerated index `i` into a [`Position`], centralizing the
 /// `usize` to `u32` truncation expectation.
 ///
@@ -457,6 +510,12 @@ impl Messages {
     #[must_use]
     pub const fn raw(&self) -> &BTreeMap<u16, BTreeMap<BmsChannel, Vec<String>>> {
         &self.raw
+    }
+
+    /// Return the whole-line source span for a measure and channel.
+    #[must_use]
+    pub fn line_span(&self, measure: u16, channel: BmsChannel) -> Option<SourceSpan> {
+        self.line_spans.0.get(&(measure, channel)).copied()
     }
 
     /// Dispatch one channel's multi-line data to the corresponding finalizer.
@@ -705,6 +764,7 @@ fn parse_indexed<T>(
                 measure: context.measure,
                 channel: context.channel,
                 value: cell.text.to_owned(),
+                span: None,
             }),
         }
     }

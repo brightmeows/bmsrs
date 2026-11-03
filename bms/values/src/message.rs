@@ -53,6 +53,7 @@
 use crate::channel::{BmsChannel, classify_channel};
 use crate::index::{ChannelIndex, is_base62};
 use crate::{BmsToken, BmsTokenizeError, BmsTryFromError};
+use bmsrs_pipeline::SourceSpan;
 
 /// A channel data line in a BMS file (`#ADDR:body`).
 ///
@@ -63,6 +64,8 @@ pub struct BmsMessage {
     pub addr: String,
     /// Raw body string (after `:`).
     pub body: String,
+    /// Whole-line source span, when the message came from parsed text.
+    pub span: Option<SourceSpan>,
 
     /// Zero-based measure number, extracted from the decimal digits in
     /// [`addr`](BmsMessage::addr) before the channel suffix.
@@ -131,6 +134,7 @@ impl BmsMessage {
             body: body.into(),
             track,
             channel: classify_channel(idx),
+            span: None,
         })
     }
 
@@ -261,5 +265,6 @@ fn parse_message_line(line: &str) -> Result<Option<BmsMessage>, BmsTokenizeError
         body: body.to_owned(),
         track,
         channel,
+        span: None,
     }))
 }

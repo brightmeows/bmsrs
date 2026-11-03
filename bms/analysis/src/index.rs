@@ -100,6 +100,22 @@ impl Ord for SymbolId {
     }
 }
 
+/// A zero-based line and byte offset within that line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct SourcePos {
+    /// Zero-based line number.
+    line: u32,
+    /// Byte offset within the line.
+    offset: u32,
+}
+
+impl SourcePos {
+    /// Construct a source position.
+    const fn new(line: u32, offset: u32) -> Self {
+        Self { line, offset }
+    }
+}
+
 /// A resource definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolDefinition {
@@ -107,10 +123,16 @@ pub struct SymbolDefinition {
     kind: SymbolKind,
     /// Normalized ID.
     id: SymbolId,
-    /// Whole-line range.
-    range: TextRange,
-    /// Command-name token range.
-    name_range: TextRange,
+    /// Zero-based line number.
+    line: u32,
+    /// Whole-line start offset.
+    start: u32,
+    /// Whole-line end offset.
+    end: u32,
+    /// Command-name start offset.
+    name_start: u32,
+    /// Command-name end offset.
+    name_end: u32,
 }
 
 impl SymbolDefinition {
@@ -118,14 +140,20 @@ impl SymbolDefinition {
     pub(crate) const fn new(
         kind: SymbolKind,
         id: SymbolId,
-        range: TextRange,
-        name_range: TextRange,
+        line: u32,
+        start: u32,
+        end: u32,
+        name_start: u32,
+        name_end: u32,
     ) -> Self {
         Self {
             kind,
             id,
-            range,
-            name_range,
+            line,
+            start,
+            end,
+            name_start,
+            name_end,
         }
     }
 
@@ -141,16 +169,34 @@ impl SymbolDefinition {
         self.id.as_str()
     }
 
-    /// Return the whole-line range.
+    /// Return the zero-based line number.
     #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
+    pub const fn line(&self) -> u32 {
+        self.line
     }
 
-    /// Return the command-name range.
+    /// Return the whole-line start offset within the line.
     #[must_use]
-    pub const fn name_range(&self) -> TextRange {
-        self.name_range
+    pub const fn start(&self) -> u32 {
+        self.start
+    }
+
+    /// Return the whole-line end offset within the line.
+    #[must_use]
+    pub const fn end(&self) -> u32 {
+        self.end
+    }
+
+    /// Return the command-name start offset within the line.
+    #[must_use]
+    pub const fn name_start(&self) -> u32 {
+        self.name_start
+    }
+
+    /// Return the command-name end offset within the line.
+    #[must_use]
+    pub const fn name_end(&self) -> u32 {
+        self.name_end
     }
 }
 
@@ -161,14 +207,30 @@ pub struct SymbolReference {
     kind: SymbolKind,
     /// Normalized ID.
     id: SymbolId,
-    /// Reference token range.
-    range: TextRange,
+    /// Zero-based line number.
+    line: u32,
+    /// Reference start offset within the line.
+    start: u32,
+    /// Reference end offset within the line.
+    end: u32,
 }
 
 impl SymbolReference {
     /// Construct a reference.
-    pub(crate) const fn new(kind: SymbolKind, id: SymbolId, range: TextRange) -> Self {
-        Self { kind, id, range }
+    pub(crate) const fn new(
+        kind: SymbolKind,
+        id: SymbolId,
+        line: u32,
+        start: u32,
+        end: u32,
+    ) -> Self {
+        Self {
+            kind,
+            id,
+            line,
+            start,
+            end,
+        }
     }
 
     /// Return the resource kind.
@@ -183,32 +245,51 @@ impl SymbolReference {
         self.id.as_str()
     }
 
-    /// Return the reference range.
+    /// Return the zero-based line number.
     #[must_use]
-    pub const fn range(&self) -> TextRange {
-        self.range
+    pub const fn line(&self) -> u32 {
+        self.line
+    }
+
+    /// Return the reference start offset within the line.
+    #[must_use]
+    pub const fn start(&self) -> u32 {
+        self.start
+    }
+
+    /// Return the reference end offset within the line.
+    #[must_use]
+    pub const fn end(&self) -> u32 {
+        self.end
     }
 }
 
 /// Definition and reference index.
 ///
-/// Definitions and references are keyed by their start offset, so iteration is
-/// source order and `definition_at`/`reference_at` are logarithmic. Secondary
-/// maps by `(kind, id)` make `definitions_for`/`references_for` logarithmic as
-/// well.
+/// Entries are keyed by `(line, offset)` so an edit inside one line only
+/// touches that line's entries. The absolute line starts are kept separately
+/// and refreshed after each parse; absolute `TextRange` values are computed on
+/// demand.
 #[derive(Debug, Clone, Default)]
 pub struct SymbolIndex {
-    /// Definitions keyed by `name_range.start`.
-    definitions: BTreeMap<TextSize, SymbolDefinition>,
-    /// References keyed by `range.start`.
-    references: BTreeMap<TextSize, SymbolReference>,
-    /// Definition starts grouped by `(kind, id)`.
-    definition_keys: BTreeMap<(SymbolKind, SymbolId), BTreeSet<TextSize>>,
-    /// Reference starts grouped by `(kind, id)`.
-    reference_keys: BTreeMap<(SymbolKind, SymbolId), BTreeSet<TextSize>>,
+    /// Start offset of each line.
+    line_starts: Vec<TextSize>,
+    /// Definitions keyed by `(line, name_start)`.
+    definitions: BTreeMap<SourcePos, SymbolDefinition>,
+    /// References keyed by `(line, start)`.
+    references: BTreeMap<SourcePos, SymbolReference>,
+    /// Definition keys grouped by `(kind, id)`.
+    definition_keys: BTreeMap<(SymbolKind, SymbolId), BTreeSet<SourcePos>>,
+    /// Reference keys grouped by `(kind, id)`.
+    reference_keys: BTreeMap<(SymbolKind, SymbolId), BTreeSet<SourcePos>>,
 }
 
 impl SymbolIndex {
+    /// Replace the line-start table.
+    pub(crate) fn set_line_starts(&mut self, starts: Vec<TextSize>) {
+        self.line_starts = starts;
+    }
+
     /// Iterate over all definitions in source order.
     pub fn definitions(&self) -> impl Iterator<Item = &SymbolDefinition> {
         self.definitions.values()
@@ -230,7 +311,7 @@ impl SymbolIndex {
         starts.into_iter().flat_map(move |start_set| {
             start_set
                 .iter()
-                .filter_map(move |start| self.definitions.get(start))
+                .filter_map(move |pos| self.definitions.get(pos))
         })
     }
 
@@ -245,7 +326,7 @@ impl SymbolIndex {
         starts.into_iter().flat_map(move |start_set| {
             start_set
                 .iter()
-                .filter_map(move |start| self.references.get(start))
+                .filter_map(move |pos| self.references.get(pos))
         })
     }
 
@@ -255,47 +336,143 @@ impl SymbolIndex {
         SymbolId::new(id).is_some_and(|symbol| self.definition_keys.contains_key(&(kind, symbol)))
     }
 
-    /// Look up the definition at the given offset.
+    /// Look up the definition at an absolute byte offset.
     #[must_use]
     pub fn definition_at(&self, offset: TextSize) -> Option<&SymbolDefinition> {
+        let (line, line_offset) = self.position(offset)?;
+        let pos = SourcePos::new(line, line_offset);
         self.definitions
-            .range(..=offset)
+            .range(..=pos)
             .next_back()
             .map(|(_, definition)| definition)
-            .filter(|definition| contains(definition.name_range, offset))
+            .filter(|definition| {
+                definition.line == line
+                    && definition.name_start <= line_offset
+                    && line_offset < definition.name_end
+            })
     }
 
-    /// Look up the reference at the given offset.
+    /// Look up the reference at an absolute byte offset.
     #[must_use]
     pub fn reference_at(&self, offset: TextSize) -> Option<&SymbolReference> {
+        let (line, line_offset) = self.position(offset)?;
+        let pos = SourcePos::new(line, line_offset);
         self.references
-            .range(..=offset)
+            .range(..=pos)
             .next_back()
             .map(|(_, reference)| reference)
-            .filter(|reference| contains(reference.range, offset))
+            .filter(|reference| {
+                reference.line == line
+                    && reference.start <= line_offset
+                    && line_offset < reference.end
+            })
+    }
+
+    /// Return the absolute range of a definition.
+    #[must_use]
+    pub fn range_of_definition(&self, definition: &SymbolDefinition) -> Option<TextRange> {
+        self.range_on_line(definition.line, definition.start, definition.end)
+    }
+
+    /// Return the absolute command-name range of a definition.
+    #[must_use]
+    pub fn name_range_of_definition(&self, definition: &SymbolDefinition) -> Option<TextRange> {
+        self.range_on_line(definition.line, definition.name_start, definition.name_end)
+    }
+
+    /// Return the absolute range of a reference.
+    #[must_use]
+    pub fn range_of_reference(&self, reference: &SymbolReference) -> Option<TextRange> {
+        self.range_on_line(reference.line, reference.start, reference.end)
     }
 
     /// Append a definition.
     pub(crate) fn push_definition(&mut self, definition: SymbolDefinition) {
-        let start = definition.name_range.start();
+        let pos = SourcePos::new(definition.line, definition.name_start);
         self.definition_keys
             .entry((definition.kind, definition.id))
             .or_default()
-            .insert(start);
-        self.definitions.insert(start, definition);
+            .insert(pos);
+        self.definitions.insert(pos, definition);
     }
 
     /// Append a reference.
     pub(crate) fn push_reference(&mut self, reference: SymbolReference) {
-        let start = reference.range.start();
+        let pos = SourcePos::new(reference.line, reference.start);
         self.reference_keys
             .entry((reference.kind, reference.id))
             .or_default()
-            .insert(start);
-        self.references.insert(start, reference);
+            .insert(pos);
+        self.references.insert(pos, reference);
+    }
+
+    /// Remove all definitions and references on one line.
+    pub(crate) fn remove_line(&mut self, line: u32) {
+        let start = SourcePos::new(line, 0);
+        let end = SourcePos::new(line.saturating_add(1), 0);
+
+        let definition_keys: Vec<_> = self
+            .definitions
+            .range(start..end)
+            .map(|(pos, _)| *pos)
+            .collect();
+        for pos in definition_keys {
+            if let Some(definition) = self.definitions.remove(&pos) {
+                remove_key(
+                    &mut self.definition_keys,
+                    (definition.kind, definition.id),
+                    pos,
+                );
+            }
+        }
+
+        let reference_keys: Vec<_> = self
+            .references
+            .range(start..end)
+            .map(|(pos, _)| *pos)
+            .collect();
+        for pos in reference_keys {
+            if let Some(reference) = self.references.remove(&pos) {
+                remove_key(
+                    &mut self.reference_keys,
+                    (reference.kind, reference.id),
+                    pos,
+                );
+            }
+        }
+    }
+
+    /// Convert an absolute offset into `(line, line_offset)`.
+    fn position(&self, offset: TextSize) -> Option<(u32, u32)> {
+        let line = self
+            .line_starts
+            .partition_point(|&start| start <= offset)
+            .checked_sub(1)?;
+        let line_start = *self.line_starts.get(line)?;
+        Some((u32::try_from(line).ok()?, u32::from(offset - line_start)))
+    }
+
+    /// Convert a line-relative range into an absolute range.
+    fn range_on_line(&self, line: u32, start: u32, end: u32) -> Option<TextRange> {
+        let line_start = *self.line_starts.get(usize::try_from(line).ok()?)?;
+        Some(TextRange::new(
+            line_start + TextSize::from(start),
+            line_start + TextSize::from(end),
+        ))
     }
 }
-/// Return whether a range contains an offset.
-fn contains(range: TextRange, offset: TextSize) -> bool {
-    range.start() <= offset && offset < range.end()
+
+/// Remove one position from a key map, dropping the key when it becomes empty.
+fn remove_key(
+    map: &mut BTreeMap<(SymbolKind, SymbolId), BTreeSet<SourcePos>>,
+    key: (SymbolKind, SymbolId),
+    pos: SourcePos,
+) {
+    let empty = map.get_mut(&key).is_some_and(|positions| {
+        positions.remove(&pos);
+        positions.is_empty()
+    });
+    if empty {
+        map.remove(&key);
+    }
 }

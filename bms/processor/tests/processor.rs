@@ -8,7 +8,7 @@ use bmsrs_bms_model::{
 };
 use bmsrs_bms_model::{BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
-use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarning};
+use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarningKind};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
 
@@ -306,9 +306,10 @@ fn process_nan_bpm_change_produces_warning() {
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
     // NaN cannot be compared with assert_eq; use matches! to check the variant
     // and value.
+    assert_eq!(warnings.len(), 1);
     assert!(matches!(
-        warnings.as_slice(),
-        [ProcessWarning::InvalidBpmChangeIgnored { bpm, .. }] if bpm.is_nan()
+        &warnings[0].kind,
+        ProcessWarningKind::InvalidBpmChangeIgnored { bpm, .. } if bpm.is_nan()
     ));
 }
 
