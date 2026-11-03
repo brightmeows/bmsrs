@@ -14,7 +14,7 @@ use bmsrs_bms_model::Messages;
 ///   and `00` preserves the position
 pub fn write_messages(messages: &Messages) -> Vec<String> {
     let mut out = Vec::new();
-    for (&measure, channels) in &messages.raw {
+    for (&measure, channels) in messages.raw() {
         for (channel, bodies) in channels {
             match channel {
                 BmsChannel::Bgm => {
