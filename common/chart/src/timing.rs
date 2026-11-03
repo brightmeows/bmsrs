@@ -273,8 +273,9 @@ impl TimingTrack {
     /// BPM changes and stops are read from [`EventKind::Bpm`] and
     /// [`EventKind::Stop`]. Invalid BPM events are skipped defensively; callers
     /// that need to report them should run
-    /// [`ChartData::validate`](crate::ChartData::validate) first. Multiple stops
-    /// at the same tick keep the last one, matching beatoraja.
+    /// construct the chart through [`ChartData::new`](crate::ChartData::new) or a
+    /// fallible event transformation first. Multiple stops at the same tick keep
+    /// the last one, matching beatoraja.
     ///
     /// # Errors
     ///
@@ -449,10 +450,6 @@ impl PartialEq for TimingTrack {
             && self.stops == other.stops
     }
 }
-
-// init_bpm is guaranteed not to be NaN (validated by TimingTrack::new), so
-// PartialEq satisfies Eq's reflexivity requirement.
-impl Eq for TimingTrack {}
 
 /// A segment of the timing track with constant BPM.
 #[derive(Clone, Debug)]

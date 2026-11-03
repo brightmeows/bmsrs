@@ -226,28 +226,16 @@ impl BmsonProcessor {
         let song_info = build_song_info(bmson);
         let chart_info = build_chart_info(bmson)?;
 
-        let mut data = ChartData::new(
-            timing.init_bpm(),
-            timing.resolution(),
-            conv.events,
-            conv.audio_assets,
-        )?;
-        data.judge_multiplier = Some(bmson_data.judge_multiplier);
-        data.life_multiplier = Some(bmson_data.life_multiplier);
-        data.ln_type_hint = ln_type_to_hint(bmson_data.ln_type_hint);
-        data.ln_judge_hint = ln_judge_to_hint(bmson_data.ln_judge_hint);
-        data.ln_life_hint = ln_life_to_hint(bmson_data.ln_life_hint);
-        data.judge_deltas =
-            bmson_data
-                .judge_deltas
-                .as_ref()
-                .map(|d| bmsrs_chart::JudgementDeltas {
-                    perfect: d.perfect,
-                    great: d.great,
-                    good: d.good,
-                    miss: d.miss,
-                });
-        data.life_deltas = bmson_data
+        let judge_deltas = bmson_data
+            .judge_deltas
+            .as_ref()
+            .map(|d| bmsrs_chart::JudgementDeltas {
+                perfect: d.perfect,
+                great: d.great,
+                good: d.good,
+                miss: d.miss,
+            });
+        let life_deltas = bmson_data
             .life_deltas
             .as_ref()
             .map(|d| bmsrs_chart::LifeDeltas {
@@ -256,13 +244,22 @@ impl BmsonProcessor {
                 good: d.good,
                 miss: d.miss,
             });
+        let data = ChartData::new(
+            timing.init_bpm(),
+            timing.resolution(),
+            conv.events,
+            conv.audio_assets,
+        )?
+        .with_judge_multiplier(Some(bmson_data.judge_multiplier))
+        .with_life_multiplier(Some(bmson_data.life_multiplier))
+        .with_ln_type_hint(ln_type_to_hint(bmson_data.ln_type_hint))
+        .with_ln_judge_hint(ln_judge_to_hint(bmson_data.ln_judge_hint))
+        .with_ln_life_hint(ln_life_to_hint(bmson_data.ln_life_hint))
+        .with_judge_deltas(judge_deltas)
+        .with_life_deltas(life_deltas);
 
         Ok(Processed {
-            chart: Chart {
-                song: song_info,
-                chart: chart_info,
-                data,
-            },
+            chart: Chart::new(song_info, chart_info, data)?,
             warnings: conv.warnings,
         })
     }

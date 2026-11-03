@@ -9,9 +9,7 @@ use std::fmt::Debug;
 use crate::audio::AudioIndex;
 
 /// Mine damage value.
-///
-/// Guaranteed to contain no NaN, so it supports [`Eq`].
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Damage(f64);
 
 impl Damage {
@@ -32,14 +30,6 @@ impl Damage {
         self.0
     }
 }
-
-impl PartialEq for Damage {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for Damage {}
 
 /// The set of audio layers for a note.
 ///
@@ -144,7 +134,7 @@ pub enum NoteRole {
 }
 
 /// Kind of a playable note.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum NoteKind {
     /// Normal (short) note: a single hit.
     #[default]

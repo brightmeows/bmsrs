@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, Chart, ChartData, ChartInfo,
-    Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole,
-    NoteSide, SongInfo, TimingTrack, TimingTrackError,
+    Event, EventKind, Lane, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
+    TimingTrackError,
 };
 use bmsrs_player::Player;
 
@@ -23,50 +23,52 @@ const fn key(n: u8) -> Lane {
 
 /// Create a simple test chart.
 fn make_test_chart() -> Chart {
-    // Events must be sorted ascending by (tick, priority); otherwise the
-    // Player's partition_point cannot work correctly.
-    Chart {
-        song: SongInfo {
+    make_test_chart_with(vec![])
+}
+
+/// Create the simple test chart with additional events.
+#[expect(clippy::unwrap_used, reason = "test fixture construction")]
+fn make_test_chart_with(extra_events: Vec<Event>) -> Chart {
+    let mut events = vec![
+        Event::bar(0),
+        Event::bgm(240, AudioIndex::new(0)),
+        Event::new(
+            480,
+            EventKind::Note {
+                side: NoteSide::P1,
+                lane: key(1),
+                kind: NoteKind::Normal,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
+                ext: (),
+            },
+        ),
+        Event::bar(960),
+        Event::bpm(960, 180.0),
+    ];
+    events.extend(extra_events);
+    let data = ChartData::new(
+        120.0,
+        240,
+        events,
+        vec![AudioAsset::from_path_buf(
+            PathBuf::from("test.wav"),
+            Duration::ZERO,
+            None,
+        )],
+    )
+    .unwrap()
+    .with_judge_multiplier(Some(1.0))
+    .with_life_multiplier(Some(1.0));
+    Chart::new(
+        SongInfo {
             title: "Test".into(),
             ..Default::default()
         },
-        chart: ChartInfo::default(),
-        data: ChartData {
-            init_bpm: 120.0,
-            resolution: 240,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            events: vec![
-                Event::bar(0),
-                Event::bgm(240, AudioIndex::new(0)),
-                Event::new(
-                    480,
-                    EventKind::Note {
-                        side: NoteSide::P1,
-                        lane: key(1),
-                        kind: NoteKind::Normal,
-                        role: NoteRole::Normal,
-                        audio: NoteAudio::none(),
-                        ext: (),
-                    },
-                ),
-                Event::bar(960),
-                Event::bpm(960, 180.0),
-            ],
-            judge_deltas: None,
-            life_deltas: None,
-            // validate checks audio index integrity: the BGM event references
-            // index 0, so the asset table must be non-empty.
-            audio_assets: vec![AudioAsset::from_path_buf(
-                PathBuf::from("test.wav"),
-                Duration::ZERO,
-                None,
-            )],
-        },
-    }
+        ChartInfo::default(),
+        data,
+    )
+    .unwrap()
 }
 
 // Player creation and basic operations
@@ -74,7 +76,7 @@ fn make_test_chart() -> Chart {
 #[test]
 fn player_new_starts_at_zero() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
     assert_eq!(player.current_tick(), 0);
     assert!(player.current_time().is_zero());
 }
@@ -82,7 +84,7 @@ fn player_new_starts_at_zero() {
 #[test]
 fn player_advance_moves_time_and_tick() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart).unwrap();
+    let mut player = Player::new(chart);
     player.advance(Duration::from_secs(1));
     // 120 BPM, resolution 240: 1 second = 480 ticks
     assert_eq!(player.current_tick(), 480);
@@ -91,7 +93,7 @@ fn player_advance_moves_time_and_tick() {
 #[test]
 fn player_current_time() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart).unwrap();
+    let mut player = Player::new(chart);
     player.advance(Duration::from_secs_f64(2.0));
     assert!((player.current_time().as_secs_f64() - 2.0).abs() < 1e-9);
 }
@@ -99,7 +101,7 @@ fn player_current_time() {
 #[test]
 fn player_seek() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart).unwrap();
+    let mut player = Player::new(chart);
 
     player.seek(Duration::from_secs_f64(1.0));
     assert_eq!(player.current_tick(), 480);
@@ -109,7 +111,7 @@ fn player_seek() {
 #[test]
 fn player_reset() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart).unwrap();
+    let mut player = Player::new(chart);
     player.advance(Duration::from_secs(2));
     assert!(player.current_tick() > 0);
 
@@ -121,7 +123,7 @@ fn player_reset() {
 #[test]
 fn player_duration() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
     // With events up to tick 960 at 120 BPM, duration = 2 seconds
     assert!((player.duration().as_secs_f64() - 2.0).abs() < f64::EPSILON);
 }
@@ -129,14 +131,14 @@ fn player_duration() {
 #[test]
 fn player_current_bpm_initial() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
     assert!((player.current_bpm() - 120.0).abs() < 1e-9);
 }
 
 #[test]
 fn player_current_bpm_before_change() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart).unwrap();
+    let mut player = Player::new(chart);
     // Seek to a known tick before the BPM change at 960
     player.seek(Duration::from_secs_f64(1.5));
     assert!(
@@ -149,7 +151,7 @@ fn player_current_bpm_before_change() {
 #[test]
 fn player_current_bpm_at_change_tick() {
     let chart = make_test_chart();
-    let mut player = Player::new(chart).unwrap();
+    let mut player = Player::new(chart);
     // Seek to exactly the BPM change tick. At tick 960, BPM should be 180.
     player.seek(Duration::from_secs_f64(2.0));
     let tick = player.current_tick();
@@ -167,7 +169,7 @@ fn player_current_bpm_at_change_tick() {
 #[test]
 fn player_events_in_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let events = player.events_in_range(0..=480);
     // Should contain: Bar(0), Bgm(240), Note(480), Bar(960 is outside range)
@@ -179,7 +181,7 @@ fn player_events_in_range() {
 #[test]
 fn player_events_unbounded_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let all_events = player.events_in_range(..);
     assert_eq!(all_events.len(), 5);
@@ -187,9 +189,8 @@ fn player_events_unbounded_range() {
 
 #[test]
 fn player_events_in_range_includes_max_tick() {
-    let mut chart = make_test_chart();
-    chart.data.events.push(Event::bar(u64::MAX));
-    let player = Player::new(chart).unwrap();
+    let chart = make_test_chart_with(vec![Event::bar(u64::MAX)]);
+    let player = Player::new(chart);
 
     assert_eq!(
         player.events_in_range(..).last().map(Event::tick),
@@ -204,7 +205,7 @@ fn player_events_in_range_includes_max_tick() {
 #[test]
 fn player_next_event_after_is_strict() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     assert_eq!(player.next_event_after(240).map(Event::tick), Some(480));
     assert_eq!(player.next_event_after(480).map(Event::tick), Some(960));
@@ -213,10 +214,8 @@ fn player_next_event_after_is_strict() {
 
 #[test]
 fn player_events_in_time_range_handles_stop() {
-    let mut chart = make_test_chart();
-    chart.data.events.push(Event::stop(240, 240));
-    chart.data.events.push(Event::bar(300));
-    let player = Player::new(chart).unwrap();
+    let chart = make_test_chart_with(vec![Event::stop(240, 240), Event::bar(300)]);
+    let player = Player::new(chart);
 
     // The stop at tick 240 runs from 0.5s to 1.0s. Tick 300 activates at
     // 1.0s + 60 ticks at 120 BPM = 1.125s.
@@ -229,9 +228,8 @@ fn player_events_in_time_range_handles_stop() {
 
 #[test]
 fn player_events_in_time_range_includes_stop_tick_event() {
-    let mut chart = make_test_chart();
-    chart.data.events.push(Event::stop(240, 240));
-    let player = Player::new(chart).unwrap();
+    let chart = make_test_chart_with(vec![Event::stop(240, 240)]);
+    let player = Player::new(chart);
 
     // The STOP and the BGM at tick 240 both activate at 0.5s. The coarse tick
     // range must include the end tick so the exact time filter can see them.
@@ -254,7 +252,7 @@ fn player_events_in_time_range_includes_stop_tick_event() {
 )]
 fn player_events_in_range_reverse_range_is_empty() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     assert_eq!(player.events_in_range(480..240).len(), 0);
     assert_eq!(player.events_in_range(480..=240).len(), 0);
@@ -265,7 +263,7 @@ fn player_events_in_range_reverse_range_is_empty() {
 #[test]
 fn player_notes_in_range() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let notes: Vec<_> = player
         .notes_in_range(..)
@@ -277,7 +275,7 @@ fn player_notes_in_range() {
 #[test]
 fn player_bga_events_empty() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let bga = player
         .events_in_range(..)
@@ -291,7 +289,7 @@ fn player_bga_events_empty() {
 #[test]
 fn player_scroll_rate_default() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let rate = player.scroll_rate_at(0);
     assert!((rate - 1.0).abs() < f64::EPSILON);
@@ -299,10 +297,8 @@ fn player_scroll_rate_default() {
 
 #[test]
 fn player_scroll_rate_with_events() {
-    let mut chart = make_test_chart();
-    chart.data.events.push(Event::scroll(480, 2.0));
-    chart.data.sort_events();
-    let player = Player::new(chart).unwrap();
+    let chart = make_test_chart_with(vec![Event::scroll(480, 2.0)]);
+    let player = Player::new(chart);
 
     // Before scroll event
     assert!((player.scroll_rate_at(0) - 1.0).abs() < f64::EPSILON);
@@ -317,7 +313,7 @@ fn player_scroll_rate_with_events() {
 #[test]
 fn player_tick_to_duration() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let dur = player.tick_to_duration(240);
     assert!((dur.as_secs_f64() - 0.5).abs() < 1e-9);
@@ -326,7 +322,7 @@ fn player_tick_to_duration() {
 #[test]
 fn player_duration_to_tick() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let tick = player.duration_to_tick(Duration::from_secs_f64(0.5));
     assert_eq!(tick, 240);
@@ -337,25 +333,25 @@ fn player_duration_to_tick() {
 #[test]
 fn player_chart_ref() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let chart_ref = player.chart();
-    assert_eq!(chart_ref.song.title, "Test");
+    assert_eq!(chart_ref.song().title, "Test");
 }
 
 #[test]
 fn player_into_chart() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let chart_back = player.into_chart();
-    assert_eq!(chart_back.song.title, "Test");
+    assert_eq!(chart_back.song().title, "Test");
 }
 
 #[test]
 fn player_audio_assets() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     // The fixture has one audio asset (validate requires BGM references to
     // resolve).
@@ -366,7 +362,7 @@ fn player_audio_assets() {
 #[test]
 fn player_bga_resources() {
     let chart = make_test_chart();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let resources = player.bga_resources();
     assert_eq!(resources, []);
@@ -376,9 +372,8 @@ fn player_bga_resources() {
 
 #[test]
 fn player_advance_with_bpm_change() {
-    let mut chart = make_test_chart();
-    chart.data.events.push(Event::bpm(240, 240.0));
-    let mut player = Player::new(chart).unwrap();
+    let chart = make_test_chart_with(vec![Event::bpm(240, 240.0)]);
+    let mut player = Player::new(chart);
 
     // 0-240 ticks at 120 BPM = 0.5s
     player.advance(Duration::from_secs_f64(0.5));
@@ -393,9 +388,8 @@ fn player_advance_with_bpm_change() {
 
 #[test]
 fn player_advance_with_stop() {
-    let mut chart = make_test_chart();
-    chart.data.events.push(Event::stop(240, 240));
-    let mut player = Player::new(chart).unwrap();
+    let chart = make_test_chart_with(vec![Event::stop(240, 240)]);
+    let mut player = Player::new(chart);
 
     // 0 to 0.5s (240 ticks at 120 BPM): should be at tick 240
     player.advance(Duration::from_secs_f64(0.5));
@@ -411,9 +405,8 @@ fn player_advance_with_stop() {
 
 #[test]
 fn frame_wise_advance_crosses_stop() {
-    let mut chart = make_test_chart();
-    chart.data.events.push(Event::stop(240, 240));
-    let mut player = Player::new(chart).unwrap();
+    let chart = make_test_chart_with(vec![Event::stop(240, 240)]);
+    let mut player = Player::new(chart);
 
     // A 3-second 60fps frame loop: 180 frames at 1/60s. The frozen segment is
     // [0.5, 1.0)s, so ticks should reach (3.0 - 1.0)s * 480 ticks/s + 240 = 1200;
@@ -426,137 +419,119 @@ fn frame_wise_advance_crosses_stop() {
 }
 
 #[test]
-fn player_new_rejects_negative_bpm() {
-    let chart: Chart = Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: ChartData {
-            init_bpm: -120.0,
-            resolution: 240,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: vec![Event::bar(0)],
-            audio_assets: vec![],
-        },
-    };
-    assert!(Player::new(chart).is_err());
+fn chart_data_rejects_negative_bpm() {
+    let result =
+        ChartData::<(), bmsrs_chart::NoCustomEvent>::new(-120.0, 240, vec![Event::bar(0)], vec![]);
+    assert!(result.is_err());
 }
 
 // F7: BGM and BGA event queries
 
 /// Create a chart with multiple BGM events.
+#[expect(clippy::unwrap_used, reason = "test fixture construction")]
 fn make_chart_with_bgm() -> Chart {
-    Chart {
-        song: SongInfo {
+    let data = ChartData::new(
+        120.0,
+        240,
+        vec![
+            Event::bar(0),
+            Event::bgm(120, AudioIndex::new(0)),
+            Event::bgm(240, AudioIndex::new(1)),
+            Event::bgm(360, AudioIndex::new(2)),
+            Event::bar(960),
+        ],
+        ["a.wav", "b.wav", "c.wav"]
+            .iter()
+            .map(|&name| AudioAsset::from_path_buf(PathBuf::from(name), Duration::ZERO, None))
+            .collect(),
+    )
+    .unwrap()
+    .with_judge_multiplier(Some(1.0))
+    .with_life_multiplier(Some(1.0));
+    Chart::new(
+        SongInfo {
             title: "BGM Test".into(),
             ..Default::default()
         },
-        chart: ChartInfo::default(),
-        data: ChartData {
-            init_bpm: 120.0,
-            resolution: 240,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: vec![
-                Event::bar(0),
-                Event::bgm(120, AudioIndex::new(0)),
-                Event::bgm(240, AudioIndex::new(1)),
-                Event::bgm(360, AudioIndex::new(2)),
-                Event::bar(960),
-            ],
-            // validate checks audio index integrity: three BGM events reference
-            // indices 0-2, so the asset table must cover them.
-            audio_assets: ["a.wav", "b.wav", "c.wav"]
-                .iter()
-                .map(|&name| AudioAsset::from_path_buf(PathBuf::from(name), Duration::ZERO, None))
-                .collect(),
-        },
-    }
+        ChartInfo::default(),
+        data,
+    )
+    .unwrap()
 }
 
 /// Create a chart with multiple BGA events (one per layer).
+#[expect(clippy::unwrap_used, reason = "test fixture construction")]
 fn make_chart_with_bga() -> Chart {
-    Chart {
-        song: SongInfo {
+    let chart_info = ChartInfo {
+        bga_resources: vec![
+            BgaResource {
+                path: "base.png".into(),
+                crop: None,
+            },
+            BgaResource {
+                path: "layer.png".into(),
+                crop: None,
+            },
+            BgaResource {
+                path: "poor.png".into(),
+                crop: None,
+            },
+            BgaResource {
+                path: "layer2.png".into(),
+                crop: None,
+            },
+        ],
+        ..Default::default()
+    };
+    let data = ChartData::new(
+        120.0,
+        240,
+        vec![
+            Event::bar(0),
+            Event::new(
+                120,
+                EventKind::Bga {
+                    layer: BgaLayer::Base,
+                    resource_id: BgaResourceId::new(0),
+                },
+            ),
+            Event::new(
+                240,
+                EventKind::Bga {
+                    layer: BgaLayer::Layer,
+                    resource_id: BgaResourceId::new(1),
+                },
+            ),
+            Event::new(
+                360,
+                EventKind::Bga {
+                    layer: BgaLayer::Poor,
+                    resource_id: BgaResourceId::new(2),
+                },
+            ),
+            Event::new(
+                480,
+                EventKind::Bga {
+                    layer: BgaLayer::Layer2,
+                    resource_id: BgaResourceId::new(3),
+                },
+            ),
+            Event::bar(960),
+        ],
+        vec![],
+    )
+    .unwrap()
+    .with_judge_multiplier(Some(1.0))
+    .with_life_multiplier(Some(1.0));
+    Chart::new(
+        SongInfo {
             title: "BGA Test".into(),
             ..Default::default()
         },
-        chart: ChartInfo {
-            bga_resources: vec![
-                BgaResource {
-                    path: "base.png".into(),
-                    crop: None,
-                },
-                BgaResource {
-                    path: "layer.png".into(),
-                    crop: None,
-                },
-                BgaResource {
-                    path: "poor.png".into(),
-                    crop: None,
-                },
-                BgaResource {
-                    path: "layer2.png".into(),
-                    crop: None,
-                },
-            ],
-            ..Default::default()
-        },
-        data: ChartData {
-            init_bpm: 120.0,
-            resolution: 240,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: vec![
-                Event::bar(0),
-                Event::new(
-                    120,
-                    EventKind::Bga {
-                        layer: BgaLayer::Base,
-                        resource_id: BgaResourceId::new(0),
-                    },
-                ),
-                Event::new(
-                    240,
-                    EventKind::Bga {
-                        layer: BgaLayer::Layer,
-                        resource_id: BgaResourceId::new(1),
-                    },
-                ),
-                Event::new(
-                    360,
-                    EventKind::Bga {
-                        layer: BgaLayer::Poor,
-                        resource_id: BgaResourceId::new(2),
-                    },
-                ),
-                Event::new(
-                    480,
-                    EventKind::Bga {
-                        layer: BgaLayer::Layer2,
-                        resource_id: BgaResourceId::new(3),
-                    },
-                ),
-                Event::bar(960),
-            ],
-            audio_assets: vec![],
-        },
-    }
+        chart_info,
+        data,
+    )
+    .unwrap()
 }
 
 /// BGM events are extracted through `events_in_range` plus caller-side kind
@@ -564,7 +539,7 @@ fn make_chart_with_bga() -> Chart {
 #[test]
 fn player_bgm_in_range_returns_events() {
     let chart = make_chart_with_bgm();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let bgm: Vec<_> = player
         .events_in_range(..)
@@ -584,7 +559,7 @@ fn player_bgm_in_range_returns_events() {
 #[test]
 fn player_bgm_in_range_subrange_returns_subset() {
     let chart = make_chart_with_bgm();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let bgm: Vec<_> = player
         .events_in_range(120..=360)
@@ -605,7 +580,7 @@ fn player_bgm_in_range_subrange_returns_subset() {
 #[test]
 fn player_bga_events_base_returns_all_events() {
     let chart = make_chart_with_bga();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let bga: Vec<_> = player
         .events_in_range(..)
@@ -629,7 +604,7 @@ fn player_bga_events_base_returns_all_events() {
 #[test]
 fn player_bga_events_filter_by_layer() {
     let chart = make_chart_with_bga();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let base: Vec<_> = player
         .events_in_range(..)
@@ -700,7 +675,7 @@ fn player_bga_events_filter_by_layer() {
 #[test]
 fn player_bgm_multiple_channels_returns_all() {
     let chart = make_chart_with_bgm();
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     let mut bgm_pairs: Vec<_> = player
         .events_in_range(..)

@@ -26,8 +26,8 @@ pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{
     BgaEvent, BgmEvent, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength,
-    Messages, MineEvent, NonEventData, NoteEvent, Position, ScrollEvent, SpeedEvent, StopEvent,
-    StpEvent,
+    Messages, MessagesBuilder, MineEvent, NonEventData, NoteEvent, Position, ScrollEvent,
+    SpeedEvent, StopEvent, StpEvent,
 };
 pub use metadata::Metadata;
 pub use timing::Timing;
@@ -78,15 +78,18 @@ impl Bms {
         // iterated twice (once for BASE, once for processing).
         let all_tokens: Vec<_> = tokens.into_iter().collect();
         let bms_base = detect_base(&all_tokens);
+        let mut messages = messages::MessagesBuilder::new();
 
         for token in &all_tokens {
             match token {
-                BmsToken::Header(header) => bms.process_header(header, bms_base),
-                BmsToken::Message(msg) => bms.process_message(msg),
+                BmsToken::Header(header) => {
+                    bms.process_header(header, bms_base, &mut messages);
+                }
+                BmsToken::Message(msg) => messages.push_message(msg),
             }
         }
 
-        bms.messages.finalize(bms_base);
+        bms.messages = messages.finish(bms_base);
         bms
     }
 
@@ -96,7 +99,12 @@ impl Bms {
     ///
     /// `base` is the radix base determined by `#BASE` (defaults to
     /// [`BmsBase::Base36`]).
-    fn process_header(&mut self, header: &BmsHeader, base: BmsBase) {
+    fn process_header(
+        &mut self,
+        header: &BmsHeader,
+        base: BmsBase,
+        messages: &mut messages::MessagesBuilder,
+    ) {
         match header {
             BmsHeader::Metadata(m) => self.metadata.apply(m),
             BmsHeader::Gameplay(g) => self.gameplay.apply(g, base),
@@ -104,7 +112,7 @@ impl Bms {
                 self.timing.apply(t, base);
                 // #STP crosses sub-structure boundaries.
                 if let BmsHeaderTiming::Stp { params } = t {
-                    self.messages.stp_events.push(messages::StpEvent {
+                    messages.push_stp(messages::StpEvent {
                         position: messages::Position::new(
                             params.measure,
                             u32::from(params.position),
@@ -117,18 +125,11 @@ impl Bms {
             BmsHeader::ResDefAudio(a) => self.audio.apply(a, base),
             BmsHeader::ResDefVisual(v) => self.visual.apply(v, base),
             BmsHeader::Display(d) => self.display.apply(d),
-            BmsHeader::ControlFlow(_) => { /* skipped — not stored in Bms */ }
+            BmsHeader::ControlFlow(_) => { /* skipped, not stored in Bms */ }
             BmsHeader::Fallback(f) => self
                 .fallback_headers
                 .push((f.command.clone(), f.value.clone())),
         }
-    }
-
-    // Messages
-
-    /// Insert a channel message into the message container.
-    fn process_message(&mut self, m: &BmsMessage) {
-        self.messages.concat_raw(m);
     }
 }
 
@@ -158,9 +159,9 @@ fn detect_base(tokens: &[BmsToken]) -> BmsBase {
 /// case-insensitivity even in Base62 files.
 #[must_use]
 pub(crate) const fn family_base(global: BmsBase, is_base62_family: bool) -> BmsBase {
-    if is_base62_family {
-        global
-    } else {
-        BmsBase::Base36
+    match global {
+        BmsBase::Base16 => BmsBase::Base16,
+        _ if is_base62_family => global,
+        _ => BmsBase::Base36,
     }
 }

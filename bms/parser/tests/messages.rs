@@ -1,7 +1,7 @@
 //! Integration tests for `Messages` (event parsing through the public API).
 //!
 //! These tests consume the `Messages` struct only through the public API, using
-//! `concat_raw` and `finalize`.
+//! `MessagesBuilder`.
 
 use bmsrs_bms_parser::BmsBgaLayer;
 use bmsrs_bms_parser::*;
@@ -16,12 +16,11 @@ fn parse_one(line: &str) -> Messages {
 /// Helper: parse one standard message line through `Messages` with an explicit
 /// base.
 fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
-    let mut msgs = Messages::default();
+    let mut builder = MessagesBuilder::new();
     if let Ok(Some(msg)) = parse_message_line(line) {
-        msgs.concat_raw(&msg);
+        builder.push_message(&msg);
     }
-    msgs.finalize(base);
-    msgs
+    builder.finish(base)
 }
 
 #[test]
@@ -366,7 +365,7 @@ fn measure_length_default_on_invalid() {
 fn empty_values_no_events() {
     let msgs = parse_one("#00111:");
     assert_eq!(msgs.note_events.len(), 0);
-    assert!(msgs.raw.contains_key(&1));
+    assert!(msgs.raw().contains_key(&1));
 }
 
 #[test]
@@ -376,7 +375,7 @@ fn unknown_channel_raw_only() {
     assert_eq!(msgs.note_events.len(), 0);
     let ch = BmsChannel::from_raw("0F").unwrap();
     assert_eq!(
-        msgs.raw
+        msgs.raw()
             .get(&1)
             .and_then(|m| m.get(&ch))
             .and_then(|v| v.first().map(String::as_str)),
@@ -384,7 +383,7 @@ fn unknown_channel_raw_only() {
     );
     // Single-line storage.
     assert_eq!(
-        msgs.raw.get(&1).and_then(|m| m.get(&ch).map(Vec::len)),
+        msgs.raw().get(&1).and_then(|m| m.get(&ch).map(Vec::len)),
         Some(1)
     );
 }
@@ -399,9 +398,8 @@ fn note_events_filter_zero_entries() {
 }
 
 #[test]
-fn repeated_finalize_does_not_duplicate_events() {
-    let mut msgs = parse_one("#00111:0102");
-    msgs.finalize(BmsBase::Base36);
+fn builder_finish_parses_each_event_once() {
+    let msgs = parse_one("#00111:0102");
     assert_eq!(msgs.note_events.len(), 2);
 }
 
@@ -454,18 +452,15 @@ fn bpm_00_mixed_with_real() {
 }
 
 #[test]
-fn finalize_idempotent_does_not_duplicate_non_event_data() {
+fn builder_finish_keeps_non_event_data_singular() {
     // chA6 (options) goes through finalize_merged and produces a
     // non_event_data entry.
-    let mut msgs = parse_one("#001A6:0100000000000000");
+    let msgs = parse_one("#001A6:0100000000000000");
     let first_count = msgs.non_event_data.len();
     assert!(
         first_count > 0,
         "chA6 should produce a non_event_data entry"
     );
-    // Repeated finalize calls must not append duplicate entries.
-    msgs.finalize(BmsBase::Base36);
-    assert_eq!(msgs.non_event_data.len(), first_count);
 }
 
 #[test]

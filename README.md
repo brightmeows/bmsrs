@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (bms, _warnings) = from_bytes(bytes, |_| 1, ErrorStrategy::CollectAll)?;
     let processed = BmsProcessor::process_default(&bms)?;
 
-    let mut player = Player::new(processed.chart)?;
+    let mut player = Player::new(processed.chart);
     player.advance(Duration::from_secs(1));
 
     println!("current tick: {}", player.current_tick());
@@ -94,7 +94,7 @@ fn load(json: &str) -> Result<(), Box<dyn std::error::Error>> {
     let bmson: Bmson = serde_json::from_str(json)?;
     let processed = BmsonProcessor::process_default(&bmson)?;
 
-    println!("events: {}", processed.chart.data.events.len());
+    println!("events: {}", processed.chart.data().events().len());
     Ok(())
 }
 ```
