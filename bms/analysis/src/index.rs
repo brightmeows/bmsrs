@@ -294,59 +294,7 @@ impl SymbolIndex {
             .insert(start);
         self.references.insert(start, reference);
     }
-
-    /// Remove all definitions and references whose start offset falls in
-    /// `range`.
-    #[expect(dead_code, reason = "used by the incremental analysis update path")]
-    pub(crate) fn remove_range(&mut self, range: TextRange) {
-        let definition_starts: Vec<_> = self
-            .definitions
-            .range(range.start()..range.end())
-            .map(|(start, _)| *start)
-            .collect();
-        for start in definition_starts {
-            if let Some(definition) = self.definitions.remove(&start) {
-                remove_key(
-                    &mut self.definition_keys,
-                    (definition.kind, definition.id),
-                    start,
-                );
-            }
-        }
-
-        let reference_starts: Vec<_> = self
-            .references
-            .range(range.start()..range.end())
-            .map(|(start, _)| *start)
-            .collect();
-        for start in reference_starts {
-            if let Some(reference) = self.references.remove(&start) {
-                remove_key(
-                    &mut self.reference_keys,
-                    (reference.kind, reference.id),
-                    start,
-                );
-            }
-        }
-    }
 }
-
-/// Remove one start from a key map, dropping the key when it becomes empty.
-#[expect(dead_code, reason = "used by SymbolIndex::remove_range")]
-fn remove_key(
-    map: &mut BTreeMap<(SymbolKind, SymbolId), BTreeSet<TextSize>>,
-    key: (SymbolKind, SymbolId),
-    start: TextSize,
-) {
-    let empty = map.get_mut(&key).is_some_and(|starts| {
-        starts.remove(&start);
-        starts.is_empty()
-    });
-    if empty {
-        map.remove(&key);
-    }
-}
-
 /// Return whether a range contains an offset.
 fn contains(range: TextRange, offset: TextSize) -> bool {
     range.start() <= offset && offset < range.end()
