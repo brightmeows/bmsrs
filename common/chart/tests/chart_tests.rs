@@ -7,9 +7,8 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
-    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    NoCustomEvent, Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
-    TimingTrackError,
+    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent, Note, NoteAudio,
+    NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -30,62 +29,48 @@ fn chart_construction_is_empty_by_default() {
     // Chart does not implement Default (the embedded ChartData has no valid
     // default); this verifies an explicitly constructed empty chart with empty
     // metadata and no events.
-    let chart: Chart = Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: ChartData {
-            init_bpm: 120.0,
-            resolution: 240,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: vec![],
-            audio_assets: vec![],
-        },
-    };
-    assert_eq!(chart.song.title, "");
-    assert_eq!(chart.chart.subtitle, "");
-    assert_eq!(chart.data.events, [] as [bmsrs_chart::Event; 0]);
+    let data: ChartData = ChartData::new(120.0, 240, vec![], vec![])
+        .unwrap()
+        .with_judge_multiplier(Some(1.0))
+        .with_life_multiplier(Some(1.0));
+    let chart = Chart::new(SongInfo::default(), ChartInfo::default(), data).unwrap();
+    assert_eq!(chart.song().title, "");
+    assert_eq!(chart.chart_info().subtitle, "");
+    assert_eq!(chart.data().events(), [] as [bmsrs_chart::Event; 0]);
 }
 
 #[test]
 fn chart_construction() {
-    let chart: Chart = Chart {
-        song: SongInfo {
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![Event::new(
+            0,
+            EventKind::Note(Note {
+                side: NoteSide::P1,
+                lane: key(1),
+                kind: NoteKind::Normal,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
+                ext: (),
+            }),
+        )],
+        vec![],
+    )
+    .unwrap()
+    .with_judge_multiplier(Some(1.0))
+    .with_life_multiplier(Some(1.0));
+    let chart = Chart::new(
+        SongInfo {
             title: "Test".into(),
             ..Default::default()
         },
-        chart: ChartInfo::default(),
-        data: ChartData {
-            init_bpm: 120.0,
-            resolution: 240,
-            judge_multiplier: Some(1.0),
-            life_multiplier: Some(1.0),
-            ln_type_hint: LnTypeHint::default(),
-            ln_judge_hint: LnJudgeHint::default(),
-            ln_life_hint: LnLifeHint::default(),
-            judge_deltas: None,
-            life_deltas: None,
-            events: vec![Event::new(
-                0,
-                EventKind::Note(Note {
-                    side: NoteSide::P1,
-                    lane: key(1),
-                    kind: NoteKind::Normal,
-                    role: NoteRole::Normal,
-                    audio: NoteAudio::none(),
-                    ext: (),
-                }),
-            )],
-            audio_assets: vec![],
-        },
-    };
-    assert_eq!(chart.song.title, "Test");
-    assert_eq!(chart.data.events.len(), 1);
+        ChartInfo::default(),
+        data,
+    )
+    .unwrap();
+    assert_eq!(chart.song().title, "Test");
+    assert_eq!(chart.data().events().len(), 1);
 }
 
 #[test]
@@ -112,68 +97,31 @@ fn chart_info_default() {
 #[test]
 fn chart_data_last_tick_empty() {
     // An empty event list makes last_tick() return 0.
-    let data = ChartData::<(), NoCustomEvent> {
-        init_bpm: 120.0,
-        resolution: 240,
-        judge_multiplier: Some(1.0),
-        life_multiplier: Some(1.0),
-        ln_type_hint: LnTypeHint::default(),
-        ln_judge_hint: LnJudgeHint::default(),
-        ln_life_hint: LnLifeHint::default(),
-        judge_deltas: None,
-        life_deltas: None,
-        events: vec![],
-        audio_assets: vec![],
-    };
+    let data = ChartData::<(), NoCustomEvent>::new(120.0, 240, vec![], vec![]).unwrap();
     assert_eq!(data.last_tick(), 0);
 }
 
 #[test]
 fn chart_data_last_tick_with_events() {
-    let data: ChartData = ChartData {
-        init_bpm: 120.0,
-        resolution: 240,
-        judge_multiplier: Some(1.0),
-        life_multiplier: Some(1.0),
-        ln_type_hint: LnTypeHint::default(),
-        ln_judge_hint: LnJudgeHint::default(),
-        ln_life_hint: LnLifeHint::default(),
-        judge_deltas: None,
-        life_deltas: None,
-        events: vec![Event::bar(0), Event::bar(960)],
-        audio_assets: vec![],
-    };
+    let data: ChartData =
+        ChartData::new(120.0, 240, vec![Event::bar(0), Event::bar(960)], vec![]).unwrap();
     assert_eq!(data.last_tick(), 960);
 }
 
 // ChartData::validate
 
-/// Build a valid empty [`ChartData`] (matching resolution, no events).
-fn valid_chart_data() -> ChartData {
-    ChartData {
-        init_bpm: 120.0,
-        resolution: 240,
-        judge_multiplier: Some(1.0),
-        life_multiplier: Some(1.0),
-        ln_type_hint: LnTypeHint::default(),
-        ln_judge_hint: LnJudgeHint::default(),
-        ln_life_hint: LnLifeHint::default(),
-        judge_deltas: None,
-        life_deltas: None,
-        events: vec![],
-        audio_assets: vec![],
-    }
-}
-
 #[test]
 fn validate_rejects_dangling_audio_index() {
     // The Bgm event references index 3, and the asset table is empty.
-    let mut data = valid_chart_data();
-    data.events = vec![Event::bgm(0, AudioIndex::new(3))];
-
     assert_eq!(
-        data.validate(),
-        Err(ChartDataError::DanglingAudioIndex {
+        ChartData::<(), NoCustomEvent>::new(
+            120.0,
+            240,
+            vec![Event::bgm(0, AudioIndex::new(3))],
+            vec![],
+        )
+        .err(),
+        Some(ChartDataError::DanglingAudioIndex {
             index: AudioIndex::new(3),
             len: 0
         })
@@ -181,36 +129,32 @@ fn validate_rejects_dangling_audio_index() {
 }
 
 #[test]
-fn validate_rejects_unsorted_events() {
-    let mut data = valid_chart_data();
-    data.events = vec![Event::bar(480), Event::bar(240)];
-
-    assert_eq!(data.validate(), Err(ChartDataError::UnsortedEvents));
-}
-
-#[test]
 fn validate_accepts_consistent_chart() {
     // The note references index 0, the asset table has exactly one item, and
     // resolutions match.
-    let mut data = valid_chart_data();
-    data.audio_assets = vec![AudioAsset::from_path_buf(
-        std::path::PathBuf::from("a.wav"),
-        Duration::ZERO,
-        None,
-    )];
-    data.events = vec![Event::new(
-        0,
-        EventKind::Note(Note {
-            side: NoteSide::P1,
-            lane: key(1),
-            kind: NoteKind::Normal,
-            role: NoteRole::Normal,
-            audio: NoteAudio::one(AudioIndex::new(0)),
-            ext: (),
-        }),
-    )];
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![Event::new(
+            0,
+            EventKind::Note(Note {
+                side: NoteSide::P1,
+                lane: key(1),
+                kind: NoteKind::Normal,
+                role: NoteRole::Normal,
+                audio: NoteAudio::one(AudioIndex::new(0)),
+                ext: (),
+            }),
+        )],
+        vec![AudioAsset::from_path_buf(
+            std::path::PathBuf::from("a.wav"),
+            Duration::ZERO,
+            None,
+        )],
+    )
+    .unwrap();
 
-    assert_eq!(data.validate(), Ok(()));
+    assert_eq!(data.audio_assets().len(), 1);
 }
 
 #[test]
@@ -222,7 +166,7 @@ fn chart_data_new_sorts_events() {
         vec![],
     )
     .unwrap();
-    let ticks: Vec<u64> = data.events.iter().map(Event::tick).collect();
+    let ticks: Vec<u64> = data.events().iter().map(Event::tick).collect();
     assert_eq!(ticks, vec![240, 480]);
 }
 
@@ -721,20 +665,14 @@ fn map_ext_applies_fn_to_note_variant() {
     }
 }
 
-// ChartData / Chart::filter_map_events
+// ChartData / Chart::try_filter_map_events
 
+#[expect(clippy::unwrap_used, reason = "test fixture construction")]
 fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
-    ChartData {
-        init_bpm: 120.0,
-        resolution: 240,
-        judge_multiplier: Some(1.0),
-        life_multiplier: Some(1.0),
-        ln_type_hint: LnTypeHint::default(),
-        ln_judge_hint: LnJudgeHint::default(),
-        ln_life_hint: LnLifeHint::default(),
-        judge_deltas: None,
-        life_deltas: None,
-        events: vec![
+    ChartData::new(
+        120.0,
+        240,
+        vec![
             Event::bar(0),
             Event::new(
                 240,
@@ -749,99 +687,107 @@ fn make_simple_chart_data() -> ChartData<(), NoCustomEvent> {
             ),
             Event::bpm(480, 180.0),
         ],
-        audio_assets: vec![],
-    }
+        vec![],
+    )
+    .unwrap()
+    .with_judge_multiplier(Some(1.0))
+    .with_life_multiplier(Some(1.0))
 }
 
 #[test]
-fn filter_map_events_preserves_all_when_none_filtered() {
+fn try_filter_map_events_preserves_all_when_none_filtered() {
     let data = make_simple_chart_data();
     let mapped: ChartData<(), NoCustomEvent> = data
-        .filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))));
-    assert_eq!(mapped.events.len(), 3);
-    assert_eq!(mapped.resolution, 240);
-    assert!((mapped.init_bpm - 120.0).abs() < f64::EPSILON);
+        .try_filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))))
+        .unwrap();
+    assert_eq!(mapped.events().len(), 3);
+    assert_eq!(mapped.resolution(), 240);
+    assert!((mapped.init_bpm() - 120.0).abs() < f64::EPSILON);
 }
 
 #[test]
-fn filter_map_events_drops_custom_events() {
-    let data = ChartData {
-        init_bpm: 120.0,
-        resolution: 240,
-        judge_multiplier: Some(1.0),
-        life_multiplier: Some(1.0),
-        ln_type_hint: LnTypeHint::default(),
-        ln_judge_hint: LnJudgeHint::default(),
-        ln_life_hint: LnLifeHint::default(),
-        judge_deltas: None,
-        life_deltas: None,
-        events: vec![
+fn try_filter_map_events_drops_custom_events() {
+    let data: ChartData<(), NoCustomEvent> = ChartData::new(
+        120.0,
+        240,
+        vec![
             Event::bar(0),
             Event::new(0, EventKind::<(), NoCustomEvent>::Custom(NoCustomEvent)),
             Event::bpm(240, 150.0),
         ],
-        audio_assets: vec![],
-    };
+        vec![],
+    )
+    .unwrap()
+    .with_judge_multiplier(Some(1.0))
+    .with_life_multiplier(Some(1.0));
 
-    let mapped: ChartData<(), NoCustomEvent> = data.filter_map_events(|e| {
-        let tick = e.tick();
-        match e.kind {
-            EventKind::Custom(_) => None,
-            kind => Some(Event::new(tick, kind.map_custom(|_| NoCustomEvent))),
-        }
-    });
+    let mapped: ChartData<(), NoCustomEvent> = data
+        .try_filter_map_events(|e| {
+            let tick = e.tick();
+            match e.kind {
+                EventKind::Custom(_) => None,
+                kind => Some(Event::new(tick, kind.map_custom(|_| NoCustomEvent))),
+            }
+        })
+        .unwrap();
 
-    assert_eq!(mapped.events.len(), 2);
-    assert!(matches!(mapped.events[0].kind, EventKind::Bar));
-    assert!(matches!(mapped.events[1].kind, EventKind::Bpm { .. }));
+    assert_eq!(mapped.events().len(), 2);
+    assert!(matches!(mapped.events()[0].kind, EventKind::Bar));
+    assert!(matches!(mapped.events()[1].kind, EventKind::Bpm { .. }));
 }
 
 #[test]
 fn chart_filter_map_events_preserves_metadata() {
-    let chart = Chart {
-        song: SongInfo {
+    let chart = Chart::new(
+        SongInfo {
             title: "Test".into(),
             ..Default::default()
         },
-        chart: ChartInfo {
+        ChartInfo {
             chart_name: "HYPER".into(),
             ..Default::default()
         },
-        data: make_simple_chart_data(),
-    };
+        make_simple_chart_data(),
+    )
+    .unwrap();
 
     let mapped: Chart<(), NoCustomEvent> = chart
-        .filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))));
+        .try_filter_map_events(|e| Some(Event::new(e.tick(), e.kind.map_custom(|_| NoCustomEvent))))
+        .unwrap();
 
-    assert_eq!(mapped.song.title, "Test");
-    assert_eq!(mapped.chart.chart_name, "HYPER");
-    assert_eq!(mapped.data.events.len(), 3);
+    assert_eq!(mapped.song().title, "Test");
+    assert_eq!(mapped.chart_info().chart_name, "HYPER");
+    assert_eq!(mapped.data().events().len(), 3);
 }
 
-// Chart::validate
+// Chart::new BGA validation
 
 #[test]
 fn validate_rejects_dangling_bga_resource() {
-    let mut chart = Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: valid_chart_data(),
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![Event::new(
+            0,
+            EventKind::Bga {
+                layer: BgaLayer::Base,
+                resource_id: BgaResourceId::new(2),
+            },
+        )],
+        vec![],
+    )
+    .unwrap();
+    let chart_info = ChartInfo {
+        bga_resources: vec![BgaResource {
+            path: std::path::PathBuf::from("bg.png"),
+            crop: None,
+        }],
+        ..Default::default()
     };
-    chart.data.events = vec![Event::new(
-        0,
-        EventKind::Bga {
-            layer: BgaLayer::Base,
-            resource_id: BgaResourceId::new(2),
-        },
-    )];
-    chart.chart.bga_resources = vec![BgaResource {
-        path: std::path::PathBuf::from("bg.png"),
-        crop: None,
-    }];
 
     assert_eq!(
-        chart.validate(),
-        Err(ChartDataError::DanglingBgaResource {
+        Chart::new(SongInfo::default(), chart_info, data).err(),
+        Some(ChartDataError::DanglingBgaResource {
             id: BgaResourceId::new(2),
             len: 1
         })
@@ -850,22 +796,26 @@ fn validate_rejects_dangling_bga_resource() {
 
 #[test]
 fn validate_accepts_consistent_bga_references() {
-    let mut chart = Chart {
-        song: SongInfo::default(),
-        chart: ChartInfo::default(),
-        data: valid_chart_data(),
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![Event::new(
+            0,
+            EventKind::Bga {
+                layer: BgaLayer::Base,
+                resource_id: BgaResourceId::new(0),
+            },
+        )],
+        vec![],
+    )
+    .unwrap();
+    let chart_info = ChartInfo {
+        bga_resources: vec![BgaResource {
+            path: std::path::PathBuf::from("bg.png"),
+            crop: None,
+        }],
+        ..Default::default()
     };
-    chart.data.events = vec![Event::new(
-        0,
-        EventKind::Bga {
-            layer: BgaLayer::Base,
-            resource_id: BgaResourceId::new(0),
-        },
-    )];
-    chart.chart.bga_resources = vec![BgaResource {
-        path: std::path::PathBuf::from("bg.png"),
-        crop: None,
-    }];
 
-    assert_eq!(chart.validate(), Ok(()));
+    assert!(Chart::new(SongInfo::default(), chart_info, data).is_ok());
 }

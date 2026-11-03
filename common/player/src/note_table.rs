@@ -43,7 +43,7 @@ impl fmt::Display for NoteId {
 /// `judgeable` is deliberately absent. The same `NoteKind`/`NoteRole` pair can
 /// mean different things under different long-note modes, so the caller applies
 /// its own policy.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NotePoint {
     /// Stable note id.
     pub id: NoteId,

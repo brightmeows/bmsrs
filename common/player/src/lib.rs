@@ -42,12 +42,12 @@
 //!             bmsrs_chart::NoteAudio::none(),
 //!         ),
 //!     )],
-//!     Default::default(),
+//!     vec![],
 //! )
 //! .unwrap();
-//! let chart = Chart::new(SongInfo::default(), ChartInfo::default(), data);
+//! let chart = Chart::new(SongInfo::default(), ChartInfo::default(), data).unwrap();
 //!
-//! let mut player = Player::new(chart).unwrap();
+//! let mut player = Player::new(chart);
 //! assert_eq!(player.current_tick(), 0);
 //! player.advance(Duration::from_secs(1));
 //! assert_eq!(player.current_time(), Duration::from_secs(1));
@@ -64,8 +64,7 @@ use std::ops::{Bound, Range, RangeBounds};
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaResource, Chart, ChartDataError, CustomEvent, Event, NoCustomEvent, NoteExt,
-    TimingTrack,
+    AudioAsset, BgaResource, Chart, CustomEvent, Event, NoCustomEvent, NoteExt, TimingTrack,
 };
 
 use crate::scroll_cache::ScrollCache;
@@ -82,7 +81,7 @@ pub use crate::viewport::{Viewport, VisibleLine, VisibleLongNote, VisibleNote};
 pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// Chart being played.
     chart: Chart<T, C>,
-    /// Timing track derived from `chart.data.events`.
+    /// Timing track derived from the chart's event stream.
     timing: TimingTrack,
     /// Precomputed scroll speed cache.
     scroll_cache: ScrollCache,
@@ -95,35 +94,39 @@ pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
 }
 
 impl<T: NoteExt, C: CustomEvent> Player<T, C> {
-    /// Create a player from a chart.
+    /// Create a player from an already validated chart.
     ///
-    /// Sorts events, validates the chart data, then derives the timing track,
-    /// scroll caches, and note table.
+    /// [`Chart`] guarantees sorted events, valid timing values, and resolved
+    /// references, so this constructor derives the timing track, scroll caches,
+    /// and note table without revalidating.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// Returns [`ChartDataError`] when the chart has invalid timing values,
-    /// unsorted events that cannot be fixed, invalid BPM/rate events, or dangling
-    /// audio/BGA references.
-    pub fn new(mut chart: Chart<T, C>) -> Result<Self, ChartDataError> {
-        chart.data.sort_events();
-        chart.validate()?;
+    /// Panics only if the [`Chart`] invariant is violated. Public constructors
+    /// make that unreachable.
+    #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "Chart guarantees a valid initial BPM and resolution"
+    )]
+    pub fn new(chart: Chart<T, C>) -> Self {
         let timing = TimingTrack::from_events(
-            chart.data.init_bpm,
-            chart.data.resolution,
-            &chart.data.events,
-        )?;
-        let scroll_cache = ScrollCache::build(&chart.data.events, timing.resolution());
-        let speed_cache = SpeedCache::build(&chart.data.events, &timing);
-        let note_table = NoteTable::build(&chart.data.events);
-        Ok(Self {
+            chart.data().init_bpm(),
+            chart.data().resolution(),
+            chart.data().events(),
+        )
+        .expect("validated chart has valid timing");
+        let scroll_cache = ScrollCache::build(chart.data().events(), timing.resolution());
+        let speed_cache = SpeedCache::build(chart.data().events(), &timing);
+        let note_table = NoteTable::build(chart.data().events());
+        Self {
             chart,
             timing,
             scroll_cache,
             speed_cache,
             note_table,
             current_time: Duration::ZERO,
-        })
+        }
     }
 
     // Time control
@@ -200,7 +203,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// This is the render duration of the last event, not a tail after it.
     #[must_use]
     pub fn duration(&self) -> Duration {
-        self.timing.tick_to_duration(self.chart.data.last_tick())
+        self.timing.tick_to_duration(self.chart.data().last_tick())
     }
 
     /// BPM in effect at the current playback position.
@@ -225,7 +228,13 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     #[must_use]
     pub fn events_in_range(&self, range: impl RangeBounds<u64>) -> &[Event<T, C>] {
         let (start, end) = self.event_range_indices(range);
-        &self.chart.data.events[start..end]
+        &self.chart.data().events()[start..end]
+    }
+
+    /// Return the full sorted event stream.
+    #[must_use]
+    pub fn events(&self) -> &[Event<T, C>] {
+        self.chart.data().events()
     }
 
     /// Return events whose activation time falls in `[start, end)`.
@@ -259,7 +268,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         &self,
         range: impl RangeBounds<u64>,
     ) -> impl Iterator<Item = NoteRef<'_, T, C>> {
-        let events = &self.chart.data.events;
+        let events = self.chart.data().events();
         self.note_table
             .notes_in_range(range)
             .map(move |point| NoteTable::note_ref(point, events))
@@ -269,7 +278,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     #[must_use]
     pub fn note(&self, id: NoteId) -> Option<NoteRef<'_, T, C>> {
         let point = self.note_table.note(id)?;
-        Some(NoteTable::note_ref(point, &self.chart.data.events))
+        Some(NoteTable::note_ref(point, self.chart.data().events()))
     }
 
     /// Return every long-note pair.
@@ -281,7 +290,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// Return the audio asset table.
     #[must_use]
     pub fn audio_assets(&self) -> &[AudioAsset] {
-        &self.chart.data.audio_assets
+        self.chart.data().audio_assets()
     }
 
     // Visual queries
@@ -319,7 +328,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
     /// Return the BGA resources.
     #[must_use]
     pub fn bga_resources(&self) -> &[BgaResource] {
-        &self.chart.chart.bga_resources
+        &self.chart.chart_info().bga_resources
     }
 
     /// Borrow the note table.
@@ -346,7 +355,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
 
     /// Map a tick range to `(start, end)` indices in the event vector.
     fn event_range_indices(&self, range: impl RangeBounds<u64>) -> (usize, usize) {
-        let events = &self.chart.data.events;
+        let events = self.chart.data().events();
         let start = match range.start_bound() {
             Bound::Included(tick) => events.partition_point(|event| event.tick() < *tick),
             Bound::Excluded(tick) => events.partition_point(|event| event.tick() <= *tick),

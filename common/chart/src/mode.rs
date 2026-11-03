@@ -9,11 +9,9 @@ use std::num::NonZeroU8;
 /// The playfield side a note belongs to, represented by a one-based index.
 ///
 /// Stored as [`NonZeroU8`] so numbering can grow: current formats use only
-/// sides 1 and 2 (two-player BMS/BMSON), but future formats or battle modes can
-/// introduce more sides without changing this type.
-///
-/// Use [`NoteSide::new`] for arbitrary indices; for the common two-player case
-/// use the [`NoteSide::P1`] / [`NoteSide::P2`] constants.
+/// sides 1 and 2 (two-player BMS/BMSON), exposed through the [`NoteSide::P1`] /
+/// [`NoteSide::P2`] constants. Future formats or battle modes can add constants
+/// without changing the storage representation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NoteSide(NonZeroU8);
 
@@ -26,13 +24,6 @@ impl NoteSide {
         Some(n) => Self(n),
         None => panic!("2 is non-zero"),
     };
-
-    /// Construct a side from a non-zero index. Any positive value is valid, so
-    /// the type remains open to formats with more than two sides.
-    #[must_use]
-    pub const fn new(value: NonZeroU8) -> Self {
-        Self(value)
-    }
 
     /// One-based side index.
     #[must_use]

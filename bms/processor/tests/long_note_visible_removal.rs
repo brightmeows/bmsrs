@@ -60,8 +60,8 @@ fn visible_note_inside_lntype1_range_removed() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let normal_ticks: Vec<u64> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -125,7 +125,7 @@ fn visible_note_at_ln_start_tick_suppressed() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    let has_normal = chart.data.events.iter().any(|e| {
+    let has_normal = chart.data().events().iter().any(|e| {
         matches!(
             &e.kind,
             EventKind::Note(Note {
@@ -177,7 +177,7 @@ fn visible_note_at_ln_end_tick_suppressed() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    let has_normal = chart.data.events.iter().any(|e| {
+    let has_normal = chart.data().events().iter().any(|e| {
         matches!(
             &e.kind,
             EventKind::Note(Note {
@@ -234,8 +234,8 @@ fn visible_note_on_different_lane_preserved() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let normal_ticks: Vec<u64> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -293,7 +293,7 @@ fn visible_note_at_unpaired_ln_start_suppressed() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    let has_normal = chart.data.events.iter().any(|e| {
+    let has_normal = chart.data().events().iter().any(|e| {
         matches!(
             &e.kind,
             EventKind::Note(Note {
@@ -371,8 +371,8 @@ fn visible_note_in_gap_between_lns_preserved() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let normal_ticks: Vec<u64> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -447,8 +447,8 @@ fn lnobj_visible_note_inside_range_removed() {
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
     let normal_ticks: Vec<u64> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -526,7 +526,7 @@ fn lntype2_visible_note_inside_range_removed() {
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().chart;
 
-    let has_normal = chart.data.events.iter().any(|e| {
+    let has_normal = chart.data().events().iter().any(|e| {
         matches!(
             &e.kind,
             EventKind::Note(Note {

@@ -21,9 +21,9 @@ type BmsChart = Chart<(), BmsCustomEvent>;
 #[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
 fn timing(chart: &BmsChart) -> TimingTrack {
     TimingTrack::from_events(
-        chart.data.init_bpm,
-        chart.data.resolution,
-        &chart.data.events,
+        chart.data().init_bpm(),
+        chart.data().resolution(),
+        chart.data().events(),
     )
     .expect("processed chart timing should be valid")
 }
@@ -45,8 +45,8 @@ fn parse_bms(bms_text: &str) -> Bms {
 /// Extract every Note event (including kind information).
 fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
     chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note { kind, .. }) = &e.kind {
@@ -61,8 +61,8 @@ fn all_notes(chart: &BmsChart) -> Vec<(u64, NoteKind)> {
 /// Extract every Scroll event.
 fn scroll_events(chart: &BmsChart) -> Vec<(u64, f64)> {
     chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Scroll { rate } = &e.kind {
@@ -77,8 +77,8 @@ fn scroll_events(chart: &BmsChart) -> Vec<(u64, f64)> {
 /// Extract every Speed event.
 fn speed_events(chart: &BmsChart) -> Vec<(u64, f64)> {
     chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Speed { rate } = &e.kind {
@@ -93,8 +93,8 @@ fn speed_events(chart: &BmsChart) -> Vec<(u64, f64)> {
 /// Extract Long `Note` (`NoteKind::Long`) events.
 fn long_notes(chart: &BmsChart) -> Vec<(u64, u64)> {
     chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
@@ -119,10 +119,10 @@ fn bmspec_1_01_parse_sentences() {
          #00101:0100010001\n\
          This is a comment\n",
     );
-    assert_eq!(chart.song.title, "BY MY SIDE");
-    assert_eq!(chart.song.artist, "flicknote");
+    assert_eq!(chart.song().title, "BY MY SIDE");
+    assert_eq!(chart.song().artist, "flicknote");
     // Channel 01 contains 4 BGM events. Comment lines are ignored.
-    assert_eq!(chart.data.audio_assets.len(), 0); // WAV is undefined.
+    assert_eq!(chart.data().audio_assets().len(), 0); // WAV is undefined.
 }
 
 /// bmspec-1-01-Sentences: malformed command lines (a header without a space
@@ -132,39 +132,39 @@ fn bmspec_1_01_malformed_command() {
     // #ARTIST:flicknote (colon instead of a space) is not recognized as a
     // header.
     let chart = process("#TITLE BY MY SIDE\n#ARTIST:flicknote\n");
-    assert_eq!(chart.song.title, "BY MY SIDE");
+    assert_eq!(chart.song().title, "BY MY SIDE");
     // #ARTIST is not parsed (the colon makes parse_header_line fall back).
-    assert_eq!(chart.song.artist, "");
+    assert_eq!(chart.song().artist, "");
 }
 
 /// bmspec-1-02-Header: standard header.
 #[test]
 fn bmspec_1_02_standard_header() {
     let chart = process("#TITLE BY MY SIDE\n#ARTIST flicknote\n");
-    assert_eq!(chart.song.title, "BY MY SIDE");
-    assert_eq!(chart.song.artist, "flicknote");
+    assert_eq!(chart.song().title, "BY MY SIDE");
+    assert_eq!(chart.song().artist, "flicknote");
 }
 
 /// bmspec-1-02-Header: multiple-space separator.
 #[test]
 fn bmspec_1_02_header_multiple_spaces() {
     let chart = process("#TITLE      BY MY SIDE\n");
-    assert_eq!(chart.song.title, "BY MY SIDE");
+    assert_eq!(chart.song().title, "BY MY SIDE");
 }
 
 /// bmspec-1-02-Header: case-insensitive.
 #[test]
 fn bmspec_1_02_case_insensitive_header() {
     let chart = process("#Title BY MY SIDE\n#Artist flicknote\n");
-    assert_eq!(chart.song.title, "BY MY SIDE");
-    assert_eq!(chart.song.artist, "flicknote");
+    assert_eq!(chart.song().title, "BY MY SIDE");
+    assert_eq!(chart.song().artist, "flicknote");
 }
 
 /// bmspec-1-02-Header: duplicate headers, last wins.
 #[test]
 fn bmspec_1_02_duplicated_header() {
     let chart = process("#TiTlE BEAT MUSIC SEQUENCE\n#tItLe BY*MY*SIDE\n");
-    assert_eq!(chart.song.title, "BY*MY*SIDE");
+    assert_eq!(chart.song().title, "BY*MY*SIDE");
 }
 
 /// bmspec-1-03-Objects: basic note object positions.
@@ -250,8 +250,8 @@ fn bmspec_1_05_bpm_change() {
     // Then #00111:01 → note at measure 1, pos 0/1
 
     let has_bpm = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .any(|e| matches!(&e.kind, EventKind::Bpm { .. }));
     assert!(has_bpm, "should have BPM events");
@@ -469,8 +469,8 @@ fn lnobj_marker_stays_case_sensitive_in_base62() {
 fn lnobj_marker_on_invisible_channel_stays_invisible_note() {
     let chart = process("#WAVAA a.wav\n#WAVBB ghost.wav\n#LNOBJ BB\n#00111:AA\n#00131:BB\n");
     let notes: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Note(Note { kind, .. }) => Some(*kind),
@@ -563,7 +563,7 @@ fn bmspec_3_scroll_basic() {
     );
 
     // Verify scroll position via Player
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
     // Before scroll: rate 1.0, position = ticks / resolution
     assert!((player.scroll_rate_at(0) - 1.0).abs() < 1e-9);
     assert!((player.scroll_position_at(0) - 0.0).abs() < 1e-9);
@@ -590,7 +590,7 @@ fn bmspec_3_scroll_initial_speed() {
     );
 
     // Verify position: scroll at tick 0 with rate 0.5
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
     assert!((player.scroll_rate_at(0) - 0.5).abs() < 1e-9);
     // At tick 0: position = 0, but rate = 0.5 from start
     // At beat -1 (negative beat, tick -240): position = 0.5 * (-1) = -0.5
@@ -629,8 +629,11 @@ fn bmspec_4_random_setrandom() {
          #BPM 120\n",
     );
     // Only WAV01 (a.wav) should appear in audio_assets.
-    assert_eq!(chart.data.audio_assets.len(), 1);
-    assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "a.wav");
+    assert_eq!(chart.data().audio_assets().len(), 1);
+    assert_eq!(
+        chart.data().audio_assets()[0].path.to_string_lossy(),
+        "a.wav"
+    );
 }
 
 /// bmspec-4-RANDOM: SETRANDOM selects the second branch.
@@ -647,8 +650,11 @@ fn bmspec_4_random_setrandom_second() {
          #ENDRANDOM\n\
          #BPM 120\n",
     );
-    assert_eq!(chart.data.audio_assets.len(), 1);
-    assert_eq!(chart.data.audio_assets[0].path.to_string_lossy(), "b.wav");
+    assert_eq!(chart.data().audio_assets().len(), 1);
+    assert_eq!(
+        chart.data().audio_assets()[0].path.to_string_lossy(),
+        "b.wav"
+    );
 }
 
 /// bmspec-4-RANDOM: consecutive blocks select independently.
@@ -674,10 +680,10 @@ fn bmspec_4_random_multiple_blocks() {
          #ENDIF\n\
          #ENDRANDOM\n",
     );
-    assert_eq!(chart.data.audio_assets.len(), 2);
+    assert_eq!(chart.data().audio_assets().len(), 2);
     let paths: Vec<_> = chart
-        .data
-        .audio_assets
+        .data()
+        .audio_assets()
         .iter()
         .map(|a| a.path.to_string_lossy().to_string())
         .collect();
@@ -705,15 +711,18 @@ fn bmspec_4_random_no_match() {
          #ENDRANDOM\n",
     );
     // RNG=3 matches no IF, so no WAV is emitted.
-    assert_eq!(chart.data.audio_assets, [] as [bmsrs_chart::AudioAsset; 0]);
+    assert_eq!(
+        chart.data().audio_assets(),
+        [] as [bmsrs_chart::AudioAsset; 0]
+    );
 }
 
 /// bmspec-5-Subtitle: basic subtitle.
 #[test]
 fn bmspec_5_subtitle() {
     let chart = process("#TITLE BY MY SIDE\n#SUBTITLE [TUTORIAL]\n");
-    assert_eq!(chart.song.title, "BY MY SIDE");
-    assert_eq!(chart.chart.subtitle, "[TUTORIAL]");
+    assert_eq!(chart.song().title, "BY MY SIDE");
+    assert_eq!(chart.chart_info().subtitle, "[TUTORIAL]");
 }
 
 /// bmspec-1-07-Basic-Info: full basic-info parsing.
@@ -726,11 +735,11 @@ fn bmspec_1_07_basic_info() {
          #DIFFICULTY 2\n\
          #PLAYLEVEL 5\n",
     );
-    assert_eq!(chart.song.title, "BY MY SIDE");
-    assert_eq!(chart.song.artist, "flicknote");
-    assert_eq!(chart.song.genre, "Trance Core");
-    assert_eq!(chart.chart.chart_name, "5");
-    assert_eq!(chart.chart.level, 5);
+    assert_eq!(chart.song().title, "BY MY SIDE");
+    assert_eq!(chart.song().artist, "flicknote");
+    assert_eq!(chart.song().genre, "Trance Core");
+    assert_eq!(chart.chart_info().chart_name, "5");
+    assert_eq!(chart.chart_info().level, 5);
 }
 
 /// bmspec-1-08-WAV: WAV definition references (verified at the Bms model layer;
@@ -821,7 +830,7 @@ fn bmspec_6_speed_interpolation() {
          #001SP:0102\n\
          #002SP:03\n",
     );
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
 
     // Before the first keyframe: 1.0 (default).
     assert!(
@@ -879,8 +888,8 @@ fn bga_opacity_custom_event() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#0010B:FF00000000000000\n");
     let customs: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::BgaOpacity { layer, opacity }) => {
@@ -899,8 +908,8 @@ fn text_display_custom_event() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00199:0100000000000000\n");
     let texts: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::TextDisplay { text_index }) => Some(*text_index),
@@ -917,8 +926,8 @@ fn bgm_volume_custom_event() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00197:8000000000000000\n");
     let vols: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::BgmVolume { volume }) => Some(*volume),
@@ -935,8 +944,8 @@ fn option_change_custom_event() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A6:0500000000000000\n");
     let opts: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::OptionChange { option_id, .. }) => Some(*option_id),
@@ -956,8 +965,8 @@ fn argb_custom_event_skips_when_undefined() {
     // ARGB index 01 is undefined (no `#ARGB01` header), so no event should be
     // produced.
     let argb_count = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter(|e| matches!(&e.kind, EventKind::Custom(BmsCustomEvent::BgaArgb { .. })))
         .count();
@@ -971,8 +980,8 @@ fn swbga_custom_event() {
         "#BPM 120\n#BMP01 bg.png\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A5:0100000000000000\n",
     );
     let keybounds: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::BgaKeyBound { resource_id }) => Some(*resource_id),
@@ -993,8 +1002,8 @@ fn judge_custom_event() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A0:5000000000000000\n");
     let judges: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::JudgeOverride { rank }) => Some(*rank),
@@ -1012,8 +1021,8 @@ fn key_volume_custom_event() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00198:4000000000000000\n");
     let vols: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::KeyVolume { volume }) => Some(*volume),
@@ -1033,8 +1042,8 @@ fn video_seek_custom_event() {
         "#BPM 120\n#WAV01 kick.wav\n#SEEK03 500\n#00101:1100000000000000\n#00105:0300000000000000\n",
     );
     let seeks: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::VideoSeek { position }) => Some(*position),
@@ -1052,8 +1061,8 @@ fn video_seek_undefined_skipped() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00105:0300000000000000\n");
     let seek_count = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter(|e| matches!(&e.kind, EventKind::Custom(BmsCustomEvent::VideoSeek { .. })))
         .count();
@@ -1065,7 +1074,7 @@ fn video_seek_undefined_skipped() {
 fn custom_events_dont_affect_note_queries() {
     let chart =
         process("#BPM 120\n#WAV01 kick.wav\n#00111:0100000000000000\n#0010B:FF00000000000000\n");
-    let player = Player::new(chart).unwrap();
+    let player = Player::new(chart);
     let note_count = player
         .events_in_range(0..2000)
         .iter()
@@ -1086,8 +1095,8 @@ fn argb_lowercase_index_resolves_after_normalize() {
         "#BPM 120\n#WAV01 kick.wav\n#ARGBaa 10,20,30,40\n#00101:0100000000000000\n#001A1:aa00000000000000\n",
     );
     let argbs: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::BgaArgb { a, r, g, b, .. }) => Some((*a, *r, *g, *b)),
@@ -1110,8 +1119,8 @@ fn keybound_lowercase_index_resolves_after_normalize() {
         "#BPM 120\n#WAV01 kick.wav\n#BMPaa bg.png\n#00101:0100000000000000\n#001A5:aa00000000000000\n",
     );
     let keybound_count = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter(|e| {
             matches!(
@@ -1134,8 +1143,8 @@ fn option_lowercase_def_and_ref_resolve() {
         "#BPM 120\n#WAV01 kick.wav\n#CHANGEOPTIONaa opt_value\n#00101:0100000000000000\n#001A6:aa00000000000000\n",
     );
     let opts: Vec<_> = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter_map(|e| match &e.kind {
             EventKind::Custom(BmsCustomEvent::OptionChange { value, .. }) => Some(value.clone()),
@@ -1157,19 +1166,22 @@ fn option_lowercase_def_and_ref_resolve() {
 fn ln_mode_maps_to_ln_type_hint() {
     let base = "#BPM 120\n#WAV01 kick.wav\n#00101:0100000000000000\n";
     assert_eq!(
-        process(&format!("#LNMODE 1\n{base}")).data.ln_type_hint,
+        process(&format!("#LNMODE 1\n{base}")).data().ln_type_hint(),
         bmsrs_chart::LnTypeHint::Ln,
     );
     assert_eq!(
-        process(&format!("#LNMODE 2\n{base}")).data.ln_type_hint,
+        process(&format!("#LNMODE 2\n{base}")).data().ln_type_hint(),
         bmsrs_chart::LnTypeHint::Cn,
     );
     assert_eq!(
-        process(&format!("#LNMODE 3\n{base}")).data.ln_type_hint,
+        process(&format!("#LNMODE 3\n{base}")).data().ln_type_hint(),
         bmsrs_chart::LnTypeHint::Hcn,
     );
     // Defaults to Ln when #LNMODE is not declared.
-    assert_eq!(process(base).data.ln_type_hint, bmsrs_chart::LnTypeHint::Ln,);
+    assert_eq!(
+        process(base).data().ln_type_hint(),
+        bmsrs_chart::LnTypeHint::Ln,
+    );
 }
 
 // C1: #BGA / #@BGA to BgaResource.crop
@@ -1183,7 +1195,7 @@ fn bga_crop_def_attaches_crop_rect() {
         "#BPM 120\n#WAV01 kick.wav\n#BMP01 src.png\n#BGA01 1 0 0 100 100 10 20\n#00104:0100000000000000\n",
     );
     let cropped: Vec<_> = chart
-        .chart
+        .chart_info()
         .bga_resources
         .iter()
         .filter_map(|r| r.crop.map(|c| (r.path.to_string_lossy().into_owned(), c)))
@@ -1204,7 +1216,7 @@ fn at_bga_wh_form_normalizes_to_xy2() {
         "#BPM 120\n#WAV01 kick.wav\n#BMP01 src.png\n#@BGA01 1 0 0 50 40 0 0\n#00104:0100000000000000\n",
     );
     let cropped: Vec<_> = chart
-        .chart
+        .chart_info()
         .bga_resources
         .iter()
         .filter_map(|r| r.crop)
@@ -1225,7 +1237,7 @@ fn bga_crop_resolves_source_bmp_by_hex_value() {
     let chart =
         process("#BPM 120\n#BMP10 src.png\n#BGA01 16 0 0 100 100 0 0\n#00104:0100000000000000\n");
     let cropped: Vec<_> = chart
-        .chart
+        .chart_info()
         .bga_resources
         .iter()
         .filter_map(|r| r.crop.map(|_| r.path.to_string_lossy().into_owned()))
@@ -1244,7 +1256,11 @@ fn bga_crop_resolves_source_bmp_by_hex_value() {
 fn bga_crop_source_is_not_base36_decoded() {
     let chart =
         process("#BPM 120\n#BMP10 src.png\n#BGA01 36 0 0 100 100 0 0\n#00104:0100000000000000\n");
-    let has_crop = chart.chart.bga_resources.iter().any(|r| r.crop.is_some());
+    let has_crop = chart
+        .chart_info()
+        .bga_resources
+        .iter()
+        .any(|r| r.crop.is_some());
     assert!(
         !has_crop,
         "Base36 decoding of 36 would wrongly resolve #BMP10"
@@ -1257,7 +1273,11 @@ fn bga_crop_source_is_not_base36_decoded() {
 fn bga_crop_with_source_above_ff_is_dropped() {
     let chart =
         process("#BPM 120\n#BMPZZ src.png\n#BGA01 1295 0 0 100 100 0 0\n#00104:0100000000000000\n");
-    let has_crop = chart.chart.bga_resources.iter().any(|r| r.crop.is_some());
+    let has_crop = chart
+        .chart_info()
+        .bga_resources
+        .iter()
+        .any(|r| r.crop.is_some());
     assert!(
         !has_crop,
         "#BGA can only reference hexadecimal indices 00-FF"
@@ -1273,7 +1293,7 @@ fn videofile_produces_looping_video_asset() {
         "#BPM 120\n#WAV01 kick.wav\n#VIDEOFILE bg.mp4\n#VIDEOf/s 30\n#VIDEOCOLORS 16\n#VIDEODLY 5\n#00101:0100000000000000\n",
     );
     let video = chart
-        .chart
+        .chart_info()
         .video
         .as_ref()
         .expect("video asset should exist");
@@ -1289,7 +1309,7 @@ fn videofile_produces_looping_video_asset() {
 fn movie_produces_non_looping_video_asset() {
     let chart = process("#BPM 120\n#WAV01 kick.wav\n#MOVIE intro.mp4\n#00101:0100000000000000\n");
     let video = chart
-        .chart
+        .chart_info()
         .video
         .as_ref()
         .expect("video asset should exist");
@@ -1308,8 +1328,8 @@ fn movie_produces_non_looping_video_asset() {
 fn bga_channel_rest_with_bmp00_defined_emits_no_event() {
     let chart = process("#BPM 120\n#BMP00 miss.bmp\n#BMP11 a.bmp\n#00104:0011\n");
     let bga_count = chart
-        .data
-        .events
+        .data()
+        .events()
         .iter()
         .filter(|e| matches!(&e.kind, EventKind::Bga { .. }))
         .count();
