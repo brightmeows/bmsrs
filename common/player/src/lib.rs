@@ -251,7 +251,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         let (start, end) = (range.start, range.end);
         let start_tick = floor_tick(self.duration_to_tick_f64(start));
         let end_tick = ceil_tick(self.duration_to_tick_f64(end));
-        self.events_in_range(start_tick..end_tick)
+        self.events_in_range(start_tick..=end_tick)
             .iter()
             .filter(move |event| {
                 let trigger = self.tick_to_duration(event.tick());
@@ -368,7 +368,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
             Bound::Excluded(tick) => events.partition_point(|event| event.tick() < *tick),
             Bound::Unbounded => events.len(),
         };
-        (start, end)
+        (start, end.max(start))
     }
 }
 

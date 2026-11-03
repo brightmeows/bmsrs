@@ -228,6 +228,41 @@ fn player_events_in_time_range_handles_stop() {
 }
 
 #[test]
+fn player_events_in_time_range_includes_stop_tick_event() {
+    let mut chart = make_test_chart();
+    chart.data.events.push(Event::stop(240, 240));
+    let player = Player::new(chart).unwrap();
+
+    // The STOP and the BGM at tick 240 both activate at 0.5s. The coarse tick
+    // range must include the end tick so the exact time filter can see them.
+    let events: Vec<_> = player
+        .events_in_time_range(Duration::from_millis(400)..Duration::from_millis(700))
+        .collect();
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event.kind, EventKind::Bgm { .. })),
+        "BGM at the STOP tick should be included"
+    );
+    assert!(events.iter().all(|event| event.tick() == 240));
+}
+
+#[test]
+#[expect(
+    clippy::reversed_empty_ranges,
+    reason = "regression test for reverse and empty ranges"
+)]
+fn player_events_in_range_reverse_range_is_empty() {
+    let chart = make_test_chart();
+    let player = Player::new(chart).unwrap();
+
+    assert_eq!(player.events_in_range(480..240).len(), 0);
+    assert_eq!(player.events_in_range(480..=240).len(), 0);
+    assert_eq!(player.events_in_range(240..240).len(), 0);
+    assert_eq!(player.notes_in_range(480..240).count(), 0);
+}
+
+#[test]
 fn player_notes_in_range() {
     let chart = make_test_chart();
     let player = Player::new(chart).unwrap();
