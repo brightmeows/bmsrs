@@ -9,7 +9,8 @@ The processor performs **lossy conversions**: merge priority (`#BGA`/`#BMP`),
 reference resolution (WAV/BPM), and table lookup (def tables) all live here. See
 `bms/AGENTS.md` for domain-level criteria.
 
-`Processed` carries two sidecars in addition to `chart` and `warnings`:
+`Processed` carries two sidecars in addition to `chart`; recoverable warnings
+come back in the `bmsrs_pipeline::Outcome` wrapper:
 
 | Field | Content |
 |-------|---------|
