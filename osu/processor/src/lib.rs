@@ -11,7 +11,9 @@
 //!
 //! - Only `Mode: 3` (osu!mania) is accepted.
 //! - Circles map to [`NoteKind::Normal`](bmsrs_chart::NoteKind::Normal) and
-//!   holds map to [`NoteKind::Long`](bmsrs_chart::NoteKind::Long).
+//!   holds map to [`NoteKind::Long`](bmsrs_chart::NoteKind::Long); holds
+//!   ending no later than they start become `Normal`, matching the osu!
+//!   lazer parser that clamps such holds to zero length.
 //! - Column positions are computed from the `x` coordinate and the
 //!   `CircleSize` key count, using [`NoteSide::P1`](bmsrs_chart::NoteSide::P1).
 //! - Hit samples go into [`OsuNoteExt`]; chart-level metadata, difficulty
@@ -62,7 +64,8 @@ impl OsuProcessor {
     /// # Errors
     ///
     /// Returns [`OsuProcessError`] for non-mania modes, invalid key counts,
-    /// missing timing points or audio, sliders/spinners, and time overflow.
+    /// missing timing points or audio, sliders/spinners, non-finite hold
+    /// ends, and time overflow.
     pub fn process(
         map: &rosu_map::Beatmap,
     ) -> Result<Chart<OsuNoteExt, OsuCustomEvent>, OsuProcessError> {

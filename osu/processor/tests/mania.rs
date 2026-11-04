@@ -216,6 +216,48 @@ fn hold_duration_is_converted() {
 }
 
 #[test]
+fn zero_length_hold_converts_to_normal() {
+    let content = MANIA_4K.replace(
+        "192,192,1500,128,0,2000:0:0:0:0:",
+        "192,192,1500,128,0,1500:0:0:0:0:",
+    );
+    let converted = OsuProcessor::from_str(&content).unwrap();
+    let kind = note_events(&converted)
+        .iter()
+        .find_map(|event| match (&event.kind, event.tick()) {
+            (EventKind::Note(note), 3000) => Some(note.kind),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        kind,
+        NoteKind::Normal,
+        "a zero-length hold becomes a normal note"
+    );
+}
+
+#[test]
+fn hold_ending_before_start_converts_to_normal() {
+    let content = MANIA_4K.replace(
+        "192,192,1500,128,0,2000:0:0:0:0:",
+        "192,192,1500,128,0,1200:0:0:0:0:",
+    );
+    let converted = OsuProcessor::from_str(&content).unwrap();
+    let kind = note_events(&converted)
+        .iter()
+        .find_map(|event| match (&event.kind, event.tick()) {
+            (EventKind::Note(note), 3000) => Some(note.kind),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        kind,
+        NoteKind::Normal,
+        "a hold ending before its start becomes a normal note"
+    );
+}
+
+#[test]
 fn hit_samples_include_whistle() {
     let converted = chart();
     let samples = note_events(&converted)

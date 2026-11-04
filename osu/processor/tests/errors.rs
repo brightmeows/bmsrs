@@ -84,17 +84,19 @@ fn negative_hit_object_is_rejected() {
 }
 
 #[test]
-fn zero_length_hold_is_rejected() {
-    let error = parse_error(&mutate(
-        "192,192,1500,128,0,2000",
-        "192,192,1500,128,0,1500",
-    ));
+fn non_finite_hold_end_is_rejected() {
+    let mut map: rosu_map::Beatmap = rosu_map::from_str(MANIA_4K).unwrap();
+    let Some(object) = map.hit_objects.get_mut(1) else {
+        panic!("fixture must contain a hold note");
+    };
+    let rosu_map::section::hit_objects::HitObjectKind::Hold(hold) = &mut object.kind else {
+        panic!("second hit object must be a hold");
+    };
+    hold.duration = f64::NAN;
+    let error = OsuProcessor::process(&map).unwrap_err();
     assert!(
-        matches!(
-            error,
-            OsuError::Process(OsuProcessError::InvalidHold { .. })
-        ),
-        "zero-length hold must be rejected"
+        matches!(error, OsuProcessError::NonFiniteHold { .. }),
+        "non-finite hold end must be rejected"
     );
 }
 
