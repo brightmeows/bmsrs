@@ -15,8 +15,8 @@
 // `println!` in favor of `tracing` does not apply here.
 #![expect(clippy::print_stdout, reason = "example prints to stdout by design")]
 
-use bmsrs::bms::parser::BmsParser;
-use bmsrs::bms::syntax::SourceFile;
+use bmsrs::raw::parser::BmsParser;
+use bmsrs::raw::syntax::SourceFile;
 
 /// A minimal chart with one `#RANDOM` block; each branch has its own title and
 /// channel messages.

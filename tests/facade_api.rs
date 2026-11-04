@@ -25,5 +25,5 @@ fn bmson_parse_and_process_return_outcomes() {
     }"#;
     let bmson = bmsrs::bmson::parse_str(json).expect("valid BMSON");
     let processed = bmsrs::bmson::process(&bmson).expect("valid chart");
-    assert_ne!(processed.value.chart.data().events().len(), 0);
+    assert_ne!(processed.value.data().events().len(), 0);
 }

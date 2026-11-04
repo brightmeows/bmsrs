@@ -192,12 +192,6 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
         self.timing.duration_to_tick_f64(duration)
     }
 
-    /// Alias for [`duration_to_tick_f64`](Self::duration_to_tick_f64).
-    #[must_use]
-    pub fn time_to_tick_f64(&self, time: Duration) -> f64 {
-        self.duration_to_tick_f64(time)
-    }
-
     /// Total chart duration at the last event tick.
     ///
     /// This is the render duration of the last event, not a tail after it.

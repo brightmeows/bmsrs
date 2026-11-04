@@ -51,3 +51,14 @@ pub enum BmsonProcessWarning {
         other: u64,
     },
 }
+
+impl From<BmsonProcessWarning> for bmsrs_pipeline::Diagnostic {
+    fn from(warning: BmsonProcessWarning) -> Self {
+        Self::new(
+            bmsrs_pipeline::Severity::Warning,
+            None,
+            warning.to_string(),
+            Some(bmsrs_pipeline::DiagnosticCode::BmsonProcess),
+        )
+    }
+}
