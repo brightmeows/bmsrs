@@ -68,17 +68,6 @@ pub mod bms {
         },
     }
 
-    /// Processed BMS chart and its format-specific sidecars.
-    #[derive(Debug)]
-    pub struct BmsProcessed {
-        /// Format-agnostic chart.
-        pub chart: bmsrs_chart::Chart<(), processor::custom_event::BmsCustomEvent>,
-        /// Raw BMS gameplay parameters.
-        pub gameplay: processor::BmsGameplay,
-        /// Raw BMS audio parameters.
-        pub audio: processor::BmsAudio,
-    }
-
     /// Parse BMS text with defaults: first branch and `CollectAll`.
     ///
     /// # Errors
@@ -153,24 +142,10 @@ pub mod bms {
     pub fn process(
         bms: &model::Bms,
     ) -> Result<
-        bmsrs_pipeline::Outcome<BmsProcessed, processor::ProcessWarning>,
+        bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        let processed = processor::BmsProcessor::process_default(bms)?;
-        let processor::Processed {
-            chart,
-            warnings,
-            gameplay,
-            audio,
-        } = processed;
-        Ok(bmsrs_pipeline::Outcome::new(
-            BmsProcessed {
-                chart,
-                gameplay,
-                audio,
-            },
-            warnings,
-        ))
+        processor::BmsProcessor::process_default(bms)
     }
 
     /// Convert `Bms` to a chart with an explicit layout family.
@@ -181,24 +156,10 @@ pub mod bms {
     pub fn process_with<L: processor::layout::BmsLayout>(
         bms: &model::Bms,
     ) -> Result<
-        bmsrs_pipeline::Outcome<BmsProcessed, processor::ProcessWarning>,
+        bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        let processed = processor::BmsProcessor::process::<L>(bms)?;
-        let processor::Processed {
-            chart,
-            warnings,
-            gameplay,
-            audio,
-        } = processed;
-        Ok(bmsrs_pipeline::Outcome::new(
-            BmsProcessed {
-                chart,
-                gameplay,
-                audio,
-            },
-            warnings,
-        ))
+        processor::BmsProcessor::process::<L>(bms)
     }
 
     /// Write the full `Bms` model as canonical BMS text.
@@ -341,13 +302,6 @@ pub mod bms {
 
 /// Type definitions and converters for the BMSON format.
 pub mod bmson {
-    /// Processed BMSON chart.
-    #[derive(Debug)]
-    pub struct BmsonProcessed {
-        /// Format-agnostic chart.
-        pub chart: bmsrs_chart::Chart<processor::BmsonNoteExt>,
-    }
-
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
     ///
     /// # Errors
@@ -392,15 +346,13 @@ pub mod bmson {
     pub fn process(
         bmson: &bmsrs_bmson_model::Bmson,
     ) -> Result<
-        bmsrs_pipeline::Outcome<BmsonProcessed, processor::BmsonProcessWarning>,
+        bmsrs_pipeline::Outcome<
+            bmsrs_chart::Chart<processor::BmsonNoteExt>,
+            processor::BmsonProcessWarning,
+        >,
         processor::ProcessError,
     > {
-        let processed = processor::BmsonProcessor::process_default(bmson)?;
-        let processor::Processed { chart, warnings } = processed;
-        Ok(bmsrs_pipeline::Outcome::new(
-            BmsonProcessed { chart },
-            warnings,
-        ))
+        processor::BmsonProcessor::process_default(bmson)
     }
 
     /// Convert `Bmson` with an explicit layout family.
@@ -411,15 +363,13 @@ pub mod bmson {
     pub fn process_with<L: processor::layout::BmsonLayout>(
         bmson: &bmsrs_bmson_model::Bmson,
     ) -> Result<
-        bmsrs_pipeline::Outcome<BmsonProcessed, processor::BmsonProcessWarning>,
+        bmsrs_pipeline::Outcome<
+            bmsrs_chart::Chart<processor::BmsonNoteExt>,
+            processor::BmsonProcessWarning,
+        >,
         processor::ProcessError,
     > {
-        let processed = processor::BmsonProcessor::process::<L>(bmson)?;
-        let processor::Processed { chart, warnings } = processed;
-        Ok(bmsrs_pipeline::Outcome::new(
-            BmsonProcessed { chart },
-            warnings,
-        ))
+        processor::BmsonProcessor::process::<L>(bmson)
     }
 
     /// Convert `Bmson` with an explicit generic key count.
@@ -431,15 +381,13 @@ pub mod bmson {
         bmson: &bmsrs_bmson_model::Bmson,
         keys: u8,
     ) -> Result<
-        bmsrs_pipeline::Outcome<BmsonProcessed, processor::BmsonProcessWarning>,
+        bmsrs_pipeline::Outcome<
+            bmsrs_chart::Chart<processor::BmsonNoteExt>,
+            processor::BmsonProcessWarning,
+        >,
         processor::ProcessError,
     > {
-        let processed = processor::BmsonProcessor::process_nkeys(bmson, keys)?;
-        let processor::Processed { chart, warnings } = processed;
-        Ok(bmsrs_pipeline::Outcome::new(
-            BmsonProcessed { chart },
-            warnings,
-        ))
+        processor::BmsonProcessor::process_nkeys(bmson, keys)
     }
 
     /// BMSON parse error.
@@ -533,12 +481,9 @@ pub mod raw {
 
 /// Common imports for application code.
 pub mod prelude {
-    pub use crate::bms::{
-        BmsProcessed, FromTextError, FromTextWarning, parse, parse_bytes, process, write,
-    };
+    pub use crate::bms::{FromTextError, FromTextWarning, parse, parse_bytes, process, write};
     #[cfg(feature = "bmson")]
     pub use crate::bmson::BmsonParseError;
-    pub use crate::bmson::BmsonProcessed;
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };

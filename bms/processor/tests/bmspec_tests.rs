@@ -34,6 +34,7 @@ fn timing(chart: &BmsChart) -> TimingTrack {
 fn process(bms_text: &str) -> BmsChart {
     BmsProcessor::process::<Bme>(&parse_bms(bms_text))
         .expect("process should succeed")
+        .value
         .chart
 }
 
@@ -611,6 +612,7 @@ fn process_with_cf(bms_text: &str) -> BmsChart {
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
     BmsProcessor::process::<Bme>(&bms)
         .expect("process should succeed")
+        .value
         .chart
 }
 
