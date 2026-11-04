@@ -458,6 +458,12 @@ pub mod player {
     pub use bmsrs_player::*;
 }
 
+/// Parsing and conversion for the osu!mania format.
+pub mod osu {
+    #[cfg(feature = "osu")]
+    pub use bmsrs_osu_processor::*;
+}
+
 /// Low-level crates for advanced and editor integrations.
 pub mod raw {
     /// BMS source-text layer.
@@ -510,6 +516,12 @@ pub mod raw {
     #[cfg(feature = "bmson")]
     pub mod bmson_processor {
         pub use bmsrs_bmson_processor::*;
+    }
+
+    /// osu!mania processor.
+    #[cfg(feature = "osu")]
+    pub mod osu_processor {
+        pub use bmsrs_osu_processor::*;
     }
 }
 

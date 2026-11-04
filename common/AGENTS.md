@@ -2,11 +2,12 @@
 
 ## Role
 
-Format-agnostic chart data model and simulation layer. The BMS and BMSON
-pipelines converge here; both processors output `Chart<T>`.
+Format-agnostic chart data model and simulation layer. The BMS, BMSON, and
+osu!mania pipelines converge here; all three processors output `Chart<T>`.
 
 **Zero external dependencies.** Pure `std`, with no `serde`, `thiserror`, or
-`serde_json`.
+`serde_json`. The osu!mania processor lives in `osu/processor`, outside this
+directory, and depends on `rosu-map` (MIT) for `.osu` parsing.
 
 ## Architecture
 
@@ -14,6 +15,7 @@ pipelines converge here; both processors output `Chart<T>`.
 flowchart LR
     BProc[bmsrs-bms-processor] --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
     BMProc[bmsrs-bmson-processor] --> Chart
+    OsuProc[bmsrs-osu-processor] --> Chart
     Chart --> Player[bmsrs-player]
 ```
 
@@ -55,11 +57,13 @@ before then.
 | `BmsLayout` and `BmsonLayout` are not unified into one trait | their input dimensions differ fundamentally: BMS takes a validated `(player, lane)` pair, BMSON takes one-dimensional `x`; the formats evolve independently, and unifying only adds a generic indirection layer |
 | The two `ProcessError` types are defined separately | they share only `TimingTrackError` (forwarded through `#[from]`); BMSON also has `InvalidKeyCount`, and merging would drag format-specific errors into a shared type |
 | `TimingTrack` forward and inverse segments accumulate time separately | two implementations of the same mathematical transform (`new` and `merge_inv`); if a third kind of timing distortion appears (such as gradual BPM), reassess before writing a third copy |
+| osu!mania introduces no container trait | the third format adds one concrete processor; no consumer polymorphically consumes multiple containers, and `NoteExt` / `CustomEvent` already carry the format differences |
 
 ## Tests
 
 ```bash
 cargo test -p bmsrs-chart
 cargo test -p bmsrs-player
+cargo test -p bmsrs-osu-processor
 cargo bench -p bmsrs-player          # hot-path performance benchmarks
 ```

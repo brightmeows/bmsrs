@@ -3,8 +3,8 @@
 ## Project scope
 
 A Rust workspace for parsing, converting, and simulating playback of BMS
-(Be-Music Script) and BMSON chart formats. It produces a unified `Chart<T>`
-intermediate representation for renderers and players.
+(Be-Music Script), BMSON, and osu!mania chart formats. It produces a unified
+`Chart<T>` intermediate representation for renderers and players.
 
 > **Release status**: `0.0.1` is released; the project is pre-1.0. All public
 > interfaces may change at any time and semver compatibility does not apply.
@@ -26,8 +26,11 @@ flowchart LR
     BMSON[".bmson file"] --> BDef[bmsrs-bmson-model]
     BDef --> BMProc[bmsrs-bmson-processor]
 
+    OSU[".osu file"] --> OProc[bmsrs-osu-processor]
+
     BProc --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
     BMProc --> Chart
+    OProc --> Chart
     Chart --> Player[bmsrs-player]
 ```
 
@@ -46,6 +49,7 @@ flowchart LR
 | `bmsrs-bms-analysis` | BMS analysis layer: diagnostics, symbol index, editor data | `&str` to `Analysis` |
 | `bmsrs-bmson-model` | bmson JSON type definitions (v0/v1/v2) | data model only |
 | `bmsrs-bmson-processor` | `Bmson` to `Chart` | `Bmson` to `Chart` |
+| `bmsrs-osu-processor` | osu!mania converter: `rosu-map::Beatmap` to `Chart` | `Beatmap` to `Chart<OsuNoteExt, OsuCustomEvent>` |
 | `bmsrs-chart` | Format-agnostic chart data model | `Chart<T>` as the central IR |
 | `bmsrs-player` | Pure simulation layer for `Chart<T>` | timeline queries, no I/O or rendering |
 | `bmsrs-pipeline` | Shared pipeline result and diagnostic types | `Outcome<T, W>` and `Diagnostic` |
@@ -88,6 +92,7 @@ Hooks are configured in `.pre-commit-config.yaml`:
 
 ```bash
 cargo test --workspace --quiet        # workspace tests
+cargo test -p bmsrs-osu-processor    # osu!mania processor tests
 cargo bench -p bmsrs-player          # hot-path performance benchmarks
 cargo deny check                       # dependency audit (CI)
 ```
