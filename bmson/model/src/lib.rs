@@ -396,8 +396,8 @@ pub enum BmsonError {
     UnknownVersion(String),
 
     /// Conversion from the legacy v0.2.1 format failed.
-    #[error("v0 conversion error: {0}")]
-    V0Conversion(String),
+    #[error("{0}")]
+    V0Conversion(v0::TryFromV0Error),
 }
 
 /// Detected bmson format version, determined by inspecting the `"version"` field

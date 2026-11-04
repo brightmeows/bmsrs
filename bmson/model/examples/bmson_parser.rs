@@ -144,7 +144,7 @@ impl From<bmsrs_bmson_model::BmsonError> for BmsonDeError {
     fn from(e: bmsrs_bmson_model::BmsonError) -> Self {
         match e {
             bmsrs_bmson_model::BmsonError::UnknownVersion(v) => Self::UnknownVersion(v),
-            bmsrs_bmson_model::BmsonError::V0Conversion(v) => Self::V0Conversion(v),
+            bmsrs_bmson_model::BmsonError::V0Conversion(v) => Self::V0Conversion(v.message),
             _ => Self::UnknownVersion(e.to_string()),
         }
     }
