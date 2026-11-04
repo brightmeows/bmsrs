@@ -38,7 +38,8 @@ type OsuEvent = Event<OsuNoteExt, OsuCustomEvent>;
 /// # Errors
 ///
 /// Returns [`OsuProcessError`] for non-mania modes, invalid key counts,
-/// missing timing points or audio, sliders/spinners, and time overflow.
+/// missing timing points or audio, sliders/spinners, non-finite hold
+/// ends, and time overflow.
 pub fn process(map: &Beatmap) -> Result<Chart<OsuNoteExt, OsuCustomEvent>, OsuProcessError> {
     let mode = convert_mode(map.mode);
     if mode != OsuMode::Mania {
@@ -475,8 +476,8 @@ fn push_notes(
             HitObjectKind::Circle(circle) => (NoteKind::Normal, circle.pos.x),
             HitObjectKind::Hold(hold) => {
                 let end_time = start_time + hold.duration;
-                if !end_time.is_finite() || end_time <= start_time {
-                    return Err(OsuProcessError::InvalidHold {
+                if !end_time.is_finite() {
+                    return Err(OsuProcessError::NonFiniteHold {
                         index,
                         start: start_time,
                         end: end_time,
@@ -484,20 +485,19 @@ fn push_notes(
                 }
 
                 let end_tick = timing.tick_at(end_time)?;
-                if end_tick <= start_tick {
-                    return Err(OsuProcessError::InvalidHold {
-                        index,
-                        start: start_time,
-                        end: end_time,
-                    });
+                // Holds ending at or before their start mirror the osu! lazer
+                // parser, which clamps them to zero length and plays them as
+                // rice; `Normal` carries the same semantics.
+                if end_tick > start_tick {
+                    (
+                        NoteKind::Long {
+                            duration: end_tick - start_tick,
+                        },
+                        hold.pos_x,
+                    )
+                } else {
+                    (NoteKind::Normal, hold.pos_x)
                 }
-
-                (
-                    NoteKind::Long {
-                        duration: end_tick - start_tick,
-                    },
-                    hold.pos_x,
-                )
             }
             HitObjectKind::Slider(_) => {
                 return Err(OsuProcessError::UnsupportedObject {

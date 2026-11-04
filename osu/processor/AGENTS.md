@@ -33,7 +33,8 @@ Parsing is delegated to `rosu-map`; this crate only converts and validates.
 | No uninherited timing point | `MissingTimingPoint` |
 | Empty `AudioFilename` | `MissingAudioFilename` |
 | Negative note time | `NegativeHitObjectTime` |
-| Hold ends no later than it starts | `InvalidHold` |
+| Non-finite hold end time | `NonFiniteHold` |
+| Hold ends no later than it starts | converted to `NoteKind::Normal` (lazer clamps such holds to zero length, which play as rice) |
 | slider / spinner | `UnsupportedObject` |
 | Millisecond-to-tick overflow | `TimeOverflow` |
 

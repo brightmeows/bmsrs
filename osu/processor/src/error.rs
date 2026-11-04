@@ -54,14 +54,16 @@ pub enum OsuProcessError {
         /// The negative time value in milliseconds.
         time: f64,
     },
-    /// A hold ends no later than it starts.
-    #[error("hit object {index} is an invalid hold: start {start} ms, end {end} ms")]
-    InvalidHold {
+    /// A hold has a non-finite end time.
+    #[error(
+        "hit object {index} is a hold with non-finite end time: start {start} ms, end {end} ms"
+    )]
+    NonFiniteHold {
         /// The hit object index in `[HitObjects]`.
         index: usize,
         /// The hold start time in milliseconds.
         start: f64,
-        /// The hold end time in milliseconds.
+        /// The non-finite hold end time in milliseconds.
         end: f64,
     },
     /// A slider or spinner appears in a mania beatmap.
