@@ -238,6 +238,7 @@ version = "0.1.0"
 dependencies = [
  "bmsrs-bmson-model",
  "bmsrs-chart",
+ "bmsrs-pipeline",
  "serde_json",
  "thiserror",
 ]

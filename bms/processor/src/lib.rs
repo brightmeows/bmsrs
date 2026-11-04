@@ -53,6 +53,7 @@ use bmsrs_chart::{
     NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
     VideoAsset,
 };
+use bmsrs_pipeline::Outcome;
 use thiserror::Error;
 
 pub use crate::error::{ProcessWarning, ProcessWarningKind};
@@ -101,8 +102,6 @@ pub struct BmsProcessor;
 pub struct Processed {
     /// Chart produced by processing.
     pub chart: Chart<(), BmsCustomEvent>,
-    /// Recoverable warnings collected during processing.
-    pub warnings: Vec<ProcessWarning>,
     /// Raw BMS gameplay parameters that do not enter the core `Chart`.
     pub gameplay: BmsGameplay,
     /// Raw BMS audio parameters that do not enter the core `AudioAsset`.
@@ -188,8 +187,7 @@ impl From<&Audio> for BmsAudio {
 const RESOLUTION: u64 = 240;
 
 impl BmsProcessor {
-    /// Process a BMS chart with an explicit mode-family layout and return
-    /// processing warnings.
+    /// Process a BMS chart with an explicit mode-family layout.
     ///
     /// The layout type determines how each BMS `(player, lane)` channel byte
     /// decodes to a note position. Available families are listed in the
@@ -199,7 +197,7 @@ impl BmsProcessor {
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (initial BPM missing, zero, or non-finite).
-    pub fn process<L>(bms: &Bms) -> Result<Processed, ProcessError>
+    pub fn process<L>(bms: &Bms) -> Result<Outcome<Processed, ProcessWarning>, ProcessError>
     where
         L: BmsLayout,
     {
@@ -291,12 +289,14 @@ impl BmsProcessor {
         let gameplay = BmsGameplay::from(&bms.gameplay);
         let audio = BmsAudio::from(&bms.audio);
 
-        Ok(Processed {
-            chart: Chart::new(song, chart_info, data)?,
+        Ok(Outcome::new(
+            Processed {
+                chart: Chart::new(song, chart_info, data)?,
+                gameplay,
+                audio,
+            },
             warnings,
-            gameplay,
-            audio,
-        })
+        ))
     }
 
     /// Process a BMS chart with an automatically detected PMS variant layout.
@@ -308,7 +308,7 @@ impl BmsProcessor {
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (initial BPM missing, zero, or non-finite).
-    pub fn process_pms(bms: &Bms) -> Result<Processed, ProcessError> {
+    pub fn process_pms(bms: &Bms) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         match PmsLayout::detect(bms) {
             PmsLayout::Standard => Self::process::<Pms>(bms),
             PmsLayout::BmeType => Self::process::<PmsBme>(bms),
@@ -330,7 +330,7 @@ impl BmsProcessor {
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (initial BPM missing, zero, or non-finite).
-    pub fn process_default(bms: &Bms) -> Result<Processed, ProcessError> {
+    pub fn process_default(bms: &Bms) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         if bms.gameplay.oct_fp == Some(true) {
             Self::process::<DscOctFp>(bms)
         } else {

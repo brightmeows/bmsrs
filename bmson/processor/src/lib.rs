@@ -36,6 +36,7 @@ use bmsrs_chart::{
     Note, NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
     TimingTrackError,
 };
+use bmsrs_pipeline::Outcome;
 use thiserror::Error;
 
 pub use crate::error::BmsonProcessWarning;
@@ -113,24 +114,16 @@ pub enum ProcessError {
 /// `mode_hint`.
 pub struct BmsonProcessor;
 
-/// BMSON processing result.
-#[derive(Debug)]
-pub struct Processed {
-    /// Chart produced by processing.
-    pub chart: Chart<BmsonNoteExt>,
-    /// Recoverable warnings collected during processing.
-    pub warnings: Vec<BmsonProcessWarning>,
-}
-
 impl BmsonProcessor {
-    /// Process a BMSON chart with a stateless mode-family layout and return
-    /// processing warnings.
+    /// Process a BMSON chart with a stateless mode-family layout.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (invalid initial BPM or zero resolution).
-    pub fn process<L>(bmson: &bmsrs_bmson_model::Bmson) -> Result<Processed, ProcessError>
+    pub fn process<L>(
+        bmson: &bmsrs_bmson_model::Bmson,
+    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError>
     where
         L: BmsonLayout,
     {
@@ -150,7 +143,7 @@ impl BmsonProcessor {
     pub fn process_nkeys(
         bmson: &bmsrs_bmson_model::Bmson,
         keys: u8,
-    ) -> Result<Processed, ProcessError> {
+    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
     }
@@ -162,7 +155,7 @@ impl BmsonProcessor {
     /// non-standard extension hints
     /// ([`ModeHint::Other`](bmsrs_bmson_model::ModeHint::Other)) fall back to [`Beat`]
     /// (the BMSON default), with a fallback warning recorded in
-    /// [`Processed::warnings`].
+    /// the returned outcome.
     ///
     /// # Errors
     ///
@@ -172,7 +165,9 @@ impl BmsonProcessor {
     ///   `generic-nkeys` but the key count is 0 or above 255 (the index bound of
     ///   [`Lane::Key`]); otherwise every note would be dropped silently by the
     ///   empty key mapping.
-    pub fn process_default(bmson: &bmsrs_bmson_model::Bmson) -> Result<Processed, ProcessError> {
+    pub fn process_default(
+        bmson: &bmsrs_bmson_model::Bmson,
+    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
         match &bmson.chart_data.mode_hint {
             bmsrs_bmson_model::ModeHint::Popn5k | bmsrs_bmson_model::ModeHint::Popn9k => {
                 Self::process::<Pms>(bmson)
@@ -199,7 +194,7 @@ impl BmsonProcessor {
     fn process_body(
         bmson: &bmsrs_bmson_model::Bmson,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    ) -> Result<Processed, ProcessError> {
+    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
         let bmson_data = &bmson.chart_data;
 
         let timing = build_timing(bmson_data)?;
@@ -258,10 +253,10 @@ impl BmsonProcessor {
         .with_judge_deltas(judge_deltas)
         .with_life_deltas(life_deltas);
 
-        Ok(Processed {
-            chart: Chart::new(song_info, chart_info, data)?,
-            warnings: conv.warnings,
-        })
+        Ok(Outcome::new(
+            Chart::new(song_info, chart_info, data)?,
+            conv.warnings,
+        ))
     }
 }
 
