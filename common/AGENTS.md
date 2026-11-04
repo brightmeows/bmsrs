@@ -8,7 +8,8 @@ pipelines converge here; both processors output `Chart<T>`.
 **Dependency direction.** The graph flows from the format domains into
 common: regular dependencies of a common crate may only be `std`, sibling
 common crates (`bmsrs-player` depends on `bmsrs-chart`), and external crates
-judged by normal review. Domain crates (`bmsrs-bms-*`, `bmsrs-bmson-*`) must
+judged by normal review. Domain crates (`bmsrs-bms-*`, `bmsrs-bmson-*`,
+`bmsrs-osu-*`) must
 not appear in regular dependencies. Dev-dependencies are exempt: they never
 enter downstream dependency trees.
 

@@ -552,6 +552,14 @@ pub mod player {
     pub use bmsrs_player::*;
 }
 
+/// Parsing and conversion for the osu!mania format.
+#[cfg(feature = "osu")]
+pub mod osu {
+    // Extension types resolve through `raw`; the curated path keeps only the
+    // entry point and its error.
+    pub use crate::raw::osu_processor::{OsuError, OsuProcessor};
+}
+
 /// Low-level crates for advanced and editor integrations.
 pub mod raw {
     /// BMS source-text layer.
@@ -605,6 +613,12 @@ pub mod raw {
     pub mod bmson_processor {
         pub use bmsrs_bmson_processor::*;
     }
+
+    /// osu!mania processor.
+    #[cfg(feature = "osu")]
+    pub mod osu_processor {
+        pub use bmsrs_osu_processor::*;
+    }
 }
 
 /// Common imports for application code.
@@ -622,6 +636,8 @@ pub mod prelude {
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };
+    #[cfg(feature = "osu")]
+    pub use crate::osu::OsuProcessor;
     pub use crate::pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
     pub use crate::player::Player;
     #[cfg(feature = "bmson")]
