@@ -63,7 +63,7 @@ fn from_text_collect_all_reports_unselected_branch_error() {
 
 #[test]
 fn from_text_with_accepts_custom_header_prefix() {
-    let options = bmsrs::bms::syntax::ParseOptions {
+    let options = bmsrs::raw::syntax::ParseOptions {
         header_prefixes: vec!['@'],
     };
     let (bms, _) =
