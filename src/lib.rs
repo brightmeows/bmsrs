@@ -331,6 +331,38 @@ pub mod bms {
         }
     }
 
+    // The unified diagnostic exit lives in `bmsrs-pipeline`; each layer keeps
+    // its own warning type and converts at this boundary.
+    impl From<FromTextWarning> for bmsrs_pipeline::Diagnostic {
+        fn from(warning: FromTextWarning) -> Self {
+            match warning {
+                FromTextWarning::Syntax { range, message } => Self::new(
+                    bmsrs_pipeline::Severity::Warning,
+                    Some(text_span(range)),
+                    message,
+                    Some(bmsrs_pipeline::DiagnosticCode::Syntax),
+                ),
+                FromTextWarning::Tokenize { range, error } => Self::new(
+                    bmsrs_pipeline::Severity::Warning,
+                    Some(text_span(range)),
+                    error.to_string(),
+                    Some(bmsrs_pipeline::DiagnosticCode::Tokenize),
+                ),
+                FromTextWarning::Decode { range, error } => Self::new(
+                    bmsrs_pipeline::Severity::Warning,
+                    Some(text_span(range)),
+                    error.to_string(),
+                    Some(bmsrs_pipeline::DiagnosticCode::Decode),
+                ),
+            }
+        }
+    }
+
+    /// Convert a rowan text range into a format-neutral source span.
+    fn text_span(range: syntax::TextRange) -> bmsrs_pipeline::SourceSpan {
+        bmsrs_pipeline::SourceSpan::new(range.start().into(), range.end().into())
+    }
+
     /// Source-text layer: bytes, encoding, line index, and byte-faithful editing.
     pub mod source {
         pub use bmsrs_bms_source::*;
@@ -518,96 +550,6 @@ pub mod pipeline {
 /// Pure simulation and playback layer.
 pub mod player {
     pub use bmsrs_player::*;
-}
-
-/// Cross-layer unified diagnostic exit.
-///
-/// Each layer keeps its own warning types; consumers that need a single
-/// diagnostic stream convert here, without forcing the processor to depend on
-/// analysis.
-pub mod diagnostic {
-    use bmsrs_bms_analysis::{AnalysisDiagnostic, Severity};
-    use bmsrs_bms_syntax::TextRange;
-
-    use crate::bms::FromTextWarning;
-
-    /// Unified diagnostic.
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Diagnostic {
-        /// Severity.
-        pub severity: Severity,
-        /// Text range; semantic warnings may have none.
-        pub range: Option<TextRange>,
-        /// Message.
-        pub message: String,
-        /// Stable error code.
-        pub code: &'static str,
-    }
-
-    impl Diagnostic {
-        /// Construct a diagnostic.
-        #[must_use]
-        pub fn new(
-            severity: Severity,
-            range: Option<TextRange>,
-            message: impl Into<String>,
-            code: &'static str,
-        ) -> Self {
-            Self {
-                severity,
-                range,
-                message: message.into(),
-                code,
-            }
-        }
-    }
-
-    impl From<FromTextWarning> for Diagnostic {
-        fn from(warning: FromTextWarning) -> Self {
-            match warning {
-                FromTextWarning::Syntax { range, message } => {
-                    Self::new(Severity::Warning, Some(range), message, "syntax")
-                }
-                FromTextWarning::Tokenize { range, error } => Self::new(
-                    Severity::Warning,
-                    Some(range),
-                    error.to_string(),
-                    "tokenize",
-                ),
-                FromTextWarning::Decode { range, error } => {
-                    Self::new(Severity::Warning, Some(range), error.to_string(), "decode")
-                }
-            }
-        }
-    }
-
-    impl From<bmsrs_bms_processor::ProcessWarning> for Diagnostic {
-        fn from(warning: bmsrs_bms_processor::ProcessWarning) -> Self {
-            Self::new(Severity::Warning, None, warning.to_string(), "bms-process")
-        }
-    }
-
-    impl From<bmsrs_bmson_processor::BmsonProcessWarning> for Diagnostic {
-        fn from(warning: bmsrs_bmson_processor::BmsonProcessWarning) -> Self {
-            Self::new(
-                Severity::Warning,
-                None,
-                warning.to_string(),
-                "bmson-process",
-            )
-        }
-    }
-
-    impl From<AnalysisDiagnostic> for Diagnostic {
-        fn from(diagnostic: AnalysisDiagnostic) -> Self {
-            Self::new(
-                diagnostic.severity(),
-                Some(diagnostic.range()),
-                diagnostic.message(),
-                diagnostic.code().unwrap_or("analysis"),
-            )
-        }
-    }
 }
 
 /// Low-level crates for advanced and editor integrations.

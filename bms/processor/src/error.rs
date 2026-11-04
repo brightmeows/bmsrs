@@ -48,6 +48,17 @@ impl From<ChannelValueWarning> for ProcessWarning {
     }
 }
 
+impl From<ProcessWarning> for bmsrs_pipeline::Diagnostic {
+    fn from(warning: ProcessWarning) -> Self {
+        Self::new(
+            bmsrs_pipeline::Severity::Warning,
+            warning.span,
+            warning.to_string(),
+            Some(bmsrs_pipeline::DiagnosticCode::BmsProcess),
+        )
+    }
+}
+
 /// Warning payload.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]

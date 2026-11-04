@@ -35,9 +35,13 @@ fn diagnostic_converts_tokenize_warning() {
         .into_iter()
         .next()
         .unwrap_or_else(|| panic!("expected a tokenize warning"));
-    let diagnostic: bmsrs::diagnostic::Diagnostic = warning.into();
+    let diagnostic: bmsrs::Diagnostic = warning.into();
 
-    assert_eq!(diagnostic.code, "tokenize");
+    assert_eq!(
+        diagnostic.code,
+        Some(bmsrs::pipeline::DiagnosticCode::Tokenize)
+    );
+    assert!(diagnostic.span.is_some());
 }
 
 #[test]
