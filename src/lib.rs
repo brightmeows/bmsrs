@@ -2,7 +2,8 @@
 //!
 //! This crate aggregates and re-exports the public APIs of the sub-crates; the
 //! module hierarchy mirrors the workspace directory structure. The whole-pipeline
-//! entry points [`bms::from_text`] / [`bms::from_bytes`] also live here.
+//! entry points (the [`bms::parse`] and [`bms::process`] families) also live
+//! here.
 
 /// Parsing and processing for the BMS format.
 pub mod bms {
@@ -105,7 +106,8 @@ pub mod bms {
         rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
-        from_text_with(text, options, rng, error_strategy)
+        let document = source::Document::from_text(text);
+        from_document(&document, options, rng, error_strategy)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
     }
 
@@ -117,22 +119,29 @@ pub mod bms {
     pub fn parse_bytes(
         bytes: Vec<u8>,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
-        from_bytes(bytes, |_| 1, ErrorStrategy::CollectAll)
-            .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
+        parse_bytes_with(
+            bytes,
+            &source::DocumentOptions::default(),
+            &syntax::ParseOptions::default(),
+            |_| 1,
+            ErrorStrategy::CollectAll,
+        )
     }
 
-    /// Parse BMS bytes with explicit decoding and parse options.
+    /// Parse BMS bytes with explicit decoding and syntax parse options.
     ///
     /// # Errors
     ///
-    /// Returns [`FromTextError`] when parsing or decoding fails.
+    /// Returns [`FromTextError`] when `FailFast` encounters an error.
     pub fn parse_bytes_with(
         bytes: Vec<u8>,
         doc_options: &source::DocumentOptions,
+        parse_options: &syntax::ParseOptions,
         rng: impl FnMut(u64) -> u64,
         error_strategy: ErrorStrategy,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
-        from_bytes_with(bytes, doc_options, rng, error_strategy)
+        let document = source::Document::from_bytes_with(bytes, doc_options);
+        from_document(&document, parse_options, rng, error_strategy)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
     }
 
@@ -196,84 +205,6 @@ pub mod bms {
     #[must_use]
     pub fn write(bms: &model::Bms) -> String {
         writer::BmsWriter::write(bms)
-    }
-
-    /// Build [`Bms`](model::Bms) from raw BMS text.
-    ///
-    /// Pipeline: CST parsing, control-flow branch selection, single-line value
-    /// parsing, then `Bms`.
-    ///
-    /// # Errors
-    ///
-    /// `FailFast` returns [`FromTextError`] at the first CST or tokenizer error.
-    pub fn from_text(
-        text: &str,
-        rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
-    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
-        from_text_with(text, &syntax::ParseOptions::default(), rng, error_strategy)
-    }
-
-    /// Build [`Bms`](model::Bms) from raw BMS text with parse options.
-    ///
-    /// # Errors
-    ///
-    /// `FailFast` returns [`FromTextError`] at the first CST, tokenizer, or
-    /// decode error.
-    pub fn from_text_with(
-        text: &str,
-        options: &syntax::ParseOptions,
-        rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
-    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
-        let document = source::Document::from_text(text);
-        from_document(&document, options, rng, error_strategy)
-    }
-
-    /// Build [`Bms`](model::Bms) from raw BMS bytes, detecting the encoding
-    /// automatically.
-    ///
-    /// Unlike [`from_text`], this preserves `bmsrs-bms-source`'s encoding
-    /// detection and decoding path, suitable for non-UTF-8 charts such as
-    /// `Shift_JIS`.
-    ///
-    /// # Errors
-    ///
-    /// `FailFast` returns [`FromTextError`] at the first CST, tokenizer, or
-    /// decode error.
-    pub fn from_bytes(
-        bytes: Vec<u8>,
-        rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
-    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
-        from_bytes_with(
-            bytes,
-            &source::DocumentOptions::default(),
-            rng,
-            error_strategy,
-        )
-    }
-
-    /// Build [`Bms`](model::Bms) from raw BMS bytes with document decoding
-    /// options.
-    ///
-    /// # Errors
-    ///
-    /// `FailFast` returns [`FromTextError`] at the first CST, tokenizer, or
-    /// decode error.
-    pub fn from_bytes_with(
-        bytes: Vec<u8>,
-        document_options: &source::DocumentOptions,
-        rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
-    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
-        let document = source::Document::from_bytes_with(bytes, document_options);
-        from_document(
-            &document,
-            &syntax::ParseOptions::default(),
-            rng,
-            error_strategy,
-        )
     }
 
     /// Run the full semantic pipeline from an already-built document.
