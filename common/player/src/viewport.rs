@@ -142,7 +142,7 @@ impl Viewport {
         time: Duration,
         range: impl RangeBounds<f64>,
     ) -> impl Iterator<Item = VisibleNote<'a, T, C>> + 'a {
-        let cursor_tick = player.time_to_tick_f64(time);
+        let cursor_tick = player.duration_to_tick_f64(time);
         let cursor_position = player.scroll_position_at_f64(cursor_tick);
         let max_delta = self.max_scroll_delta_at(player, time);
         let (lo, hi) = delta_bounds(&range);
@@ -191,7 +191,7 @@ impl Viewport {
         time: Duration,
         range: impl RangeBounds<f64>,
     ) -> impl Iterator<Item = VisibleLongNote<'a>> + 'a {
-        let cursor_tick = player.time_to_tick_f64(time);
+        let cursor_tick = player.duration_to_tick_f64(time);
         let cursor_position = player.scroll_position_at_f64(cursor_tick);
         let (lo, hi) = delta_bounds(&range);
 
@@ -247,7 +247,7 @@ impl Viewport {
         time: Duration,
         range: impl RangeBounds<f64>,
     ) -> impl Iterator<Item = VisibleLine<'a, T, C>> + 'a {
-        let cursor_tick = player.time_to_tick_f64(time);
+        let cursor_tick = player.duration_to_tick_f64(time);
         let cursor_position = player.scroll_position_at_f64(cursor_tick);
         let max_delta = self.max_scroll_delta_at(player, time);
         let (lo, hi) = delta_bounds(&range);
