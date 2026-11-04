@@ -15,6 +15,7 @@ pub mod bms {
 
     /// Error type for the whole-pipeline entry points.
     #[derive(Debug, thiserror::Error)]
+    #[non_exhaustive]
     pub enum FromTextError {
         /// CST syntax or control-flow structure error.
         #[error("syntax error at {range:?}: {message}")]
@@ -72,6 +73,14 @@ pub mod bms {
         },
     }
 
+    /// Default control-flow branch selector for [`parse_with`] and
+    /// [`parse_bytes_with`]: always evaluates to the first branch, regardless
+    /// of the seed.
+    #[must_use]
+    pub const fn first_branch(_seed: u64) -> u64 {
+        1
+    }
+
     /// Parse BMS text with defaults: first branch and `CollectAll`.
     ///
     /// # Errors
@@ -83,7 +92,7 @@ pub mod bms {
         parse_with(
             text,
             &syntax::ParseOptions::default(),
-            |_| 1,
+            first_branch,
             ErrorStrategy::CollectAll,
         )
     }
@@ -116,7 +125,7 @@ pub mod bms {
             bytes,
             &source::DocumentOptions::default(),
             &syntax::ParseOptions::default(),
-            |_| 1,
+            first_branch,
             ErrorStrategy::CollectAll,
         )
     }
@@ -282,9 +291,7 @@ pub mod bmson {
                 let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json)?;
                 v0.try_into()
                     .map_err(|error: bmsrs_bmson_model::v0::TryFromV0Error| {
-                        BmsonParseError::Version(bmsrs_bmson_model::BmsonError::V0Conversion(
-                            error.to_string(),
-                        ))
+                        BmsonParseError::Version(bmsrs_bmson_model::BmsonError::V0Conversion(error))
                     })
             }
         }
@@ -438,10 +445,16 @@ pub mod raw {
 }
 
 /// Common imports for application code.
+///
+/// Covers the default-layout surface end to end: parsing, processing through
+/// the default family, simulation, and the core chart types. Non-default mode
+/// families go through the full [`processor`](crate::raw::processor) paths.
 pub mod prelude {
+    pub use crate::bms::process_with;
     pub use crate::bms::{FromTextError, FromTextWarning, parse, parse_bytes, process, write};
     #[cfg(feature = "bmson")]
     pub use crate::bmson::BmsonParseError;
+    pub use crate::bmson::process_nkeys;
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };
@@ -449,6 +462,7 @@ pub mod prelude {
     pub use crate::player::Player;
     pub use crate::raw::bmson_model::Bmson;
     pub use crate::raw::model::Bms;
+    pub use crate::raw::processor::layout::{Bme, BmsLayout};
 }
 
 pub use bmsrs_pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
