@@ -1,12 +1,16 @@
 //! Re-export facade for the bmsrs workspace.
 //!
-//! This crate aggregates and re-exports the public APIs of the sub-crates; the
-//! module hierarchy mirrors the workspace directory structure. The whole-pipeline
-//! entry points (the [`bms::parse`] and [`bms::process`] families) also live
-//! here.
+//! This crate aggregates the public APIs of the sub-crates. The [`bms`] and
+//! [`bmson`] modules keep only the whole-pipeline entry points and
+//! facade-owned types; [`raw`] mirrors the workspace directory structure with
+//! the full layer exports.
 
 /// Parsing and processing for the BMS format.
 pub mod bms {
+    // Layer crates live under `raw`; the curated path keeps only the entry
+    // points and facade-owned types.
+    use crate::raw::{model, parser, processor, source, syntax, values, writer};
+
     pub use parser::ErrorStrategy;
 
     /// Error type for the whole-pipeline entry points.
@@ -222,7 +226,6 @@ pub mod bms {
             },
         }
     }
-
     // The unified diagnostic exit lives in `bmsrs-pipeline`; each layer keeps
     // its own warning type and converts at this boundary.
     impl From<FromTextWarning> for bmsrs_pipeline::Diagnostic {
@@ -254,54 +257,14 @@ pub mod bms {
     fn text_span(range: syntax::TextRange) -> bmsrs_pipeline::SourceSpan {
         bmsrs_pipeline::SourceSpan::new(range.start().into(), range.end().into())
     }
-
-    /// Source-text layer: bytes, encoding, line index, and byte-faithful editing.
-    pub mod source {
-        pub use bmsrs_bms_source::*;
-    }
-
-    /// Syntax layer: rowan CST, lexing, parsing, and control-flow queries.
-    pub mod syntax {
-        pub use bmsrs_bms_syntax::*;
-    }
-
-    /// BMS whole-file model: metadata, timing, resources, and channel messages.
-    pub mod model {
-        pub use bmsrs_bms_model::*;
-    }
-
-    /// BMS parser layer: CST to [`model::Bms`].
-    ///
-    /// Value types (`WavIndex` and so on) live in [`values`].
-    pub mod parser {
-        pub use bmsrs_bms_parser::*;
-    }
-
-    /// Single-line syntax and typed values: headers/messages, indices, parsing.
-    ///
-    /// Canonical path for value types.
-    pub mod values {
-        pub use bmsrs_bms_values::*;
-    }
-
-    /// Analysis layer: diagnostics, symbol index, and editor data.
-    pub mod analysis {
-        pub use bmsrs_bms_analysis::*;
-    }
-
-    /// BMS processor: converts `Bms` into a format-agnostic `Chart`.
-    pub mod processor {
-        pub use bmsrs_bms_processor::*;
-    }
-
-    /// BMS generator: rewrites the full `Bms` as BMS text.
-    pub mod writer {
-        pub use bmsrs_bms_writer::*;
-    }
 }
 
 /// Type definitions and converters for the BMSON format.
 pub mod bmson {
+    // The bmson processor types resolve through `raw`; the curated path keeps
+    // only the entry points and facade-owned types.
+    use crate::raw::bmson_processor as processor;
+
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
     ///
     /// # Errors
@@ -404,16 +367,6 @@ pub mod bmson {
         #[error("BMSON version error: {0}")]
         Version(#[from] bmsrs_bmson_model::BmsonError),
     }
-
-    /// BMSON type system (v0/v1/v2).
-    pub mod model {
-        pub use bmsrs_bmson_model::{v0, v1, *};
-    }
-
-    /// BMSON processor: converts bmson data into a format-agnostic `Chart`.
-    pub mod processor {
-        pub use bmsrs_bmson_processor::*;
-    }
 }
 
 /// Format-agnostic chart data model.
@@ -458,6 +411,11 @@ pub mod raw {
         pub use bmsrs_bms_parser::*;
     }
 
+    /// BMS analysis layer: diagnostics, symbol index, and editor data.
+    pub mod analysis {
+        pub use bmsrs_bms_analysis::*;
+    }
+
     /// BMS processor.
     pub mod processor {
         pub use bmsrs_bms_processor::*;
@@ -489,8 +447,8 @@ pub mod prelude {
     };
     pub use crate::pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
     pub use crate::player::Player;
-    pub use bmsrs_bms_model::Bms;
-    pub use bmsrs_bmson_model::Bmson;
+    pub use crate::raw::bmson_model::Bmson;
+    pub use crate::raw::model::Bms;
 }
 
 pub use bmsrs_pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
