@@ -270,8 +270,9 @@ pub mod bms {
 
 /// Type definitions and converters for the BMSON format.
 pub mod bmson {
-    // The bmson processor types resolve through `raw`; the curated path keeps
-    // only the entry points and facade-owned types.
+    // Bmson layer types resolve through `raw`; the curated path keeps only the
+    // entry points and facade-owned types.
+    use crate::raw::bmson_model as model;
     use crate::raw::bmson_processor as processor;
 
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
@@ -280,19 +281,18 @@ pub mod bmson {
     ///
     /// Returns [`BmsonParseError`] when the JSON or version is invalid.
     #[cfg(feature = "bmson")]
-    pub fn parse_str(json: &str) -> Result<bmsrs_bmson_model::Bmson, BmsonParseError> {
-        match bmsrs_bmson_model::DetectedVersion::detect(json)? {
-            bmsrs_bmson_model::DetectedVersion::V2 => Ok(serde_json::from_str(json)?),
-            bmsrs_bmson_model::DetectedVersion::V1 => {
-                let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(json)?;
-                Ok(bmsrs_bmson_model::Bmson::from(v1))
+    pub fn parse_str(json: &str) -> Result<model::Bmson, BmsonParseError> {
+        match model::DetectedVersion::detect(json)? {
+            model::DetectedVersion::V2 => Ok(serde_json::from_str(json)?),
+            model::DetectedVersion::V1 => {
+                let v1: model::v1::Bmson = serde_json::from_str(json)?;
+                Ok(model::Bmson::from(v1))
             }
-            bmsrs_bmson_model::DetectedVersion::V0 => {
-                let v0: bmsrs_bmson_model::v0::Bmson = serde_json::from_str(json)?;
-                v0.try_into()
-                    .map_err(|error: bmsrs_bmson_model::v0::TryFromV0Error| {
-                        BmsonParseError::Version(bmsrs_bmson_model::BmsonError::V0Conversion(error))
-                    })
+            model::DetectedVersion::V0 => {
+                let v0: model::v0::Bmson = serde_json::from_str(json)?;
+                v0.try_into().map_err(|error: model::v0::TryFromV0Error| {
+                    BmsonParseError::Version(model::BmsonError::V0Conversion(error))
+                })
             }
         }
     }
@@ -303,7 +303,7 @@ pub mod bmson {
     ///
     /// Returns [`BmsonParseError`] when the JSON, UTF-8, or version is invalid.
     #[cfg(feature = "bmson")]
-    pub fn parse_slice(bytes: &[u8]) -> Result<bmsrs_bmson_model::Bmson, BmsonParseError> {
+    pub fn parse_slice(bytes: &[u8]) -> Result<model::Bmson, BmsonParseError> {
         let json = std::str::from_utf8(bytes)?;
         parse_str(json)
     }
@@ -314,10 +314,10 @@ pub mod bmson {
     ///
     /// Returns [`processor::ProcessError`] when conversion fails.
     pub fn process(
-        bmson: &bmsrs_bmson_model::Bmson,
+        bmson: &model::Bmson,
     ) -> Result<
         bmsrs_pipeline::Outcome<
-            bmsrs_chart::Chart<processor::BmsonNoteExt>,
+            crate::chart::Chart<processor::BmsonNoteExt>,
             processor::BmsonProcessWarning,
         >,
         processor::ProcessError,
@@ -331,10 +331,10 @@ pub mod bmson {
     ///
     /// Returns [`processor::ProcessError`] when conversion fails.
     pub fn process_with<L: processor::layout::BmsonLayout>(
-        bmson: &bmsrs_bmson_model::Bmson,
+        bmson: &model::Bmson,
     ) -> Result<
         bmsrs_pipeline::Outcome<
-            bmsrs_chart::Chart<processor::BmsonNoteExt>,
+            crate::chart::Chart<processor::BmsonNoteExt>,
             processor::BmsonProcessWarning,
         >,
         processor::ProcessError,
@@ -348,11 +348,11 @@ pub mod bmson {
     ///
     /// Returns [`processor::ProcessError`] when conversion fails.
     pub fn process_nkeys(
-        bmson: &bmsrs_bmson_model::Bmson,
+        bmson: &model::Bmson,
         keys: u8,
     ) -> Result<
         bmsrs_pipeline::Outcome<
-            bmsrs_chart::Chart<processor::BmsonNoteExt>,
+            crate::chart::Chart<processor::BmsonNoteExt>,
             processor::BmsonProcessWarning,
         >,
         processor::ProcessError,
@@ -372,7 +372,7 @@ pub mod bmson {
         Utf8(#[from] std::str::Utf8Error),
         /// Version detection or conversion error.
         #[error("BMSON version error: {0}")]
-        Version(#[from] bmsrs_bmson_model::BmsonError),
+        Version(#[from] model::BmsonError),
     }
 }
 
