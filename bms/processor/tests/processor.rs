@@ -4,13 +4,14 @@ use std::num::NonZeroU8;
 use std::path::Path;
 
 use bmsrs_bms_model::{
-    BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position, StpEvent,
+    BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent,
+    Position, StpEvent,
 };
 use bmsrs_bms_model::{BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarningKind};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
+use bmsrs_chart::{BgaLayer, CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
 
 #[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
 fn timing<T: NoteExt, C: CustomEvent>(chart: &bmsrs_chart::Chart<T, C>) -> TimingTrack {
@@ -150,6 +151,48 @@ fn process_rejects_zero_bpm() {
     let result = BmsProcessor::process::<Bme>(&bms);
 
     assert!(matches!(result, Err(ProcessError::ZeroBpm)));
+}
+
+#[test]
+fn undefined_bmp_reference_clears_layer_with_warning() {
+    // Referencing an undefined BMP index clears the layer instead of showing
+    // a resource; the reference also warns.
+    let mut bms = Bms::default();
+    bms.visual
+        .bmp_files
+        .insert("01".parse().unwrap(), "a.bmp".to_owned());
+    bms.messages.bga_events.push(BgaEvent {
+        position: Position::new(1, 0, 1),
+        layer: BmsBgaLayer::Base,
+        bmp_id: "FF".parse().unwrap(),
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let bga: Vec<_> = processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Bga { layer, resource_id } = &e.kind {
+                Some((*layer, resource_id.as_ref().map(|id| id.get()), e.tick()))
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(bga, vec![(BgaLayer::Base, None, 960)]);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            warning.kind,
+            // "FF" decodes through the default base36, not hexadecimal.
+            ProcessWarningKind::MissingBmpDefinition {
+                key: 555,
+                tick: 960
+            }
+        )
+    }));
 }
 
 #[test]

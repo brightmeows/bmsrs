@@ -707,7 +707,10 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
     fn validate_bga(&self) -> Result<(), ChartDataError> {
         let len = self.chart.bga_resources.len();
         for event in &self.data.events {
-            if let EventKind::Bga { resource_id, .. } = &event.kind
+            if let EventKind::Bga {
+                resource_id: Some(resource_id),
+                ..
+            } = &event.kind
                 && resource_id.get() as usize >= len
             {
                 return Err(ChartDataError::DanglingBgaResource {

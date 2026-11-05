@@ -431,8 +431,13 @@ impl BmsonConverter<'_> {
                 let Some(&resource_id) = self.bga_ids.get(&e.id) else {
                     continue;
                 };
-                self.events
-                    .push(Event::new(e.y, EventKind::Bga { layer, resource_id }));
+                self.events.push(Event::new(
+                    e.y,
+                    EventKind::Bga {
+                        layer,
+                        resource_id: Some(resource_id),
+                    },
+                ));
             }
         }
     }

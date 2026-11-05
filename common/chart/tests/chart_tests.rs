@@ -286,7 +286,7 @@ fn event_bga_fields() {
         480,
         EventKind::Bga {
             layer: BgaLayer::Layer2,
-            resource_id: BgaResourceId::new(3),
+            resource_id: Some(BgaResourceId::new(3)),
         },
     );
     assert_eq!(ev.tick(), 480);
@@ -295,7 +295,7 @@ fn event_bga_fields() {
     } = ev.kind
     {
         assert_eq!(layer, BgaLayer::Layer2);
-        assert_eq!(resource_id.get(), 3);
+        assert_eq!(resource_id.map(BgaResourceId::get), Some(3));
     } else {
         panic!("expected Bga event");
     }
@@ -771,7 +771,7 @@ fn validate_rejects_dangling_bga_resource() {
             0,
             EventKind::Bga {
                 layer: BgaLayer::Base,
-                resource_id: BgaResourceId::new(2),
+                resource_id: Some(BgaResourceId::new(2)),
             },
         )],
         vec![],
@@ -803,7 +803,7 @@ fn validate_accepts_consistent_bga_references() {
             0,
             EventKind::Bga {
                 layer: BgaLayer::Base,
-                resource_id: BgaResourceId::new(0),
+                resource_id: Some(BgaResourceId::new(0)),
             },
         )],
         vec![],

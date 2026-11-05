@@ -34,12 +34,18 @@ fn bga_event_fields() {
         240,
         EventKind::Bga {
             layer: BgaLayer::Base,
-            resource_id: BgaResourceId::new(2),
+            resource_id: Some(BgaResourceId::new(2)),
         },
     );
     assert_eq!(ev.tick(), 240);
     assert!(
-        matches!(ev.kind, EventKind::Bga { resource_id, .. } if resource_id.get() == 2),
+        matches!(
+            ev.kind,
+            EventKind::Bga {
+                resource_id: Some(resource_id),
+                ..
+            } if resource_id.get() == 2
+        ),
         "expected Bga with resource_id 2"
     );
 }

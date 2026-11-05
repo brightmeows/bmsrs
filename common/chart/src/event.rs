@@ -70,7 +70,10 @@ pub enum EventKind<T, C: CustomEvent = NoCustomEvent> {
         /// BGA layer targeted by this event.
         layer: BgaLayer,
         /// Index into [`crate::ChartInfo::bga_resources`].
-        resource_id: BgaResourceId,
+        ///
+        /// [`None`] clears the layer: referencing an undefined BMP index
+        /// leaves the layer blank instead of showing a resource.
+        resource_id: Option<BgaResourceId>,
     },
     /// Barline for visual display.
     Bar,

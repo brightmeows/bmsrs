@@ -786,16 +786,36 @@ impl BmsConverter<'_> {
 
     /// Build BGA events from BGA events and BMP file definitions.
     fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
+        let base = self.bms.gameplay.base.unwrap_or_default();
         for be in &self.bms.messages.bga_events {
-            if let Some(entry) = bmp_map.get(&be.bmp_id) {
-                self.events.push(Event::new(
-                    self.table.position_to_tick(be.position),
-                    EventKind::Bga {
-                        layer: map_bga_layer(be.layer),
-                        resource_id: entry.resource_id,
-                    },
-                ));
-            }
+            let tick = self.table.position_to_tick(be.position);
+            let resource_id = if let Some(entry) = bmp_map.get(&be.bmp_id) {
+                Some(entry.resource_id)
+            } else {
+                // Referencing an undefined BMP index clears the layer
+                // (mainstream engines render it as nothing).
+                let channel = match be.layer {
+                    BmsBgaLayer::Base => RawChannel::BgaBase,
+                    BmsBgaLayer::Poor => RawChannel::BgaPoor,
+                    BmsBgaLayer::Layer => RawChannel::BgaLayer,
+                    BmsBgaLayer::Layer2 => RawChannel::BgaLayer2,
+                };
+                let span = self.message_span(be.position.measure(), &[channel]);
+                if let Some(key) = be.bmp_id.to_index_in(base) {
+                    self.warnings.push(ProcessWarning::new(
+                        span,
+                        ProcessWarningKind::MissingBmpDefinition { key, tick },
+                    ));
+                }
+                None
+            };
+            self.events.push(Event::new(
+                tick,
+                EventKind::Bga {
+                    layer: map_bga_layer(be.layer),
+                    resource_id,
+                },
+            ));
         }
     }
 

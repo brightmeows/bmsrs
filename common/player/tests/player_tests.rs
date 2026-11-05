@@ -492,28 +492,28 @@ fn make_chart_with_bga() -> Chart {
                 120,
                 EventKind::Bga {
                     layer: BgaLayer::Base,
-                    resource_id: BgaResourceId::new(0),
+                    resource_id: Some(BgaResourceId::new(0)),
                 },
             ),
             Event::new(
                 240,
                 EventKind::Bga {
                     layer: BgaLayer::Layer,
-                    resource_id: BgaResourceId::new(1),
+                    resource_id: Some(BgaResourceId::new(1)),
                 },
             ),
             Event::new(
                 360,
                 EventKind::Bga {
                     layer: BgaLayer::Poor,
-                    resource_id: BgaResourceId::new(2),
+                    resource_id: Some(BgaResourceId::new(2)),
                 },
             ),
             Event::new(
                 480,
                 EventKind::Bga {
                     layer: BgaLayer::Layer2,
-                    resource_id: BgaResourceId::new(3),
+                    resource_id: Some(BgaResourceId::new(3)),
                 },
             ),
             Event::bar(960),
@@ -587,7 +587,7 @@ fn player_bga_events_base_returns_all_events() {
         .iter()
         .filter_map(|e| {
             if let EventKind::Bga { layer, resource_id } = &e.kind {
-                Some((*layer, resource_id.get(), e.tick()))
+                Some((*layer, resource_id.as_ref().map(|id| id.get())?, e.tick()))
             } else {
                 None
             }

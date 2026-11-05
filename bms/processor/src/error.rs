@@ -125,6 +125,15 @@ pub enum ProcessWarningKind {
         tick: u64,
     },
 
+    /// A BGA event references an undefined BMP index; the layer is cleared.
+    #[error("BGA event at tick {tick} references undefined BMP key {key}; the layer is cleared")]
+    MissingBmpDefinition {
+        /// Undefined BMP key (numeric value in the chart's base).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
     /// A channel value cannot be parsed as the type required by that channel;
     /// the event was skipped.
     #[error(transparent)]
