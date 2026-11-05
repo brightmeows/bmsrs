@@ -1253,12 +1253,112 @@ fn mine_on_unterminated_long_note_start_is_dropped() {
 }
 
 #[test]
-fn lnobj_end_position_note_is_dropped_silently() {
+fn note_on_long_note_start_with_other_wav_moves_to_bgm() {
+    // beatoraja moves a covered note whose WAV differs from the long-note
+    // start WAV to the BGM lane (keysound layering on the LN start).
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "start.wav".to_owned());
+    bms.audio
+        .wav_files
+        .insert("02".parse().unwrap(), "layer.wav".to_owned());
+    // Long note on lane 1 (ch51): start at 0/8, end at 4/8.
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 3, 8),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+    // Layered keysound exactly on the long-note start (WAV 02).
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "02".parse().unwrap(),
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = processed.value.chart;
+    let bgm_ticks: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Bgm { audio_index } => Some((e.tick(), audio_index.get())),
+            _ => None,
+        })
+        .collect();
+    // The layer note moved to BGM at tick 0 (WAV 02, audio index 1).
+    assert_eq!(bgm_ticks, vec![(0, 1)]);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::NoteCoveredByLongNote { tick: 0, .. }
+        )
+    }));
+}
+
+#[test]
+fn note_on_long_note_start_with_same_wav_is_dropped() {
+    // A note whose WAV equals the long-note start WAV is redundant (beatoraja
+    // replaces it without moving it to BGM).
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "start.wav".to_owned());
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 3, 8),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "01".parse().unwrap(),
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let bgm_count = processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::Bgm { .. }))
+        .count();
+    assert_eq!(bgm_count, 0);
+    assert!(!processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::NoteCoveredByLongNote { .. }
+        )
+    }));
+}
+
+#[test]
+fn lnobj_end_position_note_moves_to_bgm() {
     // A visible note sharing the LNOBJ end marker's position falls inside the
-    // long-note range [start, end] and is dropped by range suppression before
-    // any slot conflict arises (jbms-parser resolves this row-order
-    // dependently; bmsrs keeps the range behavior). The marker itself emits
-    // nothing.
+    // long-note range [start, end]; beatoraja moves it to the BGM lane so its
+    // keysound keeps playing. The marker itself emits nothing.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.audio
@@ -1298,8 +1398,8 @@ fn lnobj_end_position_note_is_dropped_silently() {
 
     let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
     let chart = processed.value.chart;
-    // Only the long note (start tick 0) survives; neither the marker nor the
-    // co-positioned note emits anything.
+    // The long note (start tick 0) survives; the co-positioned note (WAV 02)
+    // moved to BGM at tick 960, and the marker emits nothing.
     let notes: Vec<_> = chart
         .data()
         .events()
@@ -1310,10 +1410,22 @@ fn lnobj_end_position_note_is_dropped_silently() {
         })
         .collect();
     assert_eq!(notes.len(), 1, "lane notes: {notes:?}");
-    assert!(!processed.warnings.iter().any(|warning| matches!(
-        &warning.kind,
-        ProcessWarningKind::DuplicateNotePosition { .. }
-    )));
+    let bgm_ticks: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Bgm { audio_index } => Some((e.tick(), audio_index.get())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(bgm_ticks, vec![(960, 1)]);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::NoteCoveredByLongNote { tick: 960, .. }
+        )
+    }));
 }
 
 /// Count mine notes in the chart event stream.

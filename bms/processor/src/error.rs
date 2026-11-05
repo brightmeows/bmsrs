@@ -192,6 +192,20 @@ pub enum ProcessWarningKind {
         tick: u64,
     },
 
+    /// A visible note covered by a long note was moved to the BGM lane so its
+    /// keysound keeps playing (matching beatoraja).
+    #[error(
+        "note at tick {tick} (player {player}, lane {lane}) is covered by a long note; moved to BGM"
+    )]
+    NoteCoveredByLongNote {
+        /// Player number of the moved note.
+        player: u8,
+        /// Lane number of the moved note.
+        lane: u8,
+        /// Tick where the note sits.
+        tick: u64,
+    },
+
     /// A channel value cannot be parsed as the type required by that channel;
     /// the event was skipped.
     #[error(transparent)]

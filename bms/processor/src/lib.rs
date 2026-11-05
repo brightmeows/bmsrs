@@ -409,28 +409,34 @@ impl BmsConverter<'_> {
         unpaired_starts: &[(u8, u8, u64)],
     ) {
         let base = self.bms.gameplay.base.unwrap_or_default();
-        let mut check_wav =
-            |wav_id: &WavIndex, player: u8, lane: u8, tick: u64| -> Option<AudioIndex> {
-                let audio = wav_map.get(wav_id).copied();
-                // When `to_index()` returns `None`, skip the warning silently:
-                // a non-decomposable WAV key (such as the "ZZ" LNOBJ marker) is
-                // outside the WAV table's definition range and does not produce
-                // a missing-definition warning.
-                if audio.is_none()
-                    && let Some(key) = wav_id.0.to_index_in(base)
-                {
-                    self.warnings.push(ProcessWarning::new(
-                        None,
-                        ProcessWarningKind::MissingWavDefinition {
-                            key,
-                            player,
-                            lane,
-                            tick,
-                        },
-                    ));
-                }
-                audio
-            };
+        // The warnings vector is passed per call so the covered-note branch
+        // inside the loop can push its own warning while iterating.
+        let check_wav = |warnings: &mut Vec<ProcessWarning>,
+                         wav_id: &WavIndex,
+                         player: u8,
+                         lane: u8,
+                         tick: u64|
+         -> Option<AudioIndex> {
+            let audio = wav_map.get(wav_id).copied();
+            // When `to_index()` returns `None`, skip the warning silently:
+            // a non-decomposable WAV key (such as the "ZZ" LNOBJ marker) is
+            // outside the WAV table's definition range and does not produce
+            // a missing-definition warning.
+            if audio.is_none()
+                && let Some(key) = wav_id.0.to_index_in(base)
+            {
+                warnings.push(ProcessWarning::new(
+                    None,
+                    ProcessWarningKind::MissingWavDefinition {
+                        key,
+                        player,
+                        lane,
+                        tick,
+                    },
+                ));
+            }
+            audio
+        };
 
         // Build the LN range table:
         // (player, lane) to Vec<(start_tick, end_tick)>.
@@ -440,9 +446,13 @@ impl BmsConverter<'_> {
         // markers occupy the slot without emitting an event.
         let mut placements: Vec<Option<Placement>> = Vec::new();
 
-        // Visible notes (and LNOBJ markers). Notes inside a long-note range or
-        // on an unterminated long-note start keep the current behavior: they
-        // are dropped before any WAV lookup warning.
+        // Visible notes (and LNOBJ markers). Notes covered by a long note move
+        // to the BGM lane so their keysound keeps playing (beatoraja moves
+        // them with `addBackGroundNote`); one exactly on the long-note start
+        // only moves when its WAV differs from the start WAV, a same-WAV note
+        // is redundant and dropped silently. Notes on an unterminated
+        // long-note start are dropped: the start itself is removed at the end
+        // of the song.
         for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
             let tick = self.table.position_to_tick(ne.position);
             if consumed.contains(&i) {
@@ -465,12 +475,37 @@ impl BmsConverter<'_> {
                 }
                 continue;
             }
-            if matches!(ne.key_type, KeyType::Visible)
-                && is_note_suppressed(ne.player, ne.lane, tick, &ln_ranges, unpaired_starts)
-            {
-                continue;
+            if matches!(ne.key_type, KeyType::Visible) {
+                if unpaired_starts.contains(&(ne.player, ne.lane, tick)) {
+                    continue;
+                }
+                let covered = paired_lns.iter().find(|ln| {
+                    ln.player == ne.player
+                        && ln.lane == ne.lane
+                        && tick >= ln.tick
+                        && tick <= ln.end_tick
+                });
+                if let Some(ln) = covered {
+                    let audio = check_wav(&mut self.warnings, &ne.wav_id, ne.player, ne.lane, tick);
+                    let redundant_start =
+                        tick == ln.tick && audio == wav_map.get(&ln.wav_id).copied();
+                    if !redundant_start {
+                        if let Some(bgm_audio) = audio {
+                            self.events.push(Event::bgm(tick, bgm_audio));
+                        }
+                        self.warnings.push(ProcessWarning::new(
+                            None,
+                            ProcessWarningKind::NoteCoveredByLongNote {
+                                player: ne.player,
+                                lane: ne.lane,
+                                tick,
+                            },
+                        ));
+                    }
+                    continue;
+                }
             }
-            let audio = check_wav(&ne.wav_id, ne.player, ne.lane, tick);
+            let audio = check_wav(&mut self.warnings, &ne.wav_id, ne.player, ne.lane, tick);
             let kind = match ne.key_type {
                 KeyType::Visible => NoteKind::Normal,
                 KeyType::Invisible => NoteKind::Invisible,
@@ -489,7 +524,7 @@ impl BmsConverter<'_> {
         if self.bms.gameplay.ln_obj.is_some() {
             for lne in &self.bms.messages.long_note_events {
                 let tick = self.table.position_to_tick(lne.position);
-                let audio = check_wav(&lne.wav_id, lne.player, lne.lane, tick);
+                let audio = check_wav(&mut self.warnings, &lne.wav_id, lne.player, lne.lane, tick);
                 placements.push(Some(Placement {
                     tick,
                     player: lne.player,
@@ -505,7 +540,7 @@ impl BmsConverter<'_> {
         // Paired long notes: the start emits the long note; the end marker
         // overwrites the slot silently (jbms-parser does not warn here).
         for ln in paired_lns {
-            let audio = check_wav(&ln.wav_id, ln.player, ln.lane, ln.tick);
+            let audio = check_wav(&mut self.warnings, &ln.wav_id, ln.player, ln.lane, ln.tick);
             placements.push(Some(Placement {
                 tick: ln.tick,
                 player: ln.player,
@@ -1560,24 +1595,6 @@ fn key_count(events: &[BmsEvent]) -> Option<u8> {
 
     let total = p1.saturating_add(p2);
     (total > 0).then_some(total)
-}
-
-/// Return whether a visible note should be suppressed by an LN range.
-fn is_note_suppressed(
-    player: u8,
-    lane: u8,
-    tick: u64,
-    ln_ranges: &HashMap<(u8, u8), Vec<(u64, u64)>>,
-    unpaired_starts: &[(u8, u8, u64)],
-) -> bool {
-    if let Some(ranges) = ln_ranges.get(&(player, lane)) {
-        for &(start, end) in ranges {
-            if tick >= start && tick <= end {
-                return true;
-            }
-        }
-    }
-    unpaired_starts.contains(&(player, lane, tick))
 }
 
 /// One playable-note slot request built during note collection, resolved

@@ -24,7 +24,7 @@ prefix.
 
 | Conversion | Input | Output | Notes |
 |------------|-------|--------|-------|
-| Notes | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | notes consumed by LNOBJ are excluded from ordinary notes; same-position conflicts keep the later definition (matching beatoraja) |
+| Notes | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | notes consumed by LNOBJ are excluded from ordinary notes; same-position conflicts keep the later definition; notes covered by a long note move to BGM with `NoteCoveredByLongNote` (matching beatoraja), except a same-WAV note on the long-note start, which is dropped as redundant |
 | Timing | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | measure length is computed from `length_ratio` (f64) |
 | BGM | `BgmEvent` | `Event::Bgm` | LNOBJ end markers are silent (matching beatoraja/LR2) |
 | BGA | `BgaEvent` | `Event::Bga` | four layers (Base / Poor / Layer / Layer2); `BmsBgaLayer` maps to `chart::BgaLayer` here |
