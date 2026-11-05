@@ -306,8 +306,10 @@ fn default_resolution_is_240() {
 }
 
 #[test]
-fn resolution_zero_is_rejected() {
+fn resolution_zero_is_kept_for_the_processor_fallback() {
     let json = r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},"chart_info":{"subtitle":"","subartists":[],"chart_name":"","level":1,"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}},"chart_data":{"init_bpm":120.0,"lines":null,"bpm_events":[],"stop_events":[],"sound_channels":[],"resolution":0}}"#;
-    let bmson: Result<Bmson, _> = serde_json::from_str(json);
-    assert!(bmson.is_err());
+    let bmson: Bmson = serde_json::from_str(json).unwrap();
+    // The model keeps 0 faithfully; the processor falls back to 240 with a
+    // warning.
+    assert_eq!(bmson.chart_data.resolution, 0);
 }

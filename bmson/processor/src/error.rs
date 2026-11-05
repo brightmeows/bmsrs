@@ -40,6 +40,10 @@ pub enum BmsonProcessWarning {
         hint: String,
     },
 
+    /// A resolution of 0 fell back to the default 240 per the specification.
+    #[error("resolution 0 fell back to the default 240")]
+    ZeroResolutionFallback,
+
     /// Layered long notes at the same position have mismatched lengths.
     #[error("layered long note at tick {tick} has mismatched lengths {first} and {other}")]
     LayeredNoteLengthMismatch {

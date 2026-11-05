@@ -197,7 +197,18 @@ impl BmsonProcessor {
     ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
         let bmson_data = &bmson.chart_data;
 
-        let timing = build_timing(bmson_data)?;
+        // A resolution of 0 falls back to the default 240 per the
+        // specification; negative values already took their absolute value at
+        // deserialization.
+        let mut warnings = Vec::new();
+        let resolution = match bmson_data.resolution {
+            0 => {
+                warnings.push(BmsonProcessWarning::ZeroResolutionFallback);
+                240
+            }
+            n => n,
+        };
+        let timing = build_timing(bmson_data, resolution)?;
         let bga_ids = build_bga_id_map(&bmson.chart_info.bga);
         let mut conv = BmsonConverter {
             bmson,
@@ -206,7 +217,7 @@ impl BmsonProcessor {
             bga_ids: &bga_ids,
             audio_assets: Vec::new(),
             events: Vec::new(),
-            warnings: Vec::new(),
+            warnings,
         };
 
         conv.process_sound_channels()?;
@@ -696,7 +707,10 @@ fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<(u64, u64)> {
 ///
 /// Returns [`TimingTrackError::InvalidBpm`] when `data.init_bpm` is invalid
 /// (zero or non-finite).
-fn build_timing(data: &bmsrs_bmson_model::ChartData) -> Result<TimingTrack, TimingTrackError> {
+fn build_timing(
+    data: &bmsrs_bmson_model::ChartData,
+    resolution: u64,
+) -> Result<TimingTrack, TimingTrackError> {
     let bpm_changes: Vec<BpmChange> = data.bpm_events.iter().map(build_bpm_change).collect();
     let lookup = bmsrs_chart::BpmLookup::new(data.init_bpm, &bpm_changes);
     let stops = fold_stops(&data.stop_events)
@@ -708,14 +722,14 @@ fn build_timing(data: &bmsrs_bmson_model::ChartData) -> Result<TimingTrack, Timi
                 clippy::cast_precision_loss,
                 reason = "pulse counts and resolution fit in f64 exactly for chart ranges"
             )]
-            let secs = stop.1 as f64 / data.resolution as f64 * 60.0 / lookup.bpm_at_tick(stop.0);
+            let secs = stop.1 as f64 / resolution as f64 * 60.0 / lookup.bpm_at_tick(stop.0);
             StopEvent {
                 tick: stop.0,
                 duration: Duration::try_from_secs_f64(secs.max(0.0)).unwrap_or(Duration::ZERO),
             }
         })
         .collect();
-    TimingTrack::new(data.init_bpm, bpm_changes, stops, data.resolution)
+    TimingTrack::new(data.init_bpm, bpm_changes, stops, resolution)
 }
 
 /// Build [`BmsonNoteExt`] from a BMSON [`NoteEvent`](bmsrs_bmson_model::NoteEvent).

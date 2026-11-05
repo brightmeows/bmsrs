@@ -1131,3 +1131,20 @@ fn chart_level_ln_hints_propagate() -> TestResult {
     assert_eq!(chart.data().ln_life_hint(), LnLifeHint::Ticks);
     Ok(())
 }
+
+#[test]
+fn zero_resolution_falls_back_to_240_with_warning() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.resolution = 0;
+
+    let processed = BmsonProcessor::process::<Beat>(&bmson)?;
+    assert_eq!(processed.value.data().resolution(), 240);
+    assert!(
+        processed
+            .warnings
+            .iter()
+            .any(|w| matches!(w, BmsonProcessWarning::ZeroResolutionFallback)),
+        "resolution fallback should warn"
+    );
+    Ok(())
+}

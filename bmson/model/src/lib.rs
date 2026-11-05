@@ -44,7 +44,7 @@ pub use common::{
 };
 
 pub use common::{
-    de_opt_path, de_path, default_multiplier, default_resolution, deserialize_resolution_nonzero,
+    de_opt_path, de_path, default_multiplier, default_resolution, deserialize_resolution,
     null_to_default,
 };
 
@@ -336,14 +336,15 @@ pub struct ChartData {
 
     /// Ticks per quarter note (beat resolution).
     ///
-    /// Default: `240`. Must be greater than 0.
+    /// Default: `240`. Negative JSON values take their absolute value per the
+    /// specification; `0` falls back to `240` during processing.
     ///
     /// 240 is the least common multiple of 48 (a common BMS resolution) and 5,
     /// which supports quintuplet rhythms.
     ///
     #[serde(
         default = "default_resolution",
-        deserialize_with = "deserialize_resolution_nonzero"
+        deserialize_with = "deserialize_resolution"
     )]
     pub resolution: u64,
 
