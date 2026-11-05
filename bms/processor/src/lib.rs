@@ -43,15 +43,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bmsrs_bms_model::{
-    Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
-    OwnedExWavParams, PlayerMode, Rank, SeekIndex, TextIndex, WavCmdParams, WavIndex,
+    Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, BmsIndex, ChangeOptionIndex,
+    ExRankIndex, LnMode, OwnedExWavParams, PlayerMode, Rank, SeekIndex, TextIndex, WavCmdParams,
+    WavIndex,
 };
 use bmsrs_bms_model::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
     ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, Note,
-    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
-    VideoAsset,
+    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, SwBgaResource, SwBgaResourceId,
+    TimingTrack, TimingTrackError, VideoAsset,
 };
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
@@ -267,9 +268,12 @@ impl BmsProcessor {
         conv.collect_speed_events();
 
         // BMS engine-specific custom events (priority 6).
-        conv.collect_custom_events(&bmp_map);
+        let swbga_map = conv.build_swbga_map();
 
-        let (song, chart_info) = conv.build_metadata(&bmp_map);
+        conv.collect_custom_events(&swbga_map);
+
+        let swbga_resources = conv.build_swbga_resources(&bmp_map);
+        let (song, chart_info) = conv.build_metadata(&bmp_map, swbga_resources);
         let ln_type_hint = conv.ln_type_hint();
 
         let data = ChartData::new(init_bpm, RESOLUTION, conv.events, audio_assets)?
@@ -631,7 +635,7 @@ impl BmsConverter<'_> {
         clippy::too_many_lines,
         reason = "single structured match on channel variant with short branches; extraction would lose clarity"
     )]
-    fn collect_custom_events(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
+    fn collect_custom_events(&mut self, swbga_map: &BTreeMap<BmpIndex, SwBgaResourceId>) {
         let non_event = &self.bms.messages.non_event_data;
 
         // BGA layer mapping (channel to layer).
@@ -707,14 +711,20 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::BgaArgb { layer, a, r, g, b }
                     }
                     RawChannel::BgaKeyBound => {
-                        // The value is normalized; look it up in bmp_map
-                        // directly.
-                        let Some(resource_id) =
-                            bmp_map.get(&BmpIndex::from(*obj)).map(|e| e.resource_id)
-                        else {
+                        // The value is normalized; look it up in the SWBGA
+                        // definition table directly.
+                        let Some(swbga_id) = swbga_map.get(&BmpIndex::from(*obj)).copied() else {
+                            let span = self.message_span(item.measure, &[RawChannel::BgaKeyBound]);
+                            self.warnings.push(ProcessWarning::new(
+                                span,
+                                ProcessWarningKind::MissingSwBgaDefinition {
+                                    key: obj.to_index().unwrap_or(0),
+                                    tick,
+                                },
+                            ));
                             continue;
                         };
-                        BmsCustomEvent::BgaKeyBound { resource_id }
+                        BmsCustomEvent::BgaKeyBound { swbga_id }
                     }
                     RawChannel::Text => {
                         // The value is normalized; look it up in text_defs
@@ -966,6 +976,57 @@ impl BmsConverter<'_> {
         map
     }
 
+    /// Map each `#SWBGAxx` definition key to its vector index in
+    /// `swbga_resources`. Keys iterate in sorted order, matching the numbering
+    /// in [`Self::build_swbga_resources`].
+    #[expect(clippy::cast_possible_truncation, reason = "SWBGA count fits in u32")]
+    fn build_swbga_map(&self) -> BTreeMap<BmpIndex, SwBgaResourceId> {
+        self.bms
+            .visual
+            .sw_bga_defs
+            .keys()
+            .copied()
+            .enumerate()
+            .map(|(i, id)| (id, SwBgaResourceId::new(i as u32)))
+            .collect()
+    }
+
+    /// Build SWBGA animation definitions from `#SWBGAxx`.
+    ///
+    /// Pattern elements are two-digit indices decoded through the chart's base
+    /// and matched against `bmp_map` by numeric value; `00` resolves to the
+    /// `#BMP00` image when defined, otherwise the frame is blank.
+    fn build_swbga_resources(&self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) -> Vec<SwBgaResource> {
+        let base = self.bms.gameplay.base.unwrap_or_default();
+        self.bms
+            .visual
+            .sw_bga_defs
+            .values()
+            .map(|def| {
+                let pattern = def
+                    .pattern
+                    .as_bytes()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| {
+                        let text = std::str::from_utf8(pair).ok()?;
+                        let index = BmsIndex::try_from(text).ok()?.normalize(base);
+                        bmp_map.get(&BmpIndex(index)).map(|entry| entry.resource_id)
+                    })
+                    .collect();
+                SwBgaResource {
+                    frame_ms: def.fr,
+                    total_time_ms: def.time,
+                    line: def.line,
+                    loop_playback: def.r#loop,
+                    chroma: [def.a, def.r, def.g, def.b],
+                    pattern,
+                }
+            })
+            .collect()
+    }
+
     /// Return the source line span for a measure and candidate channels.
     fn message_span(
         &self,
@@ -1101,7 +1162,11 @@ impl BmsConverter<'_> {
     /// mapping.
     #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "play level is non-negative")]
-    fn build_metadata(&self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) -> (SongInfo, ChartInfo) {
+    fn build_metadata(
+        &self,
+        bmp_map: &BTreeMap<BmpIndex, BmpEntry>,
+        swbga_resources: Vec<SwBgaResource>,
+    ) -> (SongInfo, ChartInfo) {
         let bga_resources: Vec<BgaResource> = bmp_map
             .values()
             .map(|e| BgaResource {
@@ -1148,6 +1213,7 @@ impl BmsConverter<'_> {
                 preview_music: self.bms.display.preview.clone(),
                 miss_text,
                 bga_resources,
+                swbga_resources,
                 video,
                 key_count: key_count(&self.events),
             },

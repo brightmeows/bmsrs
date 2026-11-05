@@ -807,6 +807,8 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, Proce
         level: bmson.chart_info.level,
         // BMSON has no miss-text concept.
         miss_text: None,
+        // BMSON has no key-bound BGA animations.
+        swbga_resources: Vec::new(),
         subartists: bmson
             .chart_info
             .subartists

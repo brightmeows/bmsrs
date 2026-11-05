@@ -163,7 +163,7 @@ impl BmsValue for ExBmpParams {
 pub struct SwBgaParams {
     /// Frame rate.
     pub fr: u32,
-    /// Transition duration in frames.
+    /// Transition duration in milliseconds.
     pub time: u32,
     /// Scanline direction.
     pub line: u8,

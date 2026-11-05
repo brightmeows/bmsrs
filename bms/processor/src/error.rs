@@ -144,6 +144,16 @@ pub enum ProcessWarningKind {
         tick: u64,
     },
 
+    /// A key-bound BGA event references an undefined `#SWBGAxx` definition;
+    /// the event is skipped.
+    #[error("key-bound BGA event at tick {tick} references undefined SWBGA key {key}")]
+    MissingSwBgaDefinition {
+        /// Undefined SWBGA key (numeric value in the chart's base).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
     /// A channel value cannot be parsed as the type required by that channel;
     /// the event was skipped.
     #[error(transparent)]

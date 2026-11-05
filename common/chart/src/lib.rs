@@ -95,7 +95,9 @@ pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, Note, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
-pub use visual::{BgaLayer, BgaResource, BgaResourceId, CropRect, VideoAsset};
+pub use visual::{
+    BgaLayer, BgaResource, BgaResourceId, CropRect, SwBgaResource, SwBgaResourceId, VideoAsset,
+};
 
 /// Song-level metadata, corresponding to BMSON v2's `SongInfo`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -134,6 +136,9 @@ pub struct ChartInfo {
     pub miss_text: Option<String>,
     /// BGA resource declarations (image and video files).
     pub bga_resources: Vec<BgaResource>,
+    /// Key-bound BGA animation definitions (`#SWBGAxx`). BMSON has no such
+    /// concept, so its processor produces an empty vector.
+    pub swbga_resources: Vec<SwBgaResource>,
     /// Background video (BMS `#VIDEOFILE` / `#MOVIE`). BMSON has no such
     /// concept, so it is `None`.
     pub video: Option<VideoAsset>,
@@ -720,6 +725,13 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
                     id: *resource_id,
                     len,
                 });
+            }
+        }
+        for swbga in &self.chart.swbga_resources {
+            for frame in swbga.pattern.iter().flatten() {
+                if frame.get() as usize >= len {
+                    return Err(ChartDataError::DanglingBgaResource { id: *frame, len });
+                }
             }
         }
         Ok(())

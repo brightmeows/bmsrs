@@ -13,7 +13,7 @@ use bmsrs_bms_processor::BmsProcessor;
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_syntax::SourceFile;
-use bmsrs_chart::{Chart, EventKind, Note, NoteKind, TimingTrack};
+use bmsrs_chart::{BgaResourceId, Chart, EventKind, Note, NoteKind, TimingTrack};
 use bmsrs_player::Player;
 
 /// Chart type returned by bmsrs-bms-processor.
@@ -981,14 +981,16 @@ fn argb_custom_event_skips_when_undefined() {
 #[test]
 fn swbga_custom_event() {
     let chart = process(
-        "#BPM 120\n#BMP01 bg.png\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A5:0100000000000000\n",
+        "#BPM 120\n#BMP01 bg.png\n#WAV01 kick.wav\n\
+         #SWBGA01 100:400:16:0:255,255,255,255 0100\n\
+         #00101:1100000000000000\n#001A5:0100000000000000\n",
     );
     let keybounds: Vec<_> = chart
         .data()
         .events()
         .iter()
         .filter_map(|e| match &e.kind {
-            EventKind::Custom(BmsCustomEvent::BgaKeyBound { resource_id }) => Some(*resource_id),
+            EventKind::Custom(BmsCustomEvent::BgaKeyBound { swbga_id }) => Some(*swbga_id),
             _ => None,
         })
         .collect();
@@ -996,8 +998,18 @@ fn swbga_custom_event() {
     assert_eq!(
         keybounds[0].get(),
         0,
-        "BMP index 01 maps to a zero-based resource_id through bmp_map"
+        "SWBGA key 01 maps to a zero-based definition index"
     );
+    let swbga = &chart.chart_info().swbga_resources;
+    assert_eq!(swbga.len(), 1);
+    assert_eq!(swbga[0].frame_ms, 100);
+    assert_eq!(swbga[0].total_time_ms, 400);
+    assert_eq!(swbga[0].line, 16);
+    assert!(!swbga[0].loop_playback);
+    assert_eq!(swbga[0].chroma, [255, 255, 255, 255]);
+    // Pattern "0100": frame 01 shows #BMP01 (resource 0); frame 00 is blank
+    // because #BMP00 is not defined here.
+    assert_eq!(swbga[0].pattern, vec![Some(BgaResourceId::new(0)), None]);
 }
 
 /// The Judge channel (A0) produces `BmsCustomEvent::JudgeOverride`.
@@ -1115,27 +1127,29 @@ fn argb_lowercase_index_resolves_after_normalize() {
     assert_eq!(argbs[0], (10, 20, 30, 40));
 }
 
-/// The BGA `KeyBound` channel (A5) references a lowercase-defined `#BMP` with a
+/// The SWBGA channel (A5) references a lowercase-defined `#SWBGAxx` with a
 /// lowercase index (F1).
 #[test]
 fn keybound_lowercase_index_resolves_after_normalize() {
     let chart = process(
-        "#BPM 120\n#WAV01 kick.wav\n#BMPaa bg.png\n#00101:0100000000000000\n#001A5:aa00000000000000\n",
+        "#BPM 120\n#WAV01 kick.wav\n#BMPaa bg.png\n\
+         #SWBGAaa 100:400:16:0:255,255,255,255 aa\n\
+         #00101:0100000000000000\n#001A5:aa00000000000000\n",
     );
-    let keybound_count = chart
+    let keybounds: Vec<_> = chart
         .data()
         .events()
         .iter()
-        .filter(|e| {
-            matches!(
-                &e.kind,
-                EventKind::Custom(BmsCustomEvent::BgaKeyBound { .. })
-            )
+        .filter_map(|e| match &e.kind {
+            EventKind::Custom(BmsCustomEvent::BgaKeyBound { swbga_id }) => Some(*swbga_id),
+            _ => None,
         })
-        .count();
+        .collect();
+    assert_eq!(keybounds.len(), 1);
     assert_eq!(
-        keybound_count, 1,
-        "lowercase KeyBound index should match bmp_map after normalization"
+        keybounds[0].get(),
+        0,
+        "lowercase SWBGA index should match the definition table after normalization"
     );
 }
 

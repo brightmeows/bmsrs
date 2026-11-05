@@ -258,6 +258,40 @@ fn undefined_text_reference_warns_and_is_skipped() {
 }
 
 #[test]
+fn undefined_swbga_reference_warns_and_is_skipped() {
+    let mut bms = Bms::default();
+    bms.messages.non_event_data.push(NonEventData {
+        measure: 1,
+        channel: BmsChannel::BgaKeyBound,
+        values: vec!["02".parse().unwrap()],
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert!(
+        processed.warnings.iter().any(|warning| {
+            matches!(
+                warning.kind,
+                ProcessWarningKind::MissingSwBgaDefinition { key: 2, tick: 960 }
+            )
+        }),
+        "undefined SWBGA reference should warn"
+    );
+    assert!(
+        processed
+            .value
+            .chart
+            .data()
+            .events()
+            .iter()
+            .all(|e| !matches!(
+                &e.kind,
+                EventKind::Custom(BmsCustomEvent::BgaKeyBound { .. })
+            )),
+        "skipped key-bound events must not appear"
+    );
+}
+
+#[test]
 fn stp_entries_at_same_position_accumulate() {
     // The specification example: two `#STP` lines at `001.500` stop scrolling
     // for 4500 ms in total, not last-wins.

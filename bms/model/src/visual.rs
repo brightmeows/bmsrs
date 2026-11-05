@@ -46,7 +46,7 @@ impl From<&ExBmpParams> for OwnedExBmpParams {
 pub struct OwnedSwBgaParams {
     /// Frame rate.
     pub fr: u32,
-    /// Transition time in frames.
+    /// Transition time in milliseconds.
     pub time: u32,
     /// Scanline direction.
     pub line: u8,

@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use bmsrs_chart::{BgaLayer, BgaResourceId, CustomEvent};
+use bmsrs_chart::{BgaLayer, CustomEvent, SwBgaResourceId};
 
 /// Chart events specific to the BMS format.
 ///
@@ -52,13 +52,14 @@ pub enum BmsCustomEvent {
         /// Blue component.
         b: u8,
     },
-    /// BGA key binding (channel `A5` / `#SWBGA`).
+    /// Key-bound BGA animation trigger (channel `A5`).
     ///
-    /// Binds a BGA resource to a key action and shows the corresponding frame
-    /// when pressed.
+    /// The value references the `#SWBGAxx` definition table carried in
+    /// [`bmsrs_chart::ChartInfo::swbga_resources`]; pressing the bound key
+    /// plays the animation.
     BgaKeyBound {
-        /// BGA resource index (corresponds to a resource in the BMP definition).
-        resource_id: BgaResourceId,
+        /// SWBGA definition index.
+        swbga_id: SwBgaResourceId,
     },
     /// Timed text display (channel `99` / `#TEXTxx` / `#SONGxx`).
     ///
