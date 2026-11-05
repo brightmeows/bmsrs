@@ -42,4 +42,5 @@ See the internal `slice` module.
 | Release notes | `up: true` maps to the core `NoteRole::Release` and no longer lives in `BmsonNoteExt` |
 | Key count | `ChartInfo.key_count` is inferred from `mode_hint`; unknown or extension hints give `None` |
 | Resource paths | `SoundChannel`/`mine_channels`/`key_channels`/BGA/image paths all go through `normalize_path`: absolute paths, drive prefixes, `..`, NUL, and empty paths are rejected; backslashes become forward slashes |
-| Metadata | `subartists` and `title_image` map to `ChartInfo`; `ln_mode` was removed, and beatoraja `t` overrides `ln_type_hint` |
+| Metadata | `subartists`, `title_image`, and `judge_rank` (as `JudgeRankSpec` with the `BmsonJudgeRank` kind) map to `ChartInfo`; `ln_mode` was removed, and beatoraja `t` overrides `ln_type_hint` |
+| Resolution fallback | `resolution: 0` falls back to 240 with `ZeroResolutionFallback`; negative JSON values take their absolute value at deserialization |
