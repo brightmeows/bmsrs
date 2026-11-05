@@ -99,11 +99,11 @@ pub enum ProcessWarningKind {
     },
 
     /// A negative stop duration was clamped to 0.
-    #[error("negative stop duration at tick {tick} clipped to 0 (computed {original})")]
+    #[error("negative stop duration at tick {tick} clipped to 0 (computed {original} seconds)")]
     StopDurationClipped {
         /// Tick where the event occurs.
         tick: u64,
-        /// Computed negative duration (before clamping).
+        /// Computed negative duration in seconds (before clamping).
         original: f64,
     },
 
@@ -120,6 +120,45 @@ pub enum ProcessWarningKind {
     #[error("stop event at tick {tick} references undefined STOP key {key}")]
     MissingStopDefinition {
         /// Undefined STOP key (Base36 numeric value).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
+    /// A BGA event references an undefined BMP index; the layer is cleared.
+    #[error("BGA event at tick {tick} references undefined BMP key {key}; the layer is cleared")]
+    MissingBmpDefinition {
+        /// Undefined BMP key (numeric value in the chart's base).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
+    /// A text event references an undefined `#TEXTxx` definition; the event is
+    /// skipped.
+    #[error("text event at tick {tick} references undefined TEXT key {key}")]
+    MissingTextDefinition {
+        /// Undefined TEXT key (numeric value in the chart's base).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
+    /// A key-bound BGA event references an undefined `#SWBGAxx` definition;
+    /// the event is skipped.
+    #[error("key-bound BGA event at tick {tick} references undefined SWBGA key {key}")]
+    MissingSwBgaDefinition {
+        /// Undefined SWBGA key (numeric value in the chart's base).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
+    /// A judgment event references an undefined `#EXRANKxx` definition; the
+    /// event is skipped.
+    #[error("judgment event at tick {tick} references undefined EXRANK key {key}")]
+    MissingExRankDefinition {
+        /// Undefined EXRANK key (numeric value in the chart's base).
         key: u16,
         /// Tick where the event occurs.
         tick: u64,

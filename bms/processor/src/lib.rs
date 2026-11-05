@@ -43,15 +43,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bmsrs_bms_model::{
-    Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
-    OwnedExWavParams, PlayerMode, Rank, SeekIndex, WavCmdParams, WavIndex,
+    Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, BmsIndex, ChangeOptionIndex,
+    ExRankIndex, LnMode, OwnedExWavParams, PlayerMode, Rank, SeekIndex, TextIndex, WavCmdParams,
+    WavIndex,
 };
 use bmsrs_bms_model::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
-    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, Note,
-    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
-    VideoAsset,
+    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, JudgeRankKind, JudgeRankSpec,
+    Lane, LnTypeHint, Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent,
+    SwBgaResource, SwBgaResourceId, TimingTrack, TimingTrackError, VideoAsset,
 };
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
@@ -117,14 +118,6 @@ pub struct Processed {
 pub struct BmsGameplay {
     /// Game mode (`#PLAYER`).
     pub player: Option<PlayerMode>,
-    /// Judgment difficulty (`#RANK`).
-    pub rank: Option<Rank>,
-    /// Fine-grained judgment difficulty (`#DEFEXRANK`).
-    pub def_ex_rank: Option<f64>,
-    /// Maximum life gauge increase (`#TOTAL`).
-    pub total: Option<f64>,
-    /// Master volume percentage (`#VOLWAV`).
-    pub vol_wav: Option<f64>,
     /// Per-position judgment width overrides (`#EXRANKxx`).
     pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
     /// Engine-specific option string (`#OPTION`).
@@ -137,10 +130,6 @@ impl From<&Gameplay> for BmsGameplay {
     fn from(gameplay: &Gameplay) -> Self {
         Self {
             player: gameplay.player,
-            rank: gameplay.rank,
-            def_ex_rank: gameplay.def_ex_rank,
-            total: gameplay.total,
-            vol_wav: gameplay.vol_wav,
             ex_rank_defs: gameplay.ex_rank_defs.clone(),
             option: gameplay.option.clone(),
             change_option_defs: gameplay.change_option_defs.clone(),
@@ -219,8 +208,8 @@ impl BmsProcessor {
         let bpm_changes = conv.build_bpm_changes();
         let bpm_lookup = BpmLookup::new(init_bpm, &bpm_changes);
 
-        let mut stops = conv.build_stops_from_defs();
-        stops.extend(conv.build_stops_from_stp(&bpm_lookup));
+        let mut stops = conv.build_stops_from_defs(&bpm_lookup);
+        stops.extend(conv.build_stops_from_stp());
         stops.sort_by_key(|s| s.tick);
 
         let timing = TimingTrack::new(init_bpm, bpm_changes, stops, RESOLUTION)?;
@@ -257,6 +246,9 @@ impl BmsProcessor {
         // BPM changes (priority 2).
         conv.collect_bpm_events(timing.bpm_changes());
 
+        // Judgment rank changes (priority 2, alongside BPM).
+        conv.collect_judge_rank();
+
         // Stop events (priority 3): iterate the timing stop events again.
         conv.collect_stop_events(timing.stops());
 
@@ -267,9 +259,12 @@ impl BmsProcessor {
         conv.collect_speed_events();
 
         // BMS engine-specific custom events (priority 6).
-        conv.collect_custom_events(&bmp_map);
+        let swbga_map = conv.build_swbga_map();
 
-        let (song, chart_info) = conv.build_metadata(&bmp_map);
+        conv.collect_custom_events(&swbga_map);
+
+        let swbga_resources = conv.build_swbga_resources(&bmp_map);
+        let (song, chart_info) = conv.build_metadata(&bmp_map, swbga_resources);
         let ln_type_hint = conv.ln_type_hint();
 
         let data = ChartData::new(init_bpm, RESOLUTION, conv.events, audio_assets)?
@@ -606,6 +601,55 @@ impl BmsConverter<'_> {
         }
     }
 
+    /// Build judgment rank events from channel `A0` references into
+    /// `#EXRANKxx`.
+    ///
+    /// The definition value is the judgment width percentage (`100` is the
+    /// standard width; fractional values are allowed by the specification).
+    /// References to undefined definitions warn and are skipped.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "channel values are single-byte bounded (0-255) or u32 resource indices"
+    )]
+    fn collect_judge_rank(&mut self) {
+        let base = self.bms.gameplay.base.unwrap_or_default();
+        let non_event = &self.bms.messages.non_event_data;
+        for item in non_event
+            .iter()
+            .filter(|item| item.channel == RawChannel::Judge)
+        {
+            let total = item.values.len() as u32;
+            for (i, obj) in item.values.iter().enumerate() {
+                if obj.as_str() == "00" {
+                    continue;
+                }
+                let tick = self.table.position_to_tick(bmsrs_bms_model::Position::new(
+                    item.measure,
+                    i as u32,
+                    total,
+                ));
+                let Some(percent) = self
+                    .bms
+                    .gameplay
+                    .ex_rank_defs
+                    .get(&ExRankIndex::from(*obj))
+                    .copied()
+                else {
+                    let span = self.message_span(item.measure, &[RawChannel::Judge]);
+                    if let Some(key) = obj.to_index_in(base) {
+                        self.warnings.push(ProcessWarning::new(
+                            span,
+                            ProcessWarningKind::MissingExRankDefinition { key, tick },
+                        ));
+                    }
+                    continue;
+                };
+                self.events
+                    .push(Event::new(tick, EventKind::JudgeRank { percent }));
+            }
+        }
+    }
+
     /// Emit stop events from the already-built stop event slice.
     fn collect_stop_events(&mut self, stops: &[StopEvent]) {
         for se in stops {
@@ -631,7 +675,7 @@ impl BmsConverter<'_> {
         clippy::too_many_lines,
         reason = "single structured match on channel variant with short branches; extraction would lose clarity"
     )]
-    fn collect_custom_events(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
+    fn collect_custom_events(&mut self, swbga_map: &BTreeMap<BmpIndex, SwBgaResourceId>) {
         let non_event = &self.bms.messages.non_event_data;
 
         // BGA layer mapping (channel to layer).
@@ -707,24 +751,50 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::BgaArgb { layer, a, r, g, b }
                     }
                     RawChannel::BgaKeyBound => {
-                        // The value is normalized; look it up in bmp_map
-                        // directly.
-                        let Some(resource_id) =
-                            bmp_map.get(&BmpIndex::from(*obj)).map(|e| e.resource_id)
-                        else {
+                        // The value is normalized; look it up in the SWBGA
+                        // definition table directly.
+                        let Some(swbga_id) = swbga_map.get(&BmpIndex::from(*obj)).copied() else {
+                            let span = self.message_span(item.measure, &[RawChannel::BgaKeyBound]);
+                            self.warnings.push(ProcessWarning::new(
+                                span,
+                                ProcessWarningKind::MissingSwBgaDefinition {
+                                    key: obj.to_index().unwrap_or(0),
+                                    tick,
+                                },
+                            ));
                             continue;
                         };
-                        BmsCustomEvent::BgaKeyBound { resource_id }
+                        BmsCustomEvent::BgaKeyBound { swbga_id }
                     }
                     RawChannel::Text => {
-                        let index = u64::from(obj.to_index().unwrap_or(0));
+                        // The value is normalized; look it up in text_defs
+                        // directly. The text body travels with the event; an
+                        // empty definition clears the display.
+                        let Some(text) = self
+                            .bms
+                            .metadata
+                            .text_defs
+                            .get(&TextIndex::from(*obj))
+                            .cloned()
+                        else {
+                            let span = self.message_span(item.measure, &[RawChannel::Text]);
+                            self.warnings.push(ProcessWarning::new(
+                                span,
+                                ProcessWarningKind::MissingTextDefinition {
+                                    key: obj.to_index().unwrap_or(0),
+                                    tick,
+                                },
+                            ));
+                            continue;
+                        };
                         BmsCustomEvent::TextDisplay {
-                            text_index: index as u32,
+                            text: Arc::from(text.as_str()),
                         }
                     }
+                    // Judgment rank changes are collected separately at
+                    // priority 2.
                     RawChannel::Judge => {
-                        let index = u64::from(obj.to_index().unwrap_or(0));
-                        BmsCustomEvent::JudgeOverride { rank: index }
+                        continue;
                     }
                     RawChannel::Option => {
                         let option_id = u64::from(obj.to_index().unwrap_or(0));
@@ -786,16 +856,36 @@ impl BmsConverter<'_> {
 
     /// Build BGA events from BGA events and BMP file definitions.
     fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
+        let base = self.bms.gameplay.base.unwrap_or_default();
         for be in &self.bms.messages.bga_events {
-            if let Some(entry) = bmp_map.get(&be.bmp_id) {
-                self.events.push(Event::new(
-                    self.table.position_to_tick(be.position),
-                    EventKind::Bga {
-                        layer: map_bga_layer(be.layer),
-                        resource_id: entry.resource_id,
-                    },
-                ));
-            }
+            let tick = self.table.position_to_tick(be.position);
+            let resource_id = if let Some(entry) = bmp_map.get(&be.bmp_id) {
+                Some(entry.resource_id)
+            } else {
+                // Referencing an undefined BMP index clears the layer
+                // (mainstream engines render it as nothing).
+                let channel = match be.layer {
+                    BmsBgaLayer::Base => RawChannel::BgaBase,
+                    BmsBgaLayer::Poor => RawChannel::BgaPoor,
+                    BmsBgaLayer::Layer => RawChannel::BgaLayer,
+                    BmsBgaLayer::Layer2 => RawChannel::BgaLayer2,
+                };
+                let span = self.message_span(be.position.measure(), &[channel]);
+                if let Some(key) = be.bmp_id.to_index_in(base) {
+                    self.warnings.push(ProcessWarning::new(
+                        span,
+                        ProcessWarningKind::MissingBmpDefinition { key, tick },
+                    ));
+                }
+                None
+            };
+            self.events.push(Event::new(
+                tick,
+                EventKind::Bga {
+                    layer: map_bga_layer(be.layer),
+                    resource_id,
+                },
+            ));
         }
     }
 
@@ -927,6 +1017,57 @@ impl BmsConverter<'_> {
         map
     }
 
+    /// Map each `#SWBGAxx` definition key to its vector index in
+    /// `swbga_resources`. Keys iterate in sorted order, matching the numbering
+    /// in [`Self::build_swbga_resources`].
+    #[expect(clippy::cast_possible_truncation, reason = "SWBGA count fits in u32")]
+    fn build_swbga_map(&self) -> BTreeMap<BmpIndex, SwBgaResourceId> {
+        self.bms
+            .visual
+            .sw_bga_defs
+            .keys()
+            .copied()
+            .enumerate()
+            .map(|(i, id)| (id, SwBgaResourceId::new(i as u32)))
+            .collect()
+    }
+
+    /// Build SWBGA animation definitions from `#SWBGAxx`.
+    ///
+    /// Pattern elements are two-digit indices decoded through the chart's base
+    /// and matched against `bmp_map` by numeric value; `00` resolves to the
+    /// `#BMP00` image when defined, otherwise the frame is blank.
+    fn build_swbga_resources(&self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) -> Vec<SwBgaResource> {
+        let base = self.bms.gameplay.base.unwrap_or_default();
+        self.bms
+            .visual
+            .sw_bga_defs
+            .values()
+            .map(|def| {
+                let pattern = def
+                    .pattern
+                    .as_bytes()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| {
+                        let text = std::str::from_utf8(pair).ok()?;
+                        let index = BmsIndex::try_from(text).ok()?.normalize(base);
+                        bmp_map.get(&BmpIndex(index)).map(|entry| entry.resource_id)
+                    })
+                    .collect();
+                SwBgaResource {
+                    frame_ms: def.fr,
+                    total_time_ms: def.time,
+                    line: def.line,
+                    loop_playback: def.r#loop,
+                    chroma: [def.a, def.r, def.g, def.b],
+                    pattern,
+                }
+            })
+            .collect()
+    }
+
     /// Return the source line span for a measure and candidate channels.
     fn message_span(
         &self,
@@ -971,10 +1112,7 @@ impl BmsConverter<'_> {
     /// Angolmois ignores negative definitions and bms-rs rejects them at the
     /// parse layer; beatoraja instead plays the absolute value, a deliberate
     /// difference here.
-    #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
-    #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
-    #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    fn build_stops_from_defs(&mut self) -> Vec<StopEvent> {
+    fn build_stops_from_defs(&mut self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
         let base = self.bms.gameplay.base.unwrap_or_default();
         self.bms
             .messages
@@ -984,19 +1122,22 @@ impl BmsConverter<'_> {
                 let tick = self.table.position_to_tick(se.position);
                 let span = self.message_span(se.position.measure(), &[RawChannel::Stop]);
                 if let Some(&raw) = self.bms.timing.stop_defs.get(&se.stop_id) {
-                    let duration = (raw / 192.0 * RESOLUTION as f64 * 4.0).round();
-                    if duration < 0.0 {
+                    // The raw value counts 1/192 notes; the pause length in
+                    // seconds depends on the BPM in effect at the stop tick.
+                    let secs = (raw / 192.0 * 4.0) * 60.0 / bpm_lookup.bpm_at_tick(tick).abs();
+                    if secs < 0.0 {
                         self.warnings.push(ProcessWarning::new(
                             span,
                             ProcessWarningKind::StopDurationClipped {
                                 tick,
-                                original: duration,
+                                original: secs,
                             },
                         ));
                     }
                     Some(StopEvent {
                         tick,
-                        duration: duration.max(0.0) as u64,
+                        duration: Duration::try_from_secs_f64(secs.max(0.0))
+                            .unwrap_or(Duration::ZERO),
                     })
                 } else {
                     if let Some(key) = se.stop_id.to_index_in(base) {
@@ -1014,25 +1155,37 @@ impl BmsConverter<'_> {
     /// Build stop events from the `#STP` header command (duration in
     /// milliseconds).
     ///
-    /// Negative `#STP` durations are clamped to `0` (skipped) with a warning.
-    /// beatoraja does not implement `#STP` at all; the clamp mirrors the
-    /// `#STOP` channel policy above.
-    #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
-    #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
-    #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    fn build_stops_from_stp(&self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
-        self.bms
-            .messages
-            .stp_events
-            .iter()
-            .map(|stp| {
-                let tick = self.table.position_to_tick(stp.position);
-                let bpm = bpm_lookup.bpm_at_tick(tick);
-                let tick_duration = stp.duration_ms / 1000.0 * bpm / 60.0 * RESOLUTION as f64;
-                StopEvent {
-                    tick,
-                    duration: tick_duration.round().max(0.0) as u64,
-                }
+    /// Entries at the same position accumulate per the specification: the
+    /// example pair `#STP 001.500 500` and `#STP 001.500 4000` stops scrolling
+    /// for 4500 ms in total. Entries are grouped by the resolved tick, so
+    /// distinct positions that quantize to the same tick also merge into one
+    /// stop. Non-positive durations are skipped; negative entries warn with
+    /// [`ProcessWarningKind::StopDurationClipped`], mirroring the `#STOP`
+    /// channel policy above. beatoraja does not implement `#STP` at all.
+    fn build_stops_from_stp(&mut self) -> Vec<StopEvent> {
+        let mut totals_ms: BTreeMap<u64, f64> = BTreeMap::new();
+        for stp in &self.bms.messages.stp_events {
+            let tick = self.table.position_to_tick(stp.position);
+            if stp.duration_ms < 0.0 {
+                self.warnings.push(ProcessWarning::new(
+                    None,
+                    ProcessWarningKind::StopDurationClipped {
+                        tick,
+                        original: stp.duration_ms / 1000.0,
+                    },
+                ));
+                continue;
+            }
+            if stp.duration_ms == 0.0 {
+                continue;
+            }
+            *totals_ms.entry(tick).or_default() += stp.duration_ms;
+        }
+        totals_ms
+            .into_iter()
+            .map(|(tick, total_ms)| StopEvent {
+                tick,
+                duration: Duration::try_from_secs_f64(total_ms / 1000.0).unwrap_or(Duration::ZERO),
             })
             .collect()
     }
@@ -1041,7 +1194,11 @@ impl BmsConverter<'_> {
     /// mapping.
     #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "play level is non-negative")]
-    fn build_metadata(&self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) -> (SongInfo, ChartInfo) {
+    fn build_metadata(
+        &self,
+        bmp_map: &BTreeMap<BmpIndex, BmpEntry>,
+        swbga_resources: Vec<SwBgaResource>,
+    ) -> (SongInfo, ChartInfo) {
         let bga_resources: Vec<BgaResource> = bmp_map
             .values()
             .map(|e| BgaResource {
@@ -1050,6 +1207,28 @@ impl BmsConverter<'_> {
             })
             .collect();
         let video = self.build_video_asset();
+        // `#TEXT00` is the nanasi miss-time text; it belongs to the miss
+        // system, not to channel 99 data.
+        let miss_text = self
+            .bms
+            .metadata
+            .text_defs
+            .iter()
+            .find(|(id, _)| id.to_index_in(self.bms.gameplay.base.unwrap_or_default()) == Some(0))
+            .map(|(_, value)| value.clone());
+        // Judgment difficulty: #DEFEXRANK (percentage) refines #RANK (engine
+        // specific index), so it wins when both are present.
+        let judge_rank = match (self.bms.gameplay.def_ex_rank, self.bms.gameplay.rank) {
+            (Some(value), _) => Some(JudgeRankSpec {
+                value,
+                kind: JudgeRankKind::DefExRank,
+            }),
+            (None, Some(rank)) => Some(JudgeRankSpec {
+                value: rank_value(rank),
+                kind: JudgeRankKind::BmsRank,
+            }),
+            (None, None) => None,
+        };
         (
             SongInfo {
                 title: self.bms.metadata.title.clone().unwrap_or_default(),
@@ -1077,9 +1256,14 @@ impl BmsConverter<'_> {
                 eyecatch_image: self.bms.display.stage_file.clone(),
                 banner_image: self.bms.display.banner.clone(),
                 preview_music: self.bms.display.preview.clone(),
+                miss_text,
                 bga_resources,
+                swbga_resources,
                 video,
                 key_count: key_count(&self.events),
+                judge_rank,
+                total: self.bms.gameplay.total,
+                volwav_percent: self.bms.gameplay.vol_wav.map(|v| v.round() as u8),
             },
         )
     }
@@ -1122,6 +1306,18 @@ const fn map_bga_layer(layer: BmsBgaLayer) -> bmsrs_chart::BgaLayer {
         BmsBgaLayer::Poor => bmsrs_chart::BgaLayer::Poor,
         BmsBgaLayer::Layer => bmsrs_chart::BgaLayer::Layer,
         BmsBgaLayer::Layer2 => bmsrs_chart::BgaLayer::Layer2,
+    }
+}
+
+/// Return the numeric `#RANK` index of a [`Rank`] variant.
+const fn rank_value(rank: Rank) -> f64 {
+    match rank {
+        Rank::VeryHard => 0.0,
+        Rank::Hard => 1.0,
+        Rank::Normal => 2.0,
+        Rank::Easy => 3.0,
+        Rank::VeryEasy => 4.0,
+        Rank::Other(n) => n as f64,
     }
 }
 

@@ -2,15 +2,18 @@
 
 use std::num::NonZeroU8;
 use std::path::Path;
+use std::time::Duration;
 
 use bmsrs_bms_model::{
-    BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position,
+    BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent,
+    NonEventData, NoteEvent, Position, Rank, StpEvent,
 };
-use bmsrs_bms_model::{BpmIndex, LnObjIndex};
+use bmsrs_bms_model::{BmsChannel, BpmIndex, LnObjIndex};
+use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarningKind};
 use bmsrs_chart::mode::{Lane, NoteSide};
-use bmsrs_chart::{CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
+use bmsrs_chart::{BgaLayer, CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
 
 #[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
 fn timing<T: NoteExt, C: CustomEvent>(chart: &bmsrs_chart::Chart<T, C>) -> TimingTrack {
@@ -150,6 +153,311 @@ fn process_rejects_zero_bpm() {
     let result = BmsProcessor::process::<Bme>(&bms);
 
     assert!(matches!(result, Err(ProcessError::ZeroBpm)));
+}
+
+#[test]
+fn undefined_bmp_reference_clears_layer_with_warning() {
+    // Referencing an undefined BMP index clears the layer instead of showing
+    // a resource; the reference also warns.
+    let mut bms = Bms::default();
+    bms.visual
+        .bmp_files
+        .insert("01".parse().unwrap(), "a.bmp".to_owned());
+    bms.messages.bga_events.push(BgaEvent {
+        position: Position::new(1, 0, 1),
+        layer: BmsBgaLayer::Base,
+        bmp_id: "FF".parse().unwrap(),
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let bga: Vec<_> = processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Bga { layer, resource_id } = &e.kind {
+                Some((*layer, resource_id.as_ref().map(|id| id.get()), e.tick()))
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(bga, vec![(BgaLayer::Base, None, 960)]);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            warning.kind,
+            // "FF" decodes through the default base36, not hexadecimal.
+            ProcessWarningKind::MissingBmpDefinition {
+                key: 555,
+                tick: 960
+            }
+        )
+    }));
+}
+
+#[test]
+fn text00_definition_becomes_miss_text_without_channel_event() {
+    let mut bms = Bms::default();
+    bms.metadata
+        .text_defs
+        .insert("00".parse().unwrap(), "miss text".to_owned());
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert_eq!(
+        processed.value.chart.chart_info().miss_text.as_deref(),
+        Some("miss text")
+    );
+    assert!(
+        processed
+            .value
+            .chart
+            .data()
+            .events()
+            .iter()
+            .all(|e| !matches!(
+                &e.kind,
+                EventKind::Custom(BmsCustomEvent::TextDisplay { .. })
+            )),
+        "miss text must not become a channel event"
+    );
+}
+
+#[test]
+fn undefined_text_reference_warns_and_is_skipped() {
+    let mut bms = Bms::default();
+    bms.messages.non_event_data.push(NonEventData {
+        measure: 1,
+        channel: BmsChannel::Text,
+        values: vec!["02".parse().unwrap()],
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert!(
+        processed.warnings.iter().any(|warning| {
+            matches!(
+                warning.kind,
+                ProcessWarningKind::MissingTextDefinition { key: 2, tick: 960 }
+            )
+        }),
+        "undefined TEXT reference should warn"
+    );
+    assert!(
+        processed
+            .value
+            .chart
+            .data()
+            .events()
+            .iter()
+            .all(|e| !matches!(
+                &e.kind,
+                EventKind::Custom(BmsCustomEvent::TextDisplay { .. })
+            )),
+        "skipped text events must not appear"
+    );
+}
+
+#[test]
+fn undefined_swbga_reference_warns_and_is_skipped() {
+    let mut bms = Bms::default();
+    bms.messages.non_event_data.push(NonEventData {
+        measure: 1,
+        channel: BmsChannel::BgaKeyBound,
+        values: vec!["02".parse().unwrap()],
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert!(
+        processed.warnings.iter().any(|warning| {
+            matches!(
+                warning.kind,
+                ProcessWarningKind::MissingSwBgaDefinition { key: 2, tick: 960 }
+            )
+        }),
+        "undefined SWBGA reference should warn"
+    );
+    assert!(
+        processed
+            .value
+            .chart
+            .data()
+            .events()
+            .iter()
+            .all(|e| !matches!(
+                &e.kind,
+                EventKind::Custom(BmsCustomEvent::BgaKeyBound { .. })
+            )),
+        "skipped key-bound events must not appear"
+    );
+}
+
+#[test]
+fn undefined_exrank_reference_warns_and_is_skipped() {
+    let mut bms = Bms::default();
+    bms.messages.non_event_data.push(NonEventData {
+        measure: 1,
+        channel: BmsChannel::Judge,
+        values: vec!["02".parse().unwrap()],
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert!(
+        processed.warnings.iter().any(|warning| {
+            matches!(
+                warning.kind,
+                ProcessWarningKind::MissingExRankDefinition { key: 2, tick: 960 }
+            )
+        }),
+        "undefined EXRANK reference should warn"
+    );
+    assert!(
+        processed
+            .value
+            .chart
+            .data()
+            .events()
+            .iter()
+            .all(|e| !matches!(&e.kind, EventKind::JudgeRank { .. })),
+        "skipped judge events must not appear"
+    );
+}
+
+#[test]
+fn gameplay_headers_enter_chart_info() {
+    let mut bms = Bms::default();
+    bms.gameplay.def_ex_rank = Some(150.0);
+    bms.gameplay.total = Some(200.0);
+    bms.gameplay.vol_wav = Some(120.0);
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let info = chart.chart_info();
+    assert_eq!(
+        info.judge_rank,
+        Some(bmsrs_chart::JudgeRankSpec {
+            value: 150.0,
+            kind: bmsrs_chart::JudgeRankKind::DefExRank,
+        })
+    );
+    assert_eq!(info.total, Some(200.0));
+    assert_eq!(info.volwav_percent, Some(120));
+}
+
+#[test]
+fn bga_resource_kind_infers_video_extension() {
+    let mut bms = Bms::default();
+    bms.visual
+        .bmp_files
+        .insert("01".parse().unwrap(), "clip.mp4".to_owned());
+    bms.visual
+        .bmp_files
+        .insert("02".parse().unwrap(), "img.png".to_owned());
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let resources = chart.chart_info().bga_resources.as_slice();
+    assert_eq!(resources.len(), 2);
+    assert_eq!(
+        resources[0].kind(),
+        bmsrs_chart::BgaResourceKind::Video,
+        "video extension maps to Video"
+    );
+    assert_eq!(
+        resources[1].kind(),
+        bmsrs_chart::BgaResourceKind::Static,
+        "image extension maps to Static"
+    );
+}
+
+#[test]
+fn rank_header_maps_to_bms_rank_kind() {
+    let mut bms = Bms::default();
+    bms.gameplay.rank = Some(Rank::Hard);
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    assert_eq!(
+        chart.chart_info().judge_rank,
+        Some(bmsrs_chart::JudgeRankSpec {
+            value: 1.0,
+            kind: bmsrs_chart::JudgeRankKind::BmsRank,
+        })
+    );
+}
+
+#[test]
+fn stp_entries_at_same_position_accumulate() {
+    // The specification example: two `#STP` lines at `001.500` stop scrolling
+    // for 4500 ms in total, not last-wins.
+    let mut bms = Bms::default();
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(1, 500, 1000),
+        duration_ms: 500.0,
+    });
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(1, 500, 1000),
+        duration_ms: 4000.0,
+    });
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+
+    let stops: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Stop { duration } = &e.kind {
+                Some((e.tick(), *duration))
+            } else {
+                None
+            }
+        })
+        .collect();
+    // Measure 1 starts at tick 960; position 500/1000 adds 480 ticks.
+    // Default BPM 130: 4500 ms = 9.75 beats = 2340 ticks at resolution 240.
+    assert_eq!(
+        stops.len(),
+        1,
+        "same-position entries must merge into a single stop"
+    );
+    assert_eq!(stops[0], (1440, Duration::from_millis(4500)));
+}
+
+#[test]
+fn negative_stp_entry_warns_and_is_skipped() {
+    let mut bms = Bms::default();
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(1, 0, 1),
+        duration_ms: -500.0,
+    });
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(2, 0, 1),
+        duration_ms: 1000.0,
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let stops: Vec<_> = processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Stop { duration } = &e.kind {
+                Some((e.tick(), *duration))
+            } else {
+                None
+            }
+        })
+        .collect();
+    // Only the positive entry survives; the negative one is dropped.
+    assert_eq!(stops.len(), 1);
+    // 1000 ms at default BPM 130 = 520 ticks, at measure 2 (tick 1920).
+    assert_eq!(stops[0], (1920, Duration::from_millis(1000)));
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            warning.kind,
+            ProcessWarningKind::StopDurationClipped { tick: 960, .. }
+        )
+    }));
 }
 
 #[test]

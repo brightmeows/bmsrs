@@ -197,7 +197,18 @@ impl BmsonProcessor {
     ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
         let bmson_data = &bmson.chart_data;
 
-        let timing = build_timing(bmson_data)?;
+        // A resolution of 0 falls back to the default 240 per the
+        // specification; negative values already took their absolute value at
+        // deserialization.
+        let mut warnings = Vec::new();
+        let resolution = match bmson_data.resolution {
+            0 => {
+                warnings.push(BmsonProcessWarning::ZeroResolutionFallback);
+                240
+            }
+            n => n,
+        };
+        let timing = build_timing(bmson_data, resolution)?;
         let bga_ids = build_bga_id_map(&bmson.chart_info.bga);
         let mut conv = BmsonConverter {
             bmson,
@@ -206,7 +217,7 @@ impl BmsonProcessor {
             bga_ids: &bga_ids,
             audio_assets: Vec::new(),
             events: Vec::new(),
-            warnings: Vec::new(),
+            warnings,
         };
 
         conv.process_sound_channels()?;
@@ -431,8 +442,13 @@ impl BmsonConverter<'_> {
                 let Some(&resource_id) = self.bga_ids.get(&e.id) else {
                     continue;
                 };
-                self.events
-                    .push(Event::new(e.y, EventKind::Bga { layer, resource_id }));
+                self.events.push(Event::new(
+                    e.y,
+                    EventKind::Bga {
+                        layer,
+                        resource_id: Some(resource_id),
+                    },
+                ));
             }
         }
     }
@@ -676,16 +692,13 @@ fn normalize_optional_path(option: Option<&Path>) -> Result<Option<String>, Proc
 /// where the last stop at a position wins. Folding before `TimingTrack`
 /// construction keeps the timing track and the emitted stop events
 /// consistent.
-fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<StopEvent> {
+fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<(u64, u64)> {
     let mut durations_by_tick: BTreeMap<u64, u64> = BTreeMap::new();
     for event in stop_events {
         let total = durations_by_tick.entry(event.y).or_default();
         *total = total.saturating_add(event.duration);
     }
-    durations_by_tick
-        .into_iter()
-        .map(|(tick, duration)| StopEvent { tick, duration })
-        .collect()
+    durations_by_tick.into_iter().collect()
 }
 
 /// Build a [`TimingTrack`] from BMSON chart data.
@@ -694,13 +707,29 @@ fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<StopEvent> {
 ///
 /// Returns [`TimingTrackError::InvalidBpm`] when `data.init_bpm` is invalid
 /// (zero or non-finite).
-fn build_timing(data: &bmsrs_bmson_model::ChartData) -> Result<TimingTrack, TimingTrackError> {
-    TimingTrack::new(
-        data.init_bpm,
-        data.bpm_events.iter().map(build_bpm_change).collect(),
-        fold_stops(&data.stop_events),
-        data.resolution,
-    )
+fn build_timing(
+    data: &bmsrs_bmson_model::ChartData,
+    resolution: u64,
+) -> Result<TimingTrack, TimingTrackError> {
+    let bpm_changes: Vec<BpmChange> = data.bpm_events.iter().map(build_bpm_change).collect();
+    let lookup = bmsrs_chart::BpmLookup::new(data.init_bpm, &bpm_changes);
+    let stops = fold_stops(&data.stop_events)
+        .into_iter()
+        .map(|stop| {
+            // The folded pulse sum converts to seconds at the BPM in effect at
+            // the stop tick (pulses and ticks share the resolution scale).
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "pulse counts and resolution fit in f64 exactly for chart ranges"
+            )]
+            let secs = stop.1 as f64 / resolution as f64 * 60.0 / lookup.bpm_at_tick(stop.0);
+            StopEvent {
+                tick: stop.0,
+                duration: Duration::try_from_secs_f64(secs.max(0.0)).unwrap_or(Duration::ZERO),
+            }
+        })
+        .collect();
+    TimingTrack::new(data.init_bpm, bpm_changes, stops, resolution)
 }
 
 /// Build [`BmsonNoteExt`] from a BMSON [`NoteEvent`](bmsrs_bmson_model::NoteEvent).
@@ -800,6 +829,17 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, Proce
         subtitle: bmson.chart_info.subtitle.clone(),
         chart_name: bmson.chart_info.chart_name.clone(),
         level: bmson.chart_info.level,
+        // BMSON has no miss-text concept.
+        miss_text: None,
+        // BMSON has no key-bound BGA animations.
+        swbga_resources: Vec::new(),
+        judge_rank: Some(bmsrs_chart::JudgeRankSpec {
+            value: bmson.chart_data.judge_multiplier * 100.0,
+            kind: bmsrs_chart::JudgeRankKind::BmsonJudgeRank,
+        }),
+        // BMSON has no #TOTAL or #VOLWAV concept.
+        total: None,
+        volwav_percent: None,
         subartists: bmson
             .chart_info
             .subartists

@@ -180,13 +180,10 @@ Reassess them before adding support; do not assume silently.
 
 | Item | Status | Reassess when |
 |------|--------|---------------|
-| `#EXRANKxx` lookup | `BmsGameplay.ex_rank_defs` keeps the raw definitions; `JudgeOverride` still passes the base36 value through directly | the overall judging system design is finalized |
-| `#SWBGA` details | `BgaKeyBound` carries only the resource id; pattern, key, and duration are not modeled | a renderer needs key-bound animations |
 | Display fields such as `#CHARFILE` | not included in `Chart` | a renderer needs character images |
 | `#CDDA` / `#MIDIFILE` | only stored in the `BmsAudio` sidecar; no playback abstraction | a player needs CD or MIDI sources |
-| BMSON `resolution: 0` or negative | rejects the whole file, stricter than the specification (0 should fall back to 240 and negatives should take the absolute value) | compatibility with authoring-tool defects is required |
-| BMS `#BPM 0` | returns `ZeroBpm` instead of falling back to 130 | charts with no scrolling need to be supported |
-| Negative BPM | changes are dropped with a warning; a negative initial BPM is rejected; reverse scrolling is not modeled | negative-BPM charts need support |
+| BMS `#BPM 0` | returns `ZeroBpm` instead of falling back to 130; mainstream engines (beatoraja) also fail to load such charts | charts with no scrolling need to be supported |
+| Negative BPM | changes are dropped with a warning; a negative initial BPM is rejected; time flowing backwards (a negative BPM segment) is not modeled. Negative SCROLL rates, which reverse the visual scrolling only, are supported | negative-BPM charts need support |
 | BMSON MSS | `Long + Release` is exposed as a descriptive note point; no dedicated MSS judgment state | a player implements MSS scoring/input |
 | BMS `#PLAYER` | ignored; `Bme` covers 5K/7K/10K/14K | automatic family selection by `#PLAYER` is needed |
 | BGM layering | BGM events stay separate; only judgeable notes merge `NoteAudio` | a real chart needs BGM layers merged |

@@ -6,7 +6,9 @@
 //! is stored uniformly by [`Event`](bmsrs_chart::Event); variants of this type
 //! do not contain a tick.
 
-use bmsrs_chart::{BgaLayer, BgaResourceId, CustomEvent};
+use std::sync::Arc;
+
+use bmsrs_chart::{BgaLayer, CustomEvent, SwBgaResourceId};
 
 /// Chart events specific to the BMS format.
 ///
@@ -50,30 +52,22 @@ pub enum BmsCustomEvent {
         /// Blue component.
         b: u8,
     },
-    /// BGA key binding (channel `A5` / `#SWBGA`).
+    /// Key-bound BGA animation trigger (channel `A5`).
     ///
-    /// Binds a BGA resource to a key action and shows the corresponding frame
-    /// when pressed.
+    /// The value references the `#SWBGAxx` definition table carried in
+    /// [`bmsrs_chart::ChartInfo::swbga_resources`]; pressing the bound key
+    /// plays the animation.
     BgaKeyBound {
-        /// BGA resource index (corresponds to a resource in the BMP definition).
-        resource_id: BgaResourceId,
+        /// SWBGA definition index.
+        swbga_id: SwBgaResourceId,
     },
     /// Timed text display (channel `99` / `#TEXTxx` / `#SONGxx`).
-    TextDisplay {
-        /// TEXT definition index.
-        text_index: u32,
-    },
-    /// Per-position judge override (channel `A0` / `#EXRANK`).
     ///
-    /// **Semantics not finalized**: the channel value's Base36 number is passed
-    /// through directly, without looking up the `#EXRANKxx` definition table.
-    /// The multiplication relationship with `#DEFEXRANK` will be settled after
-    /// the overall judging system design; consumers should not interpret this
-    /// field before then.
-    JudgeOverride {
-        /// Base36 value passed through directly (semantics not finalized; see
-        /// above).
-        rank: u64,
+    /// The text body is carried directly; definitions sharing the same text
+    /// share one `Arc`. An empty string clears the display.
+    TextDisplay {
+        /// Text body from the `#TEXTxx` definition table.
+        text: Arc<str>,
     },
     /// Player option change (channel `A6` / `#CHANGEOPTION`).
     OptionChange {

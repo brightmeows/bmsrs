@@ -39,5 +39,5 @@ cargo run --example bmson_parser -p bmsrs-bmson-model
 | Rule | Explanation |
 |------|-------------|
 | v2 has no separate module | Unlike v0/v1, v2 lives at the crate root rather than in a directory |
-| `resolution: 0` and negative values are rejected | Stricter than the specification: bmson says 0 falls back to 240 and negatives take the absolute value, but this implementation rejects the whole file (`deserialize_resolution_nonzero`); authoring-tool defects are not silently rewritten. A 0 on the v0/v1 upgrade path is rejected by downstream `TimingTrack` construction with a correct error label |
+| Negative `resolution` takes its absolute value; `0` is kept | Matches the specification: negatives take the absolute value at deserialization (`deserialize_resolution`), and a kept `0` falls back to 240 in the processor with a warning |
 | Conversions between versions use `From` | `Bmson::from(v0_bmson)` upgrades to the v2 schema uniformly |

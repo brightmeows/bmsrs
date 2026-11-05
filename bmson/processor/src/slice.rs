@@ -205,7 +205,7 @@ mod tests {
             vec![],
             vec![StopEvent {
                 tick: 240,
-                duration: 240,
+                duration: std::time::Duration::from_millis(500),
             }],
             RES,
         )

@@ -100,6 +100,105 @@ pub struct BgaResource {
     pub crop: Option<CropRect>,
 }
 
+/// Whether a BGA resource is a still image or a video file.
+///
+/// BMS `#BMPxx` may reference a video file; the kind is inferred from the file
+/// extension so renderers do not have to sniff the file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BgaResourceKind {
+    /// Still image.
+    Static,
+    /// Video file.
+    Video,
+}
+
+impl BgaResource {
+    /// Infer the resource kind from the file extension.
+    ///
+    /// Unknown extensions are treated as [`BgaResourceKind::Static`].
+    #[must_use]
+    pub fn kind(&self) -> BgaResourceKind {
+        let ext = self
+            .path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase);
+        match ext.as_deref() {
+            Some(
+                "mp4" | "m4v" | "mkv" | "webm" | "avi" | "mov" | "wmv" | "flv" | "mpg" | "mpeg"
+                | "ts",
+            ) => BgaResourceKind::Video,
+            _ => BgaResourceKind::Static,
+        }
+    }
+}
+
+/// Index into [`ChartInfo::swbga_resources`](crate::ChartInfo::swbga_resources).
+///
+/// The dedicated newtype prevents SWBGA definition indices from being assigned
+/// to BGA resource indices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SwBgaResourceId(pub u32);
+
+impl SwBgaResourceId {
+    /// Create an SWBGA definition index from a raw index.
+    #[must_use]
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// Return the raw index value.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl From<u32> for SwBgaResourceId {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<SwBgaResourceId> for u32 {
+    fn from(value: SwBgaResourceId) -> Self {
+        value.0
+    }
+}
+
+impl std::fmt::Display for SwBgaResourceId {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+/// Key-bound BGA animation definition (nanasi `#SWBGAxx`).
+///
+/// Pressing the bound key plays the frame sequence. The definition is static
+/// data; key events reference it through
+/// [`ChartInfo::swbga_resources`](crate::ChartInfo::swbga_resources) indices.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SwBgaResource {
+    /// Frame duration in milliseconds (`fr`).
+    pub frame_ms: u32,
+    /// Total animation duration in milliseconds (`time`); `0` keeps showing
+    /// the animation while the key stays pressed.
+    pub total_time_ms: u32,
+    /// Target key line number as written in the source (`11`-`19` / `21`-`29`).
+    pub line: u8,
+    /// Whether the animation restarts when display time remains (`loop`).
+    /// `false` holds the last frame.
+    pub loop_playback: bool,
+    /// Chroma key color as ARGB components (`a,r,g,b`).
+    pub chroma: [u8; 4],
+    /// Frame sequence as references into
+    /// [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources).
+    ///
+    /// In SWBGA patterns `00` shows the `#BMP00` image; [`None`] is a blank
+    /// frame (`00` without a `#BMP00` definition).
+    pub pattern: Vec<Option<BgaResourceId>>,
+}
+
 /// Background video resource (BMS `#VIDEOFILE` / `#MOVIE`).
 ///
 /// BMSON has no corresponding concept, so its processor produces no video

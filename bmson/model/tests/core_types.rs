@@ -32,9 +32,16 @@ fn note_x_numeric() {
 }
 
 #[test]
-fn resolution_zero_is_rejected() {
-    let cd: Result<ChartData, _> = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 0}"#);
-    assert!(cd.is_err());
+fn resolution_zero_is_kept_for_the_processor_fallback() {
+    // The model keeps 0 faithfully; the processor applies the default-240
+    // fallback with a warning.
+    let cd: ChartData = serde_json::from_str(r#"{"init_bpm": 120, "resolution": 0}"#).unwrap();
+    assert_eq!(cd.resolution, 0);
+
+    // Negative values take their absolute value per the specification.
+    let cd_negative: ChartData =
+        serde_json::from_str(r#"{"init_bpm": 120, "resolution": -480}"#).unwrap();
+    assert_eq!(cd_negative.resolution, 480);
 
     let cd_480: ChartData =
         serde_json::from_str(r#"{"init_bpm": 120, "resolution": 480}"#).unwrap();

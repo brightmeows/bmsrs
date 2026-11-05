@@ -12,7 +12,8 @@ the player.
 
 | Domain | Type | Use |
 |--------|------|-----|
-| Tick | `u64` | all event positions, stop durations, LN durations |
+| Tick | `u64` | all event positions, LN durations |
+| Stop pause | `Duration` | `EventKind::Stop`'s `duration`; precise time, not quantized to ticks |
 | Time | `Duration` | `AudioAsset.start`, `Player::duration()` |
 | Musical time | `Duration` | `TimingTrack::tick_to_musical_duration`, excluding STOP pauses; used for audio slicing |
 
@@ -40,6 +41,7 @@ Core note fields:
 | `NoteAudio` | audio layer set: `None` / `One(AudioIndex)` / `Many(Box<[AudioIndex]>)`; `Many` has at least two layers |
 | `NoteRole` | `Normal` / `Release`, orthogonal to `NoteKind`, survives erasing `NoteExt` |
 | `AudioIndex` / `BgaResourceId` | dedicated newtypes preventing audio and BGA indices from being assigned to each other |
+| `SwBgaResourceId` / `BgaResourceKind` | `SwBgaResourceId` indexes `ChartInfo.swbga_resources`; `BgaResource.kind()` infers Static/Video from the file extension |
 
 ## Event priority
 
@@ -50,6 +52,9 @@ Bar(0) < Note/BGA/BGM(1) < BPM(2) < Stop(3) < Scroll(4) < Speed(5) < Custom(6)
 ```
 
 The stable sort preserves insertion order at the same tick.
+
+`JudgeRank` shares priority 2 with BPM: a same-tick judgment width change takes
+effect before the notes at that tick.
 
 ## Data ownership
 
@@ -84,8 +89,15 @@ queries.
 | `Chart::new(song, chart, data)` | validates BGA resource references; the embedded `ChartData` is already valid |
 | `Player::new` | infallible; consumes an already validated `Chart` |
 | BPM/Stop single source | `EventKind::Bpm`/`EventKind::Stop` are authoritative; `TimingTrack::from_events` derives the timing cache |
-| Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected; reverse scrolling is not modeled |
+| Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected. Negative SCROLL rates, which reverse only the visual scrolling, are supported |
 | Same-tick STOP | BMS keeps the last stop (matching beatoraja); BMSON sums durations per the bmson specification; `TimingTrack::new` applies last-wins defensively |
+| Stop durations are time, not ticks | `EventKind::Stop`/`StopEvent` hold `Duration`; processors convert `#STOP` through the tick's BPM and `#STP`/BMSON pulses directly, so no tick quantization remains |
+| `ChartInfo.judge_rank` / `total` / `volwav_percent` | raw source values (`JudgeRankSpec` carries the `BmsRank`/`DefExRank`/`BmsonJudgeRank` kind); the percentage-to-window mapping is engine policy and stays with the caller |
+| `ChartInfo.miss_text` | nanasi `#TEXT00`; belongs to the miss system and never becomes a channel event |
+| `EventKind::Bga` clears layers | `resource_id: None` means the layer shows nothing (undefined BMP reference); `Some` indexes `bga_resources` |
+| `TextDisplay` carries its body | the resolved text travels in the event (`Arc<str>`); an empty string clears the display; `text_index` no longer exists |
+| `ChartInfo.swbga_resources` | key-bound BGA animation definitions (`#SWBGAxx`); `BmsCustomEvent::BgaKeyBound.swbga_id` indexes this table, and pattern frames reference `bga_resources` (`None` is a blank frame) |
+| `ChartData::with_start_margin` | shifts the chart so the first judgeable note lands at least `margin` after tick 0 (beatoraja `setStartNoteTime`); the leading bar line stays at tick 0, and late-enough charts return unchanged |
 | `NoteExt` LN hint accessors | `ln_type_hint`/`ln_judge_hint`/`ln_life_hint` default to `None`; BMSON overrides them per note |
 | `judge_multiplier` / `life_multiplier` | `Option<f64>`; `None` means unspecified by the source, `Some(1.0)` means standard |
 | `ChartInfo.key_count` | total playable keys; `None` means not provided or not inferable |
@@ -93,6 +105,7 @@ queries.
 | `TimingTrack::tick_to_musical_duration` | unlike `tick_to_duration`, excludes STOP pauses; used for audio slicing |
 | `BgaResource.crop` | source crop rectangle and target offset (BMS `#BGA`/`#@BGA`). `None` means the whole image. BMSON has no crop concept and always uses `None` |
 | `BgaResource` has no `id` | the vector index into `bga_resources` is the unique resource id; events reference it through `BgaResourceId` |
+| `BgaResource.kind()` | `Static` or `Video`, inferred from the file extension (`#BMPxx` may reference a video) |
 | `ChartInfo.video` | background video (BMS `#VIDEOFILE`/`#MOVIE`). BMSON has no such concept and always uses `None` |
 | `VideoAsset` equality | `fps: Option<f64>` keeps the type at `PartialEq`; no manual `Eq` promise. `colors`/`delay_frames` use `u32` to avoid the issue |
 | `CropRect` is all integers | source rectangle and offset are `i32`, so `Eq` derives naturally |
@@ -101,5 +114,4 @@ queries.
 
 | Item | Reason |
 |------|--------|
-| BMS `#SWBGA` (scanline transition animation) | runtime animation that depends on the renderer, not static resource data |
 | BMS `#EXBMP` per-image transparent color / `#ARGB` per-layer tinting (as resource attributes) | already carried as events through `BmsCustomEvent::BgaArgb` (channels A1-A4); not modeled again as resource attributes |

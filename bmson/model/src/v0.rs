@@ -186,7 +186,7 @@ pub struct BmsonInfo {
     /// Beat resolution (default 240).
     #[serde(
         default = "crate::default_resolution",
-        deserialize_with = "crate::deserialize_resolution_nonzero"
+        deserialize_with = "crate::deserialize_resolution"
     )]
     pub resolution: u64,
 

@@ -4,6 +4,7 @@
 
 use std::num::NonZeroU8;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use bmsrs_bmson_model::{
     BGA, BGAEvent, BGAHeader, BpmEvent, ChartData, ChartInfo, KeyChannel, KeyNote, LnType,
@@ -670,7 +671,10 @@ fn process_stop_events() -> TestResult {
         .collect();
 
     assert_eq!(stop_evts.len(), 1);
-    assert_eq!(stop_evts[0], (480, 192));
+    assert_eq!(
+        stop_evts[0],
+        (480, Duration::from_secs_f64(192.0 / 240.0 * 60.0 / 140.0))
+    );
     Ok(())
 }
 
@@ -705,7 +709,13 @@ fn same_pulse_stop_events_accumulate_durations() -> TestResult {
         })
         .collect();
 
-    assert_eq!(stop_evts, vec![(480, 288), (960, 240)]);
+    assert_eq!(
+        stop_evts,
+        vec![
+            (480, Duration::from_secs_f64(288.0 / 240.0 * 60.0 / 140.0)),
+            (960, Duration::from_secs_f64(240.0 / 240.0 * 60.0 / 140.0)),
+        ]
+    );
     Ok(())
 }
 
@@ -1119,5 +1129,22 @@ fn chart_level_ln_hints_propagate() -> TestResult {
     assert_eq!(chart.data().ln_type_hint(), LnTypeHint::Cn);
     assert_eq!(chart.data().ln_judge_hint(), LnJudgeHint::Ticks);
     assert_eq!(chart.data().ln_life_hint(), LnLifeHint::Ticks);
+    Ok(())
+}
+
+#[test]
+fn zero_resolution_falls_back_to_240_with_warning() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.resolution = 0;
+
+    let processed = BmsonProcessor::process::<Beat>(&bmson)?;
+    assert_eq!(processed.value.data().resolution(), 240);
+    assert!(
+        processed
+            .warnings
+            .iter()
+            .any(|w| matches!(w, BmsonProcessWarning::ZeroResolutionFallback)),
+        "resolution fallback should warn"
+    );
     Ok(())
 }

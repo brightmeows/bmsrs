@@ -14,7 +14,7 @@ come back in the `bmsrs_pipeline::Outcome` wrapper:
 
 | Field | Content |
 |-------|---------|
-| `gameplay` | raw values of `#PLAYER`/`#RANK`/`#DEFEXRANK`/`#TOTAL`/`#VOLWAV`/`#EXRANKxx`/`#OPTION`/`#CHANGEOPTIONxx` |
+| `gameplay` | raw values of `#PLAYER`/`#EXRANKxx`/`#OPTION`/`#CHANGEOPTIONxx` (`#RANK`/`#DEFEXRANK`/`#TOTAL`/`#VOLWAV` now enter `ChartInfo`) |
 | `audio` | raw values of `#EXWAV` parameters, `#WAVCMD`, `#CDDA`, `#MIDIFILE`, `#PATH_WAV` |
 
 `#PATH_WAV` is applied to `AudioAsset.path` as well; the sidecar keeps the raw
@@ -28,7 +28,11 @@ prefix.
 | Timing | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | measure length is computed from `length_ratio` (f64) |
 | BGM | `BgmEvent` | `Event::Bgm` | LNOBJ end markers also play as BGM |
 | BGA | `BgaEvent` | `Event::Bga` | four layers (Base / Poor / Layer / Layer2); `BmsBgaLayer` maps to `chart::BgaLayer` here |
+| BGA clear | channel value `00` is a rest; an undefined BMP index | `Event::Bga` with `resource_id: None` | undefined references emit `MissingBmpDefinition` and clear the layer instead of dropping the event |
+| SWBGA | `#SWBGAxx` definitions plus ch A5 | `ChartInfo.swbga_resources` + `BmsCustomEvent::BgaKeyBound { swbga_id }` | the A5 value indexes the SWBGA definition table (not the BMP table); pattern frames resolve against `bga_resources` |
+| Judge rank | ch A0 referencing `#EXRANKxx` | `Event::JudgeRank { percent }` | the definition value is the judgment width percentage (`100` is standard); undefined references warn and are skipped |
 | Display metadata | `BmsHeaderDisplay` | `ChartInfo` | `#BANNER`/`#BACKBMP`/`#STAGEFILE`/`#PREVIEW` are handled by `build_metadata` |
+| Timed text | `#TEXTxx` definitions plus ch 99 | `BmsCustomEvent::TextDisplay { text }` | the resolved text body travels with the event; `#TEXT00` maps to `ChartInfo.miss_text` and never becomes an event |
 | SCROLL | `ScrollEvent` | `Event::Scroll` | scroll speed multiplier |
 | SPEED | `SpeedEvent` | `Event::Speed` | visual spacing keyframes with linear interpolation |
 | Long-note mode hint | `#LNMODE` | `LnTypeHint` | 1:1 mapping of Ln/Cn/Hcn (`ln_type_hint` method) |
@@ -62,8 +66,8 @@ the `#xxx02` value.
 
 | Source | Conversion formula |
 |--------|--------------------|
-| `#STOP` (ch 09) | `raw / 192.0 * resolution * 4` ticks |
-| `#STP` (header) | milliseconds to ticks through `bpm_at_tick`; quantized to whole ticks (up to ±0.5 tick, about ±2 ms at 60 BPM) |
+| `#STOP` (ch 09) | `raw / 192.0 * 4` beats converted to seconds through `bpm_at_tick` |
+| `#STP` (header) | milliseconds converted directly to `Duration` (no quantization); same-position entries accumulate per the specification (`001.500` 500 + 4000 = 4500 ms total) |
 
 ## Mode families
 
@@ -92,7 +96,8 @@ engines).
 | Mine `damage` | `MineEvent.raw_value` (`Option<u16>`) goes through `mine_damage()`: `Some(1295)` gives INFINITY, `Some(n)` gives n/2, `None` gives 1.0 |
 | `process_default` layout | Uses `DscOctFp` when `#OCT/FP` is true, otherwise `Bme`; `#PLAYER` is still ignored, and modes such as PMS must be specified explicitly |
 | `key_count` | Sum of the maximum `Lane::Key` number per side across the event stream; `None` when there are no key notes |
-| Judge/life multipliers | BMS `#RANK`/`#TOTAL` are not converted into `ChartData`; both fields stay `None` |
+| Judge/life multipliers | BMS `#RANK`/`#TOTAL` are not converted into the multiplier fields; they enter `ChartInfo.judge_rank`/`ChartInfo.total` as raw values instead, and both multiplier fields stay `None` for BMS |
+| Undefined reference warnings | Undefined BMP/TEXT/SWBGA/EXRANK references emit `MissingBmpDefinition`/`MissingTextDefinition`/`MissingSwBgaDefinition`/`MissingExRankDefinition` with the resolved key and tick; the corresponding event is dropped or carries a clear/blank semantics |
 | `#PATH_WAV` | Joined when constructing `AudioAsset.path`; the raw prefix stays in `Processed.audio.path_wav` |
 | Warning shape | `ProcessWarning { span, kind }`; `ProcessWarningKind` carries the payload, `span` is the source line when available |
 | `#BPM 0` | Returns `ProcessError::ZeroBpm` instead of falling back to 130; the current time model cannot represent zero BPM |
@@ -111,11 +116,7 @@ sidecars, and the corresponding `Chart` slots stay `None`.
 
 | Field | Source | Why deferred |
 |-------|--------|--------------|
-| `gameplay.rank` | `#RANK` | Converting RANK to a judgment-window multiplier is engine-specific (beatoraja differs from LR2) and does not belong to the processor; the raw value goes to the sidecar |
-| `gameplay.def_ex_rank` | `#DEFEXRANK` | Same as above, for fine-grained judgment difficulty; the raw value goes to the sidecar |
-| `gameplay.total` | `#TOTAL` | Maximum life gauge increase; life logic belongs to the player; the raw value goes to the sidecar |
-| `gameplay.vol_wav` | `#VOLWAV` | Master volume; playback and mixing belong to the player; the raw value goes to the sidecar |
-| `gameplay.ex_rank_defs` | `#EXRANKxx` | The A0 channel currently passes the Base36 value through directly (`JudgeOverride.rank`) without consulting this table; per-position judge overrides need the overall judging system design and remain **known open** |
+| `gameplay.ex_rank_defs` | `#EXRANKxx` | The A0 channel resolves its references into `Event::JudgeRank` percentages; the raw table stays in the sidecar for the judgment system's `#DEFEXRANK` multiplication design |
 | `audio.ex_wav_params` / `wav_cmd` / `cdda` / `midifile` | audio definitions | The core `AudioAsset` carries only paths and slices; the remaining parameters go to the `Processed.audio` sidecar |
 
 ## Always / Ask / Never

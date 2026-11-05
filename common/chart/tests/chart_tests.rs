@@ -268,10 +268,22 @@ fn event_priority_order() {
     );
     assert!(
         Event::<()>::new(0, EventKind::Bpm { bpm: 120.0 },).priority()
-            < Event::<()>::new(0, EventKind::Stop { duration: 192 },).priority()
+            < Event::<()>::new(
+                0,
+                EventKind::Stop {
+                    duration: Duration::from_millis(192)
+                },
+            )
+            .priority()
     );
     assert!(
-        Event::<()>::new(0, EventKind::Stop { duration: 192 },).priority()
+        Event::<()>::new(
+            0,
+            EventKind::Stop {
+                duration: Duration::from_millis(192)
+            },
+        )
+        .priority()
             < Event::<()>::new(0, EventKind::Scroll { rate: 1.0 }).priority()
     );
     assert!(
@@ -286,7 +298,7 @@ fn event_bga_fields() {
         480,
         EventKind::Bga {
             layer: BgaLayer::Layer2,
-            resource_id: BgaResourceId::new(3),
+            resource_id: Some(BgaResourceId::new(3)),
         },
     );
     assert_eq!(ev.tick(), 480);
@@ -295,7 +307,7 @@ fn event_bga_fields() {
     } = ev.kind
     {
         assert_eq!(layer, BgaLayer::Layer2);
-        assert_eq!(resource_id.get(), 3);
+        assert_eq!(resource_id.map(BgaResourceId::get), Some(3));
     } else {
         panic!("expected Bga event");
     }
@@ -505,7 +517,7 @@ fn tick_to_duration_with_stop() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         240,
     )
@@ -534,7 +546,7 @@ fn duration_to_tick_with_stop() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         240,
     )
@@ -608,10 +620,10 @@ fn bpm_change_fields() {
 fn stop_event_fields() {
     let se = StopEvent {
         tick: 480,
-        duration: 192,
+        duration: Duration::from_millis(192),
     };
     assert_eq!(se.tick, 480);
-    assert_eq!(se.duration, 192);
+    assert_eq!(se.duration, Duration::from_millis(192));
 }
 
 // NoCustomEvent is a pure marker type with no behavior to test.
@@ -771,7 +783,7 @@ fn validate_rejects_dangling_bga_resource() {
             0,
             EventKind::Bga {
                 layer: BgaLayer::Base,
-                resource_id: BgaResourceId::new(2),
+                resource_id: Some(BgaResourceId::new(2)),
             },
         )],
         vec![],
@@ -803,7 +815,7 @@ fn validate_accepts_consistent_bga_references() {
             0,
             EventKind::Bga {
                 layer: BgaLayer::Base,
-                resource_id: BgaResourceId::new(0),
+                resource_id: Some(BgaResourceId::new(0)),
             },
         )],
         vec![],
@@ -818,4 +830,87 @@ fn validate_accepts_consistent_bga_references() {
     };
 
     assert!(Chart::new(SongInfo::default(), chart_info, data).is_ok());
+}
+
+#[test]
+fn start_margin_shifts_chart_so_first_note_reaches_margin() {
+    let note = |tick: u64| {
+        Event::new(
+            tick,
+            EventKind::Note(Note {
+                side: NoteSide::P1,
+                lane: Lane::Key(nz(1)),
+                kind: NoteKind::Normal,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
+                ext: (),
+            }),
+        )
+    };
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![
+            Event::bar(0),
+            Event::bgm(120, AudioIndex::new(0)),
+            note(240),
+        ],
+        vec![AudioAsset::from_path_buf(
+            std::path::PathBuf::from("test.wav"),
+            Duration::ZERO,
+            None,
+        )],
+    )
+    .unwrap();
+
+    let shifted = data
+        .with_start_margin(Duration::from_secs(1))
+        .expect("shifted chart should be valid");
+
+    // Delta = 0.5 s at 120 BPM = 240 ticks; the leading bar line stays at 0.
+    let first_note = shifted
+        .events()
+        .iter()
+        .find(|e| matches!(&e.kind, EventKind::Note(..)))
+        .map(Event::tick);
+    assert_eq!(first_note, Some(480));
+    let bgm = shifted
+        .events()
+        .iter()
+        .find(|e| matches!(&e.kind, EventKind::Bgm { .. }))
+        .map(Event::tick);
+    assert_eq!(bgm, Some(360));
+    assert_eq!(shifted.events()[0].tick(), 0);
+    let timing = TimingTrack::from_events(120.0, 240, shifted.events()).unwrap();
+    assert_eq!(timing.tick_to_duration(480), Duration::from_secs(1));
+}
+
+#[test]
+fn start_margin_keeps_chart_when_first_note_is_late_enough() {
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![
+            Event::bar(0),
+            Event::new(
+                960,
+                EventKind::Note(Note {
+                    side: NoteSide::P1,
+                    lane: Lane::Key(nz(1)),
+                    kind: NoteKind::Normal,
+                    role: NoteRole::Normal,
+                    audio: NoteAudio::none(),
+                    ext: (),
+                }),
+            ),
+        ],
+        vec![],
+    )
+    .unwrap();
+
+    let shifted = data
+        .clone()
+        .with_start_margin(Duration::from_secs(1))
+        .expect("unchanged chart should be valid");
+    assert_eq!(shifted.events(), data.events());
 }

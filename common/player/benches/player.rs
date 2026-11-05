@@ -78,7 +78,7 @@ fn build_chart(n: usize) -> Chart {
         events.push(Event::new(
             tick,
             EventKind::Stop {
-                duration: RESOLUTION,
+                duration: Duration::from_millis(500),
             },
         ));
     }

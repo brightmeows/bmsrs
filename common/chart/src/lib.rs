@@ -82,6 +82,7 @@
 //! ```
 
 use std::fmt;
+use std::time::Duration;
 
 pub mod audio;
 pub mod event;
@@ -95,7 +96,35 @@ pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, Note, NoteExt};
 pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
-pub use visual::{BgaLayer, BgaResource, BgaResourceId, CropRect, VideoAsset};
+pub use visual::{
+    BgaLayer, BgaResource, BgaResourceId, BgaResourceKind, CropRect, SwBgaResource,
+    SwBgaResourceId, VideoAsset,
+};
+
+/// Chart-level judgment difficulty specification: the raw source value plus
+/// which command defined it.
+///
+/// The mapping from the percentage to concrete judgment windows is
+/// engine-specific and stays with the caller; this type carries the source
+/// value faithfully.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct JudgeRankSpec {
+    /// Raw judgment width percentage (`100` is the standard width).
+    pub value: f64,
+    /// Which source command defined the value.
+    pub kind: JudgeRankKind,
+}
+
+/// Source of a chart-level judgment difficulty value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JudgeRankKind {
+    /// BMS `#RANK` index; the percentage meaning differs between engines.
+    BmsRank,
+    /// BMS `#DEFEXRANK` percentage.
+    DefExRank,
+    /// BMSON `judge_rank` percentage.
+    BmsonJudgeRank,
+}
 
 /// Song-level metadata, corresponding to BMSON v2's `SongInfo`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -129,14 +158,29 @@ pub struct ChartInfo {
     pub banner_image: Option<String>,
     /// Preview audio path (short clip during song selection).
     pub preview_music: Option<String>,
+    /// Text shown when the player misses (nanasi `#TEXT00`). `None` means the
+    /// source chart did not define it.
+    pub miss_text: Option<String>,
     /// BGA resource declarations (image and video files).
     pub bga_resources: Vec<BgaResource>,
+    /// Key-bound BGA animation definitions (`#SWBGAxx`). BMSON has no such
+    /// concept, so its processor produces an empty vector.
+    pub swbga_resources: Vec<SwBgaResource>,
     /// Background video (BMS `#VIDEOFILE` / `#MOVIE`). BMSON has no such
     /// concept, so it is `None`.
     pub video: Option<VideoAsset>,
     /// Total playable keys; `None` means the source format did not provide it or
     /// it cannot be inferred.
     pub key_count: Option<u8>,
+    /// Chart-level judgment difficulty. `None` means the source did not
+    /// specify it.
+    pub judge_rank: Option<JudgeRankSpec>,
+    /// Maximum life gauge increase (`#TOTAL`). `None` means the source did not
+    /// specify it.
+    pub total: Option<f64>,
+    /// Master volume percentage (`#VOLWAV`; `100` is the original volume).
+    /// `None` means the source did not specify it.
+    pub volwav_percent: Option<u8>,
 }
 
 /// Custom judgment-window offsets (DJ.NEXT extension).
@@ -439,6 +483,60 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         self
     }
 
+    /// Shift the whole chart forward so that the first judgeable note lands at
+    /// least `margin` after tick 0 (beatoraja `setStartNoteTime` semantics).
+    ///
+    /// The shift is computed against the initial BPM; every event moves by the
+    /// same tick delta except the leading bar line, which stays at tick 0.
+    /// Invisible notes do not count as triggers. The chart data is returned
+    /// unchanged when the first note already sits at or after `margin`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChartDataError`] when the shifted event stream violates a
+    /// chart invariant.
+    pub fn with_start_margin(self, margin: Duration) -> Result<Self, ChartDataError> {
+        let timing = TimingTrack::from_events(self.init_bpm, self.resolution, &self.events)?;
+        let Some(first_tick) = self.events.iter().find_map(|event| match &event.kind {
+            EventKind::Note(note) if note.kind != NoteKind::Invisible => Some(event.tick()),
+            _ => None,
+        }) else {
+            return Ok(self);
+        };
+        let first_time = timing.tick_to_duration(first_tick);
+        if first_time >= margin {
+            return Ok(self);
+        }
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the margin exceeds the first note time, so the delta is positive and small"
+        )]
+        let delta_ticks = margin
+            .checked_sub(first_time)
+            // Defensive: `first_time >= margin` was rejected above.
+            .unwrap_or_default()
+            .as_secs_f64()
+            * self.init_bpm
+            / 60.0
+            * self.resolution as f64;
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "ceil() makes the delta a positive integer; one tick is the minimum shift"
+        )]
+        let delta = delta_ticks.ceil() as u64;
+        self.rebuild_events(|event| {
+            // The bar line at tick 0 stays: it doubles as the leading bar line
+            // beatoraja shows before the shifted chart.
+            let tick = if matches!(event.kind, EventKind::Bar) && event.tick() == 0 {
+                0
+            } else {
+                event.tick().saturating_add(delta)
+            };
+            Some(Event::new(tick, event.kind))
+        })
+    }
+
     /// Return the tick of the last event in the chart data.
     #[must_use]
     pub fn last_tick(&self) -> u64 {
@@ -707,13 +805,23 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
     fn validate_bga(&self) -> Result<(), ChartDataError> {
         let len = self.chart.bga_resources.len();
         for event in &self.data.events {
-            if let EventKind::Bga { resource_id, .. } = &event.kind
+            if let EventKind::Bga {
+                resource_id: Some(resource_id),
+                ..
+            } = &event.kind
                 && resource_id.get() as usize >= len
             {
                 return Err(ChartDataError::DanglingBgaResource {
                     id: *resource_id,
                     len,
                 });
+            }
+        }
+        for swbga in &self.chart.swbga_resources {
+            for frame in swbga.pattern.iter().flatten() {
+                if frame.get() as usize >= len {
+                    return Err(ChartDataError::DanglingBgaResource { id: *frame, len });
+                }
             }
         }
         Ok(())

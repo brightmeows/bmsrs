@@ -131,16 +131,16 @@ impl BpmChange {
 
 /// Stop (pause) event.
 ///
-/// When playback reaches `tick`, scrolling pauses for `duration` ticks (computed
-/// with the current BPM). Processors collapse same-tick stops before the timing
-/// track is built (BMS keeps the last, BMSON sums durations per the bmson
+/// When playback reaches `tick`, scrolling pauses for `duration` while time
+/// keeps flowing. Processors collapse same-tick stops before the timing track
+/// is built (BMS keeps the last, BMSON sums durations per the bmson
 /// specification); `TimingTrack` itself keeps the last defensively.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StopEvent {
     /// Tick position where the stop begins.
     pub tick: u64,
-    /// Duration in ticks.
-    pub duration: u64,
+    /// Pause duration.
+    pub duration: Duration,
 }
 
 /// Internal event representation for the merged timeline.
@@ -148,8 +148,8 @@ pub struct StopEvent {
 enum TimingEvent {
     /// BPM change; ordered before Stop when at the same tick.
     Bpm(f64),
-    /// Stop, with duration in ticks.
-    Stop(u64),
+    /// Stop, with the pause duration.
+    Stop(Duration),
 }
 
 /// Safely convert seconds into [`Duration`], avoiding overflow panics.
@@ -236,8 +236,7 @@ impl TimingTrack {
         let mut stop_cumsum = Vec::with_capacity(stops.len());
         let mut total_pause = 0.0f64;
         for stop in &stops {
-            let bpm = segment_bpm_at_tick(&bpm_segments, stop.tick);
-            total_pause += stop.duration as f64 / res * 60.0 / bpm.abs();
+            total_pause += stop.duration.as_secs_f64();
             stop_cumsum.push((stop.tick, total_pause));
         }
 
@@ -534,17 +533,6 @@ impl BpmLookup<'_> {
 }
 
 /// Binary-search the BPM segments and return the BPM in effect at `tick`.
-#[expect(
-    clippy::indexing_slicing,
-    reason = "idx from saturating_sub on partition_point, always valid"
-)]
-fn segment_bpm_at_tick(bpm_segments: &[BpmSegment], tick: u64) -> f64 {
-    let idx = bpm_segments
-        .partition_point(|s| s.start_tick <= tick)
-        .saturating_sub(1);
-    bpm_segments[idx].bpm
-}
-
 /// Merge sorted BPM change and stop events.
 ///
 /// Both inputs are assumed sorted ascending by `tick`; at the same tick, BPM
@@ -615,7 +603,7 @@ fn merge_inv(
                 });
             }
             TimingEvent::Stop(d) => {
-                let d_sec = d as f64 / res_f * 60.0 / cur_bpm.abs();
+                let d_sec = d.as_secs_f64();
                 inv.push(InvSeg {
                     sec_lo: cur_sec,
                     tick: cur_tick,
@@ -678,7 +666,7 @@ mod tests {
             vec![],
             vec![StopEvent {
                 tick: 240,
-                duration: 240,
+                duration: Duration::from_millis(500),
             }],
             RES,
         )
@@ -695,7 +683,7 @@ mod tests {
             vec![],
             vec![StopEvent {
                 tick: 240,
-                duration: 240,
+                duration: Duration::from_millis(500),
             }],
             RES,
         )
@@ -822,11 +810,11 @@ mod tests {
             vec![
                 StopEvent {
                     tick: 240,
-                    duration: 120,
+                    duration: Duration::from_millis(250),
                 },
                 StopEvent {
                     tick: 240,
-                    duration: 240,
+                    duration: Duration::from_millis(500),
                 },
             ],
             RES,
@@ -834,7 +822,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(timing.stops().len(), 1);
-        assert_eq!(timing.stops()[0].duration, 240);
+        assert_eq!(timing.stops()[0].duration, Duration::from_millis(500));
         // 0.5s at 120 BPM plus the 0.5s stop; the first stop is discarded.
         assert_eq!(
             timing.tick_to_duration(241),
@@ -846,7 +834,7 @@ mod tests {
     fn from_events_uses_bpm_and_stop_events() {
         let events: Vec<Event<(), crate::NoCustomEvent>> = vec![
             Event::bpm(240, 240.0),
-            Event::stop(480, 240),
+            Event::stop(480, Duration::from_millis(250)),
             Event::bar(960),
         ];
         let timing = TimingTrack::from_events(120.0, RES, &events).unwrap();
@@ -868,7 +856,7 @@ mod tests {
             vec![],
             vec![StopEvent {
                 tick: 0,
-                duration: u64::MAX,
+                duration: Duration::MAX,
             }],
             RES,
         )
@@ -937,7 +925,7 @@ mod tests {
             ],
             vec![StopEvent {
                 tick: 960,
-                duration: 480,
+                duration: Duration::from_millis(1200),
             }],
             RES,
         )

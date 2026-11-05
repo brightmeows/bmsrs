@@ -627,22 +627,20 @@ pub const fn default_resolution() -> u64 {
 /// through [`default_resolution`](crate::default_resolution) via
 /// `#[serde(default)]`.
 ///
+/// Deserialize the `resolution` field per the bmson specification.
+///
+/// Negative values take their absolute value; `0` is kept as-is so the
+/// processor can apply the default-240 fallback with a warning.
+///
 /// # Errors
 ///
-/// Returns an error when the JSON value is not a valid unsigned integer or is
-/// `0`.
+/// Returns an error when the JSON value is not an integer.
 #[inline]
-pub fn deserialize_resolution_nonzero<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<u64, D::Error> {
-    let v = u64::deserialize(deserializer)?;
-    if v == 0 {
-        Err(de::Error::custom(
-            "resolution must be > 0 (omit the field for the default 240)",
-        ))
-    } else {
-        Ok(v)
-    }
+pub fn deserialize_resolution<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+    // Negative JSON values cannot deserialize into u64 directly; the
+    // specification takes their absolute value.
+    let v = i64::deserialize(deserializer)?;
+    Ok(v.unsigned_abs())
 }
 
 /// Deserialize a JSON string into an owned [`PathBuf`].

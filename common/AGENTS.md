@@ -27,7 +27,7 @@ flowchart LR
 
 | Domain | Type | Use |
 |--------|------|-----|
-| Tick | `u64` | all event positions, stop durations, LN durations |
+| Tick | `u64` | all event positions, LN durations |
 | Time | `Duration` | `AudioAsset.start`, `Player::duration()`, player public API |
 
 `ChartData` stores the scalar timing configuration (`init_bpm`, `resolution`)
