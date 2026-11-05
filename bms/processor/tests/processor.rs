@@ -4,10 +4,11 @@ use std::num::NonZeroU8;
 use std::path::Path;
 
 use bmsrs_bms_model::{
-    BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent,
-    Position, StpEvent,
+    BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent,
+    NonEventData, NoteEvent, Position, StpEvent,
 };
-use bmsrs_bms_model::{BpmIndex, LnObjIndex};
+use bmsrs_bms_model::{BmsChannel, BpmIndex, LnObjIndex};
+use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarningKind};
 use bmsrs_chart::mode::{Lane, NoteSide};
@@ -193,6 +194,67 @@ fn undefined_bmp_reference_clears_layer_with_warning() {
             }
         )
     }));
+}
+
+#[test]
+fn text00_definition_becomes_miss_text_without_channel_event() {
+    let mut bms = Bms::default();
+    bms.metadata
+        .text_defs
+        .insert("00".parse().unwrap(), "miss text".to_owned());
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert_eq!(
+        processed.value.chart.chart_info().miss_text.as_deref(),
+        Some("miss text")
+    );
+    assert!(
+        processed
+            .value
+            .chart
+            .data()
+            .events()
+            .iter()
+            .all(|e| !matches!(
+                &e.kind,
+                EventKind::Custom(BmsCustomEvent::TextDisplay { .. })
+            )),
+        "miss text must not become a channel event"
+    );
+}
+
+#[test]
+fn undefined_text_reference_warns_and_is_skipped() {
+    let mut bms = Bms::default();
+    bms.messages.non_event_data.push(NonEventData {
+        measure: 1,
+        channel: BmsChannel::Text,
+        values: vec!["02".parse().unwrap()],
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert!(
+        processed.warnings.iter().any(|warning| {
+            matches!(
+                warning.kind,
+                ProcessWarningKind::MissingTextDefinition { key: 2, tick: 960 }
+            )
+        }),
+        "undefined TEXT reference should warn"
+    );
+    assert!(
+        processed
+            .value
+            .chart
+            .data()
+            .events()
+            .iter()
+            .all(|e| !matches!(
+                &e.kind,
+                EventKind::Custom(BmsCustomEvent::TextDisplay { .. })
+            )),
+        "skipped text events must not appear"
+    );
 }
 
 #[test]

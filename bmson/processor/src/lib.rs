@@ -805,6 +805,8 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, Proce
         subtitle: bmson.chart_info.subtitle.clone(),
         chart_name: bmson.chart_info.chart_name.clone(),
         level: bmson.chart_info.level,
+        // BMSON has no miss-text concept.
+        miss_text: None,
         subartists: bmson
             .chart_info
             .subartists

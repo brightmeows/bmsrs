@@ -44,7 +44,7 @@ use std::time::Duration;
 
 use bmsrs_bms_model::{
     Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, LnMode,
-    OwnedExWavParams, PlayerMode, Rank, SeekIndex, WavCmdParams, WavIndex,
+    OwnedExWavParams, PlayerMode, Rank, SeekIndex, TextIndex, WavCmdParams, WavIndex,
 };
 use bmsrs_bms_model::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
@@ -717,9 +717,28 @@ impl BmsConverter<'_> {
                         BmsCustomEvent::BgaKeyBound { resource_id }
                     }
                     RawChannel::Text => {
-                        let index = u64::from(obj.to_index().unwrap_or(0));
+                        // The value is normalized; look it up in text_defs
+                        // directly. The text body travels with the event; an
+                        // empty definition clears the display.
+                        let Some(text) = self
+                            .bms
+                            .metadata
+                            .text_defs
+                            .get(&TextIndex::from(*obj))
+                            .cloned()
+                        else {
+                            let span = self.message_span(item.measure, &[RawChannel::Text]);
+                            self.warnings.push(ProcessWarning::new(
+                                span,
+                                ProcessWarningKind::MissingTextDefinition {
+                                    key: obj.to_index().unwrap_or(0),
+                                    tick,
+                                },
+                            ));
+                            continue;
+                        };
                         BmsCustomEvent::TextDisplay {
-                            text_index: index as u32,
+                            text: Arc::from(text.as_str()),
                         }
                     }
                     RawChannel::Judge => {
@@ -1091,6 +1110,15 @@ impl BmsConverter<'_> {
             })
             .collect();
         let video = self.build_video_asset();
+        // `#TEXT00` is the nanasi miss-time text; it belongs to the miss
+        // system, not to channel 99 data.
+        let miss_text = self
+            .bms
+            .metadata
+            .text_defs
+            .iter()
+            .find(|(id, _)| id.to_index_in(self.bms.gameplay.base.unwrap_or_default()) == Some(0))
+            .map(|(_, value)| value.clone());
         (
             SongInfo {
                 title: self.bms.metadata.title.clone().unwrap_or_default(),
@@ -1118,6 +1146,7 @@ impl BmsConverter<'_> {
                 eyecatch_image: self.bms.display.stage_file.clone(),
                 banner_image: self.bms.display.banner.clone(),
                 preview_music: self.bms.display.preview.clone(),
+                miss_text,
                 bga_resources,
                 video,
                 key_count: key_count(&self.events),

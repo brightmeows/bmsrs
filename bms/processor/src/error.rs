@@ -134,6 +134,16 @@ pub enum ProcessWarningKind {
         tick: u64,
     },
 
+    /// A text event references an undefined `#TEXTxx` definition; the event is
+    /// skipped.
+    #[error("text event at tick {tick} references undefined TEXT key {key}")]
+    MissingTextDefinition {
+        /// Undefined TEXT key (numeric value in the chart's base).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
     /// A channel value cannot be parsed as the type required by that channel;
     /// the event was skipped.
     #[error(transparent)]

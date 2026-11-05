@@ -129,6 +129,9 @@ pub struct ChartInfo {
     pub banner_image: Option<String>,
     /// Preview audio path (short clip during song selection).
     pub preview_music: Option<String>,
+    /// Text shown when the player misses (nanasi `#TEXT00`). `None` means the
+    /// source chart did not define it.
+    pub miss_text: Option<String>,
     /// BGA resource declarations (image and video files).
     pub bga_resources: Vec<BgaResource>,
     /// Background video (BMS `#VIDEOFILE` / `#MOVIE`). BMSON has no such

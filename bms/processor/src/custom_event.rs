@@ -6,6 +6,8 @@
 //! is stored uniformly by [`Event`](bmsrs_chart::Event); variants of this type
 //! do not contain a tick.
 
+use std::sync::Arc;
+
 use bmsrs_chart::{BgaLayer, BgaResourceId, CustomEvent};
 
 /// Chart events specific to the BMS format.
@@ -59,9 +61,12 @@ pub enum BmsCustomEvent {
         resource_id: BgaResourceId,
     },
     /// Timed text display (channel `99` / `#TEXTxx` / `#SONGxx`).
+    ///
+    /// The text body is carried directly; definitions sharing the same text
+    /// share one `Arc`. An empty string clears the display.
     TextDisplay {
-        /// TEXT definition index.
-        text_index: u32,
+        /// Text body from the `#TEXTxx` definition table.
+        text: Arc<str>,
     },
     /// Per-position judge override (channel `A0` / `#EXRANK`).
     ///

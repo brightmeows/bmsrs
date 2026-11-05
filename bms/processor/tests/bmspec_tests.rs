@@ -908,19 +908,20 @@ fn bga_opacity_custom_event() {
 /// The TEXT channel (99) produces `BmsCustomEvent::TextDisplay`.
 #[test]
 fn text_display_custom_event() {
-    let chart =
-        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#00199:0100000000000000\n");
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#TEXT01 hello\n#00101:1100000000000000\n#00199:0100000000000000\n",
+    );
     let texts: Vec<_> = chart
         .data()
         .events()
         .iter()
         .filter_map(|e| match &e.kind {
-            EventKind::Custom(BmsCustomEvent::TextDisplay { text_index }) => Some(*text_index),
+            EventKind::Custom(BmsCustomEvent::TextDisplay { text }) => Some(text.to_string()),
             _ => None,
         })
         .collect();
     assert_eq!(texts.len(), 1);
-    assert_eq!(texts[0], 1);
+    assert_eq!(texts[0], "hello");
 }
 
 /// BGM Volume (channel 97) produces `BmsCustomEvent::BgmVolume`.
