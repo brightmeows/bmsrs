@@ -69,18 +69,6 @@ pub enum BmsCustomEvent {
         /// Text body from the `#TEXTxx` definition table.
         text: Arc<str>,
     },
-    /// Per-position judge override (channel `A0` / `#EXRANK`).
-    ///
-    /// **Semantics not finalized**: the channel value's Base36 number is passed
-    /// through directly, without looking up the `#EXRANKxx` definition table.
-    /// The multiplication relationship with `#DEFEXRANK` will be settled after
-    /// the overall judging system design; consumers should not interpret this
-    /// field before then.
-    JudgeOverride {
-        /// Base36 value passed through directly (semantics not finalized; see
-        /// above).
-        rank: u64,
-    },
     /// Player option change (channel `A6` / `#CHANGEOPTION`).
     OptionChange {
         /// Option ID.

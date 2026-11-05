@@ -154,6 +154,16 @@ pub enum ProcessWarningKind {
         tick: u64,
     },
 
+    /// A judgment event references an undefined `#EXRANKxx` definition; the
+    /// event is skipped.
+    #[error("judgment event at tick {tick} references undefined EXRANK key {key}")]
+    MissingExRankDefinition {
+        /// Undefined EXRANK key (numeric value in the chart's base).
+        key: u16,
+        /// Tick where the event occurs.
+        tick: u64,
+    },
+
     /// A channel value cannot be parsed as the type required by that channel;
     /// the event was skipped.
     #[error(transparent)]

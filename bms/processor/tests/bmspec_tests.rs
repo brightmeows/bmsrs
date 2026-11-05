@@ -1012,23 +1012,23 @@ fn swbga_custom_event() {
     assert_eq!(swbga[0].pattern, vec![Some(BgaResourceId::new(0)), None]);
 }
 
-/// The Judge channel (A0) produces `BmsCustomEvent::JudgeOverride`.
+/// The Judge channel (A0) produces `EventKind::JudgeRank` from `#EXRANKxx`.
 #[test]
 fn judge_custom_event() {
-    let chart =
-        process("#BPM 120\n#WAV01 kick.wav\n#00101:1100000000000000\n#001A0:5000000000000000\n");
+    let chart = process(
+        "#BPM 120\n#WAV01 kick.wav\n#EXRANK50 150\n#00101:1100000000000000\n#001A0:5000000000000000\n",
+    );
     let judges: Vec<_> = chart
         .data()
         .events()
         .iter()
         .filter_map(|e| match &e.kind {
-            EventKind::Custom(BmsCustomEvent::JudgeOverride { rank }) => Some(*rank),
+            EventKind::JudgeRank { percent } => Some(*percent),
             _ => None,
         })
         .collect();
     assert_eq!(judges.len(), 1);
-    // "50" in base36 = 5*36 + 0 = 180
-    assert_eq!(judges[0], 180, "base36 '50' should decode to 180");
+    assert_eq!(judges[0], 150.0, "EXRANK key 50 carries its percentage");
 }
 
 /// The Key Volume channel (98) produces `BmsCustomEvent::KeyVolume`.

@@ -15,8 +15,8 @@
 //! Processors sort events by `(tick, priority)`. [`EventKind::priority`] defines
 //! the order of events at the same tick:
 //!
-//! `Bar(0)`, then `Note`/`BGA`/`BGM` (1), then `BPM` (2), then `Stop` (3), then
-//! `Scroll` (4), then `Speed` (5), then `Custom` (6).
+//! `Bar(0)`, then `Note`/`BGA`/`BGM` (1), then `BPM`/`JudgeRank` (2), then
+//! `Stop` (3), then `Scroll` (4), then `Speed` (5), then `Custom` (6).
 
 use std::fmt::Debug;
 
@@ -44,6 +44,15 @@ pub enum EventKind<T, C: CustomEvent = NoCustomEvent> {
     Bpm {
         /// New BPM value.
         bpm: f64,
+    },
+    /// Judgment width override (channel `A0` referencing `#EXRANKxx`).
+    ///
+    /// The percentage defines the judgment window from this tick onward
+    /// (`100` is the standard width); the engine-specific mapping from the
+    /// percentage to concrete windows stays with the caller.
+    JudgeRank {
+        /// Judgment width percentage (`100` is standard).
+        percent: f64,
     },
     /// Stop / pause event.
     Stop {
@@ -86,14 +95,14 @@ impl<T, C: CustomEvent> EventKind<T, C> {
     ///
     /// Events at the same tick sort by ascending priority. The convention is:
     ///
-    /// `Bar(0)`, then `Note`/`BGA`/`BGM` (1), then `BPM` (2), then `Stop` (3),
-    /// then `Scroll` (4), then `Speed` (5), then `Custom` (6).
+    /// `Bar(0)`, then `Note`/`BGA`/`BGM` (1), then `BPM`/`JudgeRank` (2), then
+    /// `Stop` (3), then `Scroll` (4), then `Speed` (5), then `Custom` (6).
     #[must_use]
     pub const fn priority(&self) -> u8 {
         match self {
             Self::Bar => 0,
             Self::Note(_) | Self::Bga { .. } | Self::Bgm { .. } => 1,
-            Self::Bpm { .. } => 2,
+            Self::Bpm { .. } | Self::JudgeRank { .. } => 2,
             Self::Stop { .. } => 3,
             Self::Scroll { .. } => 4,
             Self::Speed { .. } => 5,
@@ -127,6 +136,7 @@ impl<T, C: CustomEvent> EventKind<T, C> {
             Self::Note(note) => EventKind::Note(note),
             Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
             Self::Bpm { bpm } => EventKind::Bpm { bpm },
+            Self::JudgeRank { percent } => EventKind::JudgeRank { percent },
             Self::Stop { duration } => EventKind::Stop { duration },
             Self::Scroll { rate } => EventKind::Scroll { rate },
             Self::Speed { rate } => EventKind::Speed { rate },
@@ -171,6 +181,7 @@ impl<T, C: CustomEvent> EventKind<T, C> {
             Self::Note(note) => EventKind::Note(note.map_ext(f)),
             Self::Bgm { audio_index } => EventKind::Bgm { audio_index },
             Self::Bpm { bpm } => EventKind::Bpm { bpm },
+            Self::JudgeRank { percent } => EventKind::JudgeRank { percent },
             Self::Stop { duration } => EventKind::Stop { duration },
             Self::Scroll { rate } => EventKind::Scroll { rate },
             Self::Speed { rate } => EventKind::Speed { rate },

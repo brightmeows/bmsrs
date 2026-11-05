@@ -258,6 +258,9 @@ impl BmsProcessor {
         // BPM changes (priority 2).
         conv.collect_bpm_events(timing.bpm_changes());
 
+        // Judgment rank changes (priority 2, alongside BPM).
+        conv.collect_judge_rank();
+
         // Stop events (priority 3): iterate the timing stop events again.
         conv.collect_stop_events(timing.stops());
 
@@ -610,6 +613,55 @@ impl BmsConverter<'_> {
         }
     }
 
+    /// Build judgment rank events from channel `A0` references into
+    /// `#EXRANKxx`.
+    ///
+    /// The definition value is the judgment width percentage (`100` is the
+    /// standard width; fractional values are allowed by the specification).
+    /// References to undefined definitions warn and are skipped.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "channel values are single-byte bounded (0-255) or u32 resource indices"
+    )]
+    fn collect_judge_rank(&mut self) {
+        let base = self.bms.gameplay.base.unwrap_or_default();
+        let non_event = &self.bms.messages.non_event_data;
+        for item in non_event
+            .iter()
+            .filter(|item| item.channel == RawChannel::Judge)
+        {
+            let total = item.values.len() as u32;
+            for (i, obj) in item.values.iter().enumerate() {
+                if obj.as_str() == "00" {
+                    continue;
+                }
+                let tick = self.table.position_to_tick(bmsrs_bms_model::Position::new(
+                    item.measure,
+                    i as u32,
+                    total,
+                ));
+                let Some(percent) = self
+                    .bms
+                    .gameplay
+                    .ex_rank_defs
+                    .get(&ExRankIndex::from(*obj))
+                    .copied()
+                else {
+                    let span = self.message_span(item.measure, &[RawChannel::Judge]);
+                    if let Some(key) = obj.to_index_in(base) {
+                        self.warnings.push(ProcessWarning::new(
+                            span,
+                            ProcessWarningKind::MissingExRankDefinition { key, tick },
+                        ));
+                    }
+                    continue;
+                };
+                self.events
+                    .push(Event::new(tick, EventKind::JudgeRank { percent }));
+            }
+        }
+    }
+
     /// Emit stop events from the already-built stop event slice.
     fn collect_stop_events(&mut self, stops: &[StopEvent]) {
         for se in stops {
@@ -751,9 +803,10 @@ impl BmsConverter<'_> {
                             text: Arc::from(text.as_str()),
                         }
                     }
+                    // Judgment rank changes are collected separately at
+                    // priority 2.
                     RawChannel::Judge => {
-                        let index = u64::from(obj.to_index().unwrap_or(0));
-                        BmsCustomEvent::JudgeOverride { rank: index }
+                        continue;
                     }
                     RawChannel::Option => {
                         let option_id = u64::from(obj.to_index().unwrap_or(0));
