@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use bmsrs_bms_model::{
-    BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent,
+    BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, MineEvent,
     NonEventData, NoteEvent, Position, Rank, StpEvent,
 };
 use bmsrs_bms_model::{BmsChannel, BpmIndex, LnObjIndex};
@@ -1051,6 +1051,246 @@ fn orphan_lnobj_marker_emits_no_bgm() {
         .filter(|e| matches!(&e.kind, EventKind::Bgm { .. }))
         .count();
     assert_eq!(bgm_count, 0, "orphan LNOBJ marker should not emit BGM");
+}
+
+#[test]
+fn duplicate_same_position_note_keeps_last_definition() {
+    // beatoraja (jbms-parser) warns and keeps only the later definition when
+    // two visible notes land on the same position.
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "first.wav".to_owned());
+    bms.audio
+        .wav_files
+        .insert("02".parse().unwrap(), "second.wav".to_owned());
+    for wav in ["01", "02"] {
+        bms.messages.note_events.push(NoteEvent {
+            position: Position::new(1, 0, 8),
+            player: 1,
+            lane: 1,
+            key_type: KeyType::Visible,
+            wav_id: wav.parse().unwrap(),
+        });
+    }
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let notes: Vec<_> = processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Note(note) if note.kind == NoteKind::Normal => {
+                Some(note.audio.primary().map(bmsrs_chart::AudioIndex::get))
+            }
+            _ => None,
+        })
+        .collect();
+    // Only the later definition (WAV 02, audio index 1) survives.
+    assert_eq!(notes, vec![Some(1)]);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::DuplicateNotePosition {
+                player: 1,
+                lane: 1,
+                tick: 960
+            }
+        )
+    }));
+}
+
+#[test]
+fn mine_on_occupied_note_position_is_dropped() {
+    // A mine never overwrites an occupied slot (matching beatoraja).
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "01".parse().unwrap(),
+    });
+    bms.messages.mine_events.push(MineEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        raw_value: None,
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let mines = count_mines(&processed.value.chart);
+    assert_eq!(mines, 0);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::MineNoteConflict {
+                player: 1,
+                lane: 1,
+                tick: 960
+            }
+        )
+    }));
+}
+
+#[test]
+fn note_on_mine_position_replaces_mine() {
+    // A note placed after a mine on the same position wins; the mine is
+    // dropped with a warning (matching beatoraja's channel order).
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.messages.mine_events.push(MineEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        raw_value: None,
+    });
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "01".parse().unwrap(),
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert_eq!(count_mines(&processed.value.chart), 0);
+    let has_note = processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .any(|e| matches!(&e.kind, EventKind::Note(note) if note.kind == NoteKind::Normal));
+    assert!(has_note);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::MineNoteConflict { tick: 960, .. }
+        )
+    }));
+}
+
+#[test]
+fn mine_inside_long_note_range_is_dropped() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    // Long note on lane 1 across measure 0 (ch51): start at 0/8, end at 8/8.
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 7, 8),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+    // Mine in the middle of the long-note range.
+    bms.messages.mine_events.push(MineEvent {
+        position: Position::new(0, 3, 8),
+        player: 1,
+        lane: 1,
+        raw_value: None,
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert_eq!(count_mines(&processed.value.chart), 0);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::MineNoteConflict { tick: 360, .. }
+        )
+    }));
+}
+
+#[test]
+fn lnobj_end_position_note_is_dropped_silently() {
+    // A visible note sharing the LNOBJ end marker's position falls inside the
+    // long-note range [start, end] and is dropped by range suppression before
+    // any slot conflict arises (jbms-parser resolves this row-order
+    // dependently; bmsrs keeps the range behavior). The marker itself emits
+    // nothing.
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio
+        .wav_files
+        .insert("02".parse().unwrap(), "other.wav".to_owned());
+    bms.audio
+        .wav_files
+        .insert("FF".parse().unwrap(), "ln_end.wav".to_owned());
+    let ln_obj: LnObjIndex = "FF".parse().unwrap();
+    bms.gameplay.ln_obj = Some(ln_obj);
+    // Long-note start (WAV 01) and the LNOBJ end marker (WAV FF) on lane 1.
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "01".parse().unwrap(),
+    });
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "FF".parse().unwrap(),
+    });
+    // Another visible note on the end marker's position.
+    bms.messages.note_events.push(NoteEvent {
+        position: Position::new(1, 0, 8),
+        player: 1,
+        lane: 1,
+        key_type: KeyType::Visible,
+        wav_id: "02".parse().unwrap(),
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let chart = processed.value.chart;
+    // Only the long note (start tick 0) survives; neither the marker nor the
+    // co-positioned note emits anything.
+    let notes: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Note(note) => Some((e.tick(), note.kind)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(notes.len(), 1, "lane notes: {notes:?}");
+    assert!(!processed.warnings.iter().any(|warning| matches!(
+        &warning.kind,
+        ProcessWarningKind::DuplicateNotePosition { .. }
+    )));
+}
+
+/// Count mine notes in the chart event stream.
+fn count_mines<T: NoteExt, C: CustomEvent>(chart: &bmsrs_chart::Chart<T, C>) -> usize {
+    chart
+        .data()
+        .events()
+        .iter()
+        .filter(|e| matches!(&e.kind, EventKind::Note(note) if matches!(note.kind, NoteKind::Mine { .. })))
+        .count()
 }
 
 #[test]

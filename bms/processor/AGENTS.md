@@ -24,7 +24,7 @@ prefix.
 
 | Conversion | Input | Output | Notes |
 |------------|-------|--------|-------|
-| Notes | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | notes consumed by LNOBJ are excluded from ordinary notes |
+| Notes | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | notes consumed by LNOBJ are excluded from ordinary notes; same-position conflicts keep the later definition (matching beatoraja) |
 | Timing | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | measure length is computed from `length_ratio` (f64) |
 | BGM | `BgmEvent` | `Event::Bgm` | LNOBJ end markers are silent (matching beatoraja/LR2) |
 | BGA | `BgaEvent` | `Event::Bga` | four layers (Base / Poor / Layer / Layer2); `BmsBgaLayer` maps to `chart::BgaLayer` here |
@@ -91,6 +91,7 @@ engines).
 |------|-------------|
 | Default BPM 130 | Matches the BMS specification; not `0.0` |
 | Event ordering | Bar(0), then Note/BGA/BGM(1), then BPM(2), then Stop(3), then Scroll(4), then Speed(5), then Custom(6) |
+| Same-position notes | Later definition wins with `DuplicateNotePosition` (matching beatoraja); mines never overwrite and are dropped with `MineNoteConflict`; LNOBJ end markers displace with a warning, ch51-69 ends silently |
 | LNOBJ end silence | The end marker's WAV does not play (matching beatoraja/LR2/bmz); the RDM-spec end-marker BGM behavior is deliberately not implemented |
 | ch51-69 under LNOBJ | Mutually exclusive with LNOBJ (memo/10 leaves it undefined); not discarded, kept as ordinary visible notes |
 | Mine `damage` | `MineEvent.raw_value` (`Option<u16>`) goes through `mine_damage()`: `Some(1295)` gives INFINITY, `Some(n)` gives n/2, `None` gives 1.0 |

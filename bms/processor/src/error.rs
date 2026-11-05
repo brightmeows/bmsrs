@@ -164,6 +164,34 @@ pub enum ProcessWarningKind {
         tick: u64,
     },
 
+    /// Two playable notes landed on the same position; the later definition
+    /// wins (matching beatoraja) and the displaced note was removed.
+    #[error(
+        "duplicate note at tick {tick} (player {player}, lane {lane}) removed; the later definition wins"
+    )]
+    DuplicateNotePosition {
+        /// Player number of the removed note.
+        player: u8,
+        /// Lane number of the removed note.
+        lane: u8,
+        /// Tick where the conflict occurs.
+        tick: u64,
+    },
+
+    /// A mine note conflicted with an existing note or a long-note range and
+    /// was dropped (matching beatoraja).
+    #[error(
+        "mine note at tick {tick} (player {player}, lane {lane}) conflicts with an existing note or long-note range; dropped"
+    )]
+    MineNoteConflict {
+        /// Player number of the dropped mine.
+        player: u8,
+        /// Lane number of the dropped mine.
+        lane: u8,
+        /// Tick where the conflict occurs.
+        tick: u64,
+    },
+
     /// A channel value cannot be parsed as the type required by that channel;
     /// the event was skipped.
     #[error(transparent)]

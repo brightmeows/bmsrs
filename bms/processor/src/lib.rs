@@ -389,6 +389,14 @@ impl BmsConverter<'_> {
         }
     }
     /// Collect all playable notes into the event vector.
+    ///
+    /// Slot conflicts resolve in jbms-parser's channel processing order:
+    /// visible notes (file order) come first, ch51-69 notes treated as
+    /// visible under `#LNOBJ` follow, then paired long notes (start plus end
+    /// marker), then mines. A later note or long-note start overwrites the
+    /// same-position slot with a warning; an end marker overwrites silently
+    /// (ch51-69) or with that warning (`#LNOBJ`); a mine never overwrites an
+    /// occupied slot and is dropped instead, matching beatoraja.
     #[expect(
         clippy::too_many_lines,
         reason = "normal/invisible/LNOBJ/long-note/mine sources share one matching logic; splitting would fragment it"
@@ -400,29 +408,6 @@ impl BmsConverter<'_> {
         consumed: &HashSet<usize>,
         unpaired_starts: &[(u8, u8, u64)],
     ) {
-        let push_note = |tick: u64,
-                         side,
-                         lane,
-                         kind: NoteKind,
-                         audio: Option<AudioIndex>,
-                         ev: &mut Vec<BmsEvent>| {
-            if let Some((note_side, note_lane)) =
-                ChannelPos::new(side, lane).and_then(L::map_channel)
-            {
-                ev.push(Event::new(
-                    tick,
-                    EventKind::Note(Note {
-                        side: note_side,
-                        lane: note_lane,
-                        kind,
-                        role: NoteRole::Normal,
-                        audio: NoteAudio::from(audio),
-                        ext: (),
-                    }),
-                ));
-            }
-        };
-
         let base = self.bms.gameplay.base.unwrap_or_default();
         let mut check_wav =
             |wav_id: &WavIndex, player: u8, lane: u8, tick: u64| -> Option<AudioIndex> {
@@ -451,36 +436,51 @@ impl BmsConverter<'_> {
         // (player, lane) to Vec<(start_tick, end_tick)>.
         let ln_ranges = build_ln_ranges(paired_lns);
 
-        // Playable notes (skip consumed LNOBJ pairs; visible notes are also
-        // suppressed by LN ranges).
+        // Slot requests in jbms-parser's channel processing order. End
+        // markers occupy the slot without emitting an event.
+        let mut placements: Vec<Option<Placement>> = Vec::new();
+
+        // Visible notes (and LNOBJ markers). Notes inside a long-note range or
+        // on an unterminated long-note start keep the current behavior: they
+        // are dropped before any WAV lookup warning.
         for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
+            let tick = self.table.position_to_tick(ne.position);
             if consumed.contains(&i) {
+                // Paired long-note starts are re-emitted from `paired_lns`;
+                // only the end marker (its WAV equals `#LNOBJ`) occupies the
+                // slot here, warning on conflict like a visible note does.
+                let is_end = self
+                    .bms
+                    .gameplay
+                    .ln_obj
+                    .as_ref()
+                    .is_some_and(|ln_obj| *ne.wav_id == **ln_obj);
+                if is_end {
+                    placements.push(Some(Placement {
+                        tick,
+                        player: ne.player,
+                        lane: ne.lane,
+                        kind: PlacementKind::LnEnd { warn: true },
+                    }));
+                }
                 continue;
             }
-            let tick = self.table.position_to_tick(ne.position);
-            match ne.key_type {
-                KeyType::Visible => {
-                    if is_note_suppressed(ne.player, ne.lane, tick, &ln_ranges, unpaired_starts) {
-                        continue;
-                    }
-                    push_note(
-                        tick,
-                        ne.player,
-                        ne.lane,
-                        NoteKind::Normal,
-                        check_wav(&ne.wav_id, ne.player, ne.lane, tick),
-                        &mut self.events,
-                    );
-                }
-                KeyType::Invisible => push_note(
-                    tick,
-                    ne.player,
-                    ne.lane,
-                    NoteKind::Invisible,
-                    check_wav(&ne.wav_id, ne.player, ne.lane, tick),
-                    &mut self.events,
-                ),
+            if matches!(ne.key_type, KeyType::Visible)
+                && is_note_suppressed(ne.player, ne.lane, tick, &ln_ranges, unpaired_starts)
+            {
+                continue;
             }
+            let audio = check_wav(&ne.wav_id, ne.player, ne.lane, tick);
+            let kind = match ne.key_type {
+                KeyType::Visible => NoteKind::Normal,
+                KeyType::Invisible => NoteKind::Invisible,
+            };
+            placements.push(Some(Placement {
+                tick,
+                player: ne.player,
+                lane: ne.lane,
+                kind: PlacementKind::Note { kind, audio },
+            }));
         }
 
         // In LNOBJ mode, ch51-69 long-note channels are mutually exclusive with
@@ -489,43 +489,171 @@ impl BmsConverter<'_> {
         if self.bms.gameplay.ln_obj.is_some() {
             for lne in &self.bms.messages.long_note_events {
                 let tick = self.table.position_to_tick(lne.position);
-                push_note(
+                let audio = check_wav(&lne.wav_id, lne.player, lne.lane, tick);
+                placements.push(Some(Placement {
                     tick,
-                    lne.player,
-                    lne.lane,
-                    NoteKind::Normal,
-                    check_wav(&lne.wav_id, lne.player, lne.lane, tick),
-                    &mut self.events,
-                );
+                    player: lne.player,
+                    lane: lne.lane,
+                    kind: PlacementKind::Note {
+                        kind: NoteKind::Normal,
+                        audio,
+                    },
+                }));
             }
         }
 
-        // Paired long notes.
+        // Paired long notes: the start emits the long note; the end marker
+        // overwrites the slot silently (jbms-parser does not warn here).
         for ln in paired_lns {
-            push_note(
-                ln.tick,
-                ln.player,
-                ln.lane,
-                NoteKind::Long {
+            let audio = check_wav(&ln.wav_id, ln.player, ln.lane, ln.tick);
+            placements.push(Some(Placement {
+                tick: ln.tick,
+                player: ln.player,
+                lane: ln.lane,
+                kind: PlacementKind::Long {
                     duration: ln.duration,
+                    audio,
                 },
-                check_wav(&ln.wav_id, ln.player, ln.lane, ln.tick),
-                &mut self.events,
-            );
+            }));
+            placements.push(Some(Placement {
+                tick: ln.end_tick,
+                player: ln.player,
+                lane: ln.lane,
+                kind: PlacementKind::LnEnd { warn: false },
+            }));
         }
 
         // Mines.
         for me in &self.bms.messages.mine_events {
-            push_note(
-                self.table.position_to_tick(me.position),
-                me.player,
-                me.lane,
-                NoteKind::Mine {
+            placements.push(Some(Placement {
+                tick: self.table.position_to_tick(me.position),
+                player: me.player,
+                lane: me.lane,
+                kind: PlacementKind::Mine {
                     damage: Damage::new(mine_damage(me.raw_value)),
                 },
-                None,
-                &mut self.events,
-            );
+            }));
+        }
+
+        // Resolve slot conflicts. A later note or long-note start wins
+        // (beatoraja keeps only the last definition); mines never win.
+        let mut occupied: HashMap<(u8, u8, u64), usize> = HashMap::new();
+        for idx in 0..placements.len() {
+            let Some(placement) = placements.get(idx).cloned().flatten() else {
+                continue;
+            };
+            let key = (placement.player, placement.lane, placement.tick);
+            match &placement.kind {
+                // Invisible notes live on their own hidden slot in
+                // jbms-parser; they never conflict.
+                PlacementKind::Note {
+                    kind: NoteKind::Invisible,
+                    ..
+                } => {}
+                PlacementKind::Note { .. } | PlacementKind::Long { .. } => {
+                    if let Some(&prev) = occupied.get(&key) {
+                        self.warnings.push(ProcessWarning::new(
+                            None,
+                            ProcessWarningKind::DuplicateNotePosition {
+                                player: placement.player,
+                                lane: placement.lane,
+                                tick: placement.tick,
+                            },
+                        ));
+                        if let Some(prev_slot) = placements.get_mut(prev) {
+                            *prev_slot = None;
+                        }
+                    }
+                    occupied.insert(key, idx);
+                }
+                PlacementKind::LnEnd { warn } => {
+                    if let Some(&prev) = occupied.get(&key) {
+                        if *warn {
+                            self.warnings.push(ProcessWarning::new(
+                                None,
+                                ProcessWarningKind::DuplicateNotePosition {
+                                    player: placement.player,
+                                    lane: placement.lane,
+                                    tick: placement.tick,
+                                },
+                            ));
+                        }
+                        if let Some(prev_slot) = placements.get_mut(prev) {
+                            *prev_slot = None;
+                        }
+                    }
+                    occupied.insert(key, idx);
+                }
+                PlacementKind::Mine { .. } => {
+                    let in_range = ln_ranges
+                        .get(&(placement.player, placement.lane))
+                        .is_some_and(|ranges| {
+                            ranges.iter().any(|&(start, end)| {
+                                placement.tick >= start && placement.tick <= end
+                            })
+                        });
+                    if occupied.contains_key(&key) || in_range {
+                        self.warnings.push(ProcessWarning::new(
+                            None,
+                            ProcessWarningKind::MineNoteConflict {
+                                player: placement.player,
+                                lane: placement.lane,
+                                tick: placement.tick,
+                            },
+                        ));
+                        if let Some(slot) = placements.get_mut(idx) {
+                            *slot = None;
+                        }
+                    } else {
+                        occupied.insert(key, idx);
+                    }
+                }
+            }
+        }
+
+        // Emit surviving placements.
+        for placement in placements.into_iter().flatten() {
+            let Some((note_side, note_lane)) =
+                ChannelPos::new(placement.player, placement.lane).and_then(L::map_channel)
+            else {
+                continue;
+            };
+            match placement.kind {
+                PlacementKind::Note { kind, audio } => self.events.push(Event::new(
+                    placement.tick,
+                    EventKind::Note(Note {
+                        side: note_side,
+                        lane: note_lane,
+                        kind,
+                        role: NoteRole::Normal,
+                        audio: NoteAudio::from(audio),
+                        ext: (),
+                    }),
+                )),
+                PlacementKind::Long { duration, audio } => self.events.push(Event::new(
+                    placement.tick,
+                    EventKind::Note(Note {
+                        side: note_side,
+                        lane: note_lane,
+                        kind: NoteKind::Long { duration },
+                        role: NoteRole::Normal,
+                        audio: NoteAudio::from(audio),
+                        ext: (),
+                    }),
+                )),
+                PlacementKind::Mine { damage } => self.events.push(Event::new(
+                    placement.tick,
+                    EventKind::Note(Note {
+                        side: note_side,
+                        lane: note_lane,
+                        kind: NoteKind::Mine { damage },
+                        role: NoteRole::Normal,
+                        audio: NoteAudio::none(),
+                        ext: (),
+                    }),
+                )),
+                PlacementKind::LnEnd { .. } => {}
+            }
         }
     }
 
@@ -1442,6 +1570,52 @@ fn is_note_suppressed(
         }
     }
     unpaired_starts.contains(&(player, lane, tick))
+}
+
+/// One playable-note slot request built during note collection, resolved
+/// against jbms-parser's channel order (visible notes, then long notes, then
+/// mines) before any event is emitted.
+#[derive(Clone)]
+struct Placement {
+    /// Absolute tick of the slot.
+    tick: u64,
+    /// Player number (1 or 2).
+    player: u8,
+    /// Original lane (1-9).
+    lane: u8,
+    /// What occupies the slot.
+    kind: PlacementKind,
+}
+
+/// The occupant of a [`Placement`] slot.
+#[derive(Clone)]
+enum PlacementKind {
+    /// Normal or invisible note.
+    Note {
+        /// Note kind (normal or invisible).
+        kind: NoteKind,
+        /// Resolved keysound, if the WAV reference resolves.
+        audio: Option<AudioIndex>,
+    },
+    /// Long-note start; the duration reaches the paired end.
+    Long {
+        /// Hold duration in ticks.
+        duration: u64,
+        /// Resolved keysound of the start, if the WAV reference resolves.
+        audio: Option<AudioIndex>,
+    },
+    /// Long-note end marker: occupies the slot, emits nothing. `warn` is set
+    /// for LNOBJ markers, which warn on conflict like a visible note does
+    /// (jbms-parser); ch51-69 ends overwrite silently.
+    LnEnd {
+        /// Whether a displaced note produces a warning.
+        warn: bool,
+    },
+    /// Mine note.
+    Mine {
+        /// Damage value.
+        damage: Damage,
+    },
 }
 
 /// Build aligned bar events from the precomputed measure tick table.
