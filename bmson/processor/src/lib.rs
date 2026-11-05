@@ -809,6 +809,13 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, Proce
         miss_text: None,
         // BMSON has no key-bound BGA animations.
         swbga_resources: Vec::new(),
+        judge_rank: Some(bmsrs_chart::JudgeRankSpec {
+            value: bmson.chart_data.judge_multiplier * 100.0,
+            kind: bmsrs_chart::JudgeRankKind::BmsonJudgeRank,
+        }),
+        // BMSON has no #TOTAL or #VOLWAV concept.
+        total: None,
+        volwav_percent: None,
         subartists: bmson
             .chart_info
             .subartists

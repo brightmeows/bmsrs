@@ -99,6 +99,31 @@ pub use visual::{
     BgaLayer, BgaResource, BgaResourceId, CropRect, SwBgaResource, SwBgaResourceId, VideoAsset,
 };
 
+/// Chart-level judgment difficulty specification: the raw source value plus
+/// which command defined it.
+///
+/// The mapping from the percentage to concrete judgment windows is
+/// engine-specific and stays with the caller; this type carries the source
+/// value faithfully.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct JudgeRankSpec {
+    /// Raw judgment width percentage (`100` is the standard width).
+    pub value: f64,
+    /// Which source command defined the value.
+    pub kind: JudgeRankKind,
+}
+
+/// Source of a chart-level judgment difficulty value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum JudgeRankKind {
+    /// BMS `#RANK` index; the percentage meaning differs between engines.
+    BmsRank,
+    /// BMS `#DEFEXRANK` percentage.
+    DefExRank,
+    /// BMSON `judge_rank` percentage.
+    BmsonJudgeRank,
+}
+
 /// Song-level metadata, corresponding to BMSON v2's `SongInfo`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SongInfo {
@@ -145,6 +170,15 @@ pub struct ChartInfo {
     /// Total playable keys; `None` means the source format did not provide it or
     /// it cannot be inferred.
     pub key_count: Option<u8>,
+    /// Chart-level judgment difficulty. `None` means the source did not
+    /// specify it.
+    pub judge_rank: Option<JudgeRankSpec>,
+    /// Maximum life gauge increase (`#TOTAL`). `None` means the source did not
+    /// specify it.
+    pub total: Option<f64>,
+    /// Master volume percentage (`#VOLWAV`; `100` is the original volume).
+    /// `None` means the source did not specify it.
+    pub volwav_percent: Option<u8>,
 }
 
 /// Custom judgment-window offsets (DJ.NEXT extension).

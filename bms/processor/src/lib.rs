@@ -50,9 +50,9 @@ use bmsrs_bms_model::{
 use bmsrs_bms_model::{Bms, BpmValue, Gameplay, KeyType};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
-    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, Lane, LnTypeHint, Note,
-    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, SwBgaResource, SwBgaResourceId,
-    TimingTrack, TimingTrackError, VideoAsset,
+    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, JudgeRankKind, JudgeRankSpec,
+    Lane, LnTypeHint, Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent,
+    SwBgaResource, SwBgaResourceId, TimingTrack, TimingTrackError, VideoAsset,
 };
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
@@ -118,14 +118,6 @@ pub struct Processed {
 pub struct BmsGameplay {
     /// Game mode (`#PLAYER`).
     pub player: Option<PlayerMode>,
-    /// Judgment difficulty (`#RANK`).
-    pub rank: Option<Rank>,
-    /// Fine-grained judgment difficulty (`#DEFEXRANK`).
-    pub def_ex_rank: Option<f64>,
-    /// Maximum life gauge increase (`#TOTAL`).
-    pub total: Option<f64>,
-    /// Master volume percentage (`#VOLWAV`).
-    pub vol_wav: Option<f64>,
     /// Per-position judgment width overrides (`#EXRANKxx`).
     pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
     /// Engine-specific option string (`#OPTION`).
@@ -138,10 +130,6 @@ impl From<&Gameplay> for BmsGameplay {
     fn from(gameplay: &Gameplay) -> Self {
         Self {
             player: gameplay.player,
-            rank: gameplay.rank,
-            def_ex_rank: gameplay.def_ex_rank,
-            total: gameplay.total,
-            vol_wav: gameplay.vol_wav,
             ex_rank_defs: gameplay.ex_rank_defs.clone(),
             option: gameplay.option.clone(),
             change_option_defs: gameplay.change_option_defs.clone(),
@@ -1237,6 +1225,19 @@ impl BmsConverter<'_> {
             .iter()
             .find(|(id, _)| id.to_index_in(self.bms.gameplay.base.unwrap_or_default()) == Some(0))
             .map(|(_, value)| value.clone());
+        // Judgment difficulty: #DEFEXRANK (percentage) refines #RANK (engine
+        // specific index), so it wins when both are present.
+        let judge_rank = match (self.bms.gameplay.def_ex_rank, self.bms.gameplay.rank) {
+            (Some(value), _) => Some(JudgeRankSpec {
+                value,
+                kind: JudgeRankKind::DefExRank,
+            }),
+            (None, Some(rank)) => Some(JudgeRankSpec {
+                value: rank_value(rank),
+                kind: JudgeRankKind::BmsRank,
+            }),
+            (None, None) => None,
+        };
         (
             SongInfo {
                 title: self.bms.metadata.title.clone().unwrap_or_default(),
@@ -1269,6 +1270,9 @@ impl BmsConverter<'_> {
                 swbga_resources,
                 video,
                 key_count: key_count(&self.events),
+                judge_rank,
+                total: self.bms.gameplay.total,
+                volwav_percent: self.bms.gameplay.vol_wav.map(|v| v.round() as u8),
             },
         )
     }
@@ -1311,6 +1315,18 @@ const fn map_bga_layer(layer: BmsBgaLayer) -> bmsrs_chart::BgaLayer {
         BmsBgaLayer::Poor => bmsrs_chart::BgaLayer::Poor,
         BmsBgaLayer::Layer => bmsrs_chart::BgaLayer::Layer,
         BmsBgaLayer::Layer2 => bmsrs_chart::BgaLayer::Layer2,
+    }
+}
+
+/// Return the numeric `#RANK` index of a [`Rank`] variant.
+const fn rank_value(rank: Rank) -> f64 {
+    match rank {
+        Rank::VeryHard => 0.0,
+        Rank::Hard => 1.0,
+        Rank::Normal => 2.0,
+        Rank::Easy => 3.0,
+        Rank::VeryEasy => 4.0,
+        Rank::Other(n) => n as f64,
     }
 }
 

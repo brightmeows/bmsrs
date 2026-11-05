@@ -5,7 +5,7 @@ use std::path::Path;
 
 use bmsrs_bms_model::{
     BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent,
-    NonEventData, NoteEvent, Position, StpEvent,
+    NonEventData, NoteEvent, Position, Rank, StpEvent,
 };
 use bmsrs_bms_model::{BmsChannel, BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
@@ -319,6 +319,41 @@ fn undefined_exrank_reference_warns_and_is_skipped() {
             .iter()
             .all(|e| !matches!(&e.kind, EventKind::JudgeRank { .. })),
         "skipped judge events must not appear"
+    );
+}
+
+#[test]
+fn gameplay_headers_enter_chart_info() {
+    let mut bms = Bms::default();
+    bms.gameplay.def_ex_rank = Some(150.0);
+    bms.gameplay.total = Some(200.0);
+    bms.gameplay.vol_wav = Some(120.0);
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let info = chart.chart_info();
+    assert_eq!(
+        info.judge_rank,
+        Some(bmsrs_chart::JudgeRankSpec {
+            value: 150.0,
+            kind: bmsrs_chart::JudgeRankKind::DefExRank,
+        })
+    );
+    assert_eq!(info.total, Some(200.0));
+    assert_eq!(info.volwav_percent, Some(120));
+}
+
+#[test]
+fn rank_header_maps_to_bms_rank_kind() {
+    let mut bms = Bms::default();
+    bms.gameplay.rank = Some(Rank::Hard);
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    assert_eq!(
+        chart.chart_info().judge_rank,
+        Some(bmsrs_chart::JudgeRankSpec {
+            value: 1.0,
+            kind: bmsrs_chart::JudgeRankKind::BmsRank,
+        })
     );
 }
 
