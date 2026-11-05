@@ -1014,21 +1014,42 @@ impl BmsConverter<'_> {
     /// Build stop events from the `#STP` header command (duration in
     /// milliseconds).
     ///
-    /// Negative `#STP` durations are clamped to `0` (skipped) with a warning.
-    /// beatoraja does not implement `#STP` at all; the clamp mirrors the
-    /// `#STOP` channel policy above.
+    /// Entries at the same position accumulate per the specification: the
+    /// example pair `#STP 001.500 500` and `#STP 001.500 4000` stops scrolling
+    /// for 4500 ms in total. Entries are grouped by the resolved tick, so
+    /// distinct positions that quantize to the same tick also merge into one
+    /// stop. Non-positive durations are skipped; negative entries warn with
+    /// [`ProcessWarningKind::StopDurationClipped`], mirroring the `#STOP`
+    /// channel policy above. beatoraja does not implement `#STP` at all.
     #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    fn build_stops_from_stp(&self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
-        self.bms
-            .messages
-            .stp_events
-            .iter()
-            .map(|stp| {
-                let tick = self.table.position_to_tick(stp.position);
+    fn build_stops_from_stp(&mut self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
+        let mut totals_ms: BTreeMap<u64, f64> = BTreeMap::new();
+        for stp in &self.bms.messages.stp_events {
+            let tick = self.table.position_to_tick(stp.position);
+            if stp.duration_ms < 0.0 {
                 let bpm = bpm_lookup.bpm_at_tick(tick);
                 let tick_duration = stp.duration_ms / 1000.0 * bpm / 60.0 * RESOLUTION as f64;
+                self.warnings.push(ProcessWarning::new(
+                    None,
+                    ProcessWarningKind::StopDurationClipped {
+                        tick,
+                        original: tick_duration,
+                    },
+                ));
+                continue;
+            }
+            if stp.duration_ms == 0.0 {
+                continue;
+            }
+            *totals_ms.entry(tick).or_default() += stp.duration_ms;
+        }
+        totals_ms
+            .into_iter()
+            .map(|(tick, total_ms)| {
+                let bpm = bpm_lookup.bpm_at_tick(tick);
+                let tick_duration = total_ms / 1000.0 * bpm / 60.0 * RESOLUTION as f64;
                 StopEvent {
                     tick,
                     duration: tick_duration.round().max(0.0) as u64,

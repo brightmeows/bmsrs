@@ -4,7 +4,7 @@ use std::num::NonZeroU8;
 use std::path::Path;
 
 use bmsrs_bms_model::{
-    BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position,
+    BgmEvent, Bms, BpmChange, BpmValue, KeyType, LongNoteEvent, NoteEvent, Position, StpEvent,
 };
 use bmsrs_bms_model::{BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
@@ -150,6 +150,83 @@ fn process_rejects_zero_bpm() {
     let result = BmsProcessor::process::<Bme>(&bms);
 
     assert!(matches!(result, Err(ProcessError::ZeroBpm)));
+}
+
+#[test]
+fn stp_entries_at_same_position_accumulate() {
+    // The specification example: two `#STP` lines at `001.500` stop scrolling
+    // for 4500 ms in total, not last-wins.
+    let mut bms = Bms::default();
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(1, 500, 1000),
+        duration_ms: 500.0,
+    });
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(1, 500, 1000),
+        duration_ms: 4000.0,
+    });
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+
+    let stops: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Stop { duration } = &e.kind {
+                Some((e.tick(), *duration))
+            } else {
+                None
+            }
+        })
+        .collect();
+    // Measure 1 starts at tick 960; position 500/1000 adds 480 ticks.
+    // Default BPM 130: 4500 ms = 9.75 beats = 2340 ticks at resolution 240.
+    assert_eq!(
+        stops.len(),
+        1,
+        "same-position entries must merge into a single stop"
+    );
+    assert_eq!(stops[0], (1440, 2340));
+}
+
+#[test]
+fn negative_stp_entry_warns_and_is_skipped() {
+    let mut bms = Bms::default();
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(1, 0, 1),
+        duration_ms: -500.0,
+    });
+    bms.messages.stp_events.push(StpEvent {
+        position: Position::new(2, 0, 1),
+        duration_ms: 1000.0,
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let stops: Vec<_> = processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Stop { duration } = &e.kind {
+                Some((e.tick(), *duration))
+            } else {
+                None
+            }
+        })
+        .collect();
+    // Only the positive entry survives; the negative one is dropped.
+    assert_eq!(stops.len(), 1);
+    // 1000 ms at default BPM 130 = 520 ticks, at measure 2 (tick 1920).
+    assert_eq!(stops[0], (1920, 520));
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            warning.kind,
+            ProcessWarningKind::StopDurationClipped { tick: 960, .. }
+        )
+    }));
 }
 
 #[test]
