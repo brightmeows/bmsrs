@@ -208,8 +208,8 @@ impl BmsProcessor {
         let bpm_changes = conv.build_bpm_changes();
         let bpm_lookup = BpmLookup::new(init_bpm, &bpm_changes);
 
-        let mut stops = conv.build_stops_from_defs();
-        stops.extend(conv.build_stops_from_stp(&bpm_lookup));
+        let mut stops = conv.build_stops_from_defs(&bpm_lookup);
+        stops.extend(conv.build_stops_from_stp());
         stops.sort_by_key(|s| s.tick);
 
         let timing = TimingTrack::new(init_bpm, bpm_changes, stops, RESOLUTION)?;
@@ -1112,10 +1112,7 @@ impl BmsConverter<'_> {
     /// Angolmois ignores negative definitions and bms-rs rejects them at the
     /// parse layer; beatoraja instead plays the absolute value, a deliberate
     /// difference here.
-    #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
-    #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
-    #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    fn build_stops_from_defs(&mut self) -> Vec<StopEvent> {
+    fn build_stops_from_defs(&mut self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
         let base = self.bms.gameplay.base.unwrap_or_default();
         self.bms
             .messages
@@ -1125,19 +1122,22 @@ impl BmsConverter<'_> {
                 let tick = self.table.position_to_tick(se.position);
                 let span = self.message_span(se.position.measure(), &[RawChannel::Stop]);
                 if let Some(&raw) = self.bms.timing.stop_defs.get(&se.stop_id) {
-                    let duration = (raw / 192.0 * RESOLUTION as f64 * 4.0).round();
-                    if duration < 0.0 {
+                    // The raw value counts 1/192 notes; the pause length in
+                    // seconds depends on the BPM in effect at the stop tick.
+                    let secs = (raw / 192.0 * 4.0) * 60.0 / bpm_lookup.bpm_at_tick(tick).abs();
+                    if secs < 0.0 {
                         self.warnings.push(ProcessWarning::new(
                             span,
                             ProcessWarningKind::StopDurationClipped {
                                 tick,
-                                original: duration,
+                                original: secs,
                             },
                         ));
                     }
                     Some(StopEvent {
                         tick,
-                        duration: duration.max(0.0) as u64,
+                        duration: Duration::try_from_secs_f64(secs.max(0.0))
+                            .unwrap_or(Duration::ZERO),
                     })
                 } else {
                     if let Some(key) = se.stop_id.to_index_in(base) {
@@ -1162,21 +1162,16 @@ impl BmsConverter<'_> {
     /// stop. Non-positive durations are skipped; negative entries warn with
     /// [`ProcessWarningKind::StopDurationClipped`], mirroring the `#STOP`
     /// channel policy above. beatoraja does not implement `#STP` at all.
-    #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
-    #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
-    #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
-    fn build_stops_from_stp(&mut self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
+    fn build_stops_from_stp(&mut self) -> Vec<StopEvent> {
         let mut totals_ms: BTreeMap<u64, f64> = BTreeMap::new();
         for stp in &self.bms.messages.stp_events {
             let tick = self.table.position_to_tick(stp.position);
             if stp.duration_ms < 0.0 {
-                let bpm = bpm_lookup.bpm_at_tick(tick);
-                let tick_duration = stp.duration_ms / 1000.0 * bpm / 60.0 * RESOLUTION as f64;
                 self.warnings.push(ProcessWarning::new(
                     None,
                     ProcessWarningKind::StopDurationClipped {
                         tick,
-                        original: tick_duration,
+                        original: stp.duration_ms / 1000.0,
                     },
                 ));
                 continue;
@@ -1188,13 +1183,9 @@ impl BmsConverter<'_> {
         }
         totals_ms
             .into_iter()
-            .map(|(tick, total_ms)| {
-                let bpm = bpm_lookup.bpm_at_tick(tick);
-                let tick_duration = total_ms / 1000.0 * bpm / 60.0 * RESOLUTION as f64;
-                StopEvent {
-                    tick,
-                    duration: tick_duration.round().max(0.0) as u64,
-                }
+            .map(|(tick, total_ms)| StopEvent {
+                tick,
+                duration: Duration::try_from_secs_f64(total_ms / 1000.0).unwrap_or(Duration::ZERO),
             })
             .collect()
     }

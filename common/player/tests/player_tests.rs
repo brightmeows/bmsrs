@@ -214,7 +214,10 @@ fn player_next_event_after_is_strict() {
 
 #[test]
 fn player_events_in_time_range_handles_stop() {
-    let chart = make_test_chart_with(vec![Event::stop(240, 240), Event::bar(300)]);
+    let chart = make_test_chart_with(vec![
+        Event::stop(240, Duration::from_millis(500)),
+        Event::bar(300),
+    ]);
     let player = Player::new(chart);
 
     // The stop at tick 240 runs from 0.5s to 1.0s. Tick 300 activates at
@@ -228,7 +231,7 @@ fn player_events_in_time_range_handles_stop() {
 
 #[test]
 fn player_events_in_time_range_includes_stop_tick_event() {
-    let chart = make_test_chart_with(vec![Event::stop(240, 240)]);
+    let chart = make_test_chart_with(vec![Event::stop(240, Duration::from_millis(500))]);
     let player = Player::new(chart);
 
     // The STOP and the BGM at tick 240 both activate at 0.5s. The coarse tick
@@ -388,7 +391,7 @@ fn player_advance_with_bpm_change() {
 
 #[test]
 fn player_advance_with_stop() {
-    let chart = make_test_chart_with(vec![Event::stop(240, 240)]);
+    let chart = make_test_chart_with(vec![Event::stop(240, Duration::from_millis(500))]);
     let mut player = Player::new(chart);
 
     // 0 to 0.5s (240 ticks at 120 BPM): should be at tick 240
@@ -405,7 +408,7 @@ fn player_advance_with_stop() {
 
 #[test]
 fn frame_wise_advance_crosses_stop() {
-    let chart = make_test_chart_with(vec![Event::stop(240, 240)]);
+    let chart = make_test_chart_with(vec![Event::stop(240, Duration::from_millis(500))]);
     let mut player = Player::new(chart);
 
     // A 3-second 60fps frame loop: 180 frames at 1/60s. The frozen segment is

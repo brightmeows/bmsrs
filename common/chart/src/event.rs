@@ -19,6 +19,7 @@
 //! `Stop` (3), then `Scroll` (4), then `Speed` (5), then `Custom` (6).
 
 use std::fmt::Debug;
+use std::time::Duration;
 
 use crate::audio::AudioIndex;
 use crate::mode::{Lane, NoteSide};
@@ -56,8 +57,8 @@ pub enum EventKind<T, C: CustomEvent = NoCustomEvent> {
     },
     /// Stop / pause event.
     Stop {
-        /// Stop duration in ticks.
-        duration: u64,
+        /// Pause duration; scrolling freezes while time keeps flowing.
+        duration: Duration,
     },
     /// Scroll speed multiplier change.
     Scroll {
@@ -271,7 +272,7 @@ impl<T: NoteExt, C: CustomEvent> Event<T, C> {
 
     /// Create a stop event.
     #[must_use]
-    pub const fn stop(tick: u64, duration: u64) -> Self {
+    pub const fn stop(tick: u64, duration: Duration) -> Self {
         Self::new(tick, EventKind::Stop { duration })
     }
 

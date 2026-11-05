@@ -681,16 +681,13 @@ fn normalize_optional_path(option: Option<&Path>) -> Result<Option<String>, Proc
 /// where the last stop at a position wins. Folding before `TimingTrack`
 /// construction keeps the timing track and the emitted stop events
 /// consistent.
-fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<StopEvent> {
+fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<(u64, u64)> {
     let mut durations_by_tick: BTreeMap<u64, u64> = BTreeMap::new();
     for event in stop_events {
         let total = durations_by_tick.entry(event.y).or_default();
         *total = total.saturating_add(event.duration);
     }
-    durations_by_tick
-        .into_iter()
-        .map(|(tick, duration)| StopEvent { tick, duration })
-        .collect()
+    durations_by_tick.into_iter().collect()
 }
 
 /// Build a [`TimingTrack`] from BMSON chart data.
@@ -700,12 +697,25 @@ fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<StopEvent> {
 /// Returns [`TimingTrackError::InvalidBpm`] when `data.init_bpm` is invalid
 /// (zero or non-finite).
 fn build_timing(data: &bmsrs_bmson_model::ChartData) -> Result<TimingTrack, TimingTrackError> {
-    TimingTrack::new(
-        data.init_bpm,
-        data.bpm_events.iter().map(build_bpm_change).collect(),
-        fold_stops(&data.stop_events),
-        data.resolution,
-    )
+    let bpm_changes: Vec<BpmChange> = data.bpm_events.iter().map(build_bpm_change).collect();
+    let lookup = bmsrs_chart::BpmLookup::new(data.init_bpm, &bpm_changes);
+    let stops = fold_stops(&data.stop_events)
+        .into_iter()
+        .map(|stop| {
+            // The folded pulse sum converts to seconds at the BPM in effect at
+            // the stop tick (pulses and ticks share the resolution scale).
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "pulse counts and resolution fit in f64 exactly for chart ranges"
+            )]
+            let secs = stop.1 as f64 / data.resolution as f64 * 60.0 / lookup.bpm_at_tick(stop.0);
+            StopEvent {
+                tick: stop.0,
+                duration: Duration::try_from_secs_f64(secs.max(0.0)).unwrap_or(Duration::ZERO),
+            }
+        })
+        .collect();
+    TimingTrack::new(data.init_bpm, bpm_changes, stops, data.resolution)
 }
 
 /// Build [`BmsonNoteExt`] from a BMSON [`NoteEvent`](bmsrs_bmson_model::NoteEvent).

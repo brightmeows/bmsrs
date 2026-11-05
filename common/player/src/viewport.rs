@@ -376,7 +376,7 @@ mod tests {
         let player = Player::new(chart(vec![
             Event::bar(240),
             note(300),
-            Event::stop(240, 240),
+            Event::stop(240, Duration::from_millis(500)),
         ]));
         let viewport = Viewport::new(1.0, 1.0);
         assert_eq!(
@@ -400,7 +400,11 @@ mod tests {
                 ext: (),
             }),
         );
-        let player = Player::new(chart(vec![long, Event::bar(240), Event::stop(240, 240)]));
+        let player = Player::new(chart(vec![
+            long,
+            Event::bar(240),
+            Event::stop(240, Duration::from_millis(500)),
+        ]));
         let viewport = Viewport::new(1.0, 1.0);
         assert_eq!(
             viewport

@@ -268,10 +268,22 @@ fn event_priority_order() {
     );
     assert!(
         Event::<()>::new(0, EventKind::Bpm { bpm: 120.0 },).priority()
-            < Event::<()>::new(0, EventKind::Stop { duration: 192 },).priority()
+            < Event::<()>::new(
+                0,
+                EventKind::Stop {
+                    duration: Duration::from_millis(192)
+                },
+            )
+            .priority()
     );
     assert!(
-        Event::<()>::new(0, EventKind::Stop { duration: 192 },).priority()
+        Event::<()>::new(
+            0,
+            EventKind::Stop {
+                duration: Duration::from_millis(192)
+            },
+        )
+        .priority()
             < Event::<()>::new(0, EventKind::Scroll { rate: 1.0 }).priority()
     );
     assert!(
@@ -505,7 +517,7 @@ fn tick_to_duration_with_stop() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         240,
     )
@@ -534,7 +546,7 @@ fn duration_to_tick_with_stop() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         240,
     )
@@ -608,10 +620,10 @@ fn bpm_change_fields() {
 fn stop_event_fields() {
     let se = StopEvent {
         tick: 480,
-        duration: 192,
+        duration: Duration::from_millis(192),
     };
     assert_eq!(se.tick, 480);
-    assert_eq!(se.duration, 192);
+    assert_eq!(se.duration, Duration::from_millis(192));
 }
 
 // NoCustomEvent is a pure marker type with no behavior to test.

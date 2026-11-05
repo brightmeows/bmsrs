@@ -65,7 +65,7 @@ fn stop_before_target_adds_pause_time() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         RES,
     )
@@ -82,7 +82,7 @@ fn musical_duration_excludes_stop_pause() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         RES,
     )
@@ -100,7 +100,7 @@ fn stop_at_target_tick_excludes_pause() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         RES,
     )
@@ -117,11 +117,11 @@ fn multiple_stops_same_tick_keep_last() {
         vec![
             StopEvent {
                 tick: 240,
-                duration: 240,
+                duration: Duration::from_millis(500),
             },
             StopEvent {
                 tick: 240,
-                duration: 960,
+                duration: Duration::from_secs(2),
             },
         ],
         RES,
@@ -142,7 +142,7 @@ fn bpm_before_stop_at_same_tick() {
         }],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_secs(1),
         }],
         RES,
     )
@@ -182,7 +182,7 @@ fn duration_to_tick_within_stop_returns_stop_tick() {
         vec![],
         vec![StopEvent {
             tick: 240,
-            duration: 240,
+            duration: Duration::from_millis(500),
         }],
         RES,
     )
@@ -207,11 +207,11 @@ fn cache_duration_to_tick_matches_timing_track() {
         vec![
             StopEvent {
                 tick: 960,
-                duration: 480,
+                duration: Duration::from_millis(600),
             },
             StopEvent {
                 tick: 2400,
-                duration: 960,
+                duration: Duration::from_millis(2400),
             },
         ],
         RES,
@@ -303,7 +303,7 @@ fn roundtrip_tick_to_duration_and_back() {
         ],
         vec![StopEvent {
             tick: 960,
-            duration: 480,
+            duration: Duration::from_millis(600),
         }],
         RES,
     )

@@ -2,6 +2,7 @@
 
 use std::num::NonZeroU8;
 use std::path::Path;
+use std::time::Duration;
 
 use bmsrs_bms_model::{
     BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent,
@@ -392,7 +393,7 @@ fn stp_entries_at_same_position_accumulate() {
         1,
         "same-position entries must merge into a single stop"
     );
-    assert_eq!(stops[0], (1440, 2340));
+    assert_eq!(stops[0], (1440, Duration::from_millis(4500)));
 }
 
 #[test]
@@ -425,7 +426,7 @@ fn negative_stp_entry_warns_and_is_skipped() {
     // Only the positive entry survives; the negative one is dropped.
     assert_eq!(stops.len(), 1);
     // 1000 ms at default BPM 130 = 520 ticks, at measure 2 (tick 1920).
-    assert_eq!(stops[0], (1920, 520));
+    assert_eq!(stops[0], (1920, Duration::from_millis(1000)));
     assert!(processed.warnings.iter().any(|warning| {
         matches!(
             warning.kind,
