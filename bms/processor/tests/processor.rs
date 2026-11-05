@@ -1220,6 +1220,39 @@ fn mine_inside_long_note_range_is_dropped() {
 }
 
 #[test]
+fn mine_on_unterminated_long_note_start_is_dropped() {
+    // jbms-parser keeps an unterminated long-note start on the slot until it
+    // is removed at the end of the song, so a mine sharing its position is
+    // dropped.
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.audio
+        .wav_files
+        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.messages.long_note_events.push(LongNoteEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        wav_id: "01".parse().unwrap(),
+    });
+    bms.messages.mine_events.push(MineEvent {
+        position: Position::new(0, 0, 8),
+        player: 1,
+        lane: 1,
+        raw_value: None,
+    });
+
+    let processed = BmsProcessor::process::<Bme>(&bms).unwrap();
+    assert_eq!(count_mines(&processed.value.chart), 0);
+    assert!(processed.warnings.iter().any(|warning| {
+        matches!(
+            &warning.kind,
+            ProcessWarningKind::MineNoteConflict { tick: 0, .. }
+        )
+    }));
+}
+
+#[test]
 fn lnobj_end_position_note_is_dropped_silently() {
     // A visible note sharing the LNOBJ end marker's position falls inside the
     // long-note range [start, end] and is dropped by range suppression before

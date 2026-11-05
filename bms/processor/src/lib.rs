@@ -592,7 +592,15 @@ impl BmsConverter<'_> {
                                 placement.tick >= start && placement.tick <= end
                             })
                         });
-                    if occupied.contains_key(&key) || in_range {
+                    // An unterminated long-note start occupies the slot in
+                    // jbms-parser until it is removed at the end of the song,
+                    // so a mine on it is dropped either way.
+                    let on_unpaired_start = unpaired_starts.contains(&(
+                        placement.player,
+                        placement.lane,
+                        placement.tick,
+                    ));
+                    if occupied.contains_key(&key) || in_range || on_unpaired_start {
                         self.warnings.push(ProcessWarning::new(
                             None,
                             ProcessWarningKind::MineNoteConflict {
