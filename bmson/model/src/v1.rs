@@ -282,10 +282,12 @@ impl From<RootBmson> for Bmson {
             preview_music: root.chart_info.preview_music,
             title_image: root.chart_info.title_image,
             resolution: root.chart_data.resolution,
-            ln_type: root.chart_data.ln_type_hint.and_then(|hint| match hint {
-                crate::LnType::Cn => Some(crate::LnMode::Cn),
-                crate::LnType::Hcn => Some(crate::LnMode::Hcn),
-                crate::LnType::Ln => None, // Ln is the default; no need to serialize.
+            ln_type: root.chart_data.ln_type_hint.map(|hint| match hint {
+                crate::LnType::Cn => crate::LnMode::Cn,
+                crate::LnType::Hcn => crate::LnMode::Hcn,
+                // An explicit `ln` stays explicit so the undeclared state
+                // survives v2 -> v1 -> v2 roundtrips.
+                crate::LnType::Ln => crate::LnMode::Ln,
             }),
         };
 

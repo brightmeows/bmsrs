@@ -80,6 +80,21 @@ fn bmson_serde_roundtrip() {
 }
 
 #[test]
+fn ln_type_hint_none_is_omitted_from_json() {
+    // BMSON v2 declares `ln_type_hint` as a non-null `DOMString`; an
+    // undeclared hint must be omitted from the output, not serialized as
+    // `null`, so strict readers still accept the file.
+    let mut bmson = make_test_bmson();
+    bmson.chart_data.ln_type_hint = None;
+
+    let json = serde_json::to_string(&bmson).unwrap();
+    assert!(!json.contains("ln_type_hint"));
+
+    let back: Bmson = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.chart_data.ln_type_hint, None);
+}
+
+#[test]
 fn bmson_minimal_roundtrip() {
     let json = r#"{
         "version": "2.0.0",

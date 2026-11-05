@@ -396,7 +396,13 @@ impl TryFrom<crate::Bmson> for Bmson {
             preview_music: root.chart_info.preview_music,
             title_image: root.chart_info.title_image,
             resolution: root.chart_data.resolution,
-            ln_type: None,
+            ln_type: root.chart_data.ln_type_hint.map(|hint| match hint {
+                crate::LnType::Cn => crate::LnMode::Cn,
+                crate::LnType::Hcn => crate::LnMode::Hcn,
+                // An explicit `ln` stays explicit so the undeclared state
+                // survives v2 -> v0 -> v2 roundtrips.
+                crate::LnType::Ln => crate::LnMode::Ln,
+            }),
         };
 
         let bpm_notes: Vec<EventNote> = root

@@ -254,6 +254,85 @@ fn v1_root_to_v1_ln_type_roundtrip() {
 }
 
 #[test]
+fn v1_explicit_ln_roundtrips_as_explicit() {
+    // An explicit `lnType: 1` must survive v1 -> v2 -> v1 as an explicit
+    // value: `None` on the v1 side now means "not declared", not the default.
+    let v1_json = r#"{
+        "version": "1.0.0",
+        "info": {
+            "title": "T", "subtitle": "", "artist": "A", "subartists": [],
+            "genre": "G", "mode_hint": "beat-7k", "chart_name": "", "level": 1,
+            "init_bpm": 140.0, "judge_rank": 100, "total": 100, "resolution": 240,
+            "lnType": 1
+        },
+        "lines": null, "bpm_events": [], "stop_events": null,
+        "sound_channels": [],
+        "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
+    }"#;
+    let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
+    assert_eq!(v1.info.ln_type, Some(bmsrs_bmson_model::LnMode::Ln));
+
+    let root: Bmson = v1.into();
+    assert_eq!(
+        root.chart_data.ln_type_hint,
+        Some(bmsrs_bmson_model::LnType::Ln)
+    );
+
+    let back: bmsrs_bmson_model::v1::Bmson = root.into();
+    assert_eq!(back.info.ln_type, Some(bmsrs_bmson_model::LnMode::Ln));
+}
+
+#[test]
+fn v0_try_from_writes_explicit_ln_type_hint() {
+    // The v0 downgrade maps an explicit chart-level hint back to the v0
+    // `lnType` extension field instead of dropping it.
+    use bmsrs_bmson_model::{ChartData, ChartInfo, SongInfo};
+
+    let root = Bmson {
+        version: "2.0.0".to_owned(),
+        song_info: SongInfo {
+            title: "T".to_owned(),
+            artist: "A".to_owned(),
+            genre: "G".to_owned(),
+        },
+        chart_info: ChartInfo {
+            subtitle: String::new(),
+            subartists: vec![],
+            chart_name: String::new(),
+            level: 1,
+            back_image: None,
+            eyecatch_image: None,
+            banner_image: None,
+            preview_music: None,
+            title_image: None,
+            bga: bmsrs_bmson_model::BGA::default(),
+        },
+        chart_data: ChartData {
+            mode_hint: bmsrs_bmson_model::ModeHint::Beat7k,
+            ln_type_hint: Some(bmsrs_bmson_model::LnType::Cn),
+            ln_judge_hint: bmsrs_bmson_model::LnJudge::Normal,
+            ln_life_hint: bmsrs_bmson_model::LnLife::Normal,
+            init_bpm: 140.0,
+            judge_multiplier: 1.0,
+            life_multiplier: 1.0,
+            resolution: 240,
+            lines: None,
+            bpm_events: vec![],
+            stop_events: vec![],
+            sound_channels: vec![],
+            judge_deltas: None,
+            life_deltas: None,
+        },
+        scroll_events: vec![],
+        mine_channels: vec![],
+        key_channels: vec![],
+    };
+
+    let v0: bmsrs_bmson_model::v0::Bmson = bmsrs_bmson_model::v0::Bmson::try_from(root).unwrap();
+    assert_eq!(v0.info.ln_type, Some(bmsrs_bmson_model::LnMode::Cn));
+}
+
+#[test]
 fn v0_info_ln_type_maps_to_ln_type_hint() {
     let v0_json = r#"{
         "info": {
