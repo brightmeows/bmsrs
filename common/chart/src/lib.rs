@@ -82,6 +82,7 @@
 //! ```
 
 use std::fmt;
+use std::time::Duration;
 
 pub mod audio;
 pub mod event;
@@ -480,6 +481,60 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     pub const fn with_life_deltas(mut self, value: Option<LifeDeltas>) -> Self {
         self.life_deltas = value;
         self
+    }
+
+    /// Shift the whole chart forward so that the first judgeable note lands at
+    /// least `margin` after tick 0 (beatoraja `setStartNoteTime` semantics).
+    ///
+    /// The shift is computed against the initial BPM; every event moves by the
+    /// same tick delta except the leading bar line, which stays at tick 0.
+    /// Invisible notes do not count as triggers. The chart data is returned
+    /// unchanged when the first note already sits at or after `margin`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChartDataError`] when the shifted event stream violates a
+    /// chart invariant.
+    pub fn with_start_margin(self, margin: Duration) -> Result<Self, ChartDataError> {
+        let timing = TimingTrack::from_events(self.init_bpm, self.resolution, &self.events)?;
+        let Some(first_tick) = self.events.iter().find_map(|event| match &event.kind {
+            EventKind::Note(note) if note.kind != NoteKind::Invisible => Some(event.tick()),
+            _ => None,
+        }) else {
+            return Ok(self);
+        };
+        let first_time = timing.tick_to_duration(first_tick);
+        if first_time >= margin {
+            return Ok(self);
+        }
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the margin exceeds the first note time, so the delta is positive and small"
+        )]
+        let delta_ticks = margin
+            .checked_sub(first_time)
+            // Defensive: `first_time >= margin` was rejected above.
+            .unwrap_or_default()
+            .as_secs_f64()
+            * self.init_bpm
+            / 60.0
+            * self.resolution as f64;
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "ceil() makes the delta a positive integer; one tick is the minimum shift"
+        )]
+        let delta = delta_ticks.ceil() as u64;
+        self.rebuild_events(|event| {
+            // The bar line at tick 0 stays: it doubles as the leading bar line
+            // beatoraja shows before the shifted chart.
+            let tick = if matches!(event.kind, EventKind::Bar) && event.tick() == 0 {
+                0
+            } else {
+                event.tick().saturating_add(delta)
+            };
+            Some(Event::new(tick, event.kind))
+        })
     }
 
     /// Return the tick of the last event in the chart data.

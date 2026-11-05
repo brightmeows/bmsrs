@@ -831,3 +831,86 @@ fn validate_accepts_consistent_bga_references() {
 
     assert!(Chart::new(SongInfo::default(), chart_info, data).is_ok());
 }
+
+#[test]
+fn start_margin_shifts_chart_so_first_note_reaches_margin() {
+    let note = |tick: u64| {
+        Event::new(
+            tick,
+            EventKind::Note(Note {
+                side: NoteSide::P1,
+                lane: Lane::Key(nz(1)),
+                kind: NoteKind::Normal,
+                role: NoteRole::Normal,
+                audio: NoteAudio::none(),
+                ext: (),
+            }),
+        )
+    };
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![
+            Event::bar(0),
+            Event::bgm(120, AudioIndex::new(0)),
+            note(240),
+        ],
+        vec![AudioAsset::from_path_buf(
+            std::path::PathBuf::from("test.wav"),
+            Duration::ZERO,
+            None,
+        )],
+    )
+    .unwrap();
+
+    let shifted = data
+        .with_start_margin(Duration::from_secs(1))
+        .expect("shifted chart should be valid");
+
+    // Delta = 0.5 s at 120 BPM = 240 ticks; the leading bar line stays at 0.
+    let first_note = shifted
+        .events()
+        .iter()
+        .find(|e| matches!(&e.kind, EventKind::Note(..)))
+        .map(Event::tick);
+    assert_eq!(first_note, Some(480));
+    let bgm = shifted
+        .events()
+        .iter()
+        .find(|e| matches!(&e.kind, EventKind::Bgm { .. }))
+        .map(Event::tick);
+    assert_eq!(bgm, Some(360));
+    assert_eq!(shifted.events()[0].tick(), 0);
+    let timing = TimingTrack::from_events(120.0, 240, shifted.events()).unwrap();
+    assert_eq!(timing.tick_to_duration(480), Duration::from_secs(1));
+}
+
+#[test]
+fn start_margin_keeps_chart_when_first_note_is_late_enough() {
+    let data: ChartData = ChartData::new(
+        120.0,
+        240,
+        vec![
+            Event::bar(0),
+            Event::new(
+                960,
+                EventKind::Note(Note {
+                    side: NoteSide::P1,
+                    lane: Lane::Key(nz(1)),
+                    kind: NoteKind::Normal,
+                    role: NoteRole::Normal,
+                    audio: NoteAudio::none(),
+                    ext: (),
+                }),
+            ),
+        ],
+        vec![],
+    )
+    .unwrap();
+
+    let shifted = data
+        .clone()
+        .with_start_margin(Duration::from_secs(1))
+        .expect("unchanged chart should be valid");
+    assert_eq!(shifted.events(), data.events());
+}
