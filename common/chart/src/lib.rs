@@ -96,7 +96,8 @@ pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
 pub use visual::{
-    BgaLayer, BgaResource, BgaResourceId, CropRect, SwBgaResource, SwBgaResourceId, VideoAsset,
+    BgaLayer, BgaResource, BgaResourceId, BgaResourceKind, CropRect, SwBgaResource,
+    SwBgaResourceId, VideoAsset,
 };
 
 /// Chart-level judgment difficulty specification: the raw source value plus

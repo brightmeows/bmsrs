@@ -100,6 +100,39 @@ pub struct BgaResource {
     pub crop: Option<CropRect>,
 }
 
+/// Whether a BGA resource is a still image or a video file.
+///
+/// BMS `#BMPxx` may reference a video file; the kind is inferred from the file
+/// extension so renderers do not have to sniff the file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BgaResourceKind {
+    /// Still image.
+    Static,
+    /// Video file.
+    Video,
+}
+
+impl BgaResource {
+    /// Infer the resource kind from the file extension.
+    ///
+    /// Unknown extensions are treated as [`BgaResourceKind::Static`].
+    #[must_use]
+    pub fn kind(&self) -> BgaResourceKind {
+        let ext = self
+            .path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase);
+        match ext.as_deref() {
+            Some(
+                "mp4" | "m4v" | "mkv" | "webm" | "avi" | "mov" | "wmv" | "flv" | "mpg" | "mpeg"
+                | "ts",
+            ) => BgaResourceKind::Video,
+            _ => BgaResourceKind::Static,
+        }
+    }
+}
+
 /// Index into [`ChartInfo::swbga_resources`](crate::ChartInfo::swbga_resources).
 ///
 /// The dedicated newtype prevents SWBGA definition indices from being assigned

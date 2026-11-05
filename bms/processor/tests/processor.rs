@@ -344,6 +344,31 @@ fn gameplay_headers_enter_chart_info() {
 }
 
 #[test]
+fn bga_resource_kind_infers_video_extension() {
+    let mut bms = Bms::default();
+    bms.visual
+        .bmp_files
+        .insert("01".parse().unwrap(), "clip.mp4".to_owned());
+    bms.visual
+        .bmp_files
+        .insert("02".parse().unwrap(), "img.png".to_owned());
+
+    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let resources = chart.chart_info().bga_resources.as_slice();
+    assert_eq!(resources.len(), 2);
+    assert_eq!(
+        resources[0].kind(),
+        bmsrs_chart::BgaResourceKind::Video,
+        "video extension maps to Video"
+    );
+    assert_eq!(
+        resources[1].kind(),
+        bmsrs_chart::BgaResourceKind::Static,
+        "image extension maps to Static"
+    );
+}
+
+#[test]
 fn rank_header_maps_to_bms_rank_kind() {
     let mut bms = Bms::default();
     bms.gameplay.rank = Some(Rank::Hard);
