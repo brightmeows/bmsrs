@@ -316,8 +316,10 @@ pub struct ChartData<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     /// Life gauge multiplier (`Some(1.0)` is standard); `None` means the source
     /// did not specify it.
     life_multiplier: Option<f64>,
-    /// Chart-level long-note type hint (BMSON LN/CN).
-    ln_type_hint: LnTypeHint,
+    /// Chart-level long-note type hint (BMSON LN/CN). `None` means the source
+    /// did not declare it; mapping the hint to concrete judgment windows is
+    /// the caller's policy.
+    ln_type_hint: Option<LnTypeHint>,
     /// Chart-level long-note judgment hint.
     ln_judge_hint: LnJudgeHint,
     /// Chart-level long-note life hint.
@@ -356,7 +358,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
             resolution,
             judge_multiplier: None,
             life_multiplier: None,
-            ln_type_hint: LnTypeHint::default(),
+            ln_type_hint: None,
             ln_judge_hint: LnJudgeHint::default(),
             ln_life_hint: LnLifeHint::default(),
             judge_deltas: None,
@@ -392,9 +394,9 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
         self.life_multiplier
     }
 
-    /// Return the chart-level long-note type hint.
+    /// Return the chart-level long-note type hint, if the source declared it.
     #[must_use]
-    pub const fn ln_type_hint(&self) -> LnTypeHint {
+    pub const fn ln_type_hint(&self) -> Option<LnTypeHint> {
         self.ln_type_hint
     }
 
@@ -450,7 +452,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
 
     /// Set the chart-level long-note type hint.
     #[must_use]
-    pub const fn with_ln_type_hint(mut self, value: LnTypeHint) -> Self {
+    pub const fn with_ln_type_hint(mut self, value: Option<LnTypeHint>) -> Self {
         self.ln_type_hint = value;
         self
     }

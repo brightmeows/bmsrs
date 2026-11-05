@@ -29,7 +29,7 @@ fn make_test_bmson() -> Bmson {
         },
         chart_data: ChartData {
             mode_hint: ModeHint::Beat7k,
-            ln_type_hint: LnType::Ln,
+            ln_type_hint: Some(LnType::Ln),
             ln_judge_hint: LnJudge::Normal,
             ln_life_hint: LnLife::Normal,
             init_bpm: 140.0,
@@ -274,14 +274,14 @@ fn chart_data_ln_hints_roundtrip() {
         }
     }"#;
     let bmson: Bmson = serde_json::from_str(json).unwrap();
-    assert_eq!(bmson.chart_data.ln_type_hint, LnType::Cn);
+    assert_eq!(bmson.chart_data.ln_type_hint, Some(LnType::Cn));
     assert_eq!(bmson.chart_data.ln_judge_hint, LnJudge::Ticks);
     assert_eq!(bmson.chart_data.ln_life_hint, LnLife::Ticks);
 
     // Roundtrip serialization.
     let json_out = serde_json::to_string(&bmson).unwrap();
     let back: Bmson = serde_json::from_str(&json_out).unwrap();
-    assert_eq!(back.chart_data.ln_type_hint, LnType::Cn);
+    assert_eq!(back.chart_data.ln_type_hint, Some(LnType::Cn));
     assert_eq!(back.chart_data.ln_judge_hint, LnJudge::Ticks);
     assert_eq!(back.chart_data.ln_life_hint, LnLife::Ticks);
 }

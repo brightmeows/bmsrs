@@ -205,7 +205,10 @@ fn v1_ln_type_maps_to_ln_type_hint() {
     assert_eq!(v1.info.ln_type, Some(bmsrs_bmson_model::LnMode::Cn));
 
     let root: Bmson = v1.into();
-    assert_eq!(root.chart_data.ln_type_hint, bmsrs_bmson_model::LnType::Cn);
+    assert_eq!(
+        root.chart_data.ln_type_hint,
+        Some(bmsrs_bmson_model::LnType::Cn)
+    );
 }
 
 #[test]
@@ -225,7 +228,9 @@ fn v1_ln_type_default_none() {
     assert_eq!(v1.info.ln_type, None);
 
     let root: Bmson = v1.into();
-    assert_eq!(root.chart_data.ln_type_hint, bmsrs_bmson_model::LnType::Ln);
+    // An undeclared v1 `lnType` upgrades to `None`: the unspecified state is
+    // preserved instead of being folded into the `ln` default.
+    assert_eq!(root.chart_data.ln_type_hint, None);
 }
 
 #[test]
@@ -263,7 +268,10 @@ fn v0_info_ln_type_maps_to_ln_type_hint() {
     assert_eq!(v0.info.ln_type, Some(bmsrs_bmson_model::LnMode::Cn));
 
     let root: Bmson = v0.try_into().unwrap();
-    assert_eq!(root.chart_data.ln_type_hint, bmsrs_bmson_model::LnType::Cn);
+    assert_eq!(
+        root.chart_data.ln_type_hint,
+        Some(bmsrs_bmson_model::LnType::Cn)
+    );
 }
 
 #[test]
@@ -318,7 +326,7 @@ fn root_to_v0_invalid_init_bpm_errors() {
         },
         chart_data: ChartData {
             mode_hint: bmsrs_bmson_model::ModeHint::Beat7k,
-            ln_type_hint: bmsrs_bmson_model::LnType::Ln,
+            ln_type_hint: Some(bmsrs_bmson_model::LnType::Ln),
             ln_judge_hint: bmsrs_bmson_model::LnJudge::Normal,
             ln_life_hint: bmsrs_bmson_model::LnLife::Normal,
             init_bpm: 0.0,

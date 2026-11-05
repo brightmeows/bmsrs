@@ -381,13 +381,14 @@ impl BmsConverter<'_> {
     /// Derive the chart-level long-note type hint from the `#LNMODE` header.
     ///
     /// `LnMode{Ln,Cn,Hcn}` and `LnTypeHint{Ln,Cn,Hcn}` are 1:1 isomorphic enums.
-    /// `None` (no `#LNMODE` declared) maps to [`LnTypeHint::Ln`], consistent with
-    /// the former `LnTypeHint::default()` but now explicit.
-    const fn ln_type_hint(&self) -> LnTypeHint {
+    /// No `#LNMODE` maps to `None`: the unspecified state travels to the
+    /// caller, matching beatoraja keeping the LN mode undefined.
+    const fn ln_type_hint(&self) -> Option<LnTypeHint> {
         match self.bms.gameplay.ln_mode {
-            Some(LnMode::Ln) | None => LnTypeHint::Ln,
-            Some(LnMode::Cn) => LnTypeHint::Cn,
-            Some(LnMode::Hcn) => LnTypeHint::Hcn,
+            Some(LnMode::Ln) => Some(LnTypeHint::Ln),
+            Some(LnMode::Cn) => Some(LnTypeHint::Cn),
+            Some(LnMode::Hcn) => Some(LnTypeHint::Hcn),
+            None => None,
         }
     }
     /// Collect all playable notes into the event vector.

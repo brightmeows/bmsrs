@@ -305,9 +305,7 @@ impl TryFrom<Bmson> for crate::Bmson {
         )]
         let chart_data = ChartData {
             mode_hint: info.mode_hint.unwrap_or(crate::ModeHint::Beat7k),
-            ln_type_hint: info
-                .ln_type
-                .map_or(crate::LnType::Ln, crate::ln_mode_to_type_hint),
+            ln_type_hint: info.ln_type.map(crate::ln_mode_to_type_hint),
             ln_judge_hint: crate::LnJudge::Normal,
             ln_life_hint: crate::LnLife::Normal,
             init_bpm: info.init_bpm,

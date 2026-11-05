@@ -35,7 +35,7 @@ prefix.
 | Timed text | `#TEXTxx` definitions plus ch 99 | `BmsCustomEvent::TextDisplay { text }` | the resolved text body travels with the event; `#TEXT00` maps to `ChartInfo.miss_text` and never becomes an event |
 | SCROLL | `ScrollEvent` | `Event::Scroll` | scroll speed multiplier |
 | SPEED | `SpeedEvent` | `Event::Speed` | visual spacing keyframes with linear interpolation |
-| Long-note mode hint | `#LNMODE` | `LnTypeHint` | 1:1 mapping of Ln/Cn/Hcn (`ln_type_hint` method) |
+| Long-note mode hint | `#LNMODE` | `Option<LnTypeHint>` | 1:1 mapping of Ln/Cn/Hcn; no `#LNMODE` stays `None` (unspecified), matching beatoraja's undefined LN mode |
 | BGA crop | `#BGA`/`#@BGA` | `BgaResource.crop` | `build_bmp_map` merges the three namespaces; `#@BGA` (w/h) is normalized to the bottom-right corner |
 | Video asset | `#VIDEOFILE`/`#MOVIE` | `ChartInfo.video` | looping `#VIDEOFILE` takes priority over single-play `#MOVIE`; attaches `#VIDEOf/s`/`#VIDEOCOLORS`/`#VIDEODLY` |
 | Video SEEK | `#SEEK` definition plus ch 05 | `BmsCustomEvent::VideoSeek` | looks up `seek_defs` for milliseconds (not the raw Base36 value); undefined ids are skipped |
