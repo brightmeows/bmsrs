@@ -85,7 +85,7 @@ queries.
 | `Player::new` | infallible; consumes an already validated `Chart` |
 | BPM/Stop single source | `EventKind::Bpm`/`EventKind::Stop` are authoritative; `TimingTrack::from_events` derives the timing cache |
 | Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected; reverse scrolling is not modeled |
-| Same-tick STOP | processors keep the last stop; `TimingTrack::new` also applies last-wins defensively, matching beatoraja |
+| Same-tick STOP | BMS keeps the last stop (matching beatoraja); BMSON sums durations per the bmson specification; `TimingTrack::new` applies last-wins defensively |
 | `NoteExt` LN hint accessors | `ln_type_hint`/`ln_judge_hint`/`ln_life_hint` default to `None`; BMSON overrides them per note |
 | `judge_multiplier` / `life_multiplier` | `Option<f64>`; `None` means unspecified by the source, `Some(1.0)` means standard |
 | `ChartInfo.key_count` | total playable keys; `None` means not provided or not inferable |

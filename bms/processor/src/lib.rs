@@ -967,8 +967,10 @@ impl BmsConverter<'_> {
 
     /// Build stop events from `#STOPxx` definitions (channel `09`).
     ///
-    /// Negative STOP values are clamped to `0` (skipped/ignored), matching
-    /// beatoraja and Angolmois behavior.
+    /// Negative STOP values are clamped to `0` (skipped) with a warning.
+    /// Angolmois ignores negative definitions and bms-rs rejects them at the
+    /// parse layer; beatoraja instead plays the absolute value, a deliberate
+    /// difference here.
     #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
@@ -1012,8 +1014,9 @@ impl BmsConverter<'_> {
     /// Build stop events from the `#STP` header command (duration in
     /// milliseconds).
     ///
-    /// Negative STOP values are clamped to `0` (skipped/ignored), matching
-    /// beatoraja and Angolmois behavior.
+    /// Negative `#STP` durations are clamped to `0` (skipped) with a warning.
+    /// beatoraja does not implement `#STP` at all; the clamp mirrors the
+    /// `#STOP` channel policy above.
     #[expect(clippy::cast_possible_truncation, reason = "stop duration fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
