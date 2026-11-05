@@ -132,7 +132,9 @@ impl BpmChange {
 /// Stop (pause) event.
 ///
 /// When playback reaches `tick`, scrolling pauses for `duration` ticks (computed
-/// with the current BPM). Multiple stops at the same tick accumulate.
+/// with the current BPM). Processors collapse same-tick stops before the timing
+/// track is built (BMS keeps the last, BMSON sums durations per the bmson
+/// specification); `TimingTrack` itself keeps the last defensively.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StopEvent {
     /// Tick position where the stop begins.

@@ -675,6 +675,41 @@ fn process_stop_events() -> TestResult {
 }
 
 #[test]
+fn same_pulse_stop_events_accumulate_durations() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.stop_events.push(StopEvent {
+        y: 480,
+        duration: 192,
+    });
+    bmson.chart_data.stop_events.push(StopEvent {
+        y: 480,
+        duration: 96,
+    });
+    bmson.chart_data.stop_events.push(StopEvent {
+        y: 960,
+        duration: 240,
+    });
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.value;
+
+    let stop_evts: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| {
+            if let EventKind::Stop { duration } = &e.kind {
+                Some((e.tick(), *duration))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(stop_evts, vec![(480, 288), (960, 240)]);
+    Ok(())
+}
+
+#[test]
 fn scroll_events_converts_negative_values() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson

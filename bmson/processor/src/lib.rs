@@ -670,6 +670,24 @@ fn normalize_optional_path(option: Option<&Path>) -> Result<Option<String>, Proc
         .transpose()
 }
 
+/// Fold same-pulse stop events by summing their durations.
+///
+/// The BMSON specification accumulates stops at the same pulse, unlike BMS
+/// where the last stop at a position wins. Folding before `TimingTrack`
+/// construction keeps the timing track and the emitted stop events
+/// consistent.
+fn fold_stops(stop_events: &[BmsonStopEvent]) -> Vec<StopEvent> {
+    let mut durations_by_tick: BTreeMap<u64, u64> = BTreeMap::new();
+    for event in stop_events {
+        let total = durations_by_tick.entry(event.y).or_default();
+        *total = total.saturating_add(event.duration);
+    }
+    durations_by_tick
+        .into_iter()
+        .map(|(tick, duration)| StopEvent { tick, duration })
+        .collect()
+}
+
 /// Build a [`TimingTrack`] from BMSON chart data.
 ///
 /// # Errors
@@ -680,7 +698,7 @@ fn build_timing(data: &bmsrs_bmson_model::ChartData) -> Result<TimingTrack, Timi
     TimingTrack::new(
         data.init_bpm,
         data.bpm_events.iter().map(build_bpm_change).collect(),
-        data.stop_events.iter().map(build_stop_event).collect(),
+        fold_stops(&data.stop_events),
         data.resolution,
     )
 }
@@ -824,14 +842,6 @@ const fn build_bpm_change(e: &BpmEvent) -> BpmChange {
     BpmChange {
         tick: e.y,
         bpm: e.bpm,
-    }
-}
-
-/// Build [`StopEvent`] from a BMSON stop event.
-const fn build_stop_event(e: &BmsonStopEvent) -> StopEvent {
-    StopEvent {
-        tick: e.y,
-        duration: e.duration,
     }
 }
 

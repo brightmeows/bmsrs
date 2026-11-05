@@ -36,6 +36,7 @@ See the internal `slice` module.
 | Rule | Explanation |
 |------|-------------|
 | BGM note dropping | When a playable note shares the same tick, the BGM note (`x: 0`) is dropped |
+| Same-pulse STOP accumulation | Stop durations at the same `y` are summed before `TimingTrack` construction, per the bmson specification (beatoraja keeps the last instead); the folded stops feed both the timing track and the event stream |
 | Event ordering | Note/BGA, then BPM, then Stop |
 | Layered notes | The same `(side, lane, tick)` across `SoundChannel`s merges into one `Note`, with audio layers collected in `NoteAudio`; mismatched long-note lengths produce a `LayeredNoteLengthMismatch` warning |
 | Release notes | `up: true` maps to the core `NoteRole::Release` and no longer lives in `BmsonNoteExt` |
