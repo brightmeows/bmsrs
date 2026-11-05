@@ -63,7 +63,7 @@ the `#xxx02` value.
 | Source | Conversion formula |
 |--------|--------------------|
 | `#STOP` (ch 09) | `raw / 192.0 * resolution * 4` ticks |
-| `#STP` (header) | milliseconds to ticks through `bpm_at_tick` |
+| `#STP` (header) | milliseconds to ticks through `bpm_at_tick`; quantized to whole ticks (up to ±0.5 tick, about ±2 ms at 60 BPM) |
 
 ## Mode families
 
