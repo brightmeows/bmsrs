@@ -968,8 +968,11 @@ fn bms_channel_rejects_invalid_input() {
 }
 
 #[test]
-fn lnobj_end_marker_plays_bgm() {
-    // LNOBJ end markers should produce BGM events (per the specification).
+fn lnobj_end_marker_emits_no_bgm() {
+    // LNOBJ end markers are silent: beatoraja (jbms-parser) stores them as a
+    // no-sound note, bmz-player asserts the marker WAV is not used as an end
+    // keysound, and LR2 does not play it either. The RDM-spec behavior of
+    // playing the marker WAV as BGM is deliberately not implemented.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     // Register the start WAV and the LNOBJ WAV.
@@ -1014,14 +1017,13 @@ fn lnobj_end_marker_plays_bgm() {
         })
         .collect();
 
-    // The LNOBJ end marker at measure 1 gives tick 960 (240 tick resolution
-    // times 4 beats). The audio index should be 1 (the second registered WAV:
-    // ln_end.wav).
-    assert_eq!(bgm_ticks, vec![(960, 1)]);
+    // The end marker (tick 960) must not surface as a BGM event; the only
+    // BGM events are those from channel 01, and this chart has none.
+    assert_eq!(bgm_ticks, vec![]);
 }
 
 #[test]
-fn lnobj_bgm_no_event_for_unmatched_lno() {
+fn orphan_lnobj_marker_emits_no_bgm() {
     // When an LNOBJ marker has no preceding note on the same lane, no pair is
     // formed, so no LNOBJ BGM should be emitted.
     let mut bms = Bms::default();

@@ -237,9 +237,6 @@ impl BmsProcessor {
         // BGM (priority 1).
         conv.collect_bgm(&wav_map);
 
-        // LNOBJ end markers play as BGM (per the BMS specification).
-        conv.collect_lnobj_bgm(&wav_map, &consumed);
-
         // BGA (priority 1).
         conv.collect_bga(&bmp_map);
 
@@ -538,32 +535,6 @@ impl BmsConverter<'_> {
             if let Some(&audio) = wav_map.get(&be.wav_id) {
                 self.events
                     .push(Event::bgm(self.table.position_to_tick(be.position), audio));
-            }
-        }
-    }
-
-    /// Collect BGM events for LNOBJ end markers.
-    ///
-    /// Per the BMS specification, when an
-    /// [`#LNOBJ`](bmsrs_bms_model::BmsHeaderGameplay::LnObj) end marker crosses the
-    /// judgment line, its WAV file plays as BGM. This function walks the
-    /// `consumed` note indices returned by [`pair_lnobj`] and emits one BGM event
-    /// for each end marker.
-    fn collect_lnobj_bgm(
-        &mut self,
-        wav_map: &BTreeMap<WavIndex, AudioIndex>,
-        consumed: &HashSet<usize>,
-    ) {
-        let Some(ln_obj) = self.bms.gameplay.ln_obj else {
-            return;
-        };
-        for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
-            if consumed.contains(&i)
-                && *ne.wav_id == *ln_obj
-                && let Some(&audio) = wav_map.get(&ne.wav_id)
-            {
-                self.events
-                    .push(Event::bgm(self.table.position_to_tick(ne.position), audio));
             }
         }
     }
