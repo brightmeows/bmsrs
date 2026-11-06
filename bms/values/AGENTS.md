@@ -32,6 +32,7 @@ directly.
 | `BmsIndex` comparison is case-sensitive | Standard BMS normalizes to uppercase in the parser; Base62 preserves the original case |
 | A leading `##` is not a header | `BmsHeader::parse` returns `Ok(None)`; the syntax layer classifies it as a comment |
 | Unified line entry | `BmsToken::parse_line` tries `BmsMessage::parse` first, then `BmsHeader::parse`, so non-canonical `#1:0101` lines are messages |
+| jbms-style colon separator | For `#` headers, a colon directly after the command word (no whitespace before it) splits name and value (`#STOP01:48`, `#TITLE:xxx`); the first colon splits and later colons stay in the value; `%` commands and unknown commands keep the old unrecognized path |
 | The `#` and `%` prefixes are supplied by the caller | The caller passes the default `['#', '%']` |
 | Value types are owned | Single-line entry points do not borrow input, which simplifies cross-layer passing |
 | Line spans | `BmsMessage.span` is set by the parser; single-line parsing leaves it `None` |

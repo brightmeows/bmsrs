@@ -133,9 +133,23 @@ fn parse_header_line(line: &str, prefixes: &[char]) -> Result<Option<BmsHeader>,
         return Ok(None);
     }
 
-    // If the raw command contains a colon, it is a channel message, not a
-    // header.
+    // jbms-parser compatibility: a colon directly after the command word
+    // (before any whitespace) acts as the name/value separator, for both
+    // plain commands (`#TITLE:value`) and indexed ones (`#STOP01:value`).
+    // Only the first colon splits; later colons (`#SEEK01:0:30`) and colons
+    // behind whitespace (`#SWBGA01 30:...`) stay in the value. Channel
+    // messages (`#00108:...`) never reach this function; `%` commands and
+    // unrecognized commands keep the old unrecognized path.
     if command.contains(':') {
+        if prefix == '#'
+            && let Some(colon_pos) = command.find(':')
+            && colon_pos > 0
+        {
+            return BmsHeader::try_match_header(
+                &command[..colon_pos],
+                rest[colon_pos + 1..].trim(),
+            );
+        }
         return Ok(None);
     }
 
