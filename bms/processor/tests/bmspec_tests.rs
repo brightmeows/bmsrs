@@ -127,16 +127,13 @@ fn bmspec_1_01_parse_sentences() {
     assert_eq!(chart.data().audio_assets().len(), 0); // WAV is undefined.
 }
 
-/// bmspec-1-01-Sentences: malformed command lines (a header without a space
-/// separator is treated as a comment).
+/// bmspec-1-01-Sentences: a colon directly after the command word acts as
+/// the name/value separator (jbms-parser compatibility).
 #[test]
-fn bmspec_1_01_malformed_command() {
-    // #ARTIST:flicknote (colon instead of a space) is not recognized as a
-    // header.
+fn bmspec_1_01_colon_separated_header() {
     let chart = process("#TITLE BY MY SIDE\n#ARTIST:flicknote\n");
     assert_eq!(chart.song().title, "BY MY SIDE");
-    // #ARTIST is not parsed (the colon makes parse_header_line fall back).
-    assert_eq!(chart.song().artist, "");
+    assert_eq!(chart.song().artist, "flicknote");
 }
 
 /// bmspec-1-02-Header: standard header.
