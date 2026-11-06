@@ -29,7 +29,7 @@ fn make_test_bmson() -> Bmson {
         },
         chart_data: ChartData {
             mode_hint: ModeHint::Beat7k,
-            ln_type_hint: LnType::Ln,
+            ln_type_hint: Some(LnType::Ln),
             ln_judge_hint: LnJudge::Normal,
             ln_life_hint: LnLife::Normal,
             init_bpm: 140.0,
@@ -77,6 +77,21 @@ fn bmson_serde_roundtrip() {
         bmson.chart_data.stop_events.len(),
         deserialized.chart_data.stop_events.len()
     );
+}
+
+#[test]
+fn ln_type_hint_none_is_omitted_from_json() {
+    // BMSON v2 declares `ln_type_hint` as a non-null `DOMString`; an
+    // undeclared hint must be omitted from the output, not serialized as
+    // `null`, so strict readers still accept the file.
+    let mut bmson = make_test_bmson();
+    bmson.chart_data.ln_type_hint = None;
+
+    let json = serde_json::to_string(&bmson).unwrap();
+    assert!(!json.contains("ln_type_hint"));
+
+    let back: Bmson = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.chart_data.ln_type_hint, None);
 }
 
 #[test]
@@ -274,14 +289,14 @@ fn chart_data_ln_hints_roundtrip() {
         }
     }"#;
     let bmson: Bmson = serde_json::from_str(json).unwrap();
-    assert_eq!(bmson.chart_data.ln_type_hint, LnType::Cn);
+    assert_eq!(bmson.chart_data.ln_type_hint, Some(LnType::Cn));
     assert_eq!(bmson.chart_data.ln_judge_hint, LnJudge::Ticks);
     assert_eq!(bmson.chart_data.ln_life_hint, LnLife::Ticks);
 
     // Roundtrip serialization.
     let json_out = serde_json::to_string(&bmson).unwrap();
     let back: Bmson = serde_json::from_str(&json_out).unwrap();
-    assert_eq!(back.chart_data.ln_type_hint, LnType::Cn);
+    assert_eq!(back.chart_data.ln_type_hint, Some(LnType::Cn));
     assert_eq!(back.chart_data.ln_judge_hint, LnJudge::Ticks);
     assert_eq!(back.chart_data.ln_life_hint, LnLife::Ticks);
 }

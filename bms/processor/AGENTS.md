@@ -24,9 +24,9 @@ prefix.
 
 | Conversion | Input | Output | Notes |
 |------------|-------|--------|-------|
-| Notes | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | notes consumed by LNOBJ are excluded from ordinary notes |
+| Notes | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | notes consumed by LNOBJ are excluded from ordinary notes; same-position conflicts keep the later definition; notes covered by a long note move to BGM with `NoteCoveredByLongNote` (matching beatoraja), except a same-WAV note on the long-note start, which is dropped as redundant |
 | Timing | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | measure length is computed from `length_ratio` (f64) |
-| BGM | `BgmEvent` | `Event::Bgm` | LNOBJ end markers also play as BGM |
+| BGM | `BgmEvent` | `Event::Bgm` | LNOBJ end markers are silent (matching beatoraja/LR2) |
 | BGA | `BgaEvent` | `Event::Bga` | four layers (Base / Poor / Layer / Layer2); `BmsBgaLayer` maps to `chart::BgaLayer` here |
 | BGA clear | channel value `00` is a rest; an undefined BMP index | `Event::Bga` with `resource_id: None` | undefined references emit `MissingBmpDefinition` and clear the layer instead of dropping the event |
 | SWBGA | `#SWBGAxx` definitions plus ch A5 | `ChartInfo.swbga_resources` + `BmsCustomEvent::BgaKeyBound { swbga_id }` | the A5 value indexes the SWBGA definition table (not the BMP table); pattern frames resolve against `bga_resources` |
@@ -35,7 +35,7 @@ prefix.
 | Timed text | `#TEXTxx` definitions plus ch 99 | `BmsCustomEvent::TextDisplay { text }` | the resolved text body travels with the event; `#TEXT00` maps to `ChartInfo.miss_text` and never becomes an event |
 | SCROLL | `ScrollEvent` | `Event::Scroll` | scroll speed multiplier |
 | SPEED | `SpeedEvent` | `Event::Speed` | visual spacing keyframes with linear interpolation |
-| Long-note mode hint | `#LNMODE` | `LnTypeHint` | 1:1 mapping of Ln/Cn/Hcn (`ln_type_hint` method) |
+| Long-note mode hint | `#LNMODE` | `Option<LnTypeHint>` | 1:1 mapping of Ln/Cn/Hcn; no `#LNMODE` stays `None` (unspecified), matching beatoraja's undefined LN mode |
 | BGA crop | `#BGA`/`#@BGA` | `BgaResource.crop` | `build_bmp_map` merges the three namespaces; `#@BGA` (w/h) is normalized to the bottom-right corner |
 | Video asset | `#VIDEOFILE`/`#MOVIE` | `ChartInfo.video` | looping `#VIDEOFILE` takes priority over single-play `#MOVIE`; attaches `#VIDEOf/s`/`#VIDEOCOLORS`/`#VIDEODLY` |
 | Video SEEK | `#SEEK` definition plus ch 05 | `BmsCustomEvent::VideoSeek` | looks up `seek_defs` for milliseconds (not the raw Base36 value); undefined ids are skipped |
@@ -91,7 +91,8 @@ engines).
 |------|-------------|
 | Default BPM 130 | Matches the BMS specification; not `0.0` |
 | Event ordering | Bar(0), then Note/BGA/BGM(1), then BPM(2), then Stop(3), then Scroll(4), then Speed(5), then Custom(6) |
-| LNOBJ end BGM | The WAV defined by an end marker plays when the marker crosses the judgment line |
+| Same-position notes | Later definition wins with `DuplicateNotePosition` (matching beatoraja); mines never overwrite and are dropped with `MineNoteConflict`; LNOBJ end markers displace with a warning, ch51-69 ends silently |
+| LNOBJ end silence | The end marker's WAV does not play (matching beatoraja/LR2/bmz); the RDM-spec end-marker BGM behavior is deliberately not implemented |
 | ch51-69 under LNOBJ | Mutually exclusive with LNOBJ (memo/10 leaves it undefined); not discarded, kept as ordinary visible notes |
 | Mine `damage` | `MineEvent.raw_value` (`Option<u16>`) goes through `mine_damage()`: `Some(1295)` gives INFINITY, `Some(n)` gives n/2, `None` gives 1.0 |
 | `process_default` layout | Uses `DscOctFp` when `#OCT/FP` is true, otherwise `Bme`; `#PLAYER` is still ignored, and modes such as PMS must be specified explicitly |

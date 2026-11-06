@@ -53,7 +53,7 @@ fn make_simple_bmson() -> bmsrs_bmson_model::Bmson {
         },
         chart_data: ChartData {
             mode_hint: ModeHint::Beat7k,
-            ln_type_hint: LnType::Ln,
+            ln_type_hint: Some(LnType::Ln),
             ln_judge_hint: bmsrs_bmson_model::LnJudge::Normal,
             ln_life_hint: bmsrs_bmson_model::LnLife::Normal,
             init_bpm: 140.0,
@@ -1121,12 +1121,12 @@ fn note_ext_fields() {
 #[test]
 fn chart_level_ln_hints_propagate() -> TestResult {
     let mut bmson = make_simple_bmson();
-    bmson.chart_data.ln_type_hint = bmsrs_bmson_model::LnType::Cn;
+    bmson.chart_data.ln_type_hint = Some(bmsrs_bmson_model::LnType::Cn);
     bmson.chart_data.ln_judge_hint = bmsrs_bmson_model::LnJudge::Ticks;
     bmson.chart_data.ln_life_hint = bmsrs_bmson_model::LnLife::Ticks;
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.value;
-    assert_eq!(chart.data().ln_type_hint(), LnTypeHint::Cn);
+    assert_eq!(chart.data().ln_type_hint(), Some(LnTypeHint::Cn));
     assert_eq!(chart.data().ln_judge_hint(), LnJudgeHint::Ticks);
     assert_eq!(chart.data().ln_life_hint(), LnLifeHint::Ticks);
     Ok(())

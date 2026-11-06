@@ -258,7 +258,7 @@ impl BmsonProcessor {
         )?
         .with_judge_multiplier(Some(bmson_data.judge_multiplier))
         .with_life_multiplier(Some(bmson_data.life_multiplier))
-        .with_ln_type_hint(ln_type_to_hint(bmson_data.ln_type_hint))
+        .with_ln_type_hint(bmson_data.ln_type_hint.map(ln_type_to_hint))
         .with_ln_judge_hint(ln_judge_to_hint(bmson_data.ln_judge_hint))
         .with_ln_life_hint(ln_life_to_hint(bmson_data.ln_life_hint))
         .with_judge_deltas(judge_deltas)

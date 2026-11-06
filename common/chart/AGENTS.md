@@ -81,6 +81,7 @@ queries.
 | `AudioAsset.start` is in the Time domain | defines the trigger offset of an audio asset |
 | `TimingTrack::default()` is 120 BPM | a safe default, not 0.0; `ChartData` still does not implement `Default` |
 | `LnTypeHint`/`LnJudgeHint`/`LnLifeHint` | typed enums for long-note hints in `note.rs`. `LnTypeHint` is filled by both BMS `#LNMODE` and BMSON `ln_type_hint` |
+| chart-level `ln_type_hint` is `Option` | `None` means the source did not declare it (BMS without `#LNMODE`, BMSON without the field); the unspecified state travels to the caller, matching bmz's `long_note_mode_defined` |
 | `Event`'s `tick()` method | uniform access to the tick field of every variant |
 | `Event::sort_key()` | the `(tick, priority)` composite key and the only same-tick ordering entry point |
 | `ChartData::new(init_bpm, resolution, events, audio_assets)` | sorts events, validates, and returns the only public constructor result; fields are private |

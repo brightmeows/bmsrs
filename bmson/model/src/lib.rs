@@ -276,10 +276,14 @@ pub struct ChartData {
     /// | `ln` | judged only on press |
     /// | `cn` | judged on both press and release |
     ///
+    /// `None` means the source file did not declare the field; the
+    /// unspecified state travels to the caller (matches beatoraja keeping the
+    /// LN mode undefined).
+    ///
     /// May be overridden per note through [`NoteEvent::ln_type_hint`].
     ///
-    #[serde(default)]
-    pub ln_type_hint: LnType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ln_type_hint: Option<LnType>,
 
     /// Chart-level long-note judgment hint.
     ///

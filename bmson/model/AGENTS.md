@@ -41,3 +41,4 @@ cargo run --example bmson_parser -p bmsrs-bmson-model
 | v2 has no separate module | Unlike v0/v1, v2 lives at the crate root rather than in a directory |
 | Negative `resolution` takes its absolute value; `0` is kept | Matches the specification: negatives take the absolute value at deserialization (`deserialize_resolution`), and a kept `0` falls back to 240 in the processor with a warning |
 | Conversions between versions use `From` | `Bmson::from(v0_bmson)` upgrades to the v2 schema uniformly |
+| v2 `ChartData.ln_type_hint` is `Option<LnType>` | a missing JSON field deserializes to `None` (the source did not declare it); the former `#[serde(default)] = ln` folding is gone, so "absent" and "explicit `ln`" stay distinguishable. `None` is omitted from JSON output (`skip_serializing_if`), and downgrades to v0/v1 write an explicit `ln` back as an explicit value |

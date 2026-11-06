@@ -1185,21 +1185,19 @@ fn ln_mode_maps_to_ln_type_hint() {
     let base = "#BPM 120\n#WAV01 kick.wav\n#00101:0100000000000000\n";
     assert_eq!(
         process(&format!("#LNMODE 1\n{base}")).data().ln_type_hint(),
-        bmsrs_chart::LnTypeHint::Ln,
+        Some(bmsrs_chart::LnTypeHint::Ln),
     );
     assert_eq!(
         process(&format!("#LNMODE 2\n{base}")).data().ln_type_hint(),
-        bmsrs_chart::LnTypeHint::Cn,
+        Some(bmsrs_chart::LnTypeHint::Cn),
     );
     assert_eq!(
         process(&format!("#LNMODE 3\n{base}")).data().ln_type_hint(),
-        bmsrs_chart::LnTypeHint::Hcn,
+        Some(bmsrs_chart::LnTypeHint::Hcn),
     );
-    // Defaults to Ln when #LNMODE is not declared.
-    assert_eq!(
-        process(base).data().ln_type_hint(),
-        bmsrs_chart::LnTypeHint::Ln,
-    );
+    // None when #LNMODE is not declared: the unspecified state travels to the
+    // caller (beatoraja keeps the LN mode undefined in that case).
+    assert_eq!(process(base).data().ln_type_hint(), None,);
 }
 
 // C1: #BGA / #@BGA to BgaResource.crop
