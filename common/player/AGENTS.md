@@ -69,3 +69,9 @@ cargo bench -p bmsrs-player --bench player -- --quick  # quick estimate
 > conclude from big-O reasoning. A large constant factor in O(log^2 n) can be
 > slower than O(n) on typical charts, and only measurement can tell the
 > difference.
+
+Precomputed per-event activation times (the bmz-player import-time model) are
+deliberately not used: a measured comparison puts time-range event queries at
+about 0.14 us/frame on demand versus 0.08 us/frame with a precomputed table
+(a 60 ns difference against a 16.7 ms frame budget), with a 174 us one-time
+build for 5,120 events. `TimingTrack` conversion stays on demand.
