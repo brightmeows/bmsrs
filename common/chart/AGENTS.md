@@ -90,8 +90,8 @@ queries.
 | `Chart::new(song, chart, data)` | validates BGA resource references; the embedded `ChartData` is already valid |
 | `Player::new` | infallible; consumes an already validated `Chart` |
 | BPM/Stop single source | `EventKind::Bpm`/`EventKind::Stop` are authoritative; `TimingTrack::from_events` derives the timing cache |
-| Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected. Negative SCROLL rates, which reverse only the visual scrolling, are supported |
-| Same-tick STOP | BMS keeps the last stop (matching beatoraja); BMSON sums durations per the bmson specification; `TimingTrack::new` applies last-wins defensively |
+| Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected. Negative SCROLL rates, which reverse only the visual scrolling, are supported. bmz-player clamps invalid BPM changes to `1.0` instead; deliberately not followed (beatoraja drops them) |
+| Same-tick STOP | BMS keeps the last stop (matching beatoraja); BMSON sums durations per the bmson specification; `TimingTrack::new` applies last-wins defensively. jbms-parser keeps the last bmson stop instead; the specification (and bmz-player) sum, and bmsrs follows the specification |
 | Stop durations are time, not ticks | `EventKind::Stop`/`StopEvent` hold `Duration`; processors convert `#STOP` through the tick's BPM and `#STP`/BMSON pulses directly, so no tick quantization remains |
 | `ChartInfo.judge_rank` / `total` / `volwav_percent` | raw source values (`JudgeRankSpec` carries the `BmsRank`/`DefExRank`/`BmsonJudgeRank` kind); the percentage-to-window mapping is engine policy and stays with the caller |
 | `ChartInfo.miss_text` | nanasi `#TEXT00`; belongs to the miss system and never becomes a channel event |

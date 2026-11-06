@@ -1031,6 +1031,110 @@ fn parse_speed_indexed() {
 }
 
 #[test]
+fn colon_separated_indexed_definitions_parse() {
+    let cases = [
+        (
+            "#BPM0A:240",
+            BmsHeader::Timing(BmsHeaderTiming::BpmDef {
+                id: BpmIndex::try_from("0A").unwrap(),
+                value: 240.0,
+            }),
+        ),
+        (
+            "#STOP01:48",
+            BmsHeader::Timing(BmsHeaderTiming::StopDef {
+                id: StopIndex::try_from("01").unwrap(),
+                value: 48.0,
+            }),
+        ),
+        (
+            "#SCROLL01:1.5",
+            BmsHeader::Timing(BmsHeaderTiming::ScrollDef {
+                id: ScrollIndex::try_from("01").unwrap(),
+                value: 1.5,
+            }),
+        ),
+        (
+            "#SPEED01:2.0",
+            BmsHeader::Timing(BmsHeaderTiming::SpeedDef {
+                id: SpeedIndex::try_from("01").unwrap(),
+                value: 2.0,
+            }),
+        ),
+    ];
+    for (line, expected) in cases {
+        let result = bmsrs_bms_values::BmsHeader::parse(line, &['#', '%'])
+            .unwrap()
+            .unwrap();
+        assert_eq!(result, expected, "line: {line}");
+    }
+}
+
+#[test]
+fn colon_separated_plain_commands_parse() {
+    let cases = [
+        (
+            "#TITLE:My Song",
+            BmsHeader::Metadata(BmsHeaderMetadata::Title("My Song".to_owned())),
+        ),
+        (
+            "#RANK:3",
+            BmsHeader::Gameplay(BmsHeaderGameplay::Rank(Rank::Easy)),
+        ),
+        (
+            "#TOTAL:100",
+            BmsHeader::Gameplay(BmsHeaderGameplay::Total(100.0)),
+        ),
+    ];
+    for (line, expected) in cases {
+        let result = bmsrs_bms_values::BmsHeader::parse(line, &['#', '%'])
+            .unwrap()
+            .unwrap();
+        assert_eq!(result, expected, "line: {line}");
+    }
+}
+
+#[test]
+fn colon_separator_tolerates_space_before_value() {
+    let result = bmsrs_bms_values::BmsHeader::parse("#STOP01: 192", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result,
+        BmsHeader::Timing(BmsHeaderTiming::StopDef {
+            id: StopIndex::try_from("01").unwrap(),
+            value: 192.0,
+        })
+    );
+}
+
+#[test]
+fn colon_in_value_after_whitespace_is_kept() {
+    let result = bmsrs_bms_values::BmsHeader::parse(
+        "#SWBGA01 30:60:1:0:255,0,0,128 pattern.bmp",
+        &['#', '%'],
+    )
+    .unwrap()
+    .unwrap();
+    assert!(matches!(
+        result,
+        BmsHeader::ResDefVisual(BmsHeaderResDefVisual::SwBga { .. })
+    ));
+}
+
+#[test]
+fn unknown_command_with_colon_is_not_a_header() {
+    let result = bmsrs_bms_values::BmsHeader::parse("#FOOBAR01:x", &['#', '%']).unwrap();
+    assert_eq!(result, None);
+}
+
+#[test]
+fn percent_command_with_colon_is_not_a_header() {
+    let result = bmsrs_bms_values::BmsHeader::parse("%URL:x", &['#', '%']).unwrap();
+    assert_eq!(result, None);
+}
+
+#[test]
 fn parse_exrank_indexed() {
     let result = bmsrs_bms_values::BmsHeader::parse("#EXRANK01 5", &['#', '%'])
         .unwrap()

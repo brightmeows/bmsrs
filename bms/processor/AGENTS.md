@@ -68,6 +68,7 @@ the `#xxx02` value.
 |--------|--------------------|
 | `#STOP` (ch 09) | `raw / 192.0 * 4` beats converted to seconds through `bpm_at_tick` |
 | `#STP` (header) | milliseconds converted directly to `Duration` (no quantization); same-position entries accumulate per the specification (`001.500` 500 + 4000 = 4500 ms total) |
+| Negative `#STOP` definition values | clamped to `0` and skipped with a warning; beatoraja (jbms-parser) takes the absolute value instead, deliberately not followed |
 
 ## Mode families
 

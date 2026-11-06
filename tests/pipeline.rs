@@ -37,6 +37,42 @@ fn parse_with_collect_all_reports_tokenize_warnings() {
 }
 
 #[test]
+fn colon_separated_definitions_flow_through_pipeline() {
+    let text = "#BPM 120\n#STOP01:48\n#BPM0A:240\n#00109:01\n#00108:0A\n";
+    let parsed = bmsrs::bms::parse(text).unwrap_or_else(|error| panic!("{error}"));
+    assert!(
+        parsed.warnings.is_empty(),
+        "colon definitions must not produce tokenize warnings: {:?}",
+        parsed.warnings
+    );
+    assert_eq!(
+        parsed.value.timing.stop_defs.get(&"01".parse().unwrap()),
+        Some(&48.0)
+    );
+    assert_eq!(
+        parsed.value.timing.bpm_defs.get(&"0A".parse().unwrap()),
+        Some(&240.0)
+    );
+
+    let processed = bmsrs::bms::process(&parsed.value).unwrap_or_else(|error| panic!("{error}"));
+    let events = processed.value.chart.data().events();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| matches!(event.kind, bmsrs::chart::EventKind::Stop { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| matches!(event.kind, bmsrs::chart::EventKind::Bpm { .. }))
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn diagnostic_converts_tokenize_warning() {
     let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
     let outcome = bmsrs::bms::parse_with(
