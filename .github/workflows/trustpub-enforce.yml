@@ -16,7 +16,7 @@ jobs:
           TOKEN: ${{ secrets.TP_ENFORCE_TOKEN }}
         run: |
           set -e
-          API="https://«Redacted — read as environment variable $SECRET_UNQUOTED_SECRET_ASSIGNMENT_3 via script»/api/v1"
+          API="https://www.«Redacted — read as environment variable $SECRET_UNQUOTED_SECRET_ASSIGNMENT_3 via script»/api/v1"
           UA="bmsrs trustpub-enforce (https://github.com/brightmeows/bmsrs)"
           CRATES="bmsrs bmsrs-bms-analysis bmsrs-bms-model bmsrs-bms-parser bmsrs-bms-processor bmsrs-bms-writer bmsrs-bmson-model bmsrs-bmson-processor bmsrs-chart bmsrs-player bmsrs-pipeline bmsrs-bms-source bmsrs-bms-syntax bmsrs-bms-values bmsrs-bms-values-derive"
           for c in $CRATES; do
