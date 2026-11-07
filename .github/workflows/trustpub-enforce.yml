@@ -1,0 +1,34 @@
+name: Enforce trusted publishing
+
+# One-shot bootstrap: enables trustpub_only on all bmsrs crates, then this
+# workflow and its secret are deleted.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Patch trustpub_only on all bmsrs crates
+        env:
+          TOKEN: ${{ secrets.TP_ENFORCE_TOKEN }}
+        run: |
+          set -e
+          API="https://«Redacted — read as environment variable $SECRET_UNQUOTED_SECRET_ASSIGNMENT_3 via script»/api/v1"
+          UA="bmsrs trustpub-enforce (https://github.com/brightmeows/bmsrs)"
+          CRATES="bmsrs bmsrs-bms-analysis bmsrs-bms-model bmsrs-bms-parser bmsrs-bms-processor bmsrs-bms-writer bmsrs-bmson-model bmsrs-bmson-processor bmsrs-chart bmsrs-player bmsrs-pipeline bmsrs-bms-source bmsrs-bms-syntax bmsrs-bms-values bmsrs-bms-values-derive"
+          for c in $CRATES; do
+            code=$(curl -s -o /tmp/p.json -w '%{http_code}' -X PATCH "$API/crates/$c" \
+              -H "Authorization: $TOKEN" -H "User-Agent: $UA" -H "Content-Type: application/json" \
+              -d '{"crate":{"trustpub_only":true}}')
+            echo "PATCH $c: $code"
+            [ "$code" = 200 ] || { echo "patch failed for $c"; exit 1; }
+          done
+          for c in $CRATES; do
+            v=$(curl -s -H "Authorization: $TOKEN" -H "User-Agent: $UA" "$API/crates/$c" | jq '.crate.trustpub_only')
+            echo "VERIFY $c: $v"
+            [ "$v" = "true" ] || { echo "verification failed for $c"; exit 1; }
+          done
+          echo "ALL 15 CRATES ENFORCED"
