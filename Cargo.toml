@@ -16,6 +16,15 @@ members = [
     "common/player",
     "common/pipeline",
 ]
+# The facade lives at the workspace root, so a bare `cargo test` without
+# this list would resolve to the facade alone and silently skip every
+# sub-crate (the rig workspace hit exactly this: #2258).
+default-members = [
+    ".",
+    "bms/*",
+    "bmson/*",
+    "common/*",
+]
 
 [package]
 name = "bmsrs"
