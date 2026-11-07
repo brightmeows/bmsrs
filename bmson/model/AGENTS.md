@@ -23,16 +23,9 @@ the JSON `"version"` field. The implementation is lightweight and does not need
 
 ## Dependencies
 
-`serde_json` and `chumsky` are **dev-only** dependencies; the library itself does
-not depend on any JSON library. Tests interact with version-specific types
-directly through `serde_json::from_str`/`to_string`. `chumsky` is used by the
-`bmson_parser` example (an error-recovering JSON parser demonstration).
-
-## Example
-
-```bash
-cargo run --example bmson_parser -p bmsrs-bmson-model
-```
+`serde_json` is a **dev-only** dependency; the library itself does not depend
+on any JSON library. Tests interact with version-specific types directly
+through `serde_json::from_str`/`to_string`.
 
 ## Non-obvious rules
 

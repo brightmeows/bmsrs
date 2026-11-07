@@ -43,9 +43,3 @@ processor can handle them.
 cargo test -p bmsrs-bmson-model
 cargo test -p bmsrs-bmson-processor
 ```
-
-## Example
-
-```bash
-cargo run --example bmson_parser -p bmsrs-bmson-model
-```
