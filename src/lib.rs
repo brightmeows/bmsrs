@@ -5,6 +5,38 @@
 //! facade-owned types; [`raw`] mirrors the workspace directory structure with
 //! the full layer exports.
 
+//! # Quick start
+//!
+//! Parse a BMS chart, process it into the unified [`chart::Chart`], and
+//! simulate playback with the [`player::Player`]:
+//!
+//! ```
+//! use std::time::Duration;
+//!
+//! use bmsrs::prelude::*;
+//!
+//! let source = "#TITLE Demo\n#BPM 120\n#WAV01 kick.wav\n#00111:0100\n";
+//! let parsed = bmsrs::bms::parse(source).expect("valid BMS");
+//! let processed = bmsrs::bms::process(&parsed.value).expect("valid chart");
+//!
+//! let mut player = Player::new(processed.value.chart);
+//! player.advance(Duration::from_secs(1));
+//! assert_eq!(player.current_tick(), 480);
+//! ```
+//!
+//! Parse a BMSON chart; v0/v1 inputs are upgraded to the root v2 schema:
+//!
+//! ```
+//! let json = r#"{
+//!     "version": "2.0.0",
+//!     "song_info": {"title": "T", "artist": "A", "genre": "G"},
+//!     "chart_info": {"level": 1, "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}},
+//!     "chart_data": {"init_bpm": 120}
+//! }"#;
+//! let bmson = bmsrs::bmson::parse_str(json).expect("valid BMSON");
+//! assert_eq!(bmson.song_info.title, "T");
+//! ```
+
 /// Parsing and processing for the BMS format.
 pub mod bms {
     // Layer crates live under `raw`; the curated path keeps only the entry
