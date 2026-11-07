@@ -3,7 +3,9 @@ name: Release-plz Release
 on:
   push:
     branches: [main]
-    paths: ['**/Cargo.toml']
+    # CHANGELOG.md is included because the first release PR only adds
+    # changelog files; without it, merging the release PR would not publish.
+    paths: ['**/Cargo.toml', '**/CHANGELOG.md']
   workflow_dispatch:
 
 permissions:
