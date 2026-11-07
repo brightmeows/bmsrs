@@ -100,6 +100,9 @@ Conventional Commits, matching the `release-plz.toml` changelog groups.
 Titles and bodies are written in English. This is a repository-level override
 of the global convention, which uses Chinese commit subjects.
 Mark breaking changes with `!` before the colon.
+Breaking-change commits must also carry a
+`BREAKING CHANGE: <migration note>` footer with a single-line migration note;
+the release-plz changelog template renders it into the changelog entry.
 
 ### Worktree directory
 
