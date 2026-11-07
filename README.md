@@ -5,7 +5,8 @@ English | [简体中文](README.zh-CN.md)
 A Rust toolkit for parsing, converting, and simulating playback of BMS and
 BMSON chart formats.
 
-> Pre-release: `0.0.1` has not been released; public interfaces may change.
+> Pre-1.0: public interfaces may change at any time; semver compatibility does
+> not apply.
 
 ## Overview
 
@@ -53,11 +54,11 @@ and editor data. `bmsrs-bms-writer` rewrites `Bms` canonically as BMS text.
 
 ## Quick start
 
-`0.0.1` has not been released. Use a git dependency for now:
+Install from crates.io:
 
 ```toml
 [dependencies]
-bmsrs = { git = "https://github.com/brightmeows/bmsrs" }
+bmsrs = "0.0.1"
 ```
 
 ### BMS to Player

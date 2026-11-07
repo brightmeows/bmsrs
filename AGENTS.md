@@ -6,10 +6,10 @@ A Rust workspace for parsing, converting, and simulating playback of BMS
 (Be-Music Script) and BMSON chart formats. It produces a unified `Chart<T>`
 intermediate representation for renderers and players.
 
-> **Pre-release status**: `0.0.1` has not been released and is under active
-> development. All public interfaces may change at any time; semver
-> compatibility does not apply. Cross-crate architectural changes and breaking
-> API changes only require confirmation from the user.
+> **Release status**: `0.0.1` is released; the project is pre-1.0. All public
+> interfaces may change at any time and semver compatibility does not apply.
+> Cross-crate architectural changes and breaking API changes only require
+> confirmation from the user.
 
 ## Pipeline
 
