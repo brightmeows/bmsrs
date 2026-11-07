@@ -28,3 +28,21 @@ commit_parsers = [
     { message = "^revert", group = "Reverts" },
     { message = "^.*", group = "Other" },
 ]
+
+# Body template: the release-plz Keep a Changelog default, plus inline
+# migration notes. Breaking commits render their `BREAKING CHANGE:` footer
+# (exposed as `breaking_description`) as "(migration: ...)" when it differs
+# from the subject. Keep the footer a single line so the entry stays readable.
+body = """
+## [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+
+{% for commit in commits %}
+{%- if commit.scope -%}
+- *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}{% if commit.breaking and commit.breaking_description and commit.breaking_description != commit.message %} (migration: {{ commit.breaking_description }}){% endif %}
+{% else -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{% if commit.breaking and commit.breaking_description and commit.breaking_description != commit.message %} (migration: {{ commit.breaking_description }}){% endif %}
+{% endif -%}
+{% endfor -%}
+{% endfor %}"""
