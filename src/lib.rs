@@ -41,6 +41,9 @@ pub mod bms {
             /// Decode error.
             error: source::TextDecodeError,
         },
+        /// File read error.
+        #[error("failed to read file: {0}")]
+        Io(#[from] std::io::Error),
     }
 
     /// Non-fatal warnings from the whole-pipeline entry points.
@@ -145,6 +148,22 @@ pub mod bms {
         let document = source::Document::from_bytes_with(bytes, doc_options);
         from_document(&document, parse_options, rng, error_strategy)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
+    }
+
+    /// Read the BMS file at `path` and parse it with the default pipeline.
+    ///
+    /// This is [`parse_bytes`] with file I/O: the file is read with
+    /// [`std::fs::read`] and handed to the same pipeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FromTextError`] when reading fails or when parsing or
+    /// decoding fails.
+    pub fn parse_file(
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+        let bytes = std::fs::read(path)?;
+        parse_bytes(bytes)
     }
 
     /// Convert `Bms` to a format-agnostic chart with the default layout.
@@ -308,6 +327,22 @@ pub mod bmson {
         parse_str(json)
     }
 
+    /// Read the BMSON file at `path` and parse it, upgrading v0/v1 to the
+    /// root v2 schema.
+    ///
+    /// This is [`parse_slice`] with file I/O: the file is read with
+    /// [`std::fs::read`] and handed to the same pipeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BmsonParseError`] when reading fails or when the JSON,
+    /// UTF-8, or version is invalid.
+    #[cfg(feature = "bmson")]
+    pub fn parse_file(path: impl AsRef<std::path::Path>) -> Result<model::Bmson, BmsonParseError> {
+        let bytes = std::fs::read(path)?;
+        parse_slice(&bytes)
+    }
+
     /// Convert `Bmson` to a format-agnostic chart with the default layout.
     ///
     /// # Errors
@@ -373,6 +408,9 @@ pub mod bmson {
         /// Version detection or conversion error.
         #[error("BMSON version error: {0}")]
         Version(#[from] model::BmsonError),
+        /// File read error.
+        #[error("failed to read file: {0}")]
+        Io(#[from] std::io::Error),
     }
 }
 
