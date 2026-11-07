@@ -15,6 +15,7 @@ members = [
     "common/chart",
     "common/player",
     "common/pipeline",
+    "osu/processor",
 ]
 # The facade lives at the workspace root, so a bare `cargo test` without
 # this list would resolve to the facade alone and silently skip every
@@ -24,6 +25,7 @@ default-members = [
     "bms/*",
     "bmson/*",
     "common/*",
+    "osu/*",
 ]
 
 [package]
@@ -41,8 +43,9 @@ rust-version.workspace = true
 readme.workspace = true
 
 [features]
-default = ["bmson"]
+default = ["bmson", "osu"]
 bmson = ["dep:bmsrs-bmson-model", "dep:bmsrs-bmson-processor", "dep:serde_json"]
+osu = ["dep:bmsrs-osu-processor"]
 
 [lints]
 workspace = true
@@ -61,6 +64,7 @@ bmsrs-bmson-processor = { workspace = true, optional = true }
 bmsrs-chart.workspace = true
 bmsrs-player.workspace = true
 bmsrs-pipeline.workspace = true
+bmsrs-osu-processor = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 thiserror.workspace = true
 
@@ -72,7 +76,7 @@ rayon.workspace = true
 version = "0.0.1"
 edition = "2024"
 license = "Apache-2.0"
-description = "BMS/BMSON format parsing, processing and playback toolkit"
+description = "BMS/BMSON/osu!mania format parsing, processing and playback toolkit"
 repository = "https://github.com/brightmeows/bmsrs"
 authors = ["白喵斯 <brightmeows@163.com>"]
 homepage = "https://github.com/brightmeows/bmsrs"
@@ -100,6 +104,7 @@ insta = { version = "1", features = ["yaml"] }
 proptest = "1"
 criterion = "0.8"
 rowan = "0.17"
+rosu-map = "0.2.1"
 
 # Local (path)
 bmsrs-bmson-model = { version = "0.0.1", path = "bmson/model" }
@@ -116,6 +121,7 @@ bmsrs-bms-processor = { version = "0.0.1", path = "bms/processor" }
 bmsrs-bms-writer = { version = "0.0.1", path = "bms/writer" }
 bmsrs-player = { version = "0.0.1", path = "common/player" }
 bmsrs-pipeline = { version = "0.0.1", path = "common/pipeline" }
+bmsrs-osu-processor = { version = "0.0.1", path = "osu/processor" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

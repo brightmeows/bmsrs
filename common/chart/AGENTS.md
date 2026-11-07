@@ -2,8 +2,8 @@
 
 ## Role
 
-Format-agnostic chart data model: the central IR between format processors and
-the player.
+Format-agnostic chart data model: the central IR between the format processors
+(BMS, BMSON, osu!mania) and the player.
 
 **Zero external dependencies.** Pure `std`, with no `serde`, `thiserror`, or
 `serde_json`.
@@ -31,7 +31,7 @@ from them. There is no second timing source to keep in sync.
 | Parameter | Default | Use |
 |-----------|---------|-----|
 | `T: NoteExt` | `()` | per-note extension data (volume, pan, LN mode, and so on) |
-| `C: CustomEvent` | `NoCustomEvent` | format-specific custom event type |
+| `C: CustomEvent` | `NoCustomEvent` | format-specific custom event type (for example, `BmsCustomEvent`, `OsuCustomEvent`) |
 
 Core note fields:
 

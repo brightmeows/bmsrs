@@ -120,6 +120,7 @@ dependencies = [
  "bmsrs-bmson-model",
  "bmsrs-bmson-processor",
  "bmsrs-chart",
+ "bmsrs-osu-processor",
  "bmsrs-pipeline",
  "bmsrs-player",
  "encoding_rs",
@@ -248,6 +249,16 @@ dependencies = [
 [[package]]
 name = "bmsrs-chart"
 version = "0.0.1"
+
+[[package]]
+name = "bmsrs-osu-processor"
+version = "0.0.1"
+dependencies = [
+ "bmsrs-chart",
+ "bmsrs-player",
+ "rosu-map",
+ "thiserror",
+]
 
 [[package]]
 name = "bmsrs-pipeline"
@@ -1265,6 +1276,12 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+
+[[package]]
+name = "rosu-map"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b92ea634d8b3eaa4d7fba7bd12045dda1a50ce81401c96af0d9c851b0737544"
 
 [[package]]
 name = "rowan"
