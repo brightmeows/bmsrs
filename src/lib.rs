@@ -24,19 +24,6 @@
 //! assert_eq!(player.current_tick(), 480);
 //! ```
 //!
-//! Parse a BMSON chart; v0/v1 inputs are upgraded to the root v2 schema:
-//!
-//! ```
-//! let json = r#"{
-//!     "version": "2.0.0",
-//!     "song_info": {"title": "T", "artist": "A", "genre": "G"},
-//!     "chart_info": {"level": 1, "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}},
-//!     "chart_data": {"init_bpm": 120}
-//! }"#;
-//! let bmson = bmsrs::bmson::parse_str(json).expect("valid BMSON");
-//! assert_eq!(bmson.song_info.title, "T");
-//! ```
-
 /// Parsing and processing for the BMS format.
 pub mod bms {
     // Layer crates live under `raw`; the curated path keeps only the entry
@@ -320,6 +307,20 @@ pub mod bms {
 }
 
 /// Type definitions and converters for the BMSON format.
+///
+/// Parse a BMSON chart; v0/v1 inputs are upgraded to the root v2 schema:
+///
+/// ```
+/// let json = r#"{
+///     "version": "2.0.0",
+///     "song_info": {"title": "T", "artist": "A", "genre": "G"},
+///     "chart_info": {"level": 1, "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}},
+///     "chart_data": {"init_bpm": 120}
+/// }"#;
+/// let bmson = bmsrs::bmson::parse_str(json).expect("valid BMSON");
+/// assert_eq!(bmson.song_info.title, "T");
+/// ```
+#[cfg(feature = "bmson")]
 pub mod bmson {
     // Bmson layer types resolve through `raw`; the curated path keeps only the
     // entry points and facade-owned types.
@@ -331,7 +332,6 @@ pub mod bmson {
     /// # Errors
     ///
     /// Returns [`BmsonParseError`] when the JSON or version is invalid.
-    #[cfg(feature = "bmson")]
     pub fn parse_str(json: &str) -> Result<model::Bmson, BmsonParseError> {
         match model::DetectedVersion::detect(json)? {
             model::DetectedVersion::V2 => Ok(serde_json::from_str(json)?),
@@ -353,7 +353,6 @@ pub mod bmson {
     /// # Errors
     ///
     /// Returns [`BmsonParseError`] when the JSON, UTF-8, or version is invalid.
-    #[cfg(feature = "bmson")]
     pub fn parse_slice(bytes: &[u8]) -> Result<model::Bmson, BmsonParseError> {
         let json = std::str::from_utf8(bytes)?;
         parse_str(json)
@@ -369,7 +368,6 @@ pub mod bmson {
     ///
     /// Returns [`BmsonParseError`] when reading fails or when the JSON,
     /// UTF-8, or version is invalid.
-    #[cfg(feature = "bmson")]
     pub fn parse_file(path: impl AsRef<std::path::Path>) -> Result<model::Bmson, BmsonParseError> {
         let bytes = std::fs::read(path)?;
         parse_slice(&bytes)
@@ -428,7 +426,6 @@ pub mod bmson {
     }
 
     /// BMSON parse error.
-    #[cfg(feature = "bmson")]
     #[derive(Debug, thiserror::Error)]
     pub enum BmsonParseError {
         /// JSON parse error.
@@ -504,11 +501,13 @@ pub mod raw {
     }
 
     /// BMSON model.
+    #[cfg(feature = "bmson")]
     pub mod bmson_model {
         pub use bmsrs_bmson_model::*;
     }
 
     /// BMSON processor.
+    #[cfg(feature = "bmson")]
     pub mod bmson_processor {
         pub use bmsrs_bmson_processor::*;
     }
@@ -524,12 +523,14 @@ pub mod prelude {
     pub use crate::bms::{FromTextError, FromTextWarning, parse, parse_bytes, process, write};
     #[cfg(feature = "bmson")]
     pub use crate::bmson::BmsonParseError;
+    #[cfg(feature = "bmson")]
     pub use crate::bmson::process_nkeys;
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };
     pub use crate::pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
     pub use crate::player::Player;
+    #[cfg(feature = "bmson")]
     pub use crate::raw::bmson_model::Bmson;
     pub use crate::raw::model::Bms;
     pub use crate::raw::processor::layout::{Bme, BmsLayout};
