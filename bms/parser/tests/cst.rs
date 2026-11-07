@@ -38,7 +38,7 @@ fn tokenize_lines_returns_typed_message() {
     let lines = bmsrs_bms_parser::tokenize_lines(&parse.source_file());
     assert!(lines.iter().any(|entry| matches!(
         entry,
-        bmsrs_bms_parser::LineToken { line, token: Ok(bmsrs_bms_model::BmsToken::Message(_)), .. }
+        bmsrs_bms_parser::LineToken { line, token: Ok(bmsrs_bms_values::BmsToken::Message(_)), .. }
             if line.get() == 2
     )));
 }

@@ -13,9 +13,10 @@ mod timing;
 mod visual;
 mod warnings;
 
+use bmsrs_bms_values::{BmsBase, BmsHeader, BmsHeaderGameplay, BmsHeaderTiming, BmsToken};
+
 // Re-export all public types from the submodules.
 pub use audio::{Audio, OwnedExWavParams};
-pub use bmsrs_bms_values::*;
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use messages::{

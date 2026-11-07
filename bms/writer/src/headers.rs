@@ -5,12 +5,12 @@
 //! format command names and values, guaranteeing that the write path uses the
 //! same format templates as the parse path.
 
-use bmsrs_bms_model::{
+use bmsrs_bms_model::{Bms, OwnedExWavParams, OwnedSwBgaParams};
+use bmsrs_bms_values::{
     ArgbParams, AtBgaParams, BgaParams, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ExBmpParams, ExWavParams,
     SwBgaParams, WavCmdParams,
 };
-use bmsrs_bms_model::{Bms, OwnedExWavParams, OwnedSwBgaParams};
 
 /// Serialize all header command lines.
 ///

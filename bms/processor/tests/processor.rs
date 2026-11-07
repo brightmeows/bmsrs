@@ -6,12 +6,12 @@ use std::time::Duration;
 
 use bmsrs_bms_model::{
     BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, MineEvent,
-    NonEventData, NoteEvent, Position, Rank, StpEvent,
+    NonEventData, NoteEvent, Position, StpEvent,
 };
-use bmsrs_bms_model::{BmsChannel, BpmIndex, LnObjIndex};
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
 use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarningKind};
+use bmsrs_bms_values::{BmsChannel, BpmIndex, LnObjIndex, Rank};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{BgaLayer, CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
 

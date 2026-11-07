@@ -1,7 +1,7 @@
 //! Channel line (message) serialization.
 
-use bmsrs_bms_model::BmsChannel;
 use bmsrs_bms_model::Messages;
+use bmsrs_bms_values::BmsChannel;
 
 /// Serialize all channel lines.
 ///

@@ -5,9 +5,9 @@
 //! the fallback-rewrite tier.
 
 use bmsrs_bms_model::Bms;
-use bmsrs_bms_model::BmsMessage;
 use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_syntax::SourceFile;
+use bmsrs_bms_values::BmsMessage;
 use proptest::prelude::*;
 
 use bmsrs_bms_writer::BmsWriter;
@@ -123,6 +123,6 @@ fn encode_body_roundtrips_via_parse() {
         .expect("is message");
     assert_eq!(
         line.body,
-        bmsrs_bms_model::BmsMessage::encode_body(["01", "02", "03"])
+        bmsrs_bms_values::BmsMessage::encode_body(["01", "02", "03"])
     );
 }

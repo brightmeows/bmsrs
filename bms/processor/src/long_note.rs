@@ -13,8 +13,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use bmsrs_bms_model::{KeyType, LnObjIndex, WavIndex};
-use bmsrs_bms_model::{LongNoteEvent, NoteEvent};
+use bmsrs_bms_model::{KeyType, LongNoteEvent, NoteEvent};
+use bmsrs_bms_values::{LnObjIndex, WavIndex};
 
 use crate::position::MeasureTable;
 
@@ -230,8 +230,8 @@ pub fn pair_lnobj(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bmsrs_bms_model::LnObjIndex;
     use bmsrs_bms_model::Position;
+    use bmsrs_bms_values::LnObjIndex;
 
     fn make_table() -> MeasureTable {
         MeasureTable::new(4, &[], 240)
