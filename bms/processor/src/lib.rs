@@ -30,40 +30,41 @@
 //! - **LNTYPE 1 (RDM)**: events on channels 51-69 are paired consecutively per
 //!   `(player, lane)`.
 
+mod audio;
+mod bga;
 pub mod custom_event;
 mod error;
 mod long_note;
+mod notes;
 mod position;
+mod timing;
 
 pub mod layout;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
 
-use bmsrs_bms_model::{Audio, BmsBgaLayer, OwnedExWavParams};
-use bmsrs_bms_model::{Bms, BpmValue, Gameplay, KeyType};
+use bmsrs_bms_model::{Bms, Gameplay};
 use bmsrs_bms_values::{
-    BmpIndex, BmsChannel as RawChannel, BmsIndex, ChangeOptionIndex, ExRankIndex, LnMode,
-    PlayerMode, Rank, SeekIndex, TextIndex, WavCmdParams, WavIndex,
+    BmpIndex, BmsChannel as RawChannel, ChangeOptionIndex, ExRankIndex, PlayerMode, Rank,
+    SeekIndex, TextIndex,
 };
 use bmsrs_chart::{
-    AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
-    ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, JudgeRankKind, JudgeRankSpec,
-    Lane, LnTypeHint, Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent,
-    SwBgaResource, SwBgaResourceId, TimingTrack, TimingTrackError, VideoAsset,
+    BgaResource, BpmLookup, Chart, ChartData, ChartDataError, ChartInfo, Event, EventKind,
+    JudgeRankKind, JudgeRankSpec, Lane, Note, NoteSide, SongInfo, SwBgaResource, SwBgaResourceId,
+    TimingTrack, TimingTrackError,
 };
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
 
+pub use crate::audio::BmsAudio;
 pub use crate::error::{ProcessWarning, ProcessWarningKind};
 
+use crate::bga::BmpEntry;
 use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsLayout, ChannelPos, DscOctFp, Pms, PmsBme, PmsLayout};
-
-use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
+use crate::layout::{Bme, BmsLayout, DscOctFp, Pms, PmsBme, PmsLayout};
 use crate::position::MeasureTable;
+use crate::timing::build_bar_events;
 
 /// Errors that can occur while processing BMS.
 #[derive(Debug, Error)]
@@ -137,41 +138,6 @@ impl From<&Gameplay> for BmsGameplay {
     }
 }
 
-/// Sidecar for BMS audio parameters.
-///
-/// `#PATH_WAV` has already been applied to
-/// [`AudioAsset::path`](bmsrs_chart::AudioAsset::path); this sidecar keeps the
-/// original prefix and the other parameters that do not enter the core model.
-#[expect(
-    clippy::derive_partial_eq_without_eq,
-    reason = "sidecar keeps raw BMS parameters; some fields cannot safely implement Eq"
-)]
-#[derive(Debug, Clone, PartialEq)]
-pub struct BmsAudio {
-    /// Per-WAV effect parameters from `#EXWAV`.
-    pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
-    /// `#WAVCMD` global playback command.
-    pub wav_cmd: Option<WavCmdParams>,
-    /// `#CDDA` track reference.
-    pub cdda: Option<String>,
-    /// `#MIDIFILE` reference.
-    pub midifile: Option<String>,
-    /// Original `#PATH_WAV` directory prefix.
-    pub path_wav: Option<String>,
-}
-
-impl From<&Audio> for BmsAudio {
-    fn from(audio: &Audio) -> Self {
-        Self {
-            ex_wav_params: audio.ex_wav_params.clone(),
-            wav_cmd: audio.wav_cmd.clone(),
-            cdda: audio.cdda.clone(),
-            midifile: audio.midifile.clone(),
-            path_wav: audio.path_wav.clone(),
-        }
-    }
-}
-
 /// Default beat resolution for BMS charts (ticks per quarter note).
 const RESOLUTION: u64 = 240;
 
@@ -204,7 +170,7 @@ impl BmsProcessor {
             warnings: Vec::new(),
         };
 
-        let (wav_map, audio_assets) = build_audio_assets(&bms.audio);
+        let (wav_map, audio_assets) = BmsConverter::build_audio_assets(&bms.audio);
         let bpm_changes = conv.build_bpm_changes();
         let bpm_lookup = BpmLookup::new(init_bpm, &bpm_changes);
 
@@ -337,6 +303,12 @@ impl BmsProcessor {
 /// and the event buffer being built, so each `collect_*` step writes directly to
 /// the internal `events` without the caller passing `&mut Vec`. Used only inside
 /// [`BmsProcessor::process`].
+///
+/// The conversion methods live in domain modules: [`timing`] (BPM, STOP,
+/// SCROLL, SPEED, bar lines), [`notes`] (playable notes, BGM, long notes),
+/// [`bga`] (BMP/BGA/SWBGA/video), and [`audio`] (the WAV asset table) in this
+/// file's sibling modules; cross-domain steps (`collect_custom_events`,
+/// `collect_judge_rank`, `build_metadata`) stay here.
 struct BmsConverter<'a> {
     /// Source BMS document.
     bms: &'a Bms,
@@ -350,400 +322,6 @@ struct BmsConverter<'a> {
 }
 
 impl BmsConverter<'_> {
-    /// Determine the LN mode and pair long notes. Returns the pairing result and
-    /// the consumed note indices.
-    fn pair_long_notes(&self) -> (LnPairingResult, HashSet<usize>) {
-        if let Some(ln_obj) = self.bms.gameplay.ln_obj {
-            let (paired, consumed) = pair_lnobj(&self.bms.messages.note_events, ln_obj, self.table);
-            return (
-                LnPairingResult {
-                    paired,
-                    unpaired_starts: Vec::new(),
-                },
-                consumed,
-            );
-        }
-        if self.bms.gameplay.ln_type == Some(bmsrs_bms_values::LnType::Type2) {
-            return (
-                pair_lntype2(&self.bms.messages.long_note_events, self.table),
-                HashSet::new(),
-            );
-        }
-        (
-            pair_lntype1(&self.bms.messages.long_note_events, self.table),
-            HashSet::new(),
-        )
-    }
-
-    /// Derive the chart-level long-note type hint from the `#LNMODE` header.
-    ///
-    /// `LnMode{Ln,Cn,Hcn}` and `LnTypeHint{Ln,Cn,Hcn}` are 1:1 isomorphic enums.
-    /// No `#LNMODE` maps to `None`: the unspecified state travels to the
-    /// caller, matching beatoraja keeping the LN mode undefined.
-    const fn ln_type_hint(&self) -> Option<LnTypeHint> {
-        match self.bms.gameplay.ln_mode {
-            Some(LnMode::Ln) => Some(LnTypeHint::Ln),
-            Some(LnMode::Cn) => Some(LnTypeHint::Cn),
-            Some(LnMode::Hcn) => Some(LnTypeHint::Hcn),
-            None => None,
-        }
-    }
-    /// Collect all playable notes into the event vector.
-    ///
-    /// Slot conflicts resolve in jbms-parser's channel processing order:
-    /// visible notes (file order) come first, ch51-69 notes treated as
-    /// visible under `#LNOBJ` follow, then paired long notes (start plus end
-    /// marker), then mines. A later note or long-note start overwrites the
-    /// same-position slot with a warning; an end marker overwrites silently
-    /// (ch51-69) or with that warning (`#LNOBJ`); a mine never overwrites an
-    /// occupied slot and is dropped instead, matching beatoraja.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "normal/invisible/LNOBJ/long-note/mine sources share one matching logic; splitting would fragment it"
-    )]
-    fn collect_notes<L: BmsLayout>(
-        &mut self,
-        wav_map: &BTreeMap<WavIndex, AudioIndex>,
-        paired_lns: &[PairedLn],
-        consumed: &HashSet<usize>,
-        unpaired_starts: &[(u8, u8, u64)],
-    ) {
-        let base = self.bms.gameplay.base.unwrap_or_default();
-        // The warnings vector is passed per call so the covered-note branch
-        // inside the loop can push its own warning while iterating.
-        let check_wav = |warnings: &mut Vec<ProcessWarning>,
-                         wav_id: &WavIndex,
-                         player: u8,
-                         lane: u8,
-                         tick: u64|
-         -> Option<AudioIndex> {
-            let audio = wav_map.get(wav_id).copied();
-            // When `to_index()` returns `None`, skip the warning silently:
-            // a non-decomposable WAV key (such as the "ZZ" LNOBJ marker) is
-            // outside the WAV table's definition range and does not produce
-            // a missing-definition warning.
-            if audio.is_none()
-                && let Some(key) = wav_id.0.to_index_in(base)
-            {
-                warnings.push(ProcessWarning::new(
-                    None,
-                    ProcessWarningKind::MissingWavDefinition {
-                        key,
-                        player,
-                        lane,
-                        tick,
-                    },
-                ));
-            }
-            audio
-        };
-
-        // Build the LN range table:
-        // (player, lane) to Vec<(start_tick, end_tick)>.
-        let ln_ranges = build_ln_ranges(paired_lns);
-
-        // Slot requests in jbms-parser's channel processing order. End
-        // markers occupy the slot without emitting an event.
-        let mut placements: Vec<Option<Placement>> = Vec::new();
-
-        // Visible notes (and LNOBJ markers). Notes covered by a long note move
-        // to the BGM lane so their keysound keeps playing (beatoraja moves
-        // them with `addBackGroundNote`); one exactly on the long-note start
-        // only moves when its WAV differs from the start WAV, a same-WAV note
-        // is redundant and dropped silently. Notes on an unterminated
-        // long-note start are dropped: the start itself is removed at the end
-        // of the song.
-        for (i, ne) in self.bms.messages.note_events.iter().enumerate() {
-            let tick = self.table.position_to_tick(ne.position);
-            if consumed.contains(&i) {
-                // Paired long-note starts are re-emitted from `paired_lns`;
-                // only the end marker (its WAV equals `#LNOBJ`) occupies the
-                // slot here, warning on conflict like a visible note does.
-                let is_end = self
-                    .bms
-                    .gameplay
-                    .ln_obj
-                    .as_ref()
-                    .is_some_and(|ln_obj| *ne.wav_id == **ln_obj);
-                if is_end {
-                    placements.push(Some(Placement {
-                        tick,
-                        player: ne.player,
-                        lane: ne.lane,
-                        kind: PlacementKind::LnEnd { warn: true },
-                    }));
-                }
-                continue;
-            }
-            if matches!(ne.key_type, KeyType::Visible) {
-                if unpaired_starts.contains(&(ne.player, ne.lane, tick)) {
-                    continue;
-                }
-                let covered = paired_lns.iter().find(|ln| {
-                    ln.player == ne.player
-                        && ln.lane == ne.lane
-                        && tick >= ln.tick
-                        && tick <= ln.end_tick
-                });
-                if let Some(ln) = covered {
-                    let audio = check_wav(&mut self.warnings, &ne.wav_id, ne.player, ne.lane, tick);
-                    let redundant_start =
-                        tick == ln.tick && audio == wav_map.get(&ln.wav_id).copied();
-                    if !redundant_start {
-                        if let Some(bgm_audio) = audio {
-                            self.events.push(Event::bgm(tick, bgm_audio));
-                        }
-                        self.warnings.push(ProcessWarning::new(
-                            None,
-                            ProcessWarningKind::NoteCoveredByLongNote {
-                                player: ne.player,
-                                lane: ne.lane,
-                                tick,
-                            },
-                        ));
-                    }
-                    continue;
-                }
-            }
-            let audio = check_wav(&mut self.warnings, &ne.wav_id, ne.player, ne.lane, tick);
-            let kind = match ne.key_type {
-                KeyType::Visible => NoteKind::Normal,
-                KeyType::Invisible => NoteKind::Invisible,
-            };
-            placements.push(Some(Placement {
-                tick,
-                player: ne.player,
-                lane: ne.lane,
-                kind: PlacementKind::Note { kind, audio },
-            }));
-        }
-
-        // In LNOBJ mode, ch51-69 long-note channels are mutually exclusive with
-        // LNOBJ (memo/10 leaves this undefined). Do not discard silently; keep
-        // the data as ordinary visible notes.
-        if self.bms.gameplay.ln_obj.is_some() {
-            for lne in &self.bms.messages.long_note_events {
-                let tick = self.table.position_to_tick(lne.position);
-                let audio = check_wav(&mut self.warnings, &lne.wav_id, lne.player, lne.lane, tick);
-                placements.push(Some(Placement {
-                    tick,
-                    player: lne.player,
-                    lane: lne.lane,
-                    kind: PlacementKind::Note {
-                        kind: NoteKind::Normal,
-                        audio,
-                    },
-                }));
-            }
-        }
-
-        // Paired long notes: the start emits the long note; the end marker
-        // overwrites the slot silently (jbms-parser does not warn here).
-        for ln in paired_lns {
-            let audio = check_wav(&mut self.warnings, &ln.wav_id, ln.player, ln.lane, ln.tick);
-            placements.push(Some(Placement {
-                tick: ln.tick,
-                player: ln.player,
-                lane: ln.lane,
-                kind: PlacementKind::Long {
-                    duration: ln.duration,
-                    audio,
-                },
-            }));
-            placements.push(Some(Placement {
-                tick: ln.end_tick,
-                player: ln.player,
-                lane: ln.lane,
-                kind: PlacementKind::LnEnd { warn: false },
-            }));
-        }
-
-        // Mines.
-        for me in &self.bms.messages.mine_events {
-            placements.push(Some(Placement {
-                tick: self.table.position_to_tick(me.position),
-                player: me.player,
-                lane: me.lane,
-                kind: PlacementKind::Mine {
-                    damage: Damage::new(mine_damage(me.raw_value)),
-                },
-            }));
-        }
-
-        // Resolve slot conflicts. A later note or long-note start wins
-        // (beatoraja keeps only the last definition); mines never win.
-        let mut occupied: HashMap<(u8, u8, u64), usize> = HashMap::new();
-        for idx in 0..placements.len() {
-            let Some(placement) = placements.get(idx).cloned().flatten() else {
-                continue;
-            };
-            let key = (placement.player, placement.lane, placement.tick);
-            match &placement.kind {
-                // Invisible notes live on their own hidden slot in
-                // jbms-parser; they never conflict.
-                PlacementKind::Note {
-                    kind: NoteKind::Invisible,
-                    ..
-                } => {}
-                PlacementKind::Note { .. } | PlacementKind::Long { .. } => {
-                    if let Some(&prev) = occupied.get(&key) {
-                        self.warnings.push(ProcessWarning::new(
-                            None,
-                            ProcessWarningKind::DuplicateNotePosition {
-                                player: placement.player,
-                                lane: placement.lane,
-                                tick: placement.tick,
-                            },
-                        ));
-                        if let Some(prev_slot) = placements.get_mut(prev) {
-                            *prev_slot = None;
-                        }
-                    }
-                    occupied.insert(key, idx);
-                }
-                PlacementKind::LnEnd { warn } => {
-                    if let Some(&prev) = occupied.get(&key) {
-                        if *warn {
-                            self.warnings.push(ProcessWarning::new(
-                                None,
-                                ProcessWarningKind::DuplicateNotePosition {
-                                    player: placement.player,
-                                    lane: placement.lane,
-                                    tick: placement.tick,
-                                },
-                            ));
-                        }
-                        if let Some(prev_slot) = placements.get_mut(prev) {
-                            *prev_slot = None;
-                        }
-                    }
-                    occupied.insert(key, idx);
-                }
-                PlacementKind::Mine { .. } => {
-                    let in_range = ln_ranges
-                        .get(&(placement.player, placement.lane))
-                        .is_some_and(|ranges| {
-                            ranges.iter().any(|&(start, end)| {
-                                placement.tick >= start && placement.tick <= end
-                            })
-                        });
-                    // An unterminated long-note start occupies the slot in
-                    // jbms-parser until it is removed at the end of the song,
-                    // so a mine on it is dropped either way.
-                    let on_unpaired_start = unpaired_starts.contains(&(
-                        placement.player,
-                        placement.lane,
-                        placement.tick,
-                    ));
-                    if occupied.contains_key(&key) || in_range || on_unpaired_start {
-                        self.warnings.push(ProcessWarning::new(
-                            None,
-                            ProcessWarningKind::MineNoteConflict {
-                                player: placement.player,
-                                lane: placement.lane,
-                                tick: placement.tick,
-                            },
-                        ));
-                        if let Some(slot) = placements.get_mut(idx) {
-                            *slot = None;
-                        }
-                    } else {
-                        occupied.insert(key, idx);
-                    }
-                }
-            }
-        }
-
-        // Emit surviving placements.
-        for placement in placements.into_iter().flatten() {
-            let Some((note_side, note_lane)) =
-                ChannelPos::new(placement.player, placement.lane).and_then(L::map_channel)
-            else {
-                continue;
-            };
-            match placement.kind {
-                PlacementKind::Note { kind, audio } => self.events.push(Event::new(
-                    placement.tick,
-                    EventKind::Note(Note {
-                        side: note_side,
-                        lane: note_lane,
-                        kind,
-                        role: NoteRole::Normal,
-                        audio: NoteAudio::from(audio),
-                        ext: (),
-                    }),
-                )),
-                PlacementKind::Long { duration, audio } => self.events.push(Event::new(
-                    placement.tick,
-                    EventKind::Note(Note {
-                        side: note_side,
-                        lane: note_lane,
-                        kind: NoteKind::Long { duration },
-                        role: NoteRole::Normal,
-                        audio: NoteAudio::from(audio),
-                        ext: (),
-                    }),
-                )),
-                PlacementKind::Mine { damage } => self.events.push(Event::new(
-                    placement.tick,
-                    EventKind::Note(Note {
-                        side: note_side,
-                        lane: note_lane,
-                        kind: NoteKind::Mine { damage },
-                        role: NoteRole::Normal,
-                        audio: NoteAudio::none(),
-                        ext: (),
-                    }),
-                )),
-                PlacementKind::LnEnd { .. } => {}
-            }
-        }
-    }
-
-    /// Collect BGM events into the event vector.
-    fn collect_bgm(&mut self, wav_map: &BTreeMap<WavIndex, AudioIndex>) {
-        for be in &self.bms.messages.bgm_events {
-            if let Some(&audio) = wav_map.get(&be.wav_id) {
-                self.events
-                    .push(Event::bgm(self.table.position_to_tick(be.position), audio));
-            }
-        }
-    }
-
-    /// Build BPM events from the already-normalized BPM change list.
-    ///
-    /// The list is produced by [`build_bpm_changes`](Self::build_bpm_changes),
-    /// so invalid values have already been filtered and warned about. Emitting
-    /// from the same list keeps the event stream and the derived timing track
-    /// identical and avoids resolving each BPM reference twice.
-    fn collect_bpm_events(&mut self, changes: &[BpmChange]) {
-        for change in changes {
-            self.events.push(Event::bpm(change.tick, change.bpm));
-        }
-    }
-
-    /// Build SCROLL change events.
-    fn collect_scroll_events(&mut self) {
-        for se in &self.bms.messages.scroll_events {
-            if let Some(&rate) = self.bms.timing.scroll_defs.get(&se.scroll_id) {
-                self.events.push(Event::scroll(
-                    self.table.position_to_tick(se.position),
-                    rate,
-                ));
-            }
-        }
-    }
-
-    /// Build SPEED (visual note spacing) keyframe events.
-    fn collect_speed_events(&mut self) {
-        for se in &self.bms.messages.speed_events {
-            if let Some(&rate) = self.bms.timing.speed_defs.get(&se.speed_id) {
-                self.events
-                    .push(Event::speed(self.table.position_to_tick(se.position), rate));
-            }
-        }
-    }
-
     /// Build judgment rank events from channel `A0` references into
     /// `#EXRANKxx`.
     ///
@@ -790,13 +368,6 @@ impl BmsConverter<'_> {
                 self.events
                     .push(Event::new(tick, EventKind::JudgeRank { percent }));
             }
-        }
-    }
-
-    /// Emit stop events from the already-built stop event slice.
-    fn collect_stop_events(&mut self, stops: &[StopEvent]) {
-        for se in stops {
-            self.events.push(Event::stop(se.tick, se.duration));
         }
     }
 
@@ -997,342 +568,6 @@ impl BmsConverter<'_> {
         }
     }
 
-    /// Build BGA events from BGA events and BMP file definitions.
-    fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
-        let base = self.bms.gameplay.base.unwrap_or_default();
-        for be in &self.bms.messages.bga_events {
-            let tick = self.table.position_to_tick(be.position);
-            let resource_id = if let Some(entry) = bmp_map.get(&be.bmp_id) {
-                Some(entry.resource_id)
-            } else {
-                // Referencing an undefined BMP index clears the layer
-                // (mainstream engines render it as nothing).
-                let channel = match be.layer {
-                    BmsBgaLayer::Base => RawChannel::BgaBase,
-                    BmsBgaLayer::Poor => RawChannel::BgaPoor,
-                    BmsBgaLayer::Layer => RawChannel::BgaLayer,
-                    BmsBgaLayer::Layer2 => RawChannel::BgaLayer2,
-                };
-                let span = self.message_span(be.position.measure(), &[channel]);
-                if let Some(key) = be.bmp_id.to_index_in(base) {
-                    self.warnings.push(ProcessWarning::new(
-                        span,
-                        ProcessWarningKind::MissingBmpDefinition { key, tick },
-                    ));
-                }
-                None
-            };
-            self.events.push(Event::new(
-                tick,
-                EventKind::Bga {
-                    layer: map_bga_layer(be.layer),
-                    resource_id,
-                },
-            ));
-        }
-    }
-
-    /// Build BPM change events for the timing track.
-    ///
-    /// Sort by `tick` first, then deduplicate the ordered sequence: adjacent
-    /// changes with the same value keep the first. The order cannot be reversed:
-    /// `messages.bpm_changes` accumulates by (measure, channel) rather than by
-    /// tick, so deduplicating before sorting would merge equal-value changes that
-    /// are adjacent in the vector but not adjacent in time.
-    fn build_bpm_changes(&mut self) -> Vec<BpmChange> {
-        let mut changes: Vec<BpmChange> = self
-            .bms
-            .messages
-            .bpm_changes
-            .iter()
-            .filter_map(|bc| {
-                let tick = self.table.position_to_tick(bc.position);
-                let span = self.message_span(
-                    bc.position.measure(),
-                    &[RawChannel::BpmChange, RawChannel::ExtendedBpm],
-                );
-                let bpm = self.resolve_bpm(bc.value, tick, span);
-                if BpmChange::is_valid(bpm) {
-                    Some(BpmChange { tick, bpm })
-                } else {
-                    self.warnings.push(ProcessWarning::new(
-                        span,
-                        ProcessWarningKind::InvalidBpmChangeIgnored { tick, bpm },
-                    ));
-                    None
-                }
-            })
-            .collect();
-        // Deduplication must happen after sorting by tick: two equal-value
-        // changes in the same channel are adjacent in the vector (chunked by
-        // channel). If a change from another channel sits between them,
-        // deduplicating before sorting would merge them incorrectly.
-        changes.sort_by_key(|c| c.tick);
-        changes.dedup_by(|a, b| (a.bpm - b.bpm).abs() < f64::EPSILON);
-        changes
-    }
-
-    /// Build a mapping from BMP indices to [`BmpEntry`] (dense id, path, and
-    /// optional crop).
-    ///
-    /// Merges keys from the `#BMP`, `#BGA`, and `#@BGA` namespaces:
-    ///
-    /// - When an id is defined in `#BGA` / `#@BGA`, `#BGA` wins per the BMS
-    ///   specification: the path comes from the crop definition's source BMP
-    ///   (resolved through the decimal `bmp_index`), with a [`CropRect`]
-    ///   attached.
-    /// - Otherwise the path comes from `#BMP` itself and the crop is `None`.
-    /// - Crop ids whose source path cannot be resolved are skipped (they enter
-    ///   neither the resource table nor the event stream).
-    ///
-    /// `#@BGA` (width/height form) is normalized to `#BGA` (bottom-right-corner
-    /// form): `x2 = sx + w` and `y2 = sy + h`.
-    #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
-    fn build_bmp_map(&self) -> BTreeMap<BmpIndex, BmpEntry> {
-        let visual = &self.bms.visual;
-        let mut map: BTreeMap<BmpIndex, BmpEntry> = BTreeMap::new();
-
-        // Collect every involved id (bmp_files, crop_defs, alt_crop_defs).
-        let mut ids: BTreeSet<BmpIndex> = visual.bmp_files.keys().copied().collect();
-        ids.extend(visual.crop_defs.keys().copied());
-        ids.extend(visual.alt_crop_defs.keys().copied());
-
-        for (i, id) in ids.into_iter().enumerate() {
-            // Crop definition: #BGA takes priority over #@BGA (the same id is
-            // unlikely to appear in both). Both give (CropRect, source
-            // bmp_index); #@BGA's w/h is normalized to the bottom-right corner.
-            let crop_def = visual
-                .crop_defs
-                .get(&id)
-                .map(|p| {
-                    (
-                        CropRect {
-                            x1: p.x1,
-                            y1: p.y1,
-                            x2: p.x2,
-                            y2: p.y2,
-                            dx: p.dx,
-                            dy: p.dy,
-                        },
-                        p.bmp_index,
-                    )
-                })
-                .or_else(|| {
-                    visual.alt_crop_defs.get(&id).map(|p| {
-                        (
-                            CropRect {
-                                x1: p.sx,
-                                y1: p.sy,
-                                x2: p.sx + p.w,
-                                y2: p.sy + p.h,
-                                dx: p.dx,
-                                dy: p.dy,
-                            },
-                            p.bmp_index,
-                        )
-                    })
-                });
-
-            // Path: with a crop definition, use the source BMP (#BGA first);
-            // otherwise use #BMP itself.
-            let (crop, path_opt) = match crop_def {
-                Some((crop, source_index)) => (
-                    Some(crop),
-                    resolve_bmp_path(&visual.bmp_files, source_index).cloned(),
-                ),
-                None => (None, visual.bmp_files.get(&id).cloned()),
-            };
-
-            let Some(path) = path_opt else {
-                continue;
-            };
-
-            map.insert(
-                id,
-                BmpEntry {
-                    resource_id: BgaResourceId::new(i as u32),
-                    path,
-                    crop,
-                },
-            );
-        }
-
-        map
-    }
-
-    /// Map each `#SWBGAxx` definition key to its vector index in
-    /// `swbga_resources`. Keys iterate in sorted order, matching the numbering
-    /// in [`Self::build_swbga_resources`].
-    #[expect(clippy::cast_possible_truncation, reason = "SWBGA count fits in u32")]
-    fn build_swbga_map(&self) -> BTreeMap<BmpIndex, SwBgaResourceId> {
-        self.bms
-            .visual
-            .sw_bga_defs
-            .keys()
-            .copied()
-            .enumerate()
-            .map(|(i, id)| (id, SwBgaResourceId::new(i as u32)))
-            .collect()
-    }
-
-    /// Build SWBGA animation definitions from `#SWBGAxx`.
-    ///
-    /// Pattern elements are two-digit indices decoded through the chart's base
-    /// and matched against `bmp_map` by numeric value; `00` resolves to the
-    /// `#BMP00` image when defined, otherwise the frame is blank.
-    fn build_swbga_resources(&self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) -> Vec<SwBgaResource> {
-        let base = self.bms.gameplay.base.unwrap_or_default();
-        self.bms
-            .visual
-            .sw_bga_defs
-            .values()
-            .map(|def| {
-                let pattern = def
-                    .pattern
-                    .as_bytes()
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|pair| {
-                        let text = std::str::from_utf8(pair).ok()?;
-                        let index = BmsIndex::try_from(text).ok()?.normalize(base);
-                        bmp_map.get(&BmpIndex(index)).map(|entry| entry.resource_id)
-                    })
-                    .collect();
-                SwBgaResource {
-                    frame_ms: def.fr,
-                    total_time_ms: def.time,
-                    line: def.line,
-                    loop_playback: def.r#loop,
-                    chroma: [def.a, def.r, def.g, def.b],
-                    pattern,
-                }
-            })
-            .collect()
-    }
-
-    /// Return the source line span for a measure and candidate channels.
-    fn message_span(
-        &self,
-        measure: u16,
-        channels: &[RawChannel],
-    ) -> Option<bmsrs_pipeline::SourceSpan> {
-        channels
-            .iter()
-            .find_map(|channel| self.bms.messages.line_span(measure, *channel))
-    }
-
-    /// Resolve a [`BpmValue`] into a concrete BPM, using the BPM definition table
-    /// for references.
-    fn resolve_bpm(
-        &mut self,
-        value: BpmValue,
-        tick: u64,
-        span: Option<bmsrs_pipeline::SourceSpan>,
-    ) -> f64 {
-        let base = self.bms.gameplay.base.unwrap_or_default();
-        match value {
-            BpmValue::Absolute(bpm) => bpm,
-            BpmValue::Reference(id) => {
-                if let Some(bpm) = self.bms.timing.bpm_defs.get(&id).copied() {
-                    bpm
-                } else {
-                    if let Some(key) = id.to_index_in(base) {
-                        self.warnings.push(ProcessWarning::new(
-                            span,
-                            ProcessWarningKind::MissingBpmDefinition { key, tick },
-                        ));
-                    }
-                    120.0
-                }
-            }
-        }
-    }
-
-    /// Build stop events from `#STOPxx` definitions (channel `09`).
-    ///
-    /// Negative STOP values are clamped to `0` (skipped) with a warning.
-    /// Angolmois ignores negative definitions and bms-rs rejects them at the
-    /// parse layer; beatoraja instead plays the absolute value, a deliberate
-    /// difference here.
-    fn build_stops_from_defs(&mut self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
-        let base = self.bms.gameplay.base.unwrap_or_default();
-        self.bms
-            .messages
-            .stop_events
-            .iter()
-            .filter_map(|se| {
-                let tick = self.table.position_to_tick(se.position);
-                let span = self.message_span(se.position.measure(), &[RawChannel::Stop]);
-                if let Some(&raw) = self.bms.timing.stop_defs.get(&se.stop_id) {
-                    // The raw value counts 1/192 notes; the pause length in
-                    // seconds depends on the BPM in effect at the stop tick.
-                    let secs = (raw / 192.0 * 4.0) * 60.0 / bpm_lookup.bpm_at_tick(tick).abs();
-                    if secs < 0.0 {
-                        self.warnings.push(ProcessWarning::new(
-                            span,
-                            ProcessWarningKind::StopDurationClipped {
-                                tick,
-                                original: secs,
-                            },
-                        ));
-                    }
-                    Some(StopEvent {
-                        tick,
-                        duration: Duration::try_from_secs_f64(secs.max(0.0))
-                            .unwrap_or(Duration::ZERO),
-                    })
-                } else {
-                    if let Some(key) = se.stop_id.to_index_in(base) {
-                        self.warnings.push(ProcessWarning::new(
-                            span,
-                            ProcessWarningKind::MissingStopDefinition { key, tick },
-                        ));
-                    }
-                    None
-                }
-            })
-            .collect()
-    }
-
-    /// Build stop events from the `#STP` header command (duration in
-    /// milliseconds).
-    ///
-    /// Entries at the same position accumulate per the specification: the
-    /// example pair `#STP 001.500 500` and `#STP 001.500 4000` stops scrolling
-    /// for 4500 ms in total. Entries are grouped by the resolved tick, so
-    /// distinct positions that quantize to the same tick also merge into one
-    /// stop. Non-positive durations are skipped; negative entries warn with
-    /// [`ProcessWarningKind::StopDurationClipped`], mirroring the `#STOP`
-    /// channel policy above. beatoraja does not implement `#STP` at all.
-    fn build_stops_from_stp(&mut self) -> Vec<StopEvent> {
-        let mut totals_ms: BTreeMap<u64, f64> = BTreeMap::new();
-        for stp in &self.bms.messages.stp_events {
-            let tick = self.table.position_to_tick(stp.position);
-            if stp.duration_ms < 0.0 {
-                self.warnings.push(ProcessWarning::new(
-                    None,
-                    ProcessWarningKind::StopDurationClipped {
-                        tick,
-                        original: stp.duration_ms / 1000.0,
-                    },
-                ));
-                continue;
-            }
-            if stp.duration_ms == 0.0 {
-                continue;
-            }
-            *totals_ms.entry(tick).or_default() += stp.duration_ms;
-        }
-        totals_ms
-            .into_iter()
-            .map(|(tick, total_ms)| StopEvent {
-                tick,
-                duration: Duration::try_from_secs_f64(total_ms / 1000.0).unwrap_or(Duration::ZERO),
-            })
-            .collect()
-    }
-
     /// Build [`SongInfo`] and [`ChartInfo`] from BMS metadata and the BMP
     /// mapping.
     #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
@@ -1411,44 +646,15 @@ impl BmsConverter<'_> {
         )
     }
 
-    /// Build a [`VideoAsset`] from `#VIDEOFILE` / `#MOVIE` and video parameters.
-    ///
-    /// `#VIDEOFILE` (looping) takes priority over `#MOVIE` (single play). Returns
-    /// `None` when neither is present. `#VIDEOf/s`, `#VIDEOCOLORS`, and
-    /// `#VIDEODLY` are attached as optional parameters; `#VIDEOCOLORS` and
-    /// `#VIDEODLY` are semantically integers and are converted from `f64` to
-    /// `u32`.
-    #[expect(clippy::cast_possible_truncation, reason = "video params fit in u32")]
-    #[expect(clippy::cast_sign_loss, reason = "clamped to non-negative before cast")]
-    fn build_video_asset(&self) -> Option<VideoAsset> {
-        let visual = &self.bms.visual;
-        let (path, loop_playback) = if let Some(p) = &visual.video_file {
-            (p.clone(), true)
-        } else {
-            (visual.movie.clone()?, false)
-        };
-        let mut asset = VideoAsset::new(PathBuf::from(path), loop_playback);
-        if let Some(fps) = visual.video_fps {
-            asset = asset.with_fps(fps);
-        }
-        if let Some(colors) = visual.video_colors {
-            asset = asset.with_colors(colors.max(0.0).round() as u32);
-        }
-        if let Some(delay) = visual.video_dly {
-            asset = asset.with_delay_frames(delay.max(0.0).round() as u32);
-        }
-        Some(asset)
-    }
-}
-
-/// Map the BMS semantic layer's layer enum to the format-agnostic
-/// [`bmsrs_chart::BgaLayer`].
-const fn map_bga_layer(layer: BmsBgaLayer) -> bmsrs_chart::BgaLayer {
-    match layer {
-        BmsBgaLayer::Base => bmsrs_chart::BgaLayer::Base,
-        BmsBgaLayer::Poor => bmsrs_chart::BgaLayer::Poor,
-        BmsBgaLayer::Layer => bmsrs_chart::BgaLayer::Layer,
-        BmsBgaLayer::Layer2 => bmsrs_chart::BgaLayer::Layer2,
+    /// Return the source line span for a measure and candidate channels.
+    fn message_span(
+        &self,
+        measure: u16,
+        channels: &[RawChannel],
+    ) -> Option<bmsrs_pipeline::SourceSpan> {
+        channels
+            .iter()
+            .find_map(|channel| self.bms.messages.line_span(measure, *channel))
     }
 }
 
@@ -1509,65 +715,6 @@ fn find_max_measure(bms: &Bms) -> u16 {
     max_m.max(1) + 1
 }
 
-/// Build WAV audio assets and return the lookup table and asset vector.
-fn build_audio_assets(audio: &Audio) -> (BTreeMap<WavIndex, AudioIndex>, Vec<AudioAsset>) {
-    let mut wav_map = BTreeMap::new();
-    let mut audio_assets = Vec::new();
-    for (&wav_id, path) in &audio.wav_files {
-        #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
-        let idx = AudioIndex::new(audio_assets.len() as u32);
-        let resolved_path = audio.path_wav.as_ref().map_or_else(
-            || PathBuf::from(path),
-            |prefix| Path::new(prefix).join(path),
-        );
-        audio_assets.push(AudioAsset {
-            path: Arc::from(resolved_path),
-            start: Duration::ZERO,
-            duration: None,
-        });
-        wav_map.insert(wav_id, idx);
-    }
-    (wav_map, audio_assets)
-}
-
-/// Entry produced by [`build_bmp_map`](BmsConverter::build_bmp_map): dense
-/// resource id, source file path, and optional crop definition.
-struct BmpEntry {
-    /// Zero-based resource id (the vector index into `bga_resources`).
-    resource_id: BgaResourceId,
-    /// Source image file path (the underlying `#BMP` that a crop definition
-    /// points to).
-    path: String,
-    /// Crop and placement definition (`#BGA` / `#@BGA`); `None` when absent.
-    crop: Option<CropRect>,
-}
-
-/// Resolve a decimal BMP number into a file path from the `#BMP` table.
-///
-/// The `bmp_index` field of `#BGA` / `#@BGA` is the **decimal** number of the
-/// source `#BMP`: per the BMS command memo the value is the hexadecimal index
-/// converted to decimal (so `16` references `#BMP10`), and only indices
-/// `00`-`FF` (0-255) can be referenced. Values above 255 are invalid and
-/// resolve to nothing.
-fn resolve_bmp_path(bmp_files: &BTreeMap<BmpIndex, String>, bmp_index: u16) -> Option<&String> {
-    let hex = u8::try_from(bmp_index).ok()?;
-    bmp_files
-        .iter()
-        .find_map(|(k, v)| (k.as_u8_hex() == Some(hex)).then_some(v))
-}
-
-/// Build the LN range lookup table.
-fn build_ln_ranges(paired_lns: &[PairedLn]) -> HashMap<(u8, u8), Vec<(u64, u64)>> {
-    let mut ln_ranges: HashMap<(u8, u8), Vec<(u64, u64)>> = HashMap::new();
-    for ln in paired_lns {
-        ln_ranges
-            .entry((ln.player, ln.lane))
-            .or_default()
-            .push((ln.tick, ln.end_tick));
-    }
-    ln_ranges
-}
-
 /// Infer the total number of playable keys from the event stream.
 ///
 /// Takes the maximum `Lane::Key` number per side and adds the two sides; returns
@@ -1595,95 +742,4 @@ fn key_count(events: &[BmsEvent]) -> Option<u8> {
 
     let total = p1.saturating_add(p2);
     (total > 0).then_some(total)
-}
-
-/// One playable-note slot request built during note collection, resolved
-/// against jbms-parser's channel order (visible notes, then long notes, then
-/// mines) before any event is emitted.
-#[derive(Clone)]
-struct Placement {
-    /// Absolute tick of the slot.
-    tick: u64,
-    /// Player number (1 or 2).
-    player: u8,
-    /// Original lane (1-9).
-    lane: u8,
-    /// What occupies the slot.
-    kind: PlacementKind,
-}
-
-/// The occupant of a [`Placement`] slot.
-#[derive(Clone)]
-enum PlacementKind {
-    /// Normal or invisible note.
-    Note {
-        /// Note kind (normal or invisible).
-        kind: NoteKind,
-        /// Resolved keysound, if the WAV reference resolves.
-        audio: Option<AudioIndex>,
-    },
-    /// Long-note start; the duration reaches the paired end.
-    Long {
-        /// Hold duration in ticks.
-        duration: u64,
-        /// Resolved keysound of the start, if the WAV reference resolves.
-        audio: Option<AudioIndex>,
-    },
-    /// Long-note end marker: occupies the slot, emits nothing. `warn` is set
-    /// for LNOBJ markers, which warn on conflict like a visible note does
-    /// (jbms-parser); ch51-69 ends overwrite silently.
-    LnEnd {
-        /// Whether a displaced note produces a warning.
-        warn: bool,
-    },
-    /// Mine note.
-    Mine {
-        /// Damage value.
-        damage: Damage,
-    },
-}
-
-/// Build aligned bar events from the precomputed measure tick table.
-///
-/// Supports variable time signatures (`#xxx02`): each measure's barline sits at
-/// its actual start tick instead of a forced equal-step 4/4 spacing.
-fn build_bar_events(table: &MeasureTable) -> Vec<BmsEvent> {
-    table
-        .bar_ticks()
-        .iter()
-        .map(|&tick| Event::bar(tick))
-        .collect()
-}
-
-/// Convert a mine's raw Base36 value into a damage value.
-///
-/// - `Some(1295)` (`"ZZ"`) means instant death (`f64::INFINITY`).
-/// - `Some(n)` gives `n / 2.0`.
-/// - `None` (decoding failed) gives the default `1.0`.
-fn mine_damage(raw: Option<u16>) -> f64 {
-    match raw {
-        None => 1.0,
-        Some(1295) => f64::INFINITY,
-        Some(n) => f64::from(n) / 2.0,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn instant_kill_value_produces_infinite_damage() {
-        assert!(mine_damage(Some(1295)).is_infinite());
-    }
-
-    #[test]
-    fn normal_value_produces_half_damage() {
-        assert!((mine_damage(Some(1)) - 0.5).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn undecodable_value_produces_default_damage() {
-        assert!((mine_damage(None) - 1.0).abs() < f64::EPSILON);
-    }
 }
