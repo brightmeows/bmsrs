@@ -18,8 +18,9 @@
 //!
 //! All event positions are absolute [`u64`] ticks.
 //! [`ChartData::resolution`] defines ticks per quarter note (default 240).
-//! BPM changes and stops live in the event stream; `bmsrs-player` derives a
-//! [`TimingTrack`] from them. Wall-clock time is obtained through
+//! BPM changes and stops live in the event stream; [`TimingTrack::from_events`]
+//! derives a [`TimingTrack`] from them, which `bmsrs-player` builds on player
+//! construction. Wall-clock time is obtained through
 //! [`TimingTrack::tick_to_duration`].
 //!
 //! # Unified event timeline
@@ -298,8 +299,9 @@ impl From<TimingTrackError> for ChartDataError {
 ///
 /// Does not implement [`Default`]: a valid state requires a positive initial BPM
 /// and a positive `resolution`, so there is no meaningful zero default. BPM
-/// changes and stops live in `events`; the player derives a
-/// [`TimingTrack`] from them.
+/// changes and stops live in `events`; [`TimingTrack::from_events`] derives a
+/// [`TimingTrack`] from them, which `bmsrs-player` builds on player
+/// construction.
 ///
 /// Fields are private. A value is always produced by [`ChartData::new`] or a
 /// fallible event transformation, so the event stream is sorted and every audio
