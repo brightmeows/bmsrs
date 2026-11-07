@@ -134,6 +134,7 @@ version = "0.0.1"
 dependencies = [
  "bmsrs-bms-syntax",
  "bmsrs-bms-values",
+ "bmsrs-pipeline",
 ]
 
 [[package]]
