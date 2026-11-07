@@ -4,7 +4,7 @@
 
 BMS 与 BMSON 谱面格式的 Rust 解析、转换与模拟播放工具包。
 
-> 预发布状态：`0.0.1` 尚未发布，公开接口可能变动。
+> 1.0 之前：公开接口可能随时变动，语义化版本兼容尚不适用。
 
 ## 简介
 
@@ -19,11 +19,11 @@ bmsrs 处理两种谱面格式：
 
 ## 快速开始
 
-`0.0.1` 尚未发布。当前请使用 git 依赖：
+从 crates.io 安装：
 
 ```toml
 [dependencies]
-bmsrs = { git = "https://github.com/brightmeows/bmsrs" }
+bmsrs = "0.0.1"
 ```
 
 完整的管道说明、crate 职责表、BMS/BMSON 示例与开发命令见英文主版
