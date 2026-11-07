@@ -93,20 +93,20 @@ criterion = "0.8"
 rowan = "0.17"
 
 # Local (path)
-bmsrs-bmson-model = { path = "bmson/model" }
-bmsrs-bms-source = { path = "bms/source" }
-bmsrs-bms-syntax = { path = "bms/syntax" }
-bmsrs-bms-analysis = { path = "bms/analysis" }
-bmsrs-bms-model = { path = "bms/model" }
-bmsrs-bms-parser = { path = "bms/parser" }
-bmsrs-bms-values = { path = "bms/values" }
-bmsrs-bms-values-derive = { path = "bms/values-derive" }
-bmsrs-chart = { path = "common/chart" }
-bmsrs-bmson-processor = { path = "bmson/processor" }
-bmsrs-bms-processor = { path = "bms/processor" }
-bmsrs-bms-writer = { path = "bms/writer" }
-bmsrs-player = { path = "common/player" }
-bmsrs-pipeline = { path = "common/pipeline" }
+bmsrs-bmson-model = { version = "0.0.1", path = "bmson/model" }
+bmsrs-bms-source = { version = "0.0.1", path = "bms/source" }
+bmsrs-bms-syntax = { version = "0.0.1", path = "bms/syntax" }
+bmsrs-bms-analysis = { version = "0.0.1", path = "bms/analysis" }
+bmsrs-bms-model = { version = "0.0.1", path = "bms/model" }
+bmsrs-bms-parser = { version = "0.0.1", path = "bms/parser" }
+bmsrs-bms-values = { version = "0.0.1", path = "bms/values" }
+bmsrs-bms-values-derive = { version = "0.0.1", path = "bms/values-derive" }
+bmsrs-chart = { version = "0.0.1", path = "common/chart" }
+bmsrs-bmson-processor = { version = "0.0.1", path = "bmson/processor" }
+bmsrs-bms-processor = { version = "0.0.1", path = "bms/processor" }
+bmsrs-bms-writer = { version = "0.0.1", path = "bms/writer" }
+bmsrs-player = { version = "0.0.1", path = "common/player" }
+bmsrs-pipeline = { version = "0.0.1", path = "common/pipeline" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
