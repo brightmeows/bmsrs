@@ -42,12 +42,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use bmsrs_bms_model::{
-    Audio, BmpIndex, BmsBgaLayer, BmsChannel as RawChannel, BmsIndex, ChangeOptionIndex,
-    ExRankIndex, LnMode, OwnedExWavParams, PlayerMode, Rank, SeekIndex, TextIndex, WavCmdParams,
-    WavIndex,
-};
+use bmsrs_bms_model::{Audio, BmsBgaLayer, OwnedExWavParams};
 use bmsrs_bms_model::{Bms, BpmValue, Gameplay, KeyType};
+use bmsrs_bms_values::{
+    BmpIndex, BmsChannel as RawChannel, BmsIndex, ChangeOptionIndex, ExRankIndex, LnMode,
+    PlayerMode, Rank, SeekIndex, TextIndex, WavCmdParams, WavIndex,
+};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaResource, BgaResourceId, BpmChange, BpmLookup, Chart, ChartData,
     ChartDataError, ChartInfo, CropRect, Damage, Event, EventKind, JudgeRankKind, JudgeRankSpec,
@@ -363,7 +363,7 @@ impl BmsConverter<'_> {
                 consumed,
             );
         }
-        if self.bms.gameplay.ln_type == Some(bmsrs_bms_model::LnType::Type2) {
+        if self.bms.gameplay.ln_type == Some(bmsrs_bms_values::LnType::Type2) {
             return (
                 pair_lntype2(&self.bms.messages.long_note_events, self.table),
                 HashSet::new(),

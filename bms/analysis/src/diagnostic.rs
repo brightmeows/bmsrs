@@ -3,15 +3,10 @@
 use bmsrs_bms_syntax::TextRange;
 
 /// Diagnostic severity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Severity {
-    /// Error.
-    Error,
-    /// Warning.
-    Warning,
-    /// Information.
-    Information,
-}
+///
+/// Shared with the rest of the pipeline through `bmsrs-pipeline`, so every
+/// layer reports severities with the same type.
+pub use bmsrs_pipeline::Severity;
 
 /// An analysis diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]

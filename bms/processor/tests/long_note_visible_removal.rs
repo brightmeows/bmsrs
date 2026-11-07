@@ -407,7 +407,7 @@ fn lnobj_visible_note_inside_range_removed() {
     bms.audio
         .wav_files
         .insert("CC".parse().unwrap(), "c.wav".to_owned());
-    let ln_obj: bmsrs_bms_model::LnObjIndex = "FF".parse().unwrap();
+    let ln_obj: bmsrs_bms_values::LnObjIndex = "FF".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
 
     // LN: start at slot 0 (wav AA), end at slot 4 (wav FF — LNOBJ marker)
@@ -487,7 +487,7 @@ fn lntype2_visible_note_inside_range_removed() {
         .wav_files
         .insert("CC".parse().unwrap(), "c.wav".to_owned());
 
-    bms.gameplay.ln_type = Some(bmsrs_bms_model::LnType::Type2);
+    bms.gameplay.ln_type = Some(bmsrs_bms_values::LnType::Type2);
 
     // LN: AA at slot 0, BB at slot 2, 00 at slot 4 → LN is AA..00 (tick 0..480)
     bms.messages

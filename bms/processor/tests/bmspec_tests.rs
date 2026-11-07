@@ -753,10 +753,10 @@ fn bmspec_1_08_wav_references() {
          #WAVAA zz.ogg\n",
     );
 
-    let wav01: bmsrs_bms_model::WavIndex = "01".parse().unwrap();
-    let wav_zz: bmsrs_bms_model::WavIndex = "ZZ".parse().unwrap();
-    let wav_aa: bmsrs_bms_model::WavIndex = "AA".parse().unwrap();
-    let wav02: bmsrs_bms_model::WavIndex = "02".parse().unwrap();
+    let wav01: bmsrs_bms_values::WavIndex = "01".parse().unwrap();
+    let wav_zz: bmsrs_bms_values::WavIndex = "ZZ".parse().unwrap();
+    let wav_aa: bmsrs_bms_values::WavIndex = "AA".parse().unwrap();
+    let wav02: bmsrs_bms_values::WavIndex = "02".parse().unwrap();
 
     assert_eq!(
         bms.audio.wav_files.get(&wav01).map(String::as_str),

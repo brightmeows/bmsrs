@@ -1,8 +1,11 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_model::{Bms, BmsBase, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
+use bmsrs_bms_model::{Bms, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
+use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{BmsProcessor, ProcessWarningKind};
+use bmsrs_bms_syntax::SourceFile;
+use bmsrs_bms_values::BmsBase;
 
 #[test]
 fn missing_wav_key_produces_warning() {
@@ -94,7 +97,7 @@ fn normal_chart_produces_no_warnings() {
 fn missing_bpm_definition_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    let bpm_id: bmsrs_bms_model::BpmIndex = "ZZ".parse().unwrap();
+    let bpm_id: bmsrs_bms_values::BpmIndex = "ZZ".parse().unwrap();
     // Reference an undefined BPM key.
     bms.messages.bpm_changes.push(BpmChange {
         position: Position::new(1, 0, 8),
@@ -137,7 +140,8 @@ fn unparsable_bpm_value_produces_warning() {
 #BPM 120
 #00003:GG
 ";
-    let bms = bmsrs::bms::parse(text).unwrap().value;
+    let source = SourceFile::parse(text);
+    let bms = BmsParser::parse(&source.source_file(), |_| 1).bms;
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
 
     assert!(warnings.iter().any(|w| matches!(

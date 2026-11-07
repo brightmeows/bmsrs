@@ -134,6 +134,7 @@ version = "0.0.1"
 dependencies = [
  "bmsrs-bms-syntax",
  "bmsrs-bms-values",
+ "bmsrs-pipeline",
 ]
 
 [[package]]
@@ -160,10 +161,10 @@ dependencies = [
 name = "bmsrs-bms-processor"
 version = "0.0.1"
 dependencies = [
- "bmsrs",
  "bmsrs-bms-model",
  "bmsrs-bms-parser",
  "bmsrs-bms-syntax",
+ "bmsrs-bms-values",
  "bmsrs-chart",
  "bmsrs-pipeline",
  "bmsrs-player",
@@ -217,6 +218,7 @@ dependencies = [
  "bmsrs-bms-model",
  "bmsrs-bms-parser",
  "bmsrs-bms-syntax",
+ "bmsrs-bms-values",
  "proptest",
 ]
 

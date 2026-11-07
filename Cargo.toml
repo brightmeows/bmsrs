@@ -16,6 +16,15 @@ members = [
     "common/player",
     "common/pipeline",
 ]
+# The facade lives at the workspace root, so a bare `cargo test` without
+# this list would resolve to the facade alone and silently skip every
+# sub-crate (the rig workspace hit exactly this: #2258).
+default-members = [
+    ".",
+    "bms/*",
+    "bmson/*",
+    "common/*",
+]
 
 [package]
 name = "bmsrs"
@@ -33,7 +42,7 @@ readme.workspace = true
 
 [features]
 default = ["bmson"]
-bmson = ["dep:serde_json"]
+bmson = ["dep:bmsrs-bmson-model", "dep:bmsrs-bmson-processor", "dep:serde_json"]
 
 [lints]
 workspace = true
@@ -47,8 +56,8 @@ bmsrs-bms-model.workspace = true
 bmsrs-bms-parser.workspace = true
 bmsrs-bms-values.workspace = true
 bmsrs-bms-processor.workspace = true
-bmsrs-bmson-model.workspace = true
-bmsrs-bmson-processor.workspace = true
+bmsrs-bmson-model = { workspace = true, optional = true }
+bmsrs-bmson-processor = { workspace = true, optional = true }
 bmsrs-chart.workspace = true
 bmsrs-player.workspace = true
 bmsrs-pipeline.workspace = true

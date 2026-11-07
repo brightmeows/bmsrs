@@ -6,11 +6,11 @@
 
 use bmsrs_bms_model::BmsBgaLayer;
 use bmsrs_bms_model::*;
-use bmsrs_bms_model::{
+use bmsrs_bms_parser::BmsParser;
+use bmsrs_bms_values::{
     BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
     Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
-use bmsrs_bms_parser::BmsParser;
 
 /// Helper: parse a BMS string into `Bms` (default C = &str).
 fn parse(input: &str) -> Bms {

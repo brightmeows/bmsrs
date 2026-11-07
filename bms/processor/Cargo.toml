@@ -16,14 +16,12 @@ readme.workspace = true
 bmsrs-bms-model.workspace = true
 bmsrs-chart.workspace = true
 bmsrs-pipeline.workspace = true
+bmsrs-bms-values.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 bmsrs-bms-syntax.workspace = true
 bmsrs-bms-parser.workspace = true
-# The facade is the workspace root crate and is not in workspace.dependencies,
-# so use a literal path.
-bmsrs = { path = "../.." }
 bmsrs-player.workspace = true
 
 [lib]

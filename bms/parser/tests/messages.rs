@@ -5,7 +5,7 @@
 
 use bmsrs_bms_model::BmsBgaLayer;
 use bmsrs_bms_model::*;
-use bmsrs_bms_model::{BmsBase, BmsChannel, BpmIndex, WavIndex};
+use bmsrs_bms_values::{BmsBase, BmsChannel, BmsMessage, BpmIndex, WavIndex};
 
 /// Helper: parse one standard message line (`#xxxYY:body`) through `Messages`,
 /// using Base36.
