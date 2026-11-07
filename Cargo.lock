@@ -160,7 +160,6 @@ dependencies = [
 name = "bmsrs-bms-processor"
 version = "0.0.1"
 dependencies = [
- "bmsrs",
  "bmsrs-bms-model",
  "bmsrs-bms-parser",
  "bmsrs-bms-syntax",

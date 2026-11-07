@@ -21,9 +21,6 @@ thiserror.workspace = true
 [dev-dependencies]
 bmsrs-bms-syntax.workspace = true
 bmsrs-bms-parser.workspace = true
-# The facade is the workspace root crate and is not in workspace.dependencies,
-# so use a literal path.
-bmsrs = { path = "../.." }
 bmsrs-player.workspace = true
 
 [lib]

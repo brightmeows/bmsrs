@@ -1,8 +1,10 @@
 #![expect(missing_docs, reason = "integration test")]
 
 use bmsrs_bms_model::{Bms, BmsBase, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
+use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{BmsProcessor, ProcessWarningKind};
+use bmsrs_bms_syntax::SourceFile;
 
 #[test]
 fn missing_wav_key_produces_warning() {
@@ -137,7 +139,8 @@ fn unparsable_bpm_value_produces_warning() {
 #BPM 120
 #00003:GG
 ";
-    let bms = bmsrs::bms::parse(text).unwrap().value;
+    let source = SourceFile::parse(text);
+    let bms = BmsParser::parse(&source.source_file(), |_| 1).bms;
     let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
 
     assert!(warnings.iter().any(|w| matches!(
