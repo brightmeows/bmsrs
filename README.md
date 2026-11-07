@@ -5,7 +5,7 @@ English | [简体中文](README.zh-CN.md)
 A Rust toolkit for parsing, converting, and simulating playback of BMS and
 BMSON chart formats.
 
-> Pre-release: `0.1.0` has not been released; public interfaces may change.
+> Pre-release: `0.0.1` has not been released; public interfaces may change.
 
 ## Overview
 
@@ -53,7 +53,7 @@ and editor data. `bmsrs-bms-writer` rewrites `Bms` canonically as BMS text.
 
 ## Quick start
 
-`0.1.0` has not been released. Use a git dependency for now:
+`0.0.1` has not been released. Use a git dependency for now:
 
 ```toml
 [dependencies]
@@ -68,8 +68,7 @@ use std::time::Duration;
 use bmsrs::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = std::fs::read("chart.bms")?;
-    let parsed = bmsrs::bms::parse_bytes(bytes)?;
+    let parsed = bmsrs::bms::parse_file("chart.bms")?;
     let processed = bmsrs::bms::process(&parsed.value)?;
     let chart = processed.value.chart;
 
@@ -81,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`parse_bytes` uses the first branch for `#RANDOM` / `#SWITCH` and collects all
+`parse_file` uses the first branch for `#RANDOM` / `#SWITCH` and collects all
 warnings. Use `parse_bytes_with` when you need a custom branch selector,
 `ParseOptions`, or `ErrorStrategy`.
 

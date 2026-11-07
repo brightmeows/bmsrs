@@ -5,6 +5,38 @@
 //! facade-owned types; [`raw`] mirrors the workspace directory structure with
 //! the full layer exports.
 
+//! # Quick start
+//!
+//! Parse a BMS chart, process it into the unified [`chart::Chart`], and
+//! simulate playback with the [`player::Player`]:
+//!
+//! ```
+//! use std::time::Duration;
+//!
+//! use bmsrs::prelude::*;
+//!
+//! let source = "#TITLE Demo\n#BPM 120\n#WAV01 kick.wav\n#00111:0100\n";
+//! let parsed = bmsrs::bms::parse(source).expect("valid BMS");
+//! let processed = bmsrs::bms::process(&parsed.value).expect("valid chart");
+//!
+//! let mut player = Player::new(processed.value.chart);
+//! player.advance(Duration::from_secs(1));
+//! assert_eq!(player.current_tick(), 480);
+//! ```
+//!
+//! Parse a BMSON chart; v0/v1 inputs are upgraded to the root v2 schema:
+//!
+//! ```
+//! let json = r#"{
+//!     "version": "2.0.0",
+//!     "song_info": {"title": "T", "artist": "A", "genre": "G"},
+//!     "chart_info": {"level": 1, "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}},
+//!     "chart_data": {"init_bpm": 120}
+//! }"#;
+//! let bmson = bmsrs::bmson::parse_str(json).expect("valid BMSON");
+//! assert_eq!(bmson.song_info.title, "T");
+//! ```
+
 /// Parsing and processing for the BMS format.
 pub mod bms {
     // Layer crates live under `raw`; the curated path keeps only the entry
@@ -41,6 +73,9 @@ pub mod bms {
             /// Decode error.
             error: source::TextDecodeError,
         },
+        /// File read error.
+        #[error("failed to read file: {0}")]
+        Io(#[from] std::io::Error),
     }
 
     /// Non-fatal warnings from the whole-pipeline entry points.
@@ -145,6 +180,22 @@ pub mod bms {
         let document = source::Document::from_bytes_with(bytes, doc_options);
         from_document(&document, parse_options, rng, error_strategy)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
+    }
+
+    /// Read the BMS file at `path` and parse it with the default pipeline.
+    ///
+    /// This is [`parse_bytes`] with file I/O: the file is read with
+    /// [`std::fs::read`] and handed to the same pipeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FromTextError`] when reading fails or when parsing or
+    /// decoding fails.
+    pub fn parse_file(
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+        let bytes = std::fs::read(path)?;
+        parse_bytes(bytes)
     }
 
     /// Convert `Bms` to a format-agnostic chart with the default layout.
@@ -308,6 +359,22 @@ pub mod bmson {
         parse_str(json)
     }
 
+    /// Read the BMSON file at `path` and parse it, upgrading v0/v1 to the
+    /// root v2 schema.
+    ///
+    /// This is [`parse_slice`] with file I/O: the file is read with
+    /// [`std::fs::read`] and handed to the same pipeline.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BmsonParseError`] when reading fails or when the JSON,
+    /// UTF-8, or version is invalid.
+    #[cfg(feature = "bmson")]
+    pub fn parse_file(path: impl AsRef<std::path::Path>) -> Result<model::Bmson, BmsonParseError> {
+        let bytes = std::fs::read(path)?;
+        parse_slice(&bytes)
+    }
+
     /// Convert `Bmson` to a format-agnostic chart with the default layout.
     ///
     /// # Errors
@@ -373,6 +440,9 @@ pub mod bmson {
         /// Version detection or conversion error.
         #[error("BMSON version error: {0}")]
         Version(#[from] model::BmsonError),
+        /// File read error.
+        #[error("failed to read file: {0}")]
+        Io(#[from] std::io::Error),
     }
 }
 

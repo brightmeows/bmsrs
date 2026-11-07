@@ -107,7 +107,7 @@ checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
 name = "bmsrs"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bms-analysis",
  "bmsrs-bms-model",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-analysis"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bms-syntax",
  "bmsrs-bms-values",
@@ -138,7 +138,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-model"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bms-values",
  "bmsrs-pipeline",
@@ -147,7 +147,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-parser"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bms-model",
  "bmsrs-bms-source",
@@ -158,7 +158,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-processor"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs",
  "bmsrs-bms-model",
@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-source"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "encoding_rs",
  "proptest",
@@ -181,7 +181,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-syntax"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bms-source",
  "criterion",
@@ -193,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-values"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bms-values-derive",
  "bmsrs-pipeline",
@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-values-derive"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -212,7 +212,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bms-writer"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bms-model",
  "bmsrs-bms-parser",
@@ -222,7 +222,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bmson-model"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "chumsky",
  "derive_more",
@@ -234,7 +234,7 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-bmson-processor"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-bmson-model",
  "bmsrs-chart",
@@ -245,15 +245,15 @@ dependencies = [
 
 [[package]]
 name = "bmsrs-chart"
-version = "0.1.0"
+version = "0.0.1"
 
 [[package]]
 name = "bmsrs-pipeline"
-version = "0.1.0"
+version = "0.0.1"
 
 [[package]]
 name = "bmsrs-player"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bmsrs-chart",
  "criterion",

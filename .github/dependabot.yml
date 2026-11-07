@@ -1,11 +1,11 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
+    # Cargo workspaces resolve member manifests through the root; pointing
+    # Dependabot at member directories fails every cargo update run with
+    # dependency_file_not_resolvable.
     directories:
       - "/"
-      - "bms/*"
-      - "bmson/*"
-      - "common/*"
     schedule:
       interval: "weekly"
       time: "09:00"
