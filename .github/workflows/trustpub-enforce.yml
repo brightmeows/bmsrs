@@ -24,6 +24,7 @@ jobs:
               -H "Authorization: $TOKEN" -H "User-Agent: $UA" -H "Content-Type: application/json" \
               -d '{"crate":{"trustpub_only":true}}')
             echo "PATCH $c: $code"
+            echo "response: $(cat /tmp/p.json)"
             [ "$code" = 200 ] || { echo "patch failed for $c"; exit 1; }
           done
           for c in $CRATES; do
