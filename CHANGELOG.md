@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-v0.0.1...bmsrs-v0.0.2) - 2026-11-10
+
+### Bug Fixes
+
+- *(bmsrs)* gate the whole bmson subtree behind the bmson feature
+- *(processor)* drop the facade dev-dependency from warning tests
+
+### CI
+
+- remove the trusted publishing enforcement bootstrap
+- log the enforcement patch response body
+- one-shot trusted publishing enforcement bootstrap
+- *(release)* publish through crates.io trusted publishing
+
+### Documentation
+
+- *(agents)* mark 0.0.1 as released
+- *(readme)* flip install instructions to the released 0.0.1
+
+### Other
+
+- *(release)* skip merge-commit and redacted commits in changelogs
+- *(bmson-model)* drop the chumsky-based bmson_parser example
+- *(workspace)* add default-members covering every member
+
+### Refactoring
+
+- *(bms-analysis)* share the pipeline Severity type
+- *(bms-model)* [**breaking**] stop re-exporting the values crate wholesale (migration: import values types from bmsrs-bms-values (or)
 ## [0.0.1](https://github.com/brightmeows/bmsrs/releases/tag/bmsrs-v0.0.1) - 2026-11-07
 
 ### Bug Fixes
