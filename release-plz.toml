@@ -16,6 +16,15 @@ changelog_update = true
 # Covers standard conventional commit types beyond the default set
 # (which lumps everything except feat/fix into "Other").
 commit_parsers = [
+    # Merge commits repeat the PR-branch commit subject with a "(#N)"
+    # suffix (rewritten into a PR link by the release-plz default
+    # preprocessor). Skipping them keeps one changelog entry per change
+    # instead of one per commit.
+    { message = "\\(#\\d+\\)", skip = true },
+    # Secret-scrubbing placeholders leaked into commit subjects; the
+    # garbled entries describe internal CI operations and carry no
+    # user-facing information.
+    { message = "Redacted", skip = true },
     { message = "^feat", group = "Features" },
     { message = "^fix", group = "Bug Fixes" },
     { message = "^refactor", group = "Refactoring" },
