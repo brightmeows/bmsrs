@@ -58,7 +58,7 @@ Install from crates.io:
 
 ```toml
 [dependencies]
-bmsrs = "0.0.1"
+bmsrs = "0.0.2"
 ```
 
 ### BMS to Player
