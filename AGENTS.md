@@ -58,6 +58,11 @@ through a git
 
 External dependencies are managed through `[workspace.dependencies]`; do not
 specify versions in individual crate `Cargo.toml` files.
+Internal dev-dependencies are the one exception: declare them path-only
+(`{ path = "..." }`, no version) so cargo drops them from published manifests.
+A version requirement there forces `cargo publish` to resolve the dependency
+from the registry, and release-plz orders releases without dev-dependencies,
+so packaging fails whenever the dependency crate has not been published yet.
 
 ### Facade crate
 
