@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-processor-v0.0.1...bmsrs-bms-processor-v0.0.2) - 2026-11-10
+
+### Bug Fixes
+
+- *(processor)* drop the facade dev-dependency from warning tests
+
+### Documentation
+
+- *(readme)* flip install instructions to the released 0.0.1
+
+### Refactoring
+
+- *(processor)* split BmsConverter conversion steps by domain
+- *(bms-model)* [**breaking**] stop re-exporting the values crate wholesale (migration: import values types from bmsrs-bms-values (or bmsrs::raw::values) instead of bmsrs-bms-model.)
 ## [0.0.1](https://github.com/brightmeows/bmsrs/releases/tag/bmsrs-bms-processor-v0.0.1) - 2026-11-07
 
 ### Bug Fixes
