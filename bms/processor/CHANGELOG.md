@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Refactoring
 
 - *(processor)* split BmsConverter conversion steps by domain
-- *(bms-model)* [**breaking**] stop re-exporting the values crate wholesale (migration: import values types from bmsrs-bms-values (or)
+- *(bms-model)* [**breaking**] stop re-exporting the values crate wholesale (migration: import values types from bmsrs-bms-values (or bmsrs::raw::values) instead of bmsrs-bms-model.)
 ## [0.0.1](https://github.com/brightmeows/bmsrs/releases/tag/bmsrs-bms-processor-v0.0.1) - 2026-11-07
 
 ### Bug Fixes
