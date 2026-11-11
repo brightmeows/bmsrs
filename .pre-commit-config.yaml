@@ -110,3 +110,20 @@ repos:
         entry: bash -c '! rg -U --pcre2 -n "(?ms)^[ \t]*//[^\n]*[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]|^[ \t]*/\*(?:(?!\*/).)*?[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]|reason\s*=\s*r?#*\"[^\"]*[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]" "$@"' _
         language: system
         types: [rust]
+
+  # Reject version-carrying internal dev-dependencies.  cargo publish
+  # resolves dev-dependencies from the registry while packaging, and
+  # release-plz orders releases without dev-dependencies, so a version
+  # requirement on a workspace crate fails `cargo publish` whenever that
+  # crate has not been published yet.  Declare internal dev-dependencies
+  # path-only (see AGENTS.md); regular and build dependencies are unaffected.
+  - repo: local
+    hooks:
+      - id: no-versioned-internal-dev-deps
+        name: no version-carrying internal dev-dependencies (use path-only)
+        # -U with the (?m) lookahead walks the [dev-dependencies] section body
+        # line by line until the next `[` header and flags an internal
+        # (`bmsrs-*`) entry whose line does not declare `path =`.
+        entry: bash -c '! rg -U --pcre2 -n "(?m)^\[dev-dependencies\][ \t]*\r?\n(?=(?:(?!\[)[^\n]*\n)*?^[ \t]*bmsrs-[\w-]+\s*[.=](?:(?!path\s*=)[^\n])*$)" "$@"' _
+        language: system
+        files: (^|/)Cargo\.toml$
