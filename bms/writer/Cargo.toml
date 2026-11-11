@@ -17,8 +17,11 @@ bmsrs-bms-model.workspace = true
 bmsrs-bms-values.workspace = true
 
 [dev-dependencies]
-bmsrs-bms-parser.workspace = true
-bmsrs-bms-syntax.workspace = true
+# Path-only: cargo publish resolves dev-dependencies from the registry while
+# packaging, and release-plz orders releases without dev-dependencies, so a
+# version requirement would fail when this crate publishes before them.
+bmsrs-bms-parser = { path = "../../bms/parser" }
+bmsrs-bms-syntax = { path = "../../bms/syntax" }
 proptest.workspace = true
 
 [lints]
