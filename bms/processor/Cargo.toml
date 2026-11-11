@@ -22,7 +22,11 @@ thiserror.workspace = true
 [dev-dependencies]
 bmsrs-bms-syntax.workspace = true
 bmsrs-bms-parser.workspace = true
-bmsrs-player.workspace = true
+# Path-only: dev-dependencies must resolve from the registry during
+# `cargo publish` packaging, and release-plz orders releases without
+# dev-dependencies, so a version requirement here would fail when this
+# crate publishes before `bmsrs-player`.
+bmsrs-player = { path = "../../common/player" }
 
 [lib]
 
