@@ -5,8 +5,9 @@
 Format-agnostic chart data model: the central IR between format processors and
 the player.
 
-**Zero external dependencies.** Pure `std`, with no `serde`, `thiserror`, or
-`serde_json`.
+**Dependency direction.** `bmsrs-chart` must not depend on domain crates
+(`bmsrs-bms-*`, `bmsrs-bmson-*`) or on `bmsrs-player`; see `../AGENTS.md`
+for the full rule.
 
 ## Time model
 

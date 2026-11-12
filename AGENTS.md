@@ -221,7 +221,4 @@ Reassess them before adding support; do not assume silently.
 
 ### Never
 
-- Manually edit version numbers in `Cargo.toml`
-- Create or modify CHANGELOG.md
 - Force push to the `main` branch
-- Add serialization dependencies such as `serde` / `serde_json` to `bmsrs-chart` or `bmsrs-player`

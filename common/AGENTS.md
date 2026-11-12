@@ -5,8 +5,12 @@
 Format-agnostic chart data model and simulation layer. The BMS and BMSON
 pipelines converge here; both processors output `Chart<T>`.
 
-**Zero external dependencies.** Pure `std`, with no `serde`, `thiserror`, or
-`serde_json`.
+**Dependency direction.** The graph flows from the format domains into
+common: regular dependencies of a common crate may only be `std`, sibling
+common crates (`bmsrs-player` depends on `bmsrs-chart`), and external crates
+judged by normal review. Domain crates (`bmsrs-bms-*`, `bmsrs-bmson-*`) must
+not appear in regular dependencies. Dev-dependencies are exempt: they never
+enter downstream dependency trees.
 
 ## Architecture
 
@@ -40,7 +44,7 @@ Both live in `bmsrs-chart`.
 
 | Principle | Meaning |
 |-----------|---------|
-| Zero external dependencies | pure `std`; serialization and error libraries are brought in by upstream crates |
+| Dependency direction | the graph flows from format domains into common; domain crates never appear in common regular dependencies, external dependencies follow normal review |
 | No side effects | no I/O, rendering, judging, or scoring; pure data and queries |
 | Do not store mode information | `Chart` does not store a mode family; notes already carry `(NoteSide, Lane)` |
 
