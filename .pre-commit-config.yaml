@@ -127,3 +127,19 @@ repos:
         entry: bash -c '! rg -U --pcre2 -n "(?m)^\[dev-dependencies\][ \t]*\r?\n(?=(?:(?!\[)[^\n]*\n)*?^[ \t]*bmsrs-[\w-]+\s*[.=](?:(?!path\s*=)[^\n])*$)" "$@"' _
         language: system
         files: (^|/)Cargo\.toml$
+
+  # Enforce the common-layer dependency direction rule (common/AGENTS.md):
+  # dependencies flow from the format domains into common.  A `bmsrs-bms-*`
+  # or `bmsrs-bmson-*` crate in the regular dependencies of a common/*
+  # crate inverts that direction.  [dev-dependencies] are deliberately not
+  # checked: they never enter downstream dependency trees.
+  - repo: local
+    hooks:
+      - id: no-domain-deps-in-common
+        name: no domain crates in common/* regular dependencies
+        # -U with the (?m) lookahead walks each [dependencies] or
+        # [target.*.dependencies] section body line by line until the next
+        # `[` header and flags any `bmsrs-bms-*` / `bmsrs-bmson-*` key.
+        entry: bash -c '! rg -U --pcre2 -n "(?m)^\[(target\.[^\]]+\.)?dependencies\][ \t]*\r?\n(?=(?:(?!\[)[^\n]*\n)*?^[ \t]*bmsrs-(?:bms|bmson)[\w-]*\s*[.=])" "$@"' _
+        language: system
+        files: (^|/)common/.*/Cargo\.toml$
