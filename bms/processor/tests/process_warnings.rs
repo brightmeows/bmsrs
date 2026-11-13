@@ -78,6 +78,7 @@ fn untermined_long_note_produces_warning() {
 fn normal_chart_produces_no_warnings() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
+    bms.gameplay.total = Some(100.0);
     bms.audio
         .wav_files
         .insert("01".parse().unwrap(), "kick.wav".to_owned());

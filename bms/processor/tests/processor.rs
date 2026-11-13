@@ -606,6 +606,7 @@ fn process_nan_bpm_change_never_enters_event_stream() {
 fn process_nan_bpm_change_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
+    bms.gameplay.total = Some(100.0);
     bms.messages.bpm_changes.push(BpmChange {
         position: Position::new(1, 0, 4),
         value: BpmValue::Absolute(f64::NAN),
