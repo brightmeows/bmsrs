@@ -515,6 +515,14 @@ pub struct BGA {
     /// Resource declarations (image/video id to file-name mapping).
     #[serde(rename = "bga_header", alias = "bgaHeader")]
     pub bga_header: Vec<BGAHeader>,
+    /// Animation clips (bmson v0.2 legacy `bga_sequence`).
+    ///
+    /// Layer and POOR events reference clips by id to play frame animations.
+    /// The v1/v2 schemas dropped the field, so it deserializes as [`None`]
+    /// when absent; `condition` / `interval` / `id_set` clip selection is not
+    /// modeled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bga_sequence: Option<Vec<BGASequence>>,
     /// Main background animation sequence.
     #[serde(rename = "bga_events", alias = "bgaNotes")]
     pub bga_events: Vec<BGAEvent>,
@@ -524,6 +532,26 @@ pub struct BGA {
     /// POOR (miss) animation sequence.
     #[serde(rename = "poor_events", alias = "poorNotes")]
     pub poor_events: Vec<BGAEvent>,
+}
+
+/// An animation clip (bmson v0.2 legacy `bga_sequence` entry).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BGASequence {
+    /// Clip id referenced by layer / POOR events.
+    pub id: u64,
+    /// Frames in playback order.
+    #[serde(default)]
+    pub sequence: Vec<BGASequenceFrame>,
+}
+
+/// One frame of an animation clip.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BGASequenceFrame {
+    /// Frame duration in milliseconds.
+    pub time: u64,
+    /// Image id shown during the frame; `null` is a blank frame.
+    #[serde(default)]
+    pub id: Option<u64>,
 }
 
 /// Scroll speed multiplier event (beatoraja extension).

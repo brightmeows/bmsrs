@@ -1,6 +1,6 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_chart::{BgaLayer, BgaResource, BgaResourceId, Event, EventKind};
+use bmsrs_chart::{BgaLayer, BgaResourceContent, BgaResourceId, Event, EventKind};
 use std::path::PathBuf;
 
 #[test]
@@ -21,11 +21,12 @@ fn scroll_event_fields() {
 
 #[test]
 fn bga_resource_fields() {
-    let r = BgaResource {
+    let r = BgaResourceContent::File {
         path: PathBuf::from("bg.png"),
         crop: None,
     };
-    assert!(r.crop.is_none());
+    assert!(matches!(r, BgaResourceContent::File { crop: None, .. }));
+    assert_eq!(r.file_kind(), Some(bmsrs_chart::BgaResourceKind::Static));
 }
 
 #[test]

@@ -98,8 +98,8 @@ pub use mode::{Lane, NoteSide};
 pub use note::{Damage, LnJudgeHint, LnLifeHint, LnTypeHint, NoteAudio, NoteKind, NoteRole};
 pub use timing::{BpmChange, BpmLookup, StopEvent, TimingTrack, TimingTrackError};
 pub use visual::{
-    BgaLayer, BgaResource, BgaResourceId, BgaResourceKind, CropRect, SwBgaResource,
-    SwBgaResourceId, VideoAsset,
+    BgaFrame, BgaLayer, BgaResourceContent, BgaResourceId, BgaResourceKind, CropRect,
+    SwBgaResource, SwBgaResourceId, VideoAsset,
 };
 
 /// Chart-level judgment difficulty specification: the raw source value plus
@@ -162,8 +162,9 @@ pub struct ChartInfo {
     /// Text shown when the player misses (nanasi `#TEXT00`). `None` means the
     /// source chart did not define it.
     pub miss_text: Option<String>,
-    /// BGA resource declarations (image and video files).
-    pub bga_resources: Vec<BgaResource>,
+    /// BGA resource declarations: still image / video files, or frame
+    /// sequence animations (poor-animation channel, bmson `bga_sequence`).
+    pub bga_resources: Vec<BgaResourceContent>,
     /// Key-bound BGA animation definitions (`#SWBGAxx`). BMSON has no such
     /// concept, so its processor produces an empty vector.
     pub swbga_resources: Vec<SwBgaResource>,
@@ -825,6 +826,15 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
             for frame in swbga.pattern.iter().flatten() {
                 if frame.get() as usize >= len {
                     return Err(ChartDataError::DanglingBgaResource { id: *frame, len });
+                }
+            }
+        }
+        for resource in &self.chart.bga_resources {
+            if let BgaResourceContent::Sequence { frames } = resource {
+                for frame in frames.iter().filter_map(|frame| frame.resource) {
+                    if frame.get() as usize >= len {
+                        return Err(ChartDataError::DanglingBgaResource { id: frame, len });
+                    }
                 }
             }
         }

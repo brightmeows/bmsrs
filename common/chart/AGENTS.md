@@ -105,9 +105,10 @@ queries.
 | `ChartInfo.key_count` | total playable keys; `None` means not provided or not inferable |
 | `ChartInfo.subartists` / `title_image` | aligned with BMSON v2's chart-level ownership; BMS `#SUBARTIST` also maps to `subartists` |
 | `TimingTrack::tick_to_musical_duration` | unlike `tick_to_duration`, excludes STOP pauses; used for audio slicing |
-| `BgaResource.crop` | source crop rectangle and target offset (BMS `#BGA`/`#@BGA`). `None` means the whole image. BMSON has no crop concept and always uses `None` |
-| `BgaResource` has no `id` | the vector index into `bga_resources` is the unique resource id; events reference it through `BgaResourceId` |
-| `BgaResource.kind()` | `Static` or `Video`, inferred from the file extension (`#BMPxx` may reference a video) |
+| `BgaResourceContent::File.crop` | source crop rectangle and target offset (BMS `#BGA`/`#@BGA`). `None` means the whole image. BMSON has no crop concept and always uses `None` |
+| `BgaResourceContent` has no `id` | the vector index into `bga_resources` is the unique resource id; events reference it through `BgaResourceId` |
+| `BgaResourceContent::file_kind()` | `Some(Static)`/`Some(Video)` for files, inferred from the extension (`#BMPxx` may reference a video); `None` for sequences |
+| `BgaResourceContent::Sequence` | frame-sequence animations (BMS multi-object `#xxx06` poor lines, bmson `bga_sequence` clips); frames reference `bga_resources` ids, `None` frames are blank, and the sequence event fires once at its trigger tick |
 | `ChartInfo.video` | background video (BMS `#VIDEOFILE`/`#MOVIE`). BMSON has no such concept and always uses `None` |
 | `VideoAsset` equality | `fps: Option<f64>` keeps the type at `PartialEq`; no manual `Eq` promise. `colors`/`delay_frames` use `u32` to avoid the issue |
 | `CropRect` is all integers | source rectangle and offset are `i32`, so `Eq` derives naturally |

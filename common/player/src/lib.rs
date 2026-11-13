@@ -64,7 +64,7 @@ use std::ops::{Bound, Range, RangeBounds};
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, BgaResource, Chart, CustomEvent, Event, NoCustomEvent, NoteExt, TimingTrack,
+    AudioAsset, BgaResourceContent, Chart, CustomEvent, Event, NoCustomEvent, NoteExt, TimingTrack,
 };
 
 use crate::scroll_cache::ScrollCache;
@@ -321,7 +321,7 @@ impl<T: NoteExt, C: CustomEvent> Player<T, C> {
 
     /// Return the BGA resources.
     #[must_use]
-    pub fn bga_resources(&self) -> &[BgaResource] {
+    pub fn bga_resources(&self) -> &[BgaResourceContent] {
         &self.chart.chart_info().bga_resources
     }
 

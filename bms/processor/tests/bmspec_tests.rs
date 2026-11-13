@@ -13,7 +13,9 @@ use bmsrs_bms_processor::BmsProcessor;
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_syntax::SourceFile;
-use bmsrs_chart::{BgaResourceId, Chart, EventKind, Note, NoteKind, TimingTrack};
+use bmsrs_chart::{
+    BgaResourceContent, BgaResourceId, Chart, EventKind, Note, NoteKind, TimingTrack,
+};
 use bmsrs_player::Player;
 
 /// Chart type returned by bmsrs-bms-processor.
@@ -1211,7 +1213,13 @@ fn bga_crop_def_attaches_crop_rect() {
         .chart_info()
         .bga_resources
         .iter()
-        .filter_map(|r| r.crop.map(|c| (r.path.to_string_lossy().into_owned(), c)))
+        .filter_map(|r| match r {
+            BgaResourceContent::File {
+                path,
+                crop: Some(c),
+            } => Some((path.to_string_lossy().into_owned(), c)),
+            _ => None,
+        })
         .collect();
     assert_eq!(cropped.len(), 1, "there should be one cropped BGA resource");
     let (path, crop) = &cropped[0];
@@ -1232,7 +1240,12 @@ fn at_bga_wh_form_normalizes_to_xy2() {
         .chart_info()
         .bga_resources
         .iter()
-        .filter_map(|r| r.crop)
+        .filter_map(|r| match r {
+            BgaResourceContent::File { crop: Some(c), .. } => Some(*c),
+            BgaResourceContent::Sequence { .. } | BgaResourceContent::File { crop: None, .. } => {
+                None
+            }
+        })
         .collect();
     assert_eq!(cropped.len(), 1);
     let c = cropped[0];
@@ -1253,7 +1266,16 @@ fn bga_crop_resolves_source_bmp_by_hex_value() {
         .chart_info()
         .bga_resources
         .iter()
-        .filter_map(|r| r.crop.map(|_| r.path.to_string_lossy().into_owned()))
+        .filter_map(|r| match r {
+            BgaResourceContent::File {
+                path,
+                crop: Some(_),
+                ..
+            } => Some(path.to_string_lossy().into_owned()),
+            BgaResourceContent::File { crop: None, .. } | BgaResourceContent::Sequence { .. } => {
+                None
+            }
+        })
         .collect();
     assert_eq!(
         cropped.len(),
@@ -1273,7 +1295,7 @@ fn bga_crop_source_is_not_base36_decoded() {
         .chart_info()
         .bga_resources
         .iter()
-        .any(|r| r.crop.is_some());
+        .any(|r| matches!(r, BgaResourceContent::File { crop: Some(_), .. }));
     assert!(
         !has_crop,
         "Base36 decoding of 36 would wrongly resolve #BMP10"
@@ -1290,7 +1312,7 @@ fn bga_crop_with_source_above_ff_is_dropped() {
         .chart_info()
         .bga_resources
         .iter()
-        .any(|r| r.crop.is_some());
+        .any(|r| matches!(r, BgaResourceContent::File { crop: Some(_), .. }));
     assert!(
         !has_crop,
         "#BGA can only reference hexadecimal indices 00-FF"

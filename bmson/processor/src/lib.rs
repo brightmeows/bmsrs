@@ -31,10 +31,10 @@ use std::time::Duration;
 
 use bmsrs_bmson_model::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
-    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
-    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint, LnLifeHint, LnTypeHint,
-    Note, NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
-    TimingTrackError,
+    AudioAsset, AudioIndex, BgaFrame, BgaLayer, BgaResourceContent, BgaResourceId, BpmChange,
+    Chart, ChartData, ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint,
+    LnLifeHint, LnTypeHint, Note, NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo,
+    StopEvent, TimingTrack, TimingTrackError,
 };
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
@@ -209,12 +209,14 @@ impl BmsonProcessor {
             n => n,
         };
         let timing = build_timing(bmson_data, resolution)?;
+        let (chart_info, clip_ids) = build_chart_info(bmson)?;
         let bga_ids = build_bga_id_map(&bmson.chart_info.bga);
         let mut conv = BmsonConverter {
             bmson,
             decode,
             timing: timing.clone(),
             bga_ids: &bga_ids,
+            clip_ids: &clip_ids,
             audio_assets: Vec::new(),
             events: Vec::new(),
             warnings,
@@ -230,7 +232,6 @@ impl BmsonProcessor {
         conv.build_bar_lines();
 
         let song_info = build_song_info(bmson);
-        let chart_info = build_chart_info(bmson)?;
 
         let judge_deltas = bmson_data
             .judge_deltas
@@ -287,6 +288,9 @@ struct BmsonConverter<'a> {
     timing: TimingTrack,
     /// BMSON BGA raw-id to dense resource-index mapping.
     bga_ids: &'a BTreeMap<u64, BgaResourceId>,
+    /// Animation-clip id (bmson v0.2 `bga_sequence`) to dense resource-index
+    /// mapping, offset after the `bga_header` resources.
+    clip_ids: &'a BTreeMap<u64, BgaResourceId>,
     /// Audio asset vector being built.
     audio_assets: Vec<AudioAsset>,
     /// Event vector being built.
@@ -439,7 +443,17 @@ impl BmsonConverter<'_> {
             (BgaLayer::Poor, &bga.poor_events),
         ] {
             for e in events {
-                let Some(&resource_id) = self.bga_ids.get(&e.id) else {
+                // Layer and POOR events resolve animation clips first (jbms
+                // precedence); base events resolve header images only.
+                let resolved = if layer == BgaLayer::Base {
+                    self.bga_ids.get(&e.id).copied()
+                } else {
+                    self.clip_ids
+                        .get(&e.id)
+                        .or_else(|| self.bga_ids.get(&e.id))
+                        .copied()
+                };
+                let Some(resource_id) = resolved else {
                     continue;
                 };
                 self.events.push(Event::new(
@@ -810,13 +824,20 @@ fn build_song_info(bmson: &bmsrs_bmson_model::Bmson) -> SongInfo {
 }
 
 /// Build [`ChartInfo`] from BMSON chart information.
-fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, ProcessError> {
+///
+/// Returns the animation-clip id map (bmson v0.2 `bga_sequence`): each clip
+/// becomes a [`BgaResourceContent::Sequence`] resource indexed after the
+fn build_chart_info(
+    bmson: &bmsrs_bmson_model::Bmson,
+) -> Result<(ChartInfo, BTreeMap<u64, BgaResourceId>), ProcessError> {
     let bga = &bmson.chart_info.bga;
-    let bga_resources: Vec<BgaResource> = bga
+    let header_ids = build_bga_id_map(bga);
+    let header_count = bga.bga_header.len();
+    let mut bga_resources: Vec<BgaResourceContent> = bga
         .bga_header
         .iter()
         .map(|h| {
-            Ok(BgaResource {
+            Ok(BgaResourceContent::File {
                 path: normalize_path(&h.name)?,
                 // BMSON has no crop/placement concept (images and videos are
                 // just paths).
@@ -824,8 +845,28 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, Proce
             })
         })
         .collect::<Result<_, ProcessError>>()?;
+    let mut clip_ids = BTreeMap::new();
+    for (i, clip) in bga.bga_sequence.iter().flatten().enumerate() {
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "BGA resource count fits in u32"
+        )]
+        let resource_id = BgaResourceId::new((header_count + i) as u32);
+        clip_ids.insert(clip.id, resource_id);
+        let frames = clip
+            .sequence
+            .iter()
+            .map(|frame| BgaFrame {
+                // Unknown header ids become blank frames, matching the
+                // jbms-parser lookup-miss behavior.
+                resource: frame.id.and_then(|id| header_ids.get(&id)).copied(),
+                duration: Duration::from_millis(frame.time),
+            })
+            .collect();
+        bga_resources.push(BgaResourceContent::Sequence { frames });
+    }
 
-    Ok(ChartInfo {
+    let chart_info = ChartInfo {
         subtitle: bmson.chart_info.subtitle.clone(),
         chart_name: bmson.chart_info.chart_name.clone(),
         level: bmson.chart_info.level,
@@ -855,9 +896,9 @@ fn build_chart_info(bmson: &bmsrs_bmson_model::Bmson) -> Result<ChartInfo, Proce
         // BMSON has no #VIDEOFILE/#MOVIE concept.
         video: None,
         key_count: mode_key_count(&bmson.chart_data.mode_hint),
-    })
+    };
+    Ok((chart_info, clip_ids))
 }
-
 /// Infer the total playable key count from `mode_hint`.
 fn mode_key_count(mode: &bmsrs_bmson_model::ModeHint) -> Option<u8> {
     use bmsrs_bmson_model::ModeHint;

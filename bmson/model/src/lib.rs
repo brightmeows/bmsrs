@@ -39,8 +39,9 @@ pub mod v1;
 mod common;
 
 pub use common::{
-    BGA, BGAEvent, BGAHeader, BarLine, BpmEvent, KeyChannel, KeyNote, LnJudge, LnLife, LnMode,
-    LnType, MineChannel, MineNote, ModeHint, NoteEvent, ScrollEvent, SoundChannel, StopEvent,
+    BGA, BGAEvent, BGAHeader, BGASequence, BGASequenceFrame, BarLine, BpmEvent, KeyChannel,
+    KeyNote, LnJudge, LnLife, LnMode, LnType, MineChannel, MineNote, ModeHint, NoteEvent,
+    ScrollEvent, SoundChannel, StopEvent,
 };
 
 pub use common::{
