@@ -156,7 +156,6 @@ impl BmsConverter<'_> {
     ///
     /// `#@BGA` (width/height form) is normalized to `#BGA` (bottom-right-corner
     /// form): `x2 = sx + w` and `y2 = sy + h`.
-    #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
     pub fn build_bmp_map(&self) -> BTreeMap<BmpIndex, BmpEntry> {
         let visual = &self.bms.visual;
         let mut map: BTreeMap<BmpIndex, BmpEntry> = BTreeMap::new();
@@ -166,7 +165,7 @@ impl BmsConverter<'_> {
         ids.extend(visual.crop_defs.keys().copied());
         ids.extend(visual.alt_crop_defs.keys().copied());
 
-        for (i, id) in ids.into_iter().enumerate() {
+        for id in ids {
             // Crop definition: #BGA takes priority over #@BGA (the same id is
             // unlikely to appear in both). Both give (CropRect, source
             // bmp_index); #@BGA's w/h is normalized to the bottom-right corner.
@@ -216,10 +215,17 @@ impl BmsConverter<'_> {
                 continue;
             };
 
+            // Dense id by insertion position: skipped crop definitions must
+            // not leave gaps, or later ids point outside `bga_resources`.
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "BGA resource counts fit u32"
+            )]
+            let resource_id = BgaResourceId::new(map.len() as u32);
             map.insert(
                 id,
                 BmpEntry {
-                    resource_id: BgaResourceId::new(i as u32),
+                    resource_id,
                     path,
                     crop,
                 },
