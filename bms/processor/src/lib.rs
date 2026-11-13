@@ -51,7 +51,7 @@ use bmsrs_bms_values::{
     SeekIndex, TextIndex,
 };
 use bmsrs_chart::{
-    BgaResource, BpmLookup, Chart, ChartData, ChartDataError, ChartInfo, Event, EventKind,
+    BgaResourceContent, BpmLookup, Chart, ChartData, ChartDataError, ChartInfo, Event, EventKind,
     JudgeRankKind, JudgeRankSpec, Lane, Note, NoteKind, NoteSide, SongInfo, SwBgaResource,
     SwBgaResourceId, TimingTrack, TimingTrackError,
 };
@@ -168,6 +168,7 @@ impl BmsProcessor {
             bms,
             table: &table,
             events: Vec::with_capacity(1024),
+            extra_bga_contents: Vec::new(),
             warnings: Vec::new(),
         };
 
@@ -325,6 +326,9 @@ struct BmsConverter<'a> {
     events: Vec<BmsEvent>,
     /// Recoverable warnings collected during processing.
     warnings: Vec<ProcessWarning>,
+    /// Sequence resources appended by the poor-animation channel, after the
+    /// file-table resources.
+    extra_bga_contents: Vec<BgaResourceContent>,
 }
 
 impl BmsConverter<'_> {
@@ -583,13 +587,14 @@ impl BmsConverter<'_> {
         bmp_map: &BTreeMap<BmpIndex, BmpEntry>,
         swbga_resources: Vec<SwBgaResource>,
     ) -> (SongInfo, ChartInfo) {
-        let bga_resources: Vec<BgaResource> = bmp_map
+        let mut bga_resources: Vec<BgaResourceContent> = bmp_map
             .values()
-            .map(|e| BgaResource {
+            .map(|e| BgaResourceContent::File {
                 path: e.path.clone().into(),
                 crop: e.crop,
             })
             .collect();
+        bga_resources.extend(self.extra_bga_contents.iter().cloned());
         let video = self.build_video_asset();
         // `#TEXT00` is the nanasi miss-time text; it belongs to the miss
         // system, not to channel 99 data.

@@ -491,7 +491,14 @@ pub struct BGAEvent {
     /// Tick offset where this image/video becomes visible.
     pub y: u64,
     /// Identifier of the [`BGAHeader`] resource to display.
-    pub id: u64,
+    ///
+    /// [`None`] means the source did not carry an `id`: legacy v0 layer
+    /// events may select clips through an `id_set` only (clip selection is
+    /// unsupported), and such events deserialize to [`None`] and are skipped
+    /// instead of failing the whole chart. An explicit `id: 0` stays
+    /// `Some(0)` and resolves normally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<u64>,
 }
 
 /// Background animation (BGA) data.
@@ -504,6 +511,9 @@ pub struct BGAEvent {
 /// | `layer_events` | overlay layers on top of the main BGA |
 /// | `poor_events` | POOR animation shown when the player misses a note |
 ///
+/// `bga_sequence` additionally carries the v0.2 legacy animation clips that
+/// layer/poor events may reference.
+///
 ///
 /// # Transparency note
 ///
@@ -515,6 +525,14 @@ pub struct BGA {
     /// Resource declarations (image/video id to file-name mapping).
     #[serde(rename = "bga_header", alias = "bgaHeader")]
     pub bga_header: Vec<BGAHeader>,
+    /// Animation clips (bmson v0.2 legacy `bga_sequence`).
+    ///
+    /// Layer and POOR events reference clips by id to play frame animations.
+    /// The v1/v2 schemas dropped the field, so it deserializes as [`None`]
+    /// when absent; `condition` / `interval` / `id_set` clip selection is not
+    /// modeled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bga_sequence: Option<Vec<BGASequence>>,
     /// Main background animation sequence.
     #[serde(rename = "bga_events", alias = "bgaNotes")]
     pub bga_events: Vec<BGAEvent>,
@@ -524,6 +542,26 @@ pub struct BGA {
     /// POOR (miss) animation sequence.
     #[serde(rename = "poor_events", alias = "poorNotes")]
     pub poor_events: Vec<BGAEvent>,
+}
+
+/// An animation clip (bmson v0.2 legacy `bga_sequence` entry).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BGASequence {
+    /// Clip id referenced by layer / POOR events.
+    pub id: u64,
+    /// Frames in playback order.
+    #[serde(default)]
+    pub sequence: Vec<BGASequenceFrame>,
+}
+
+/// One frame of an animation clip.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BGASequenceFrame {
+    /// Frame duration in milliseconds.
+    pub time: u64,
+    /// Image id shown during the frame; `null` is a blank frame.
+    #[serde(default)]
+    pub id: Option<u64>,
 }
 
 /// Scroll speed multiplier event (beatoraja extension).

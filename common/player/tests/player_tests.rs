@@ -4,9 +4,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, Chart, ChartData, ChartInfo,
-    Event, EventKind, Lane, Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, TimingTrack,
-    TimingTrackError,
+    AudioAsset, AudioIndex, BgaLayer, BgaResourceContent, BgaResourceId, Chart, ChartData,
+    ChartInfo, Event, EventKind, Lane, Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo,
+    TimingTrack, TimingTrackError,
 };
 use bmsrs_player::Player;
 
@@ -467,19 +467,19 @@ fn make_chart_with_bgm() -> Chart {
 fn make_chart_with_bga() -> Chart {
     let chart_info = ChartInfo {
         bga_resources: vec![
-            BgaResource {
+            BgaResourceContent::File {
                 path: "base.png".into(),
                 crop: None,
             },
-            BgaResource {
+            BgaResourceContent::File {
                 path: "layer.png".into(),
                 crop: None,
             },
-            BgaResource {
+            BgaResourceContent::File {
                 path: "poor.png".into(),
                 crop: None,
             },
-            BgaResource {
+            BgaResourceContent::File {
                 path: "layer2.png".into(),
                 crop: None,
             },

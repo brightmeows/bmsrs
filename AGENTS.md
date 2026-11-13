@@ -193,7 +193,7 @@ Reassess them before adding support; do not assume silently.
 | BMS `#BPM 0` | returns `ZeroBpm` instead of falling back to 130; mainstream engines (beatoraja) also fail to load such charts | charts with no scrolling need to be supported |
 | Negative BPM | changes are dropped with a warning; a negative initial BPM is rejected; time flowing backwards (a negative BPM segment) is not modeled. Negative SCROLL rates, which reverse the visual scrolling only, are supported | negative-BPM charts need support |
 | BMSON MSS | `Long + Release` is exposed as a descriptive note point; no dedicated MSS judgment state | a player implements MSS scoring/input |
-| BMSON BGA animation sequences | `bga_sequence` frames and layer-event `condition`/`interval`/`id_set` are not modeled; only single-image switches | an imported chart needs animated bmson BGA (jbms-parser models them; bmz-player does not) |
+| BMSON layer-event `condition`/`interval`/`id_set` | clip selection conditions are not modeled; `bga_sequence` clips and clip references (poor/layer) are modeled, and bmson poor animations play the referenced clip | an imported chart needs condition-driven clip selection |
 | BMS `#PLAYER` | ignored; `Bme` covers 5K/7K/10K/14K | automatic family selection by `#PLAYER` is needed |
 | BGM layering | BGM events stay separate; only judgeable notes merge `NoteAudio`; beatoraja (`bgnotes`) and bmz-player (`bgm_events`) keep them separate as well | a real chart needs BGM layers merged |
 | Precision of processor warnings | line-level `SourceSpan`; the exact note/cell is not stored; jbms-parser logs are line-based and bmz-player warnings carry keys but no cells, so this matches both reference engines | the editor needs cell-level warning highlighting |

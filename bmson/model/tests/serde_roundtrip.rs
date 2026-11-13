@@ -216,11 +216,14 @@ fn bga_header_alias_id() {
 
 #[test]
 fn bga_event_roundtrip() {
-    let e = BGAEvent { y: 480, id: 3 };
+    let e = BGAEvent {
+        y: 480,
+        id: Some(3),
+    };
     let json = serde_json::to_string(&e).unwrap();
     let back: BGAEvent = serde_json::from_str(&json).unwrap();
     assert_eq!(back.y, 480);
-    assert_eq!(back.id, 3);
+    assert_eq!(back.id, Some(3));
 }
 
 #[test]

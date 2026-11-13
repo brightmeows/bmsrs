@@ -357,13 +357,13 @@ fn bga_resource_kind_infers_video_extension() {
     let resources = chart.chart_info().bga_resources.as_slice();
     assert_eq!(resources.len(), 2);
     assert_eq!(
-        resources[0].kind(),
-        bmsrs_chart::BgaResourceKind::Video,
+        resources[0].file_kind(),
+        Some(bmsrs_chart::BgaResourceKind::Video),
         "video extension maps to Video"
     );
     assert_eq!(
-        resources[1].kind(),
-        bmsrs_chart::BgaResourceKind::Static,
+        resources[1].file_kind(),
+        Some(bmsrs_chart::BgaResourceKind::Static),
         "image extension maps to Static"
     );
 }

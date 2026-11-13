@@ -2,20 +2,45 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::time::Duration;
 
-use bmsrs_bms_model::BmsBgaLayer;
-use bmsrs_bms_values::{BmpIndex, BmsChannel as RawChannel, BmsIndex};
+use bmsrs_bms_model::{BgaEvent, BmsBgaLayer, Position};
+use bmsrs_bms_values::{BmpIndex, BmsBase, BmsChannel as RawChannel, BmsIndex};
 use bmsrs_chart::{
-    BgaResourceId, CropRect, Event, EventKind, SwBgaResource, SwBgaResourceId, VideoAsset,
+    BgaFrame, BgaResourceContent, BgaResourceId, CropRect, Event, EventKind, SwBgaResource,
+    SwBgaResourceId, VideoAsset,
 };
 
 use super::{BmsConverter, ProcessWarning, ProcessWarningKind};
 
 impl BmsConverter<'_> {
     /// Build BGA events from BGA events and BMP file definitions.
+    ///
+    /// The poor layer carries the miss-animation channel (`#xxx06`,
+    /// jbms-parser semantics): a measure's line with more than one distinct
+    /// object defines a 500 ms miss animation referenced once at the measure
+    /// line, while single-object lines stay timed switches.
     pub fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
         let base = self.bms.gameplay.base.unwrap_or_default();
+        let animated = self.build_poor_animations(bmp_map, base);
+        let mut emitted_measures = std::collections::BTreeSet::new();
         for be in &self.bms.messages.bga_events {
+            if be.layer == BmsBgaLayer::Poor
+                && let Some(&resource_id) = animated.get(&be.position.measure())
+            {
+                let measure = be.position.measure();
+                if emitted_measures.insert(measure) {
+                    let tick = self.table.position_to_tick(Position::new(measure, 0, 1));
+                    self.events.push(Event::new(
+                        tick,
+                        EventKind::Bga {
+                            layer: map_bga_layer(BmsBgaLayer::Poor),
+                            resource_id: Some(resource_id),
+                        },
+                    ));
+                }
+                continue;
+            }
             let tick = self.table.position_to_tick(be.position);
             let resource_id = if let Some(entry) = bmp_map.get(&be.bmp_id) {
                 Some(entry.resource_id)
@@ -47,6 +72,75 @@ impl BmsConverter<'_> {
         }
     }
 
+    /// Build miss-animation sequence resources for multi-object poor-layer
+    /// lines.
+    ///
+    /// Returns the animated measures mapped to their sequence resource ids.
+    /// Each distinct object member plays `500 ms / object count`, matching
+    /// jbms-parser. Objects without a `#BMP` definition become blank frames
+    /// and warn.
+    fn build_poor_animations(
+        &mut self,
+        bmp_map: &BTreeMap<BmpIndex, BmpEntry>,
+        base: BmsBase,
+    ) -> BTreeMap<u16, BgaResourceId> {
+        let mut by_measure: BTreeMap<u16, Vec<&BgaEvent>> = BTreeMap::new();
+        for event in &self.bms.messages.bga_events {
+            if event.layer == BmsBgaLayer::Poor {
+                by_measure
+                    .entry(event.position.measure())
+                    .or_default()
+                    .push(event);
+            }
+        }
+
+        let mut animated = BTreeMap::new();
+        for (measure, events) in &by_measure {
+            let mut distinct = BTreeSet::new();
+            for event in events {
+                distinct.insert(event.bmp_id);
+            }
+            if distinct.len() <= 1 {
+                continue;
+            }
+
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "a single channel line never carries more objects than fit u32"
+            )]
+            let frame_duration = Duration::from_millis(500) / events.len() as u32;
+            let mut frames = Vec::with_capacity(events.len());
+            for event in events {
+                let resource = bmp_map.get(&event.bmp_id).map(|entry| entry.resource_id);
+                if resource.is_none()
+                    && let Some(key) = event.bmp_id.to_index_in(base)
+                {
+                    let tick = self.table.position_to_tick(event.position);
+                    let span = self.message_span(*measure, &[RawChannel::BgaPoor]);
+                    self.warnings.push(ProcessWarning::new(
+                        span,
+                        ProcessWarningKind::MissingBmpDefinition { key, tick },
+                    ));
+                }
+                frames.push(BgaFrame {
+                    resource,
+                    duration: frame_duration,
+                });
+            }
+
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "BGA resource counts fit u32"
+            )]
+            let resource_id =
+                BgaResourceId::new((bmp_map.len() + self.extra_bga_contents.len()) as u32);
+            self.extra_bga_contents
+                .push(BgaResourceContent::Sequence { frames });
+            animated.insert(*measure, resource_id);
+        }
+        animated
+    }
+
     /// Build a mapping from BMP indices to [`BmpEntry`] (dense id, path, and
     /// optional crop).
     ///
@@ -62,7 +156,6 @@ impl BmsConverter<'_> {
     ///
     /// `#@BGA` (width/height form) is normalized to `#BGA` (bottom-right-corner
     /// form): `x2 = sx + w` and `y2 = sy + h`.
-    #[expect(clippy::cast_possible_truncation, reason = "BMP count fits in u32")]
     pub fn build_bmp_map(&self) -> BTreeMap<BmpIndex, BmpEntry> {
         let visual = &self.bms.visual;
         let mut map: BTreeMap<BmpIndex, BmpEntry> = BTreeMap::new();
@@ -72,7 +165,7 @@ impl BmsConverter<'_> {
         ids.extend(visual.crop_defs.keys().copied());
         ids.extend(visual.alt_crop_defs.keys().copied());
 
-        for (i, id) in ids.into_iter().enumerate() {
+        for id in ids {
             // Crop definition: #BGA takes priority over #@BGA (the same id is
             // unlikely to appear in both). Both give (CropRect, source
             // bmp_index); #@BGA's w/h is normalized to the bottom-right corner.
@@ -122,10 +215,17 @@ impl BmsConverter<'_> {
                 continue;
             };
 
+            // Dense id by insertion position: skipped crop definitions must
+            // not leave gaps, or later ids point outside `bga_resources`.
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "BGA resource counts fit u32"
+            )]
+            let resource_id = BgaResourceId::new(map.len() as u32);
             map.insert(
                 id,
                 BmpEntry {
-                    resource_id: BgaResourceId::new(i as u32),
+                    resource_id,
                     path,
                     crop,
                 },

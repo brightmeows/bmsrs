@@ -87,17 +87,69 @@ pub struct CropRect {
     pub dy: i32,
 }
 
-/// BGA resource (image or video file).
+/// One frame of a BGA sequence animation.
 ///
-/// `crop` of [`None`] means display the whole image; [`Some`] means crop and
-/// place according to [`CropRect`] (from BMS `#BGA` / `#@BGA`). BMSON has no
-/// crop concept, so its processor always produces [`None`].
+/// `resource` of [`None`] is a blank frame (matching the SWBGA pattern
+/// convention), so sequences can express blank steps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BgaFrame {
+    /// Image shown during the frame; [`None`] shows nothing.
+    pub resource: Option<BgaResourceId>,
+    /// How long the frame stays on screen.
+    pub duration: std::time::Duration,
+}
+
+/// Content of a BGA resource: a still image / video file, or a frame sequence
+/// animation.
+///
+/// Sequences cover the BMS poor-animation channel (`#xxx06` with multiple
+/// objects in one line, matching jbms-parser's 500 ms miss animation) and the
+/// bmson `bga_sequence` clips. A sequence entry is referenced exactly like a
+/// file entry: through its [`BgaResourceId`] (the index into
+/// [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources)).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BgaResource {
-    /// File path relative to the directory containing the chart file.
-    pub path: PathBuf,
-    /// Source crop rectangle and target offset. [`None`] means the whole image.
-    pub crop: Option<CropRect>,
+pub enum BgaResourceContent {
+    /// A still image or video file.
+    ///
+    /// `crop` of [`None`] means display the whole image; [`Some`] means crop
+    /// and place according to [`CropRect`] (from BMS `#BGA` / `#@BGA`). BMSON
+    /// has no crop concept, so its processor always produces [`None`].
+    File {
+        /// File path relative to the directory containing the chart file.
+        path: PathBuf,
+        /// Source crop rectangle and target offset. [`None`] means the whole
+        /// image.
+        crop: Option<CropRect>,
+    },
+    /// A frame sequence played when the referencing event triggers.
+    Sequence {
+        /// Frames in playback order.
+        frames: Vec<BgaFrame>,
+    },
+}
+
+impl BgaResourceContent {
+    /// Infer the file kind from the file extension.
+    ///
+    /// [`None`] for [`BgaResourceContent::Sequence`]. Unknown extensions are
+    /// treated as [`BgaResourceKind::Static`].
+    #[must_use]
+    pub fn file_kind(&self) -> Option<BgaResourceKind> {
+        let Self::File { path, .. } = self else {
+            return None;
+        };
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase);
+        Some(match ext.as_deref() {
+            Some(
+                "mp4" | "m4v" | "mkv" | "webm" | "avi" | "mov" | "wmv" | "flv" | "mpg" | "mpeg"
+                | "ts",
+            ) => BgaResourceKind::Video,
+            _ => BgaResourceKind::Static,
+        })
+    }
 }
 
 /// Whether a BGA resource is a still image or a video file.
@@ -110,27 +162,6 @@ pub enum BgaResourceKind {
     Static,
     /// Video file.
     Video,
-}
-
-impl BgaResource {
-    /// Infer the resource kind from the file extension.
-    ///
-    /// Unknown extensions are treated as [`BgaResourceKind::Static`].
-    #[must_use]
-    pub fn kind(&self) -> BgaResourceKind {
-        let ext = self
-            .path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(str::to_ascii_lowercase);
-        match ext.as_deref() {
-            Some(
-                "mp4" | "m4v" | "mkv" | "webm" | "avi" | "mov" | "wmv" | "flv" | "mpg" | "mpeg"
-                | "ts",
-            ) => BgaResourceKind::Video,
-            _ => BgaResourceKind::Static,
-        }
-    }
 }
 
 /// Index into [`ChartInfo::swbga_resources`](crate::ChartInfo::swbga_resources).

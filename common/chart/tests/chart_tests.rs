@@ -6,9 +6,10 @@ use std::num::NonZeroU8;
 use std::time::Duration;
 
 use bmsrs_chart::{
-    AudioAsset, AudioIndex, BgaLayer, BgaResource, BgaResourceId, BpmChange, Chart, ChartData,
-    ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent, Note, NoteAudio,
-    NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
+    AudioAsset, AudioIndex, BgaFrame, BgaLayer, BgaResourceContent, BgaResourceId, BpmChange,
+    Chart, ChartData, ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent,
+    Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
+    TimingTrackError,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -89,7 +90,10 @@ fn chart_info_default() {
     assert_eq!(info.level, 0);
     assert_eq!(info.subartists, [] as [std::string::String; 0]);
     assert!(info.title_image.is_none());
-    assert_eq!(info.bga_resources, [] as [bmsrs_chart::BgaResource; 0]);
+    assert_eq!(
+        info.bga_resources,
+        [] as [bmsrs_chart::BgaResourceContent; 0]
+    );
 }
 
 // ChartData
@@ -449,12 +453,49 @@ fn audio_asset_with_duration() {
 
 #[test]
 fn bga_resource_construction() {
-    let res = BgaResource {
+    let res = BgaResourceContent::File {
         path: "bg.png".into(),
         crop: None,
     };
-    assert_eq!(res.path.to_string_lossy(), "bg.png");
-    assert!(res.crop.is_none());
+    let BgaResourceContent::File { path, crop } = res else {
+        panic!("file content expected");
+    };
+    assert_eq!(path.to_string_lossy(), "bg.png");
+    assert!(crop.is_none());
+}
+
+#[test]
+fn sequence_frames_with_dangling_reference_fail_validation() {
+    let data: ChartData = ChartData::new(120.0, 240, vec![], Vec::new()).unwrap();
+    let chart_info = ChartInfo {
+        bga_resources: vec![
+            BgaResourceContent::File {
+                path: "bg.png".into(),
+                crop: None,
+            },
+            BgaResourceContent::Sequence {
+                frames: vec![
+                    BgaFrame {
+                        resource: Some(BgaResourceId::new(0)),
+                        duration: std::time::Duration::from_millis(250),
+                    },
+                    BgaFrame {
+                        resource: Some(BgaResourceId::new(9)),
+                        duration: std::time::Duration::from_millis(250),
+                    },
+                ],
+            },
+        ],
+        ..Default::default()
+    };
+
+    assert_eq!(
+        Chart::new(SongInfo::default(), chart_info, data).unwrap_err(),
+        ChartDataError::DanglingBgaResource {
+            id: BgaResourceId::new(9),
+            len: 2,
+        }
+    );
 }
 
 // NoteExt
@@ -790,7 +831,7 @@ fn validate_rejects_dangling_bga_resource() {
     )
     .unwrap();
     let chart_info = ChartInfo {
-        bga_resources: vec![BgaResource {
+        bga_resources: vec![BgaResourceContent::File {
             path: std::path::PathBuf::from("bg.png"),
             crop: None,
         }],
@@ -822,7 +863,7 @@ fn validate_accepts_consistent_bga_references() {
     )
     .unwrap();
     let chart_info = ChartInfo {
-        bga_resources: vec![BgaResource {
+        bga_resources: vec![BgaResourceContent::File {
             path: std::path::PathBuf::from("bg.png"),
             crop: None,
         }],

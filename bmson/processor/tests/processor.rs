@@ -7,14 +7,16 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bmsrs_bmson_model::{
-    BGA, BGAEvent, BGAHeader, BpmEvent, ChartData, ChartInfo, KeyChannel, KeyNote, LnType,
-    MineChannel, MineNote, ModeHint, NoteEvent, SongInfo, SoundChannel, StopEvent,
+    BGA, BGAEvent, BGAHeader, BGASequence, BGASequenceFrame, BpmEvent, ChartData, ChartInfo,
+    KeyChannel, KeyNote, LnType, MineChannel, MineNote, ModeHint, NoteEvent, SongInfo,
+    SoundChannel, StopEvent,
 };
 use bmsrs_bmson_processor::layout::{Beat, GenericLayout, Pms};
 use bmsrs_bmson_processor::{BmsonNoteExt, BmsonProcessWarning, BmsonProcessor, ProcessError};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{
-    BgaLayer, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, Note, NoteKind, NoteRole,
+    BgaLayer, BgaResourceContent, Event, EventKind, LnJudgeHint, LnLifeHint, LnTypeHint, Note,
+    NoteKind, NoteRole,
 };
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
@@ -866,9 +868,16 @@ fn process_bga_events() -> TestResult {
             id: 1,
             name: PathBuf::from("bg.png"),
         }],
-        bga_events: vec![BGAEvent { y: 0, id: 1 }],
-        layer_events: vec![BGAEvent { y: 480, id: 1 }],
-        poor_events: vec![BGAEvent { y: 960, id: 1 }],
+        bga_sequence: None,
+        bga_events: vec![BGAEvent { y: 0, id: Some(1) }],
+        layer_events: vec![BGAEvent {
+            y: 480,
+            id: Some(1),
+        }],
+        poor_events: vec![BGAEvent {
+            y: 960,
+            id: Some(1),
+        }],
     };
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.value;
@@ -893,7 +902,10 @@ fn process_bga_events() -> TestResult {
     assert_eq!(chart.chart_info().bga_resources.len(), 1);
     // Densification: raw id 1 becomes index 0; BGA resources no longer store
     // their own id.
-    assert!(chart.chart_info().bga_resources[0].crop.is_none());
+    assert!(matches!(
+        chart.chart_info().bga_resources[0],
+        BgaResourceContent::File { crop: None, .. }
+    ));
     Ok(())
 }
 
@@ -1146,5 +1158,75 @@ fn zero_resolution_falls_back_to_240_with_warning() -> TestResult {
             .any(|w| matches!(w, BmsonProcessWarning::ZeroResolutionFallback)),
         "resolution fallback should warn"
     );
+    Ok(())
+}
+
+/// A POOR event referencing a `bga_sequence` clip id plays the clip as a
+/// miss-animation sequence resource (jbms-parser parity).
+#[test]
+fn process_poor_event_referencing_sequence_clip() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_info.bga = BGA {
+        bga_header: vec![
+            BGAHeader {
+                id: 1,
+                name: PathBuf::from("a.png"),
+            },
+            BGAHeader {
+                id: 2,
+                name: PathBuf::from("b.png"),
+            },
+        ],
+        // Coderabbit regression case: time values are offsets inside the
+        // clip, and the trailing blank entry is the END marker, so A plays
+        // for 100 ms and B for 400 ms (total 500 ms).
+        bga_sequence: Some(vec![BGASequence {
+            id: 7,
+            sequence: vec![
+                BGASequenceFrame {
+                    time: 0,
+                    id: Some(1),
+                },
+                BGASequenceFrame {
+                    time: 100,
+                    id: Some(2),
+                },
+                BGASequenceFrame {
+                    time: 500,
+                    id: None,
+                },
+            ],
+        }]),
+        bga_events: Vec::new(),
+        layer_events: Vec::new(),
+        poor_events: vec![bmsrs_bmson_model::BGAEvent { y: 0, id: Some(7) }],
+    };
+
+    let chart = BmsonProcessor::process::<Beat>(&bmson)?.value;
+
+    // Two file resources plus one clip resource.
+    assert_eq!(chart.chart_info().bga_resources.len(), 3);
+    let BgaResourceContent::Sequence { frames } = &chart.chart_info().bga_resources[2] else {
+        return Err("clip resource expected".into());
+    };
+    assert_eq!(frames.len(), 2);
+    assert_eq!(frames[0].resource, Some(bmsrs_chart::BgaResourceId::new(0)));
+    assert_eq!(frames[1].resource, Some(bmsrs_chart::BgaResourceId::new(1)));
+    assert_eq!(frames[0].duration, Duration::from_millis(100));
+    assert_eq!(frames[1].duration, Duration::from_millis(400));
+
+    let poor: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Bga {
+                layer: BgaLayer::Poor,
+                resource_id,
+            } => Some(*resource_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(poor, vec![Some(bmsrs_chart::BgaResourceId::new(2))]);
     Ok(())
 }
