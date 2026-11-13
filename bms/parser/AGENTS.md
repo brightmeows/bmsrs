@@ -12,6 +12,8 @@ warnings, and the `BmsParser` entry points.
   `SourceFile`; warnings cover selected lines only.
 - `BmsParser::parse_doc` / `parse_doc_with`: tokenize every line from a
   `Document`; errors in unselected branches also become warnings.
+- `BmsParser::parse_from_selection` / `parse_from_selection_with`: replay a
+  recorded `BranchSelection` strictly; drift fails with `BranchMismatch`.
 - `tokenize_lines` / `tokenize_lines_with`: `LineToken` with 1-based line
   numbers.
 - `ErrorStrategy::CollectAll` collects everything; `FailFast` returns the first

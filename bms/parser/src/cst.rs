@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 
 use bmsrs_bms_source::{Document, TextDecodeError};
 use bmsrs_bms_syntax::{
-    BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
+    BranchMismatch, BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
 use bmsrs_pipeline::SourceSpan;
@@ -278,4 +278,69 @@ fn tokenize_line_with(
         ));
     }
     Ok(token)
+}
+
+impl BmsParser {
+    /// Build `Bms` from a recorded [`BranchSelection`].
+    ///
+    /// The replay is strict: when the file's control-flow blocks diverge from
+    /// the recording (count, kind, or declared bound), [`BranchMismatch`]
+    /// names the first divergent block. `#SETRANDOM` / `#SETSWITCH` values are
+    /// taken from the current file. Warnings cover selected lines only,
+    /// mirroring [`BmsParser::parse_with`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BranchMismatch`] naming the first divergent block when the
+    /// recording does not match the file's control-flow structure.
+    pub fn parse_from_selection(
+        file: &SourceFile,
+        selection: &BranchSelection,
+    ) -> Result<BmsParse, BranchMismatch> {
+        Self::parse_from_selection_with(file, selection, &ParseOptions::default())
+    }
+
+    /// Build `Bms` from a recorded [`BranchSelection`] with parse options.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BranchMismatch`] naming the first divergent block when the
+    /// recording does not match the file's control-flow structure.
+    pub fn parse_from_selection_with(
+        file: &SourceFile,
+        selection: &BranchSelection,
+        options: &ParseOptions,
+    ) -> Result<BmsParse, BranchMismatch> {
+        let all_tokens = tokenize_lines_with(file, options);
+        let (lines, replayed) = file.select_lines_with(selection)?;
+        let mut token_map: HashMap<TextRange, BmsToken> = all_tokens
+            .iter()
+            .filter_map(|line| {
+                line.token
+                    .as_ref()
+                    .ok()
+                    .map(|token| (line.range, token.clone()))
+            })
+            .collect();
+        let mut tokens = Vec::new();
+        let mut selected_ranges = HashSet::new();
+        for line in &lines {
+            if line.is_directive() {
+                continue;
+            }
+            selected_ranges.insert(line.range());
+            if let Some(token) = token_map.remove(&line.range()) {
+                tokens.push(token);
+            }
+        }
+        let warnings = token_warnings(&all_tokens)
+            .into_iter()
+            .filter(|warning| selected_ranges.contains(&warning.range))
+            .collect();
+        Ok(BmsParse {
+            bms: Bms::from_flat_tokens(tokens),
+            selection: replayed,
+            warnings,
+        })
+    }
 }

@@ -24,6 +24,8 @@
 //! assert_eq!(player.current_tick(), 480);
 //! ```
 //!
+mod java_random;
+
 /// Parsing and processing for the BMS format.
 pub mod bms {
     // Layer crates live under `raw`; the curated path keeps only the entry
@@ -31,6 +33,9 @@ pub mod bms {
     use crate::raw::{model, parser, processor, source, syntax, values, writer};
 
     pub use parser::ErrorStrategy;
+    pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
+
+    pub use crate::java_random::JavaRandom;
 
     /// Error type for the whole-pipeline entry points.
     #[derive(Debug, thiserror::Error)]
@@ -133,6 +138,92 @@ pub mod bms {
         let document = source::Document::from_text(text);
         from_document(&document, options, rng, error_strategy)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
+    }
+
+    /// Error type for recorded-selection replay entry points.
+    #[derive(Debug, thiserror::Error)]
+    #[non_exhaustive]
+    pub enum ReplayParseError {
+        /// Source text decoding failed.
+        #[error(transparent)]
+        Decode(#[from] source::TextDecodeError),
+        /// The file's control-flow blocks diverged from the recording.
+        #[error(transparent)]
+        Branch(#[from] syntax::BranchMismatch),
+    }
+
+    /// Parse BMS text by replaying a recorded [`BranchSelection`].
+    ///
+    /// The replay is strict: when the file's control-flow blocks diverge from
+    /// the recording (count, kind, or declared bound), the call fails with
+    /// [`ReplayParseError::Branch`] naming the first divergent block.
+    /// `#SETRANDOM` / `#SETSWITCH` values are taken from the current file.
+    ///
+    /// Build the recording with `parse` /
+    /// `parse_with` and read the decisions through
+    /// [`BranchSelection::decisions`](syntax::BranchSelection::decisions);
+    /// or drive the recording from [`JavaRandom`] to reproduce a beatoraja /
+    /// `LR2oraja` branch layout from its seed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReplayParseError`] when decoding fails or the recording
+    /// diverges from the file.
+    pub fn parse_from_selection(
+        text: &str,
+        selection: &syntax::BranchSelection,
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, ReplayParseError> {
+        let document = source::Document::from_text(text);
+        let src = document.try_to_text().map_err(ReplayParseError::Decode)?;
+        let parse = syntax::SourceFile::parse_with(&src, &syntax::ParseOptions::default());
+        let mut warnings: Vec<FromTextWarning> = parse
+            .errors()
+            .iter()
+            .map(|error| FromTextWarning::Syntax {
+                range: error.range(),
+                message: error.message().to_owned(),
+            })
+            .collect();
+        let parsed = parser::BmsParser::parse_from_selection(&parse.source_file(), selection)
+            .map_err(ReplayParseError::Branch)?;
+        warnings.extend(parsed.warnings.into_iter().map(from_parse_warning));
+        Ok(bmsrs_pipeline::Outcome::new(parsed.bms, warnings))
+    }
+
+    /// Parse BMS text, returning the recorded branch decisions alongside.
+    ///
+    /// Feed the recording to `parse_from_selection`
+    /// to reproduce this exact branch layout later, or persist the decisions
+    /// for replay tooling.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FromTextError`] when `FailFast` encounters an error.
+    pub fn parse_with_recording(
+        text: &str,
+        options: &syntax::ParseOptions,
+        rng: impl FnMut(u64) -> u64,
+        error_strategy: ErrorStrategy,
+    ) -> Result<
+        (
+            bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>,
+            syntax::BranchSelection,
+        ),
+        FromTextError,
+    > {
+        let document = source::Document::from_text(text);
+        let parsed =
+            parser::BmsParser::parse_document_with(&document, options, rng, error_strategy)
+                .map_err(from_parse_error)?;
+        let warnings = parsed
+            .warnings
+            .into_iter()
+            .map(from_parse_warning)
+            .collect();
+        Ok((
+            bmsrs_pipeline::Outcome::new(parsed.bms, warnings),
+            parsed.selection,
+        ))
     }
 
     /// Parse BMS bytes with defaults: first branch and `CollectAll`.
