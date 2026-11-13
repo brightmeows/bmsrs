@@ -491,6 +491,11 @@ pub struct BGAEvent {
     /// Tick offset where this image/video becomes visible.
     pub y: u64,
     /// Identifier of the [`BGAHeader`] resource to display.
+    ///
+    /// Defaults to `0` so legacy v0 layer events that only carry an
+    /// `id_set` (clip selection, unsupported) still deserialize; id `0`
+    /// resolves to no resource and the event is skipped.
+    #[serde(default)]
     pub id: u64,
 }
 
@@ -503,6 +508,9 @@ pub struct BGAEvent {
 /// | `bga_events` | main background animation |
 /// | `layer_events` | overlay layers on top of the main BGA |
 /// | `poor_events` | POOR animation shown when the player misses a note |
+///
+/// `bga_sequence` additionally carries the v0.2 legacy animation clips that
+/// layer/poor events may reference.
 ///
 ///
 /// # Transparency note
