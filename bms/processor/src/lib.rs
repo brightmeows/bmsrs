@@ -43,6 +43,7 @@ pub mod layout;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bmsrs_bms_model::{Bms, Gameplay};
 use bmsrs_bms_values::{
@@ -51,8 +52,8 @@ use bmsrs_bms_values::{
 };
 use bmsrs_chart::{
     BgaResource, BpmLookup, Chart, ChartData, ChartDataError, ChartInfo, Event, EventKind,
-    JudgeRankKind, JudgeRankSpec, Lane, Note, NoteSide, SongInfo, SwBgaResource, SwBgaResourceId,
-    TimingTrack, TimingTrackError,
+    JudgeRankKind, JudgeRankSpec, Lane, Note, NoteKind, NoteSide, SongInfo, SwBgaResource,
+    SwBgaResourceId, TimingTrack, TimingTrackError,
 };
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
@@ -225,6 +226,11 @@ impl BmsProcessor {
         let swbga_map = conv.build_swbga_map();
 
         conv.collect_custom_events(&swbga_map);
+
+        // Chart-quality heuristics (chart-level warnings without a source
+        // span): TOTAL presence and size, tail padding after the last
+        // judgeable note, and player/note-side consistency.
+        conv.collect_chart_quality_warnings(&table, &timing);
 
         let swbga_resources = conv.build_swbga_resources(&bmp_map);
         let (song, chart_info) = conv.build_metadata(&bmp_map, swbga_resources);
@@ -655,6 +661,95 @@ impl BmsConverter<'_> {
         channels
             .iter()
             .find_map(|channel| self.bms.messages.line_span(measure, *channel))
+    }
+
+    /// Collect chart-quality heuristic warnings.
+    ///
+    /// Thresholds follow jbms-parser: an undefined or unusually small
+    /// `#TOTAL`, tail padding of 30 seconds or more after the last judgeable
+    /// note, and a `#PLAYER` declaration that contradicts the note sides
+    /// actually present. These are chart-level warnings and carry no source
+    /// span.
+    fn collect_chart_quality_warnings(&mut self, table: &MeasureTable, timing: &TimingTrack) {
+        self.collect_total_warnings();
+        self.collect_tail_padding_warning(table, timing);
+        self.collect_player_side_mismatch_warning();
+    }
+
+    /// Warn when `#TOTAL` is undefined, or defined at 60 or less.
+    fn collect_total_warnings(&mut self) {
+        match self.bms.gameplay.total {
+            None => self
+                .warnings
+                .push(ProcessWarning::new(None, ProcessWarningKind::MissingTotal)),
+            Some(value) if value <= 60.0 => self.warnings.push(ProcessWarning::new(
+                None,
+                ProcessWarningKind::InsufficientTotal { value },
+            )),
+            Some(_) => {}
+        }
+    }
+
+    /// Warn when the tail after the last judgeable note runs 30 seconds or
+    /// longer up to the chart end.
+    fn collect_tail_padding_warning(&mut self, table: &MeasureTable, timing: &TimingTrack) {
+        let last_tick = self
+            .events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                EventKind::Note(note) if !matches!(note.kind, NoteKind::Mine { .. }) => {
+                    Some(event.tick())
+                }
+                _ => None,
+            })
+            .max();
+        let Some(last_note_tick) = last_tick else {
+            return;
+        };
+        let Some(&end_tick) = table.bar_ticks().last() else {
+            return;
+        };
+        let tail = timing
+            .tick_to_duration(end_tick)
+            .saturating_sub(timing.tick_to_duration(last_note_tick));
+        if tail >= Duration::from_secs(30) {
+            self.warnings.push(ProcessWarning::new(
+                None,
+                ProcessWarningKind::TailPaddingTooLong {
+                    last_note_tick,
+                    tail_seconds: tail.as_secs_f64(),
+                },
+            ));
+        }
+    }
+
+    /// Warn when the `#PLAYER` declaration contradicts the note sides
+    /// actually present. Only the single/couple declarations are checked;
+    /// double and battle declare both sides by definition.
+    fn collect_player_side_mismatch_warning(&mut self) {
+        let second_side_present = self.events.iter().any(|event| match &event.kind {
+            EventKind::Note(note) => {
+                !matches!(note.kind, NoteKind::Mine { .. })
+                    && note.side.as_u8() == NoteSide::P2.as_u8()
+            }
+            _ => false,
+        });
+        let declaration = match self.bms.gameplay.player {
+            Some(PlayerMode::Single) => Some((1u8, second_side_present)),
+            Some(PlayerMode::Couple) => Some((2, second_side_present)),
+            _ => None,
+        };
+        if let Some((declared_player, side_present)) = declaration
+            && side_present != (declared_player == 2)
+        {
+            self.warnings.push(ProcessWarning::new(
+                None,
+                ProcessWarningKind::PlayerNoteSideMismatch {
+                    declared_player,
+                    second_side_present: side_present,
+                },
+            ));
+        }
     }
 }
 

@@ -2,8 +2,8 @@
 
 #[test]
 fn bms_parse_and_process_return_outcomes() {
-    let parsed =
-        bmsrs::bms::parse("#TITLE A\n#BPM 120\n#WAV01 a.wav\n#00111:0100\n").expect("valid BMS");
+    let parsed = bmsrs::bms::parse("#TITLE A\n#BPM 120\n#TOTAL 100\n#WAV01 a.wav\n#00111:0100\n")
+        .expect("valid BMS");
     assert_eq!(parsed.value.metadata.title.as_deref(), Some("A"));
 
     let processed = bmsrs::bms::process(&parsed.value).expect("valid chart");

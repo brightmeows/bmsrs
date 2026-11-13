@@ -210,4 +210,43 @@ pub enum ProcessWarningKind {
     /// the event was skipped.
     #[error(transparent)]
     UnparsableValue(#[from] ChannelValueWarning),
+
+    /// The `#TOTAL` header is not defined.
+    #[error("TOTAL is not defined")]
+    MissingTotal,
+
+    /// The `#TOTAL` value is unusually small (60 or less; jbms-parser warns
+    /// at the same threshold).
+    #[error("TOTAL value {value} is too small")]
+    InsufficientTotal {
+        /// The declared `#TOTAL` value.
+        value: f64,
+    },
+
+    /// The tail after the last judgeable note runs 30 seconds or longer
+    /// (jbms-parser warns at the same threshold).
+    #[error(
+        "tail padding after the last note (tick {last_note_tick}) is {tail_seconds:.1}s, 30 seconds or more"
+    )]
+    TailPaddingTooLong {
+        /// Tick of the last judgeable note.
+        last_note_tick: u64,
+        /// Tail length in seconds.
+        tail_seconds: f64,
+    },
+
+    /// The `#PLAYER` declaration contradicts the note sides actually present
+    /// (a single-player declaration with second-side notes, or a two-player
+    /// declaration without any second-side notes; jbms-parser warns in both
+    /// directions).
+    #[error(
+        "chart declares player {declared_player} but {} second-side notes",
+        if *second_side_present { "there are" } else { "there are no" }
+    )]
+    PlayerNoteSideMismatch {
+        /// Declared player number (1 = single, 2 = couple).
+        declared_player: u8,
+        /// Whether playable second-side notes exist.
+        second_side_present: bool,
+    },
 }
