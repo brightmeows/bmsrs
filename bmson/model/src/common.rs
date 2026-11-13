@@ -492,11 +492,13 @@ pub struct BGAEvent {
     pub y: u64,
     /// Identifier of the [`BGAHeader`] resource to display.
     ///
-    /// Defaults to `0` so legacy v0 layer events that only carry an
-    /// `id_set` (clip selection, unsupported) still deserialize; id `0`
-    /// resolves to no resource and the event is skipped.
-    #[serde(default)]
-    pub id: u64,
+    /// [`None`] means the source did not carry an `id`: legacy v0 layer
+    /// events may select clips through an `id_set` only (clip selection is
+    /// unsupported), and such events deserialize to [`None`] and are skipped
+    /// instead of failing the whole chart. An explicit `id: 0` stays
+    /// `Some(0)` and resolves normally.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<u64>,
 }
 
 /// Background animation (BGA) data.

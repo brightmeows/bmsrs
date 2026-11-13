@@ -869,9 +869,15 @@ fn process_bga_events() -> TestResult {
             name: PathBuf::from("bg.png"),
         }],
         bga_sequence: None,
-        bga_events: vec![BGAEvent { y: 0, id: 1 }],
-        layer_events: vec![BGAEvent { y: 480, id: 1 }],
-        poor_events: vec![BGAEvent { y: 960, id: 1 }],
+        bga_events: vec![BGAEvent { y: 0, id: Some(1) }],
+        layer_events: vec![BGAEvent {
+            y: 480,
+            id: Some(1),
+        }],
+        poor_events: vec![BGAEvent {
+            y: 960,
+            id: Some(1),
+        }],
     };
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.value;
@@ -1171,22 +1177,29 @@ fn process_poor_event_referencing_sequence_clip() -> TestResult {
                 name: PathBuf::from("b.png"),
             },
         ],
+        // Coderabbit regression case: time values are offsets inside the
+        // clip, and the trailing blank entry is the END marker, so A plays
+        // for 100 ms and B for 400 ms (total 500 ms).
         bga_sequence: Some(vec![BGASequence {
             id: 7,
             sequence: vec![
                 BGASequenceFrame {
-                    time: 250,
+                    time: 0,
                     id: Some(1),
                 },
                 BGASequenceFrame {
-                    time: 250,
+                    time: 100,
                     id: Some(2),
+                },
+                BGASequenceFrame {
+                    time: 500,
+                    id: None,
                 },
             ],
         }]),
         bga_events: Vec::new(),
         layer_events: Vec::new(),
-        poor_events: vec![bmsrs_bmson_model::BGAEvent { y: 0, id: 7 }],
+        poor_events: vec![bmsrs_bmson_model::BGAEvent { y: 0, id: Some(7) }],
     };
 
     let chart = BmsonProcessor::process::<Beat>(&bmson)?.value;
@@ -1199,7 +1212,8 @@ fn process_poor_event_referencing_sequence_clip() -> TestResult {
     assert_eq!(frames.len(), 2);
     assert_eq!(frames[0].resource, Some(bmsrs_chart::BgaResourceId::new(0)));
     assert_eq!(frames[1].resource, Some(bmsrs_chart::BgaResourceId::new(1)));
-    assert_eq!(frames[0].duration, Duration::from_millis(250));
+    assert_eq!(frames[0].duration, Duration::from_millis(100));
+    assert_eq!(frames[1].duration, Duration::from_millis(400));
 
     let poor: Vec<_> = chart
         .data()

@@ -443,14 +443,19 @@ impl BmsonConverter<'_> {
             (BgaLayer::Poor, &bga.poor_events),
         ] {
             for e in events {
+                let Some(raw_id) = e.id else {
+                    // Legacy v0 events with only an `id_set` (unsupported
+                    // clip selection) carry no id and are skipped.
+                    continue;
+                };
                 // Layer and POOR events resolve animation clips first (jbms
                 // precedence); base events resolve header images only.
                 let resolved = if layer == BgaLayer::Base {
-                    self.bga_ids.get(&e.id).copied()
+                    self.bga_ids.get(&raw_id).copied()
                 } else {
                     self.clip_ids
-                        .get(&e.id)
-                        .or_else(|| self.bga_ids.get(&e.id))
+                        .get(&raw_id)
+                        .or_else(|| self.bga_ids.get(&raw_id))
                         .copied()
                 };
                 let Some(resource_id) = resolved else {
@@ -853,17 +858,43 @@ fn build_chart_info(
         )]
         let resource_id = BgaResourceId::new((header_count + i) as u32);
         clip_ids.insert(clip.id, resource_id);
-        let frames = clip
-            .sequence
-            .iter()
-            .map(|frame| BgaFrame {
-                // Unknown header ids become blank frames, matching the
-                // jbms-parser lookup-miss behavior.
-                resource: frame.id.and_then(|id| header_ids.get(&id)).copied(),
-                duration: Duration::from_millis(frame.time),
-            })
-            .collect();
-        bga_resources.push(BgaResourceContent::Sequence { frames });
+        // `sequence[].time` values are time points inside the clip (jbms
+        // `Layer.Sequence.time`), so frame durations are the gaps to the next
+        // entry. A blank entry is jbms's END marker: it closes the last real
+        // frame and is not emitted as a frame itself.
+        let mut frames: Vec<BgaFrame> = Vec::with_capacity(clip.sequence.len());
+        let mut pending: Option<(u64, Option<BgaResourceId>)> = None;
+        for entry in &clip.sequence {
+            let image = entry.id.and_then(|id| header_ids.get(&id)).copied();
+            if let Some((offset, pending_image)) = pending.take() {
+                frames.push(BgaFrame {
+                    resource: pending_image,
+                    duration: Duration::from_millis(entry.time.saturating_sub(offset)),
+                });
+            }
+            pending = Some((entry.time, image));
+        }
+        if let Some((offset, image)) = pending {
+            // Without a blank END entry the last frame repeats the previous
+            // interval (its own offset for a single-entry clip). Unknown
+            // header ids are blank frames (jbms lookup-miss behavior).
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "clip durations in milliseconds fit u64 for practical charts"
+            )]
+            let duration = frames
+                .last()
+                .map_or(offset, |frame| frame.duration.as_millis() as u64);
+            if let Some(resource) = image {
+                frames.push(BgaFrame {
+                    resource: Some(resource),
+                    duration: Duration::from_millis(duration),
+                });
+            }
+        }
+        if !frames.is_empty() {
+            bga_resources.push(BgaResourceContent::Sequence { frames });
+        }
     }
 
     let chart_info = ChartInfo {
