@@ -25,7 +25,7 @@ pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, Syntax
 pub use lexer::SyntaxLineKind;
 pub use parser::{Diagnostic, DiagnosticKind, IncrementalParser, SyntaxParse};
 pub use rowan::{TextRange, TextSize};
-pub use select::{BlockDecision, BranchSelection};
+pub use select::{BlockDecision, BlockKind, BranchMismatch, BranchSelection};
 pub use syntax_kind::SyntaxKind;
 
 /// Syntax parsing options.

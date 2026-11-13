@@ -62,6 +62,10 @@ SourceFile
 - `SyntaxLine::content_range()` returns the first-to-last non-trivia token range
 - `SourceFile::select_lines(rng)` returns `(Vec<SyntaxLine>, BranchSelection)`;
   `rng(max)` returns `[1, max]`, and `#SETRANDOM` / `#SETSWITCH` do not call it
+- `SourceFile::select_lines_with(&BranchSelection)` replays recorded decisions
+  strictly; drift in block count, kind, or declared bound fails with
+  `BranchMismatch`. `BlockDecision` records kind, declared max, value, and
+  selected index
 - `ParseOptions.header_prefixes` defaults to `['#', '%']`; non-default prefixes
   produce a `Prefix` token
 
