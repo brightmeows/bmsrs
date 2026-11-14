@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-v0.0.2...bmsrs-v0.0.3) - 2026-11-14
+
+### Bug Fixes
+
+- *(bmson)* finish clip offset semantics from review feedback
+- *(processor)* assign dense BGA resource ids by insertion position
+- *(bmson-model)* default BGAEvent id and document bga_sequence in the track table
+- *(release)* make internal dev-dependencies path-only
+
+### Documentation
+
+- *(common)* replace zero-external-dependency rule with dependency direction
+- *(agents)* require path-only internal dev-dependencies
+- *(readme)* flip install instructions to the released 0.0.2
+- *(agents)* mark 0.0.2 as released
+
+### Features
+
+- feat!(chart): add frame-sequence BGA resources
+
+### Other
+
+- *(pre-commit)* enforce common dependency direction with a hook
+- *(pre-commit)* reject version-carrying internal dev-dependencies
+
+### Testing
+
+- *(processor)* pin dense BGA resource ids after skipped crops
+- *(processor)* add long-note conflict reference tests from jbms-parser
 ## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-v0.0.1...bmsrs-v0.0.2) - 2026-11-10
 
 ### Bug Fixes
