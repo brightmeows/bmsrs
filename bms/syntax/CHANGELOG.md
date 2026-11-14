@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-syntax-v0.0.2...bmsrs-bms-syntax-v0.0.3) - 2026-11-14
+
+### Documentation
+
+- *(readme)* flip install instructions to the released 0.0.2
+
+### Features
+
+- *(syntax)* add JavaRandom and strict branch-selection replay
 ## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-syntax-v0.0.1...bmsrs-bms-syntax-v0.0.2) - 2026-11-10
 
 ### Documentation
