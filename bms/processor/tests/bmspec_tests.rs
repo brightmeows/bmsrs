@@ -1319,6 +1319,52 @@ fn bga_crop_with_source_above_ff_is_dropped() {
     );
 }
 
+/// A crop definition whose source `#BMP` cannot be resolved is skipped
+/// without inserting a resource, so later entries must keep dense ids: the
+/// event referencing a subsequently defined `#BMP` still points at its own
+/// vector position (C1, regression for the id-misalignment bug found in the
+/// coderabbit review of #99).
+#[test]
+fn unresolvable_crop_keeps_later_resource_ids_dense() {
+    let chart = process(
+        "#BPM 120\n#BMP10 early.png\n#BGA01 36 0 0 100 100 0 0\n#BMP20 later.png\n#00104:2000\n",
+    );
+    let resources = &chart.chart_info().bga_resources;
+    assert_eq!(
+        resources.len(),
+        2,
+        "the unresolvable crop is skipped; only the two file resources remain"
+    );
+    let bga_ids: Vec<_> = chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Bga { resource_id, .. } => *resource_id,
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        bga_ids,
+        vec![BgaResourceId::new(1)],
+        "ch 04 referencing #BMP20 must resolve to vector position 1"
+    );
+    let paths: Vec<_> = resources
+        .iter()
+        .filter_map(|r| match r {
+            BgaResourceContent::File {
+                path, crop: None, ..
+            } => Some(path.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        paths,
+        vec!["early.png".to_owned(), "later.png".to_owned()],
+        "ids follow sorted definition order with no gap from the skipped crop"
+    );
+}
+
 // C2: #VIDEOFILE / #MOVIE to VideoAsset
 
 /// `#VIDEOFILE` produces a looping video asset (C2).
