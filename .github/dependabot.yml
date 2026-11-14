@@ -14,6 +14,12 @@ updates:
       - "dependencies"
       - "automated"
     open-pull-requests-limit: 20
+    commit-message:
+      prefix: "deps"
+    groups:
+      cargo:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -25,6 +31,12 @@ updates:
       - "dependencies"
       - "automated"
     open-pull-requests-limit: 20
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     ignore:
       # dtolnay/rust-toolchain@<version> in ci.yml mirrors
       # workspace.package.rust-version (the MSRV); the two must be updated
