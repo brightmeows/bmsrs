@@ -38,9 +38,9 @@ pub use header::{
     SongSoundMode, StpParams, SwBgaParams, WavCmdKind, WavCmdParams,
 };
 pub use header::{
-    BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay,
-    BmsHeaderKaleid, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
-    BmsHeaderTiming,
+    BmsCondition, BmsConditionOperator, BmsConditionVariable, BmsHeader, BmsHeaderConditional,
+    BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay, BmsHeaderKaleid,
+    BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
 };
 pub use index::{
     BmpIndex, BmsBase, BmsIndex, BmsIndexError, BpmIndex, ChangeOptionIndex, ChannelIndex,

@@ -161,25 +161,15 @@ fn update_shifts_line_starts_for_later_entries() {
 }
 
 #[test]
-fn kaleid_extension_commands_report_information_diagnostics() {
-    let analysis = Analysis::from_text(
-        "#TITLE t\n#CONDITIONAL 1\n#WHEN SCORE>=2\n#00111:01\n#DEFAULT\n#00111:02\n#ENDCONDITIONAL\n#SONGSOUNDMODE MIX\n#RESULTFIRSTFILE first.wav\n",
-    );
+fn kaleid_bmd_trigger_reports_information_diagnostic() {
+    let analysis = Analysis::from_text("#TITLE t\n#BMD\n");
 
     let extensions: Vec<_> = analysis
         .diagnostics()
         .iter()
         .filter(|d| d.code() == Some("extension"))
         .collect();
-    assert_eq!(extensions.len(), 4);
-    assert_eq!(
-        analysis
-            .diagnostics()
-            .iter()
-            .filter(|d| d.severity() == bmsrs_bms_analysis::Severity::Information)
-            .count(),
-        4
-    );
+    assert_eq!(extensions.len(), 1);
     assert!(
         extensions
             .iter()
@@ -187,6 +177,38 @@ fn kaleid_extension_commands_report_information_diagnostics() {
     );
 }
 
+#[test]
+fn conditional_structure_reports_warnings() {
+    let analysis = Analysis::from_text(
+        "#CONDITIONAL 1\n#WHEN MISS>=100\n#00111:01\n#DEFAULT\n#00111:02\n#DEFAULT\n#ENDCONDITIONAL\n#WHEN SCORE>1\n#CONDITIONAL 2\n#00111:01\n#ENDCONDITIONAL\n#CONDITIONAL 3\n#00111:01\n",
+    );
+
+    let conditional: Vec<_> = analysis
+        .diagnostics()
+        .iter()
+        .filter(|d| d.code() == Some("conditional"))
+        .collect();
+    assert!(
+        conditional
+            .iter()
+            .any(|d| d.message().contains("duplicate #DEFAULT"))
+    );
+    assert!(
+        conditional
+            .iter()
+            .any(|d| d.message().contains("#WHEN outside"))
+    );
+    assert!(
+        conditional
+            .iter()
+            .any(|d| d.message().contains("missing #DEFAULT"))
+    );
+    assert!(
+        conditional
+            .iter()
+            .any(|d| d.message().contains("not closed"))
+    );
+}
 #[test]
 fn kaleid_extension_channels_report_and_skip_symbol_index() {
     let analysis = Analysis::from_text("#WAV01 a.wav\n#001ST:0101\n#001SF:0101\n#00111:01\n");

@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 use bmsrs_bms_syntax::{
     IncrementalParser, ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse,
 };
-use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsHeaderGameplay, BmsMessage, BodyCells};
+use bmsrs_bms_values::{
+    BmsChannel, BmsHeader, BmsHeaderConditional, BmsHeaderGameplay, BmsMessage, BodyCells,
+};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};
@@ -132,6 +134,168 @@ fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<AnalysisDiagnost
     (diagnostics, index)
 }
 
+/// Check `KaleidBeat` conditional-block structure.
+///
+/// `KaleidBeat` extension: the block syntax is not defined by the BMS
+/// specification or beatoraja. The analyzer reports structural mistakes; it
+/// does not evaluate conditions.
+#[expect(
+    clippy::too_many_lines,
+    reason = "single state machine over conditional directives; splitting hides the ordering rules"
+)]
+fn check_conditional(
+    source: &SourceFile,
+    prefixes: &[char],
+    diagnostics: &mut Vec<AnalysisDiagnostic>,
+) {
+    let mut depth = 0usize;
+    let mut branch_count = 0usize;
+    let mut saw_default = false;
+    let mut block_start = None;
+
+    for line in source.lines() {
+        let Some(content) = line.content_text() else {
+            continue;
+        };
+        let Ok(Some(header)) = BmsHeader::parse(&content, prefixes) else {
+            continue;
+        };
+        let BmsHeader::Conditional(command) = header else {
+            if depth > 0 && line.kind() == SyntaxLineKind::Header {
+                diagnostics.push(AnalysisDiagnostic::new(
+                    line.range(),
+                    Severity::Warning,
+                    "header inside a #CONDITIONAL branch; headers are global in KaleidBeat",
+                    Some("conditional"),
+                ));
+            }
+            continue;
+        };
+        match command {
+            BmsHeaderConditional::Conditional(position) => {
+                if depth > 0 {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "nested #CONDITIONAL block; the outer block is not closed",
+                        Some("conditional"),
+                    ));
+                }
+                depth = 1;
+                branch_count = 0;
+                saw_default = false;
+                block_start = Some(line.range());
+                if !position.is_finite() || !(0.0..=999.999_999).contains(&position) {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "conditional evaluation position is out of range",
+                        Some("conditional"),
+                    ));
+                }
+            }
+            BmsHeaderConditional::When(_) => {
+                if depth == 0 {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#WHEN outside a #CONDITIONAL block",
+                        Some("conditional"),
+                    ));
+                } else if saw_default {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#WHEN after #DEFAULT",
+                        Some("conditional"),
+                    ));
+                } else {
+                    branch_count += 1;
+                }
+            }
+            BmsHeaderConditional::ElseWhen(_) => {
+                if depth == 0 {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#ELSEWHEN outside a #CONDITIONAL block",
+                        Some("conditional"),
+                    ));
+                } else if branch_count == 0 {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#ELSEWHEN without a preceding #WHEN",
+                        Some("conditional"),
+                    ));
+                } else if saw_default {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#ELSEWHEN after #DEFAULT",
+                        Some("conditional"),
+                    ));
+                }
+            }
+            BmsHeaderConditional::Default => {
+                if depth == 0 {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#DEFAULT outside a #CONDITIONAL block",
+                        Some("conditional"),
+                    ));
+                } else if saw_default {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "duplicate #DEFAULT in a #CONDITIONAL block",
+                        Some("conditional"),
+                    ));
+                } else if branch_count == 0 {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#DEFAULT without a preceding #WHEN",
+                        Some("conditional"),
+                    ));
+                }
+                saw_default = true;
+            }
+            BmsHeaderConditional::EndConditional => {
+                if depth == 0 {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#ENDCONDITIONAL without a matching #CONDITIONAL",
+                        Some("conditional"),
+                    ));
+                } else if !saw_default {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Warning,
+                        "#CONDITIONAL block is missing #DEFAULT",
+                        Some("conditional"),
+                    ));
+                }
+                depth = 0;
+                branch_count = 0;
+                saw_default = false;
+                block_start = None;
+            }
+        }
+    }
+
+    if let Some(range) = block_start {
+        diagnostics.push(AnalysisDiagnostic::new(
+            range,
+            Severity::Warning,
+            "#CONDITIONAL block is not closed by #ENDCONDITIONAL",
+            Some("conditional"),
+        ));
+    }
+}
+
 /// Collect definitions and references.
 fn collect_lines(
     source: &SourceFile,
@@ -142,6 +306,7 @@ fn collect_lines(
     for (line_index, line) in source.lines().enumerate() {
         collect_line(line_index, &line, prefixes, index, diagnostics);
     }
+    check_conditional(source, prefixes, diagnostics);
 }
 
 /// Collect one line into the index and diagnostics.
@@ -330,14 +495,7 @@ fn collect_message(
 /// Commands already modeled by `bmsrs-bms-values` are intentionally absent:
 /// they no longer produce a "not modeled" diagnostic. Only the conditional
 /// family and the `#BMD` trigger remain here.
-const EXTENSION_COMMANDS: &[&str] = &[
-    "CONDITIONAL",
-    "WHEN",
-    "ELSEWHEN",
-    "DEFAULT",
-    "ENDCONDITIONAL",
-    "BMD",
-];
+const EXTENSION_COMMANDS: &[&str] = &["BMD"];
 
 /// Return the canonical name when `command` is a recognized dialect-extension
 /// command.
@@ -608,6 +766,7 @@ fn diagnostics_from(
         &mut scratch,
         &mut diagnostics,
     );
+    check_conditional(&source, &options.header_prefixes, &mut diagnostics);
     add_duplicate_diagnostics(index, &mut diagnostics);
     add_missing_reference_diagnostics(index, &mut diagnostics);
     diagnostics.sort_by_key(|diagnostic| (diagnostic.range().start(), diagnostic.range().end()));
