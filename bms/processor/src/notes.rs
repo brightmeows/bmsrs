@@ -3,13 +3,17 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bmsrs_bms_model::KeyType;
-use bmsrs_bms_values::{LnMode, WavIndex};
+use bmsrs_bms_values::{LnMode, LnObjIndex, WavIndex};
 use bmsrs_chart::{
     AudioIndex, Damage, Event, EventKind, LnTypeHint, Note, NoteAudio, NoteKind, NoteRole,
 };
 
+use crate::note_ext::BmsNoteExt;
+
 use crate::layout::{BmsLayout, ChannelPos};
-use crate::long_note::{LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2};
+use crate::long_note::{
+    LnMarker, LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2,
+};
 
 use super::{BmsConverter, ProcessWarning, ProcessWarningKind};
 
@@ -17,8 +21,10 @@ impl BmsConverter<'_> {
     /// Determine the LN mode and pair long notes. Returns the pairing result and
     /// the consumed note indices.
     pub fn pair_long_notes(&self) -> (LnPairingResult, HashSet<usize>) {
-        if let Some(ln_obj) = self.bms.gameplay.ln_obj {
-            let (paired, consumed) = pair_lnobj(&self.bms.messages.note_events, ln_obj, self.table);
+        let markers = self.ln_markers();
+        if !markers.is_empty() {
+            let (paired, consumed) =
+                pair_lnobj(&self.bms.messages.note_events, &markers, self.table);
             return (
                 LnPairingResult {
                     paired,
@@ -39,6 +45,58 @@ impl BmsConverter<'_> {
         )
     }
 
+    /// Collect the active `#LNOBJ`-family terminator markers.
+    ///
+    /// When several markers designate the same WAV, the higher-priority type
+    /// wins: HLN > HCN > CN > plain LN (`#LNOBJ`).
+    fn ln_markers(&self) -> Vec<LnMarker> {
+        let priority = |hint: Option<LnTypeHint>| match hint {
+            None | Some(LnTypeHint::Ln) => 0u8,
+            Some(LnTypeHint::Cn) => 1,
+            Some(LnTypeHint::Hcn) => 2,
+            Some(LnTypeHint::Hln) => 3,
+        };
+        let mut markers: Vec<(LnObjIndex, Option<LnTypeHint>)> = Vec::new();
+        for (wav, hint) in [
+            self.bms.gameplay.ln_obj.map(|wav| (wav, None)),
+            self.bms
+                .gameplay
+                .cn_obj
+                .map(|wav| (wav, Some(LnTypeHint::Cn))),
+            self.bms
+                .gameplay
+                .hcn_obj
+                .map(|wav| (wav, Some(LnTypeHint::Hcn))),
+            self.bms
+                .gameplay
+                .hln_obj
+                .map(|wav| (wav, Some(LnTypeHint::Hln))),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            match markers.iter_mut().find(|(existing, _)| *existing == wav) {
+                Some((_, existing_hint)) if priority(hint) > priority(*existing_hint) => {
+                    *existing_hint = hint;
+                }
+                Some(_) => {}
+                None => markers.push((wav, hint)),
+            }
+        }
+        markers
+            .into_iter()
+            .map(|(wav, hint)| LnMarker { wav, hint })
+            .collect()
+    }
+
+    /// Whether any `#LNOBJ`-family terminator marker is active.
+    pub const fn has_long_markers(&self) -> bool {
+        self.bms.gameplay.ln_obj.is_some()
+            || self.bms.gameplay.cn_obj.is_some()
+            || self.bms.gameplay.hcn_obj.is_some()
+            || self.bms.gameplay.hln_obj.is_some()
+    }
+
     /// Derive the chart-level long-note type hint from the `#LNMODE` header.
     ///
     /// `LnMode{Ln,Cn,Hcn}` and `LnTypeHint{Ln,Cn,Hcn}` are 1:1 isomorphic enums.
@@ -49,6 +107,7 @@ impl BmsConverter<'_> {
             Some(LnMode::Ln) => Some(LnTypeHint::Ln),
             Some(LnMode::Cn) => Some(LnTypeHint::Cn),
             Some(LnMode::Hcn) => Some(LnTypeHint::Hcn),
+            Some(LnMode::Hln) => Some(LnTypeHint::Hln),
             None => None,
         }
     }
@@ -74,6 +133,9 @@ impl BmsConverter<'_> {
         unpaired_starts: &[(u8, u8, u64)],
     ) {
         let base = self.bms.gameplay.base.unwrap_or_default();
+        // One marker table per call: the note loop below would otherwise
+        // rebuild it for every note.
+        let markers = self.ln_markers();
         // The warnings vector is passed per call so the covered-note branch
         // inside the loop can push its own warning while iterating.
         let check_wav = |warnings: &mut Vec<ProcessWarning>,
@@ -124,12 +186,7 @@ impl BmsConverter<'_> {
                 // Paired long-note starts are re-emitted from `paired_lns`;
                 // only the end marker (its WAV equals `#LNOBJ`) occupies the
                 // slot here, warning on conflict like a visible note does.
-                let is_end = self
-                    .bms
-                    .gameplay
-                    .ln_obj
-                    .as_ref()
-                    .is_some_and(|ln_obj| *ne.wav_id == **ln_obj);
+                let is_end = markers.iter().any(|marker| *ne.wav_id == *marker.wav);
                 if is_end {
                     placements.push(Some(Placement {
                         tick,
@@ -186,7 +243,7 @@ impl BmsConverter<'_> {
         // In LNOBJ mode, ch51-69 long-note channels are mutually exclusive with
         // LNOBJ (memo/10 leaves this undefined). Do not discard silently; keep
         // the data as ordinary visible notes.
-        if self.bms.gameplay.ln_obj.is_some() {
+        if self.has_long_markers() {
             for lne in &self.bms.messages.long_note_events {
                 let tick = self.table.position_to_tick(lne.position);
                 let audio = check_wav(&mut self.warnings, &lne.wav_id, lne.player, lne.lane, tick);
@@ -213,6 +270,7 @@ impl BmsConverter<'_> {
                 kind: PlacementKind::Long {
                     duration: ln.duration,
                     audio,
+                    hint: ln.hint,
                 },
             }));
             placements.push(Some(Placement {
@@ -335,10 +393,14 @@ impl BmsConverter<'_> {
                         kind,
                         role: NoteRole::Normal,
                         audio: NoteAudio::from(audio),
-                        ext: (),
+                        ext: BmsNoteExt::default(),
                     }),
                 )),
-                PlacementKind::Long { duration, audio } => self.events.push(Event::new(
+                PlacementKind::Long {
+                    duration,
+                    audio,
+                    hint,
+                } => self.events.push(Event::new(
                     placement.tick,
                     EventKind::Note(Note {
                         side: note_side,
@@ -346,7 +408,7 @@ impl BmsConverter<'_> {
                         kind: NoteKind::Long { duration },
                         role: NoteRole::Normal,
                         audio: NoteAudio::from(audio),
-                        ext: (),
+                        ext: BmsNoteExt { ln_type_hint: hint },
                     }),
                 )),
                 PlacementKind::Mine { damage } => self.events.push(Event::new(
@@ -357,7 +419,7 @@ impl BmsConverter<'_> {
                         kind: NoteKind::Mine { damage },
                         role: NoteRole::Normal,
                         audio: NoteAudio::none(),
-                        ext: (),
+                        ext: BmsNoteExt::default(),
                     }),
                 )),
                 PlacementKind::LnEnd { .. } => {}
@@ -419,6 +481,8 @@ enum PlacementKind {
         duration: u64,
         /// Resolved keysound of the start, if the WAV reference resolves.
         audio: Option<AudioIndex>,
+        /// Per-note type from a typed terminator marker.
+        hint: Option<LnTypeHint>,
     },
     /// Long-note end marker: occupies the slot, emits nothing. `warn` is set
     /// for LNOBJ markers, which warn on conflict like a visible note does

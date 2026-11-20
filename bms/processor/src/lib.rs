@@ -35,7 +35,9 @@ mod bga;
 pub mod custom_event;
 mod error;
 mod long_note;
+mod note_ext;
 mod notes;
+
 mod position;
 mod timing;
 
@@ -60,6 +62,8 @@ use thiserror::Error;
 
 pub use crate::audio::BmsAudio;
 pub use crate::error::{ProcessWarning, ProcessWarningKind};
+pub use crate::long_note::LnMarker;
+pub use crate::note_ext::BmsNoteExt;
 
 use crate::bga::BmpEntry;
 use crate::custom_event::BmsCustomEvent;
@@ -95,7 +99,7 @@ pub enum ProcessError {
 /// The generic parameters are fixed to `((), BmsCustomEvent)`, where
 /// `BmsCustomEvent` carries engine-specific events (BGA opacity, ARGB, TEXT,
 /// and so on).
-type BmsEvent = Event<(), BmsCustomEvent>;
+type BmsEvent = Event<crate::note_ext::BmsNoteExt, BmsCustomEvent>;
 
 /// Zero-sized processor that converts [`Bms`] into [`Chart`].
 pub struct BmsProcessor;
@@ -104,7 +108,7 @@ pub struct BmsProcessor;
 #[derive(Debug)]
 pub struct Processed {
     /// Chart produced by processing.
-    pub chart: Chart<(), BmsCustomEvent>,
+    pub chart: Chart<crate::note_ext::BmsNoteExt, BmsCustomEvent>,
     /// Raw BMS gameplay parameters that do not enter the core `Chart`.
     pub gameplay: BmsGameplay,
     /// Raw BMS audio parameters that do not enter the core `AudioAsset`.

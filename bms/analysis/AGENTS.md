@@ -25,7 +25,16 @@ treat `docs.rs` as the specification text.
 - Definitions: `#WAVxx` / `#EXWAVxx`, `#BMPxx` / `#EXBMPxx`, `#BGAxx` /
   `#@BGAxx` / `#SWBGAxx` / `#ARGBxx`, `#BPMxx` / `#EXBPMxx`, `#STOPxx`,
   `#SCROLLxx`, `#SPEEDxx`, `#EXRANKxx`, `#CHANGEOPTIONxx`, `#SEEKxx`,
-  `#TEXTxx` / `#SONGxx`
+  `#TEXTxx` / `#SONGxx`; the `#LNOBJ` family carries its id as the command
+  **value**, so it is read from the parsed header rather than a name suffix
+- `KaleidBeat` dialect lines produce Information diagnostics with the stable
+  code `extension` and are excluded from reference indexing; recognition and
+  per-command / per-channel summaries live in `Docs` (`analysis.rs`, `docs.rs`)
+- The dialect's format manual is not a website: it ships in the release
+  archive as `KaleidBeat/documents/format-header.html` (`format-channel.html`,
+  `format-bmd.html`). Cite that manual rather than re-deriving semantics from
+  code; bmz-player's `docs/kaleid.md` is a secondary implementation contract
+  and loses to the manual when they disagree
 - References: non-`00` two-character values in channel bodies; the channel kind
   determines the resource kind
 - Non-canonical addresses (such as `#1:0101`) fall back to

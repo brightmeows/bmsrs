@@ -25,7 +25,7 @@ impl ScanState {
     /// Scan one line of text, update the cross-line state, and return the
     /// content span.
     pub fn scan(&mut self, text: &str) -> Scanned {
-        scan_line(text.as_bytes(), None, self)
+        scan_line(text.as_bytes(), UnitWidth::Single, self)
     }
 }
 
@@ -36,9 +36,26 @@ pub struct Scanned {
     pub content: Option<Range<usize>>,
 }
 
+/// Scanning unit width and endianness for wide encodings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnitWidth {
+    /// Single-byte units (ASCII-compatible encodings).
+    Single,
+    /// UTF-16 with the given endianness.
+    Utf16(
+        /// `true` for little-endian.
+        bool,
+    ),
+    /// UTF-32 with the given endianness.
+    Utf32(
+        /// `true` for big-endian.
+        bool,
+    ),
+}
+
 /// Scan one line, update the cross-line state, and return the content span.
-pub fn scan_line(bytes: &[u8], utf16: Option<bool>, state: &mut ScanState) -> Scanned {
-    let mut units = Units::new(bytes, utf16).peekable();
+pub fn scan_line(bytes: &[u8], width: UnitWidth, state: &mut ScanState) -> Scanned {
+    let mut units = Units::new(bytes, width).peekable();
 
     let mut content_start: Option<usize> = None;
     let mut content_end: Option<usize> = None;
@@ -188,18 +205,18 @@ pub fn classify_str(text: &str, scanned: &Scanned) -> LineKind {
 struct Units<'a> {
     /// Line bytes.
     bytes: &'a [u8],
-    /// UTF-16 endianness; `None` means single-byte units.
-    utf16: Option<bool>,
+    /// Unit width and endianness.
+    width: UnitWidth,
     /// Current offset.
     offset: usize,
 }
 
 impl<'a> Units<'a> {
     /// Create the iterator.
-    const fn new(bytes: &'a [u8], utf16: Option<bool>) -> Self {
+    const fn new(bytes: &'a [u8], width: UnitWidth) -> Self {
         Self {
             bytes,
-            utf16,
+            width,
             offset: 0,
         }
     }
@@ -210,7 +227,28 @@ impl Iterator for Units<'_> {
 
     fn next(&mut self) -> Option<Unit> {
         let start = self.offset;
-        if let Some(little_endian) = self.utf16 {
+        if let UnitWidth::Utf32(big_endian) = self.width {
+            let mut buffer = [0u8; 4];
+            for (offset, slot) in buffer.iter_mut().enumerate() {
+                *slot = self.bytes.get(start + offset).copied()?;
+            }
+            let unit = if big_endian {
+                u32::from_be_bytes(buffer)
+            } else {
+                u32::from_le_bytes(buffer)
+            };
+            self.offset = start + 4;
+            return Some(Unit {
+                ascii: u8::try_from(unit).ok().filter(u8::is_ascii),
+                start,
+                end: start + 4,
+            });
+        }
+        let utf16 = match self.width {
+            UnitWidth::Utf16(little_endian) => Some(little_endian),
+            UnitWidth::Single | UnitWidth::Utf32(_) => None,
+        };
+        if let Some(little_endian) = utf16 {
             let first = *self.bytes.get(start)?;
             let low = self.bytes.get(start + 1).copied();
             let unit = match low {

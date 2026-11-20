@@ -28,6 +28,8 @@ pub enum SymbolKind {
     ChangeOption,
     /// TEXT / SONG.
     Text,
+    /// LNOBJ / CNOBJ / HCNOBJ / HLNOBJ terminator markers.
+    LnObj,
     /// SEEK.
     Seek,
 }
@@ -47,6 +49,7 @@ impl SymbolKind {
             Self::ExRank => "EXRANK",
             Self::ChangeOption => "CHANGEOPTION",
             Self::Text => "TEXT",
+            Self::LnObj => "LN OBJ",
             Self::Seek => "SEEK",
         }
     }

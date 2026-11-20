@@ -76,7 +76,8 @@ pub enum LnType {
     Type2,
 }
 
-/// Long-note mode specified by `#LNMODE` (beatoraja extension).
+/// Long-note mode specified by `#LNMODE` (beatoraja extension; `4` is a
+/// `KaleidBeat` extension).
 ///
 /// Determines how long notes behave during play in beatoraja. When present, the
 /// chart's long-note type is **forced**, regardless of the player's LN MODE
@@ -87,6 +88,7 @@ pub enum LnType {
 /// | `1` | LN | standard long note: press at the start, release at the end |
 /// | `2` | CN | charge note: hold through the note; no release required at the end |
 /// | `3` | HCN | hell charge note: like CN but with stricter judgment |
+/// | `4` | HLN | hell long note: HCN without the end judgment, one judgment per pair (`KaleidBeat`) |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnMode {
     /// Standard long note (`#LNMODE 1`).
@@ -101,6 +103,11 @@ pub enum LnMode {
     #[bms_token("3")]
     #[bms_token("03")]
     Hcn,
+    /// Hell long note (`#LNMODE 4`, `KaleidBeat` extension): HCN hold
+    /// behavior without the end judgment.
+    #[bms_token("4")]
+    #[bms_token("04")]
+    Hln,
 }
 
 /// Judgment difficulty specified by `#RANK`.
@@ -245,12 +252,27 @@ pub enum BmsHeaderGameplay {
     /// recognized as an `#LNOBJ` marker; use uppercase.
     #[bms_token("#LNOBJ {}")]
     LnObj(LnObjIndex),
-    /// `#LNMODE`: forces LN / CN / HCN mode (beatoraja extension).
+    /// `#LNMODE`: forces LN / CN / HCN / HLN mode (beatoraja extension).
     ///
     /// When present, the chart's long-note type is locked regardless of the
     /// player's LN MODE option.
     #[bms_token("#LNMODE {}")]
     LnMode(LnMode),
+    /// `#CNOBJ`: designates a `#WAV` index as a charge-note (CN) terminator
+    /// marker on channels `#xxx11-29` (beatoraja extension). Same pairing
+    /// rules as [`BmsHeaderGameplay::LnObj`]; notes ending on this marker are
+    /// charge notes. A normal note placed in the same lane and position as the
+    /// end object becomes the release sound.
+    #[bms_token("#CNOBJ {}")]
+    CnObj(LnObjIndex),
+    /// `#HCNOBJ`: designates a `#WAV` index as a hell-charge-note (HCN)
+    /// terminator marker on channels `#xxx11-29` (beatoraja extension).
+    #[bms_token("#HCNOBJ {}")]
+    HcnObj(LnObjIndex),
+    /// `#HLNOBJ`: designates a `#WAV` index as a hell-long-note (HLN)
+    /// terminator marker on channels `#xxx11-29` (`KaleidBeat` extension).
+    #[bms_token("#HLNOBJ {}")]
+    HlnObj(LnObjIndex),
     /// `#OCT` / `#FP` / `#OCT/FP`: OCTAVE MODE flag.
     ///
     /// Originally a nanasi marker for a 14KEYS to OCT/FP visual remap. The
@@ -365,8 +387,15 @@ mod tests {
     #[test]
     fn ln_mode_invalid() {
         assert!("0".parse::<LnMode>().is_err());
-        assert!("4".parse::<LnMode>().is_err());
+        assert!("5".parse::<LnMode>().is_err());
         assert!("abc".parse::<LnMode>().is_err());
+    }
+
+    #[test]
+    fn ln_mode_four_is_hln() {
+        assert_eq!("4".parse::<LnMode>().unwrap(), LnMode::Hln);
+        assert_eq!("04".parse::<LnMode>().unwrap(), LnMode::Hln);
+        assert_eq!(LnMode::Hln.to_string(), "4");
     }
 
     #[test]

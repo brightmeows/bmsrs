@@ -67,3 +67,102 @@ fn unknown_charset_label_falls_back_to_detection() {
     let document = Document::from_bytes(bytes.into_owned());
     assert_eq!(document.encoding().name(), "Shift_JIS");
 }
+
+#[test]
+fn utf32le_bom_is_detected_and_decoded() {
+    let body = "#TITLE テスト\n#00111:01\n";
+    let mut bytes = vec![0xFF, 0xFE, 0x00, 0x00];
+    for character in body.chars() {
+        bytes.extend_from_slice(&u32::from(character).to_le_bytes());
+    }
+    let document = Document::from_bytes(bytes.clone());
+    assert_eq!(document.encoding().name(), "UTF-32LE");
+    assert_eq!(document.detection().method, DetectionMethod::Bom);
+    assert_eq!(document.to_text(), body);
+}
+
+#[test]
+fn utf32be_bom_is_detected_and_decoded() {
+    let body = "#TITLE テスト\n#00111:01\n";
+    let mut bytes = vec![0x00, 0x00, 0xFE, 0xFF];
+    for character in body.chars() {
+        bytes.extend_from_slice(&u32::from(character).to_be_bytes());
+    }
+    let document = Document::from_bytes(bytes);
+    assert_eq!(document.encoding().name(), "UTF-32BE");
+    assert_eq!(document.detection().method, DetectionMethod::Bom);
+    assert_eq!(document.to_text(), body);
+}
+
+#[test]
+fn bomless_utf16_with_nul_signal_is_detected() {
+    let body = "#TITLE test chart 001 #ARTIST alice\n#00111:01\n#00211:02\n";
+    let mut bytes: Vec<u8> = Vec::new();
+    for character in body.chars() {
+        let unit = u16::try_from(u32::from(character)).unwrap_or(0xFFFD);
+        bytes.extend_from_slice(&unit.to_le_bytes());
+    }
+    let document = Document::from_bytes(bytes);
+    assert_eq!(document.encoding().name(), "UTF-16LE");
+    assert_eq!(document.to_text(), body);
+}
+
+#[test]
+fn utf16_binary_noise_is_not_claimed() {
+    // NUL-bearing bytes that do not decode as a BMS-shaped UTF-16 stream fall
+    // through to the usual paths.
+    let bytes: Vec<u8> = std::iter::repeat_n(0u8, 64).collect();
+    let document = Document::from_bytes(bytes);
+    assert_ne!(document.encoding().name(), "UTF-16LE");
+    assert_ne!(document.encoding().name(), "UTF-16BE");
+}
+
+#[test]
+fn gb18030_text_is_claimed_by_the_gbk_candidate() {
+    // GB18030 (which `encoding_rs` names GBK) covers all of Unicode, so even
+    // four-byte extension characters decode in the candidate pass.
+    let text = "#TITLE \u{20000}\u{20001}\u{20002}\n#00111:01\n";
+    let (bytes, _, had_errors) = encoding_rs::GB18030.encode(text);
+    assert!(!had_errors);
+    let document = Document::from_bytes(bytes.into_owned());
+    let name = document.encoding().name();
+    assert_eq!(name, "GBK", "method {:?}", document.detection().method);
+    assert_eq!(document.to_text(), text);
+}
+
+fn utf32le_bytes(text: &str) -> Vec<u8> {
+    let mut bytes = vec![0xFF, 0xFE, 0x00, 0x00];
+    for character in text.chars() {
+        bytes.extend_from_slice(&u32::from(character).to_le_bytes());
+    }
+    bytes
+}
+
+#[test]
+fn utf32_line_text_strips_the_whole_terminator() {
+    let document = Document::from_bytes(utf32le_bytes("#TITLE a\n#ARTIST b\n"));
+    assert_eq!(document.line_text(0).as_deref(), Some("#TITLE a"));
+    assert_eq!(document.line_text(1).as_deref(), Some("#ARTIST b"));
+}
+
+#[test]
+fn utf32_replace_content_keeps_the_document_decodable() {
+    let mut document = Document::from_bytes(utf32le_bytes("#TITLE a\n#ARTIST b\n"));
+    document
+        .replace_content(1, "#ARTIST c")
+        .expect("replace should succeed");
+    assert_eq!(document.to_text(), "#TITLE a\n#ARTIST c\n");
+}
+
+#[test]
+fn utf32_insert_line_writes_a_full_four_byte_terminator() {
+    let mut document = Document::from_bytes(utf32le_bytes("#TITLE a\n"));
+    document
+        .insert_line(1, "#ARTIST c")
+        .expect("insert should succeed");
+    let text = document.to_text();
+    assert_eq!(text, "#TITLE a\n#ARTIST c\n");
+    // Round-trip the rendered bytes back through the detector.
+    let rerendered = Document::from_bytes(document.render());
+    assert_eq!(rerendered.to_text(), text);
+}

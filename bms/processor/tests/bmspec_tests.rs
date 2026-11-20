@@ -19,7 +19,7 @@ use bmsrs_chart::{
 use bmsrs_player::Player;
 
 /// Chart type returned by bmsrs-bms-processor.
-type BmsChart = Chart<(), BmsCustomEvent>;
+type BmsChart = Chart<bmsrs_bms_processor::BmsNoteExt, BmsCustomEvent>;
 
 #[expect(clippy::expect_used, reason = "test helper panics on invalid timing")]
 fn timing(chart: &BmsChart) -> TimingTrack {

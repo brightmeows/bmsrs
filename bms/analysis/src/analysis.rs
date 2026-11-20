@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use bmsrs_bms_syntax::{
     IncrementalParser, ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse,
 };
-use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsMessage, BodyCells};
+use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsHeaderGameplay, BmsMessage, BodyCells};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};
@@ -155,10 +155,33 @@ fn collect_line(
     let line_number = u32::try_from(line_index).unwrap_or(u32::MAX);
     match line.kind() {
         SyntaxLineKind::Header if !line.is_directive() => {
+            if let Some(command) = line.command_name()
+                && let Some(name) = extension_command(command.text())
+            {
+                diagnostics.push(AnalysisDiagnostic::new(
+                    command.text_range(),
+                    Severity::Information,
+                    format!(
+                        "`KaleidBeat` extension command `#{name}`: preserved verbatim, semantics not modeled"
+                    ),
+                    Some("extension"),
+                ));
+            }
             let content_text = line.content_text();
             if let Some(content) = content_text.as_deref()
                 && let Ok(Some(message)) = BmsMessage::parse(content)
             {
+                if let Some(code) = extension_channel_code(message.channel()) {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Information,
+                        format!(
+                            "`KaleidBeat` extension channel {code}: preserved verbatim, semantics not modeled"
+                        ),
+                        Some("extension"),
+                    ));
+                    return;
+                }
                 let body_start = content
                     .find(':')
                     .map_or(0, |offset| offset.saturating_add(1));
@@ -213,8 +236,9 @@ fn collect_header(
         return;
     };
     match BmsHeader::parse(&content, prefixes) {
-        Ok(Some(_header)) => {
-            if let Some((kind, id)) = definition_kind(command.text())
+        Ok(Some(header)) => {
+            if let Some((kind, id)) =
+                marker_definition(&header).or_else(|| definition_kind(command.text()))
                 && let Some(symbol_id) = SymbolId::new(&id)
             {
                 let line_start = usize::from(line.range().start());
@@ -267,6 +291,17 @@ fn collect_message(
             return;
         }
     };
+    if let Some(code) = extension_channel_code(message.channel()) {
+        diagnostics.push(AnalysisDiagnostic::new(
+            line.range(),
+            Severity::Information,
+            format!(
+                "`KaleidBeat` extension channel {code}: preserved verbatim, semantics not modeled"
+            ),
+            Some("extension"),
+        ));
+        return;
+    }
     let body_start = content
         .find(':')
         .map_or(0, |offset| offset.saturating_add(1));
@@ -280,6 +315,75 @@ fn collect_message(
         base,
         index,
     );
+}
+
+/// Header commands from the `KaleidBeat` chart dialect that this repository
+/// recognizes but does not model.
+///
+/// The lossless pipeline preserves such lines verbatim; the diagnostic only
+/// marks their presence for editors. Command semantics live in
+/// [`Docs::header`](crate::Docs::header); this list decides recognition.
+///
+/// The dialect belongs to the `KaleidBeat` player
+/// (<https://github.com/curecoma/KaleidBeat-releases>); the only written
+/// contract available is the reference implementation's
+/// [kaleid.md](https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md).
+const EXTENSION_COMMANDS: &[&str] = &[
+    "CONDITIONAL",
+    "WHEN",
+    "ELSEWHEN",
+    "DEFAULT",
+    "ENDCONDITIONAL",
+    "BMD",
+    "SOUNDFONT",
+    "TARGETHASH",
+    "LOADINGFILE",
+    "READYFILE",
+    "BGAOVERFLOW",
+    "DECIDEFILE",
+    "PLAYSTOPFILE",
+    "RESULTFILE",
+    "RESULTCLEARFILE",
+    "RESULTFAILFILE",
+    "RESULTFIRSTFILE",
+    "SONGSOUNDMODE",
+];
+
+/// Return the canonical name when `command` is a recognized dialect-extension
+/// command.
+fn extension_command(command: &str) -> Option<&'static str> {
+    let upper = command.to_ascii_uppercase();
+    EXTENSION_COMMANDS
+        .iter()
+        .find(|candidate| **candidate == upper)
+        .copied()
+}
+
+/// Return the channel code when `channel` is an unambiguous dialect-extension
+/// channel.
+///
+/// | Code | Dialect meaning |
+/// |------|-----------------|
+/// | `ST` | bar line at the object positions |
+/// | `SF` / `SH` | one-shot free zone (1P / 2P) |
+/// | `SG` / `SI` | paired free-zone delimiter (1P / 2P) |
+/// | `F`-`O` + digit | potion, dummy tap, dummy long, dummy mine, or dummy potion |
+///
+/// Per-channel summaries live in [`Docs::channel`](crate::Docs::channel).
+///
+/// `17` / `27` are deliberately not reported: the manual treats them as the
+/// legacy free-zone form whose meaning the player infers from the chart's era,
+/// and other extensions (such as nanasi's foot pedal) also place objects
+/// there, so flagging them would mislabel ordinary charts.
+fn extension_channel_code(channel: BmsChannel) -> Option<String> {
+    let text = match channel {
+        BmsChannel::Note(index) | BmsChannel::Unknown(index) => index.to_string(),
+        _ => return None,
+    };
+    let code = text.to_ascii_uppercase();
+    let is_extension = matches!(code.as_str(), "ST" | "SF" | "SG" | "SH" | "SI")
+        || matches!(code.as_bytes(), [b'F'..=b'O', b'1'..=b'9']);
+    is_extension.then_some(code)
 }
 
 /// Collect message references for a channel.
@@ -322,6 +426,24 @@ fn content_base(line: &SyntaxLine, content: &str) -> usize {
     let line_text = line.syntax().text().to_string();
     let content_offset = line_text.find(content).unwrap_or(0);
     usize::from(line.range().start()).saturating_add(content_offset)
+}
+
+/// Identify a long-note terminator marker definition from the parsed header.
+///
+/// `#LNOBJ` and the typed markers carry their id as the command **value**, not
+/// as a command-name suffix, so the prefix table cannot reach them.
+fn marker_definition(header: &BmsHeader) -> Option<(SymbolKind, String)> {
+    let BmsHeader::Gameplay(gameplay) = header else {
+        return None;
+    };
+    let (BmsHeaderGameplay::LnObj(id)
+    | BmsHeaderGameplay::CnObj(id)
+    | BmsHeaderGameplay::HcnObj(id)
+    | BmsHeaderGameplay::HlnObj(id)) = gameplay
+    else {
+        return None;
+    };
+    Some((SymbolKind::LnObj, id.to_string().to_ascii_uppercase()))
 }
 
 /// Identify the definition kind and ID from a command name.

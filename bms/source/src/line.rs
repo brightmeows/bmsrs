@@ -20,7 +20,15 @@ pub enum LineEnding {
 impl LineEnding {
     /// Return the byte length of this terminator in the given encoding.
     pub(crate) fn byte_len(self, encoding: SourceEncoding) -> usize {
-        let unit = if encoding.is_utf16() { 2 } else { 1 };
+        // Wide encodings store each ASCII character in one unit of 2 (UTF-16)
+        // or 4 (UTF-32) bytes; CRLF spans two units.
+        let unit = if encoding.is_utf16() {
+            2
+        } else if encoding.utf32_big_endian().is_some() {
+            4
+        } else {
+            1
+        };
         match self {
             Self::None => 0,
             Self::Lf | Self::Cr => unit,
@@ -30,17 +38,36 @@ impl LineEnding {
 
     /// Append this terminator's bytes to `out`.
     pub(crate) fn append_to(self, out: &mut Vec<u8>, encoding: SourceEncoding) {
-        match (self, encoding.utf16_little_endian()) {
-            (Self::None, _) => {}
-            (Self::Lf, Some(true)) => out.extend_from_slice(&[0x0A, 0x00]),
-            (Self::Lf, Some(false)) => out.extend_from_slice(&[0x00, 0x0A]),
-            (Self::Lf, None) => out.push(0x0A),
-            (Self::Cr, Some(true)) => out.extend_from_slice(&[0x0D, 0x00]),
-            (Self::Cr, Some(false)) => out.extend_from_slice(&[0x00, 0x0D]),
-            (Self::Cr, None) => out.push(0x0D),
-            (Self::CrLf, Some(true)) => out.extend_from_slice(&[0x0D, 0x00, 0x0A, 0x00]),
-            (Self::CrLf, Some(false)) => out.extend_from_slice(&[0x00, 0x0D, 0x00, 0x0A]),
-            (Self::CrLf, None) => out.extend_from_slice(&[0x0D, 0x0A]),
+        /// Write one ASCII unit in the encoding's unit width and endianness.
+        fn push_unit(out: &mut Vec<u8>, value: u8, encoding: SourceEncoding) {
+            let wide = u32::from(value);
+            if let Some(big_endian) = encoding.utf32_big_endian() {
+                let bytes = if big_endian {
+                    wide.to_be_bytes()
+                } else {
+                    wide.to_le_bytes()
+                };
+                out.extend_from_slice(&bytes);
+            } else if let Some(little_endian) = encoding.utf16_little_endian() {
+                let unit = u16::from(value);
+                let bytes = if little_endian {
+                    unit.to_le_bytes()
+                } else {
+                    unit.to_be_bytes()
+                };
+                out.extend_from_slice(&bytes);
+            } else {
+                out.push(value);
+            }
+        }
+        match self {
+            Self::None => {}
+            Self::Lf => push_unit(out, 0x0A, encoding),
+            Self::Cr => push_unit(out, 0x0D, encoding),
+            Self::CrLf => {
+                push_unit(out, 0x0D, encoding);
+                push_unit(out, 0x0A, encoding);
+            }
         }
     }
 }

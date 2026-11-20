@@ -105,11 +105,7 @@ fn process_basic_note() {
         .iter()
         .filter_map(|e| {
             if let EventKind::Note(Note {
-                side,
-                lane,
-                kind,
-                ext: (),
-                ..
+                side, lane, kind, ..
             }) = &e.kind
             {
                 Some((e.tick(), *side, *lane, *kind))
@@ -555,7 +551,7 @@ fn process_key7_note_lands_on_key_seven() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note(Note { lane, ext: (), .. }) = &e.kind {
+            if let EventKind::Note(Note { lane, .. }) = &e.kind {
                 Some(*lane)
             } else {
                 None
@@ -892,7 +888,7 @@ fn process_invisible_note_mapped() {
         .events()
         .iter()
         .filter_map(|e| {
-            if let EventKind::Note(Note { kind, ext: (), .. }) = &e.kind {
+            if let EventKind::Note(Note { kind, .. }) = &e.kind {
                 Some(*kind)
             } else {
                 None
@@ -1461,4 +1457,56 @@ fn dedup_adjacent_same_bpm() {
     assert_eq!(bpm_events.len(), 2);
     assert!((bpm_events[0].bpm - 120.0).abs() < f64::EPSILON);
     assert!((bpm_events[1].bpm - 140.0).abs() < f64::EPSILON);
+}
+
+fn parse_text(text: &str) -> bmsrs_bms_model::Bms {
+    let source = bmsrs_bms_syntax::SourceFile::parse(text);
+    bmsrs_bms_parser::BmsParser::parse(&source.source_file(), |_| 1).bms
+}
+
+#[expect(clippy::expect_used, reason = "test helper panics on process failure")]
+fn long_note_exts(bms: &bmsrs_bms_model::Bms) -> Vec<Option<bmsrs_chart::LnTypeHint>> {
+    let processed = BmsProcessor::process::<Bme>(bms).expect("process should succeed");
+    processed
+        .value
+        .chart
+        .data()
+        .events()
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Note(Note {
+                kind: NoteKind::Long { .. },
+                ext,
+                ..
+            }) => Some(ext.ln_type_hint),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn cnobj_pairs_charge_notes_with_per_note_hint() {
+    let bms = parse_text("#WAV01 a.wav\n#CNOBJ FF\n#00111:01\n#00211:FF\n");
+    let exts = long_note_exts(&bms);
+    assert_eq!(exts.len(), 1);
+    assert_eq!(exts[0], Some(bmsrs_chart::LnTypeHint::Cn));
+}
+
+#[test]
+fn cnobj_and_lnobj_on_the_same_wav_keep_the_typed_marker() {
+    let bms = parse_text("#WAV01 a.wav\n#LNOBJ FF\n#CNOBJ FF\n#00111:01\n#00211:FF\n");
+    let exts = long_note_exts(&bms);
+    assert_eq!(exts.len(), 1);
+    assert_eq!(exts[0], Some(bmsrs_chart::LnTypeHint::Cn));
+}
+
+#[test]
+fn lnmode_four_maps_to_the_hln_hint() {
+    let bms = parse_text("#LNMODE 4\n#WAV01 a.wav\n#LNTYPE 1\n#00151:01\n#00151:02\n");
+    let processed =
+        BmsProcessor::process::<Bme>(&bms).expect("process should succeed for a well-formed chart");
+    assert_eq!(
+        processed.value.chart.data().ln_type_hint(),
+        Some(bmsrs_chart::LnTypeHint::Hln)
+    );
 }

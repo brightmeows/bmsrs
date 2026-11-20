@@ -159,3 +159,153 @@ fn update_shifts_line_starts_for_later_entries() {
         Some("02")
     );
 }
+
+#[test]
+fn kaleid_extension_commands_report_information_diagnostics() {
+    let analysis = Analysis::from_text(
+        "#TITLE t\n#CONDITIONAL 1\n#WHEN SCORE>=2\n#00111:01\n#DEFAULT\n#00111:02\n#ENDCONDITIONAL\n#SONGSOUNDMODE MIX\n#RESULTFIRSTFILE first.wav\n",
+    );
+
+    let extensions: Vec<_> = analysis
+        .diagnostics()
+        .iter()
+        .filter(|d| d.code() == Some("extension"))
+        .collect();
+    assert_eq!(extensions.len(), 6);
+    assert_eq!(
+        analysis
+            .diagnostics()
+            .iter()
+            .filter(|d| d.severity() == bmsrs_bms_analysis::Severity::Information)
+            .count(),
+        6
+    );
+    assert!(
+        extensions
+            .iter()
+            .all(|d| d.message().contains("preserved verbatim"))
+    );
+}
+
+#[test]
+fn kaleid_extension_channels_report_and_skip_symbol_index() {
+    let analysis = Analysis::from_text("#WAV01 a.wav\n#001ST:0101\n#001SF:0101\n#00111:01\n");
+
+    assert_eq!(
+        analysis
+            .diagnostics()
+            .iter()
+            .filter(|d| d.code() == Some("extension"))
+            .count(),
+        2
+    );
+    // Ordinary notes keep their references.
+    assert_eq!(
+        analysis
+            .index()
+            .references_for(SymbolKind::Wav, "01")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn ordinary_key_seven_channels_are_not_extension_channels() {
+    let analysis = Analysis::from_text("#WAV01 a.wav\n#00117:0101\n#00127:0101\n");
+
+    assert!(
+        analysis
+            .diagnostics()
+            .iter()
+            .all(|d| d.code() != Some("extension"))
+    );
+}
+
+#[test]
+fn kaleid_docs_are_reachable() {
+    assert!(bmsrs_bms_analysis::Docs::header("CONDITIONAL").is_some());
+    assert!(bmsrs_bms_analysis::Docs::header("WHEN").is_some());
+    assert!(bmsrs_bms_analysis::Docs::header("ENDCONDITIONAL").is_some());
+}
+
+#[test]
+fn lnobj_family_definitions_enter_the_symbol_index() {
+    let analysis =
+        Analysis::from_text("#LNOBJ ZZ\n#CNOBJ zy\n#HCNOBJ ZX\n#HLNOBJ zw\n#WAVZZ a.wav\n");
+    let ids: Vec<_> = analysis
+        .index()
+        .definitions()
+        .filter(|definition| definition.kind() == SymbolKind::LnObj)
+        .map(bmsrs_bms_analysis::SymbolDefinition::id)
+        .collect();
+    assert_eq!(ids, ["ZZ", "ZY", "ZX", "ZW"]);
+}
+
+#[test]
+fn holder_line_style_extension_channel_reports_like_a_message_line() {
+    // `#1ST:...` has a head short enough to classify as a Header line, but it
+    // parses as a channel message; the extension check must still apply.
+    let analysis = Analysis::from_text("#WAV01 a.wav\n#1ST:0101\n");
+    assert_eq!(
+        analysis
+            .diagnostics()
+            .iter()
+            .filter(|diagnostic| diagnostic.code() == Some("extension"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        analysis
+            .index()
+            .references_for(SymbolKind::Wav, "01")
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn kaleid_extension_channels_have_hover_docs() {
+    for code in [
+        "ST", "SF", "SG", "SH", "SI", "F1", "G9", "H1", "I2", "J1", "K2", "L1", "M2", "N1", "O9",
+    ] {
+        let found = bmsrs_bms_analysis::Docs::channel(code);
+        assert!(found.is_some(), "missing channel doc for {code}");
+        assert!(
+            found.is_some_and(|entry| entry.summary.contains("KaleidBeat")),
+            "{code}"
+        );
+    }
+    // Every dialect entry links to the contract document, not the repo root.
+    for code in ["ST", "SF", "SG", "SH", "SI", "F1", "J1"] {
+        assert!(
+            bmsrs_bms_analysis::Docs::channel(code)
+                .is_some_and(|entry| entry.link.ends_with("/docs/kaleid.md")),
+            "missing contract link for {code}"
+        );
+    }
+    for command in [
+        "CONDITIONAL",
+        "WHEN",
+        "BMD",
+        "BGAOVERFLOW",
+        "DECIDEFILE",
+        "PLAYSTOPFILE",
+        "RESULTFILE",
+        "RESULTCLEARFILE",
+        "RESULTFAILFILE",
+        "RESULTFIRSTFILE",
+        "SONGSOUNDMODE",
+        "SOUNDFONT",
+        "TARGETHASH",
+        "LOADINGFILE",
+        "READYFILE",
+    ] {
+        assert!(
+            bmsrs_bms_analysis::Docs::header(command)
+                .is_some_and(|entry| entry.link.ends_with("/docs/kaleid.md")),
+            "missing contract link for {command}"
+        );
+    }
+    // Standard channels keep their docs.
+    assert!(bmsrs_bms_analysis::Docs::channel("17").is_some());
+}

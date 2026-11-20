@@ -3,7 +3,7 @@
 use crate::classify::{ScanState, classify_line, classify_str, scan_line};
 use crate::source::split_lines;
 use crate::{
-    DetectedEncoding, DetectionMethod, Line, LineEnding, LineKind, SourceEncoding,
+    DetectedEncoding, DetectionMethod, Line, LineEnding, LineKind, SourceEncoding, UnitWidth,
     UnmappableCharacter,
 };
 use std::fmt;
@@ -86,13 +86,20 @@ impl Document {
         let bom_len = detection.bom_len;
 
         let body = bytes.get(bom_len..).unwrap_or(&[]);
-        let utf16 = encoding.utf16_little_endian();
+        let width = encoding.utf16_little_endian().map_or_else(
+            || {
+                encoding
+                    .utf32_big_endian()
+                    .map_or(UnitWidth::Single, UnitWidth::Utf32)
+            },
+            UnitWidth::Utf16,
+        );
         let mut state = ScanState::default();
         let mut lines = Vec::new();
 
         for span in split_lines(body, encoding) {
             let line_body = body.get(span.body.clone()).unwrap_or(&[]);
-            let scanned = scan_line(line_body, utf16, &mut state);
+            let scanned = scan_line(line_body, width, &mut state);
             let kind = classify_line(line_body, &scanned, encoding);
             let line_start = bom_len + span.range.start;
             lines.push(Line {
@@ -398,7 +405,7 @@ impl Document {
 /// Classify new line text.
 fn classify_text(text: &str) -> LineKind {
     let mut state = ScanState::default();
-    let scanned = scan_line(text.as_bytes(), None, &mut state);
+    let scanned = scan_line(text.as_bytes(), UnitWidth::Single, &mut state);
     classify_str(text, &scanned)
 }
 

@@ -138,6 +138,7 @@ dependencies = [
  "bmsrs-bms-parser",
  "bmsrs-bms-syntax",
  "bmsrs-bms-values",
+ "bmsrs-bms-writer",
  "bmsrs-chart",
  "bmsrs-pipeline",
  "bmsrs-player",
