@@ -13,10 +13,22 @@
 //! `Fallback` variant) are excluded from forwarding. In command mode,
 //! `#[bms_fallback]` makes a parse failure return `Ok(None)` (falling through
 //! to `BmsHeaderFallback`) instead of `Err`.
+//! Variants marked `#[doc(hidden)]` are skipped entirely (phantom variants).
+//!
+//! When a command field's type is `String`, it is parsed through an owned
+//! `String::from(value)` conversion instead of `FromStr` / `BmsValue`.
 //!
 //! Generated code references `crate::BmsValue` and `crate::BmsTokenizeError`,
 //! so consumers must provide these types at the crate root (bmsrs-bms-values
 //! re-exports them from its `lib.rs`).
+//!
+//! # Error mapping
+//!
+//! Every `FromStr::Err` is converted into a `BmsTokenizeError` through
+//! `IntoTokensError`. Built-in implementations cover `ParseIntError`,
+//! `ParseFloatError`, `ParseBmsValueError`, `BmsChannelIdError`, and
+//! `ParseDifficultyError`; custom `FromStr` types implement
+//! `IntoTokensError` to control the error variant.
 
 mod codegen;
 mod index;

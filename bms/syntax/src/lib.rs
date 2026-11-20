@@ -2,11 +2,17 @@
 //!
 //! This crate builds a rowan CST over decoded text:
 //!
-//! - **Lossless**: every character enters a token, so `SyntaxNode::text()` can
-//!   reconstruct the input.
-//! - **Error-tolerant**: invalid lines and malformed control flow do not stop
-//!   parsing; errors are reported as diagnostics and as `ErrorLine` /
-//!   `ErrorNode`.
+//! - **Lossless**: every character enters exactly one token, so
+//!   `SyntaxNode::text()` reconstructs the input byte for byte.
+//! - **Error-tolerant**: invalid lines, unclosed blocks, and orphan directives
+//!   never panic; errors become `Diagnostic`s and `ErrorLine` / `ErrorToken`
+//!   nodes that preserve the original text where possible.
+//! - **Line-oriented**: every line has at least one `Line` node; control-flow
+//!   blocks nest under `SourceFile`.
+//! - **Semantics-free**: no `BmsHeader` / `BmsMessage` construction here;
+//!   only command names and value text.
+//! - **Branches optional**: the CST keeps every branch; `select_lines`
+//!   returns the lines of one resolved pass.
 //! - **Nested control flow**: `#RANDOM` / `#SWITCH` blocks become CST nodes;
 //!   branch selection is performed by later queries.
 //!

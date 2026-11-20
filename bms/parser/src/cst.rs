@@ -75,6 +75,10 @@ impl BmsParser {
     ///
     /// `rng(max)` returns a value in `[1, max]`; `#SETRANDOM` / `#SETSWITCH`
     /// do not call it.
+    ///
+    /// Warnings cover selected lines only; errors in unselected branches do
+    /// not surface. Use [`BmsParser::parse_document`] to collect warnings
+    /// from every line.
     #[must_use]
     pub fn parse(file: &SourceFile, rng: impl FnMut(u64) -> u64) -> BmsParse {
         Self::parse_with(file, &ParseOptions::default(), rng)
