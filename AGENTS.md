@@ -192,7 +192,7 @@ Reassess them before adding support; do not assume silently.
 | `#CDDA` / `#MIDIFILE` | only stored in the `BmsAudio` sidecar; no playback abstraction | a player needs CD or MIDI sources |
 | BMS `#BPM 0` | returns `ZeroBpm` instead of falling back to 130; mainstream engines (beatoraja) also fail to load such charts | charts with no scrolling need to be supported |
 | Negative BPM | changes are dropped with a warning; a negative initial BPM is rejected; time flowing backwards (a negative BPM segment) is not modeled. Negative SCROLL rates, which reverse the visual scrolling only, are supported. bmz-player models the segment and reflects the judgment clock around the latest negative event (`reflect_time` over `TimeUs(i64)` plus recorded reflection points); adopting it requires a signed time domain | negative-BPM charts need support |
-| bmson `free_zone` | not modeled: neither the bmson v0/v1/v2 schemas nor the BMS specification define the field; it exists only in the KaleidBeat dialect (BMS channels SF-SI plus conditional blocks). KaleidBeat lines are preserved verbatim and reported by the analysis layer; the dialect has no public specification, and `Docs` in `bmsrs-bms-analysis` records its upstream and the only written contract | a chart that needs free-zone judgment semantics is imported |
+| KaleidBeat `free_zone_channels` (bmson) | not modeled: the field is a KaleidBeat extension to bmson, documented in the manual shipped as `KaleidBeat/documents/format-channel.html`, not in the bmson v0/v1/v2 schemas this repository implements. In BMS text the same feature uses channels SF/SH (one-shot) and SG/SI (paired); such lines are preserved verbatim and reported by the analysis layer, whose `Docs` record the manual's location | a chart that needs free-zone judgment semantics is imported |
 | BMSON MSS | `Long + Release` is exposed as a descriptive note point; no dedicated MSS judgment state | a player implements MSS scoring/input |
 | BMSON layer-event `condition`/`interval`/`id_set` | clip selection conditions are not modeled; `bga_sequence` clips and clip references (poor/layer) are modeled, and bmson poor animations play the referenced clip | an imported chart needs condition-driven clip selection |
 | BMS `#PLAYER` | ignored; `Bme` covers 5K/7K/10K/14K | automatic family selection by `#PLAYER` is needed |
@@ -212,6 +212,7 @@ one side silently.
 | bmson `info.total` | `ChartInfo.total_percent` keeps the raw percentage; `ChartInfo.total` stays `None` | bmz-player converts it to a concrete gauge total against beatoraja's note-count formula | `total_percent` |
 | Invalid BPM change | dropped with a warning (beatoraja behavior) | bmz-player clamps to `1.0`; bmsrs deliberately does not follow | processor warning |
 | `#STOP` negative values | clamped to `0` and skipped | jbms-parser takes the absolute value; deliberately not followed | processor warning |
+| `#LNTYPE 2` | MGQ-style pairing on channels 51-69, per the BMS specification | KaleidBeat's manual defines it as LNOBJ-terminated long notes | documented only; the standard reading stays |
 
 ### Versioning
 
