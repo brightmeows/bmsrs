@@ -129,3 +129,40 @@ fn gb18030_text_is_claimed_by_the_gbk_candidate() {
     assert_eq!(name, "GBK", "method {:?}", document.detection().method);
     assert_eq!(document.to_text(), text);
 }
+
+fn utf32le_bytes(text: &str) -> Vec<u8> {
+    let mut bytes = vec![0xFF, 0xFE, 0x00, 0x00];
+    for character in text.chars() {
+        bytes.extend_from_slice(&u32::from(character).to_le_bytes());
+    }
+    bytes
+}
+
+#[test]
+fn utf32_line_text_strips_the_whole_terminator() {
+    let document = Document::from_bytes(utf32le_bytes("#TITLE a\n#ARTIST b\n"));
+    assert_eq!(document.line_text(0).as_deref(), Some("#TITLE a"));
+    assert_eq!(document.line_text(1).as_deref(), Some("#ARTIST b"));
+}
+
+#[test]
+fn utf32_replace_content_keeps_the_document_decodable() {
+    let mut document = Document::from_bytes(utf32le_bytes("#TITLE a\n#ARTIST b\n"));
+    document
+        .replace_content(1, "#ARTIST c")
+        .expect("replace should succeed");
+    assert_eq!(document.to_text(), "#TITLE a\n#ARTIST c\n");
+}
+
+#[test]
+fn utf32_insert_line_writes_a_full_four_byte_terminator() {
+    let mut document = Document::from_bytes(utf32le_bytes("#TITLE a\n"));
+    document
+        .insert_line(1, "#ARTIST c")
+        .expect("insert should succeed");
+    let text = document.to_text();
+    assert_eq!(text, "#TITLE a\n#ARTIST c\n");
+    // Round-trip the rendered bytes back through the detector.
+    let rerendered = Document::from_bytes(document.render());
+    assert_eq!(rerendered.to_text(), text);
+}

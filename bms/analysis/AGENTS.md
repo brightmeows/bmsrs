@@ -25,7 +25,11 @@ treat `docs.rs` as the specification text.
 - Definitions: `#WAVxx` / `#EXWAVxx`, `#BMPxx` / `#EXBMPxx`, `#BGAxx` /
   `#@BGAxx` / `#SWBGAxx` / `#ARGBxx`, `#BPMxx` / `#EXBPMxx`, `#STOPxx`,
   `#SCROLLxx`, `#SPEEDxx`, `#EXRANKxx`, `#CHANGEOPTIONxx`, `#SEEKxx`,
-  `#TEXTxx` / `#SONGxx`
+  `#TEXTxx` / `#SONGxx`; the `#LNOBJ` family carries its id as the command
+  **value**, so it is read from the parsed header rather than a name suffix
+- KaleidBeat dialect lines (the eleven dialect commands and the ST/SF-SI/F-O
+  channels) produce Information diagnostics with the stable code `extension`
+  and are excluded from reference indexing
 - References: non-`00` two-character values in channel bodies; the channel kind
   determines the resource kind
 - Non-canonical addresses (such as `#1:0101`) fall back to

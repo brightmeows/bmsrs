@@ -227,3 +227,38 @@ fn kaleid_docs_are_reachable() {
     assert!(bmsrs_bms_analysis::Docs::header("WHEN").is_some());
     assert!(bmsrs_bms_analysis::Docs::header("ENDCONDITIONAL").is_some());
 }
+
+#[test]
+fn lnobj_family_definitions_enter_the_symbol_index() {
+    let analysis =
+        Analysis::from_text("#LNOBJ ZZ\n#CNOBJ zy\n#HCNOBJ ZX\n#HLNOBJ zw\n#WAVZZ a.wav\n");
+    let ids: Vec<_> = analysis
+        .index()
+        .definitions()
+        .filter(|definition| definition.kind() == SymbolKind::LnObj)
+        .map(bmsrs_bms_analysis::SymbolDefinition::id)
+        .collect();
+    assert_eq!(ids, ["ZZ", "ZY", "ZX", "ZW"]);
+}
+
+#[test]
+fn holder_line_style_extension_channel_reports_like_a_message_line() {
+    // `#1ST:...` has a head short enough to classify as a Header line, but it
+    // parses as a channel message; the extension check must still apply.
+    let analysis = Analysis::from_text("#WAV01 a.wav\n#1ST:0101\n");
+    assert_eq!(
+        analysis
+            .diagnostics()
+            .iter()
+            .filter(|diagnostic| diagnostic.code() == Some("extension"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        analysis
+            .index()
+            .references_for(SymbolKind::Wav, "01")
+            .count(),
+        0
+    );
+}

@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use bmsrs_bms_syntax::{
     IncrementalParser, ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse,
 };
-use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsMessage, BodyCells};
+use bmsrs_bms_values::{BmsChannel, BmsHeader, BmsHeaderGameplay, BmsMessage, BodyCells};
 
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};
@@ -171,6 +171,17 @@ fn collect_line(
             if let Some(content) = content_text.as_deref()
                 && let Ok(Some(message)) = BmsMessage::parse(content)
             {
+                if let Some(code) = extension_channel_code(message.channel()) {
+                    diagnostics.push(AnalysisDiagnostic::new(
+                        line.range(),
+                        Severity::Information,
+                        format!(
+                            "KaleidBeat extension channel {code}: preserved verbatim, semantics not modeled"
+                        ),
+                        Some("extension"),
+                    ));
+                    return;
+                }
                 let body_start = content
                     .find(':')
                     .map_or(0, |offset| offset.saturating_add(1));
@@ -225,8 +236,9 @@ fn collect_header(
         return;
     };
     match BmsHeader::parse(&content, prefixes) {
-        Ok(Some(_header)) => {
-            if let Some((kind, id)) = definition_kind(command.text())
+        Ok(Some(header)) => {
+            if let Some((kind, id)) =
+                marker_definition(&header).or_else(|| definition_kind(command.text()))
                 && let Some(symbol_id) = SymbolId::new(&id)
             {
                 let line_start = usize::from(line.range().start());
@@ -391,6 +403,24 @@ fn content_base(line: &SyntaxLine, content: &str) -> usize {
     usize::from(line.range().start()).saturating_add(content_offset)
 }
 
+/// Identify a long-note terminator marker definition from the parsed header.
+///
+/// `#LNOBJ` and the typed markers carry their id as the command **value**, not
+/// as a command-name suffix, so the prefix table cannot reach them.
+fn marker_definition(header: &BmsHeader) -> Option<(SymbolKind, String)> {
+    let BmsHeader::Gameplay(gameplay) = header else {
+        return None;
+    };
+    let (BmsHeaderGameplay::LnObj(id)
+    | BmsHeaderGameplay::CnObj(id)
+    | BmsHeaderGameplay::HcnObj(id)
+    | BmsHeaderGameplay::HlnObj(id)) = gameplay
+    else {
+        return None;
+    };
+    Some((SymbolKind::LnObj, id.to_string().to_ascii_uppercase()))
+}
+
 /// Identify the definition kind and ID from a command name.
 fn definition_kind(command: &str) -> Option<(SymbolKind, String)> {
     let upper = command.to_ascii_uppercase();
@@ -413,10 +443,6 @@ fn definition_kind(command: &str) -> Option<(SymbolKind, String)> {
         ("SEEK", SymbolKind::Seek),
         ("TEXT", SymbolKind::Text),
         ("SONG", SymbolKind::Text),
-        ("HLNOBJ", SymbolKind::LnObj),
-        ("HCNOBJ", SymbolKind::LnObj),
-        ("CNOBJ", SymbolKind::LnObj),
-        ("LNOBJ", SymbolKind::LnObj),
     ];
 
     prefixes.iter().find_map(|(prefix, kind)| {

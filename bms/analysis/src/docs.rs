@@ -33,8 +33,14 @@ pub struct ChannelDoc {
 /// Link to the BMS command memo.
 const MEMO: &str = "https://hitkey.nekokan.dyndns.info/cmdsJP.htm";
 
-/// Link to the reference implementation of the `KaleidBeat` dialect.
-const KALEID: &str = "https://github.com/hyrorre/bmz-player";
+/// Link to the reference implementation of the `KaleidBeat` conditional
+/// blocks.
+const KALEID_CONDITIONAL: &str =
+    "https://github.com/hyrorre/bmz-player/blob/main/crates/bmz-chart/src/conditional.rs";
+
+/// Link to the reference implementation of the remaining `KaleidBeat`
+/// dialect commands and channels.
+const KALEID_ADAPTER: &str = "https://github.com/hyrorre/bmz-player/blob/main/crates/bmz-chart/src/import/bms_rs_adapter/kaleid.rs";
 
 /// Header command table.
 static HEADER_DOCS: &[HeaderDoc] = &[
@@ -522,67 +528,67 @@ static HEADER_DOCS: &[HeaderDoc] = &[
         command: "CONDITIONAL",
         title: "#CONDITIONAL",
         summary: "Starts a KaleidBeat conditional block evaluated at a measure position during play (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_CONDITIONAL,
     },
     HeaderDoc {
         command: "WHEN",
         title: "#WHEN",
         summary: "Branch inside a KaleidBeat #CONDITIONAL block, guarded by a play-state comparison (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_CONDITIONAL,
     },
     HeaderDoc {
         command: "ELSEWHEN",
         title: "#ELSEWHEN",
         summary: "Alternative branch inside a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_CONDITIONAL,
     },
     HeaderDoc {
         command: "DEFAULT",
         title: "#DEFAULT",
         summary: "Fallback branch of a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_CONDITIONAL,
     },
     HeaderDoc {
         command: "ENDCONDITIONAL",
         title: "#ENDCONDITIONAL",
         summary: "Ends a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_CONDITIONAL,
     },
     HeaderDoc {
         command: "BMD",
         title: "#BMD",
         summary: "KaleidBeat dialect marker (preserved verbatim).",
-        link: KALEID,
+        link: KALEID_ADAPTER,
     },
     HeaderDoc {
         command: "SOUNDFONT",
         title: "#SOUNDFONT",
         summary: "KaleidBeat sound-font declaration (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_ADAPTER,
     },
     HeaderDoc {
         command: "TARGETHASH",
         title: "#TARGETHASH",
         summary: "KaleidBeat target-file hash constraint (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_ADAPTER,
     },
     HeaderDoc {
         command: "LOADINGFILE",
         title: "#LOADINGFILE",
         summary: "KaleidBeat loading-screen image (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_ADAPTER,
     },
     HeaderDoc {
         command: "READYFILE",
         title: "#READYFILE",
         summary: "KaleidBeat ready-screen image (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_ADAPTER,
     },
     HeaderDoc {
         command: "BGAOVERFLOW",
         title: "#BGAOVERFLOW",
         summary: "KaleidBeat BGA overflow behavior switch (dialect; preserved verbatim).",
-        link: KALEID,
+        link: KALEID_ADAPTER,
     },
 ];
 

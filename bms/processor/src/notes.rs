@@ -133,6 +133,9 @@ impl BmsConverter<'_> {
         unpaired_starts: &[(u8, u8, u64)],
     ) {
         let base = self.bms.gameplay.base.unwrap_or_default();
+        // One marker table per call: the note loop below would otherwise
+        // rebuild it for every note.
+        let markers = self.ln_markers();
         // The warnings vector is passed per call so the covered-note branch
         // inside the loop can push its own warning while iterating.
         let check_wav = |warnings: &mut Vec<ProcessWarning>,
@@ -183,10 +186,7 @@ impl BmsConverter<'_> {
                 // Paired long-note starts are re-emitted from `paired_lns`;
                 // only the end marker (its WAV equals `#LNOBJ`) occupies the
                 // slot here, warning on conflict like a visible note does.
-                let is_end = self
-                    .ln_markers()
-                    .iter()
-                    .any(|marker| *ne.wav_id == *marker.wav);
+                let is_end = markers.iter().any(|marker| *ne.wav_id == *marker.wav);
                 if is_end {
                     placements.push(Some(Placement {
                         tick,
