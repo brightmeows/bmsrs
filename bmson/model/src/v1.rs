@@ -75,6 +75,35 @@ pub struct Bmson {
     /// Invisible key channels.
     #[serde(default)]
     pub key_channels: Vec<KeyChannel>,
+
+    // KaleidBeat extensions (not part of the bmson schema or beatoraja).
+    /// `KaleidBeat` extension: spacing-factor keyframes.
+    #[serde(default)]
+    pub speed_events: Vec<crate::SpeedEvent>,
+    /// `KaleidBeat` extension: timed text events.
+    #[serde(default)]
+    pub text_events: Vec<crate::TextEvent>,
+    /// `KaleidBeat` extension: judge-rank keyframes.
+    #[serde(default)]
+    pub judge_rank_events: Vec<crate::JudgeRankEvent>,
+    /// `KaleidBeat` extension: free-zone sound channels.
+    #[serde(default)]
+    pub free_zone_channels: Vec<crate::FreeZoneChannel>,
+    /// `KaleidBeat` extension: potion notes.
+    #[serde(default)]
+    pub potion_notes: Vec<crate::PotionNote>,
+    /// `KaleidBeat` extension: display-only dummy notes.
+    #[serde(default)]
+    pub dummy_notes: Vec<crate::DummyNote>,
+    /// `KaleidBeat` extension: display-only dummy mines.
+    #[serde(default)]
+    pub dummy_mine_notes: Vec<crate::DummyMineNote>,
+    /// `KaleidBeat` extension: display-only dummy potions.
+    #[serde(default)]
+    pub dummy_potion_notes: Vec<crate::DummyPotionNote>,
+    /// `KaleidBeat` extension: runtime conditional blocks.
+    #[serde(default)]
+    pub conditional_blocks: Vec<ConditionalBlock>,
 }
 
 /// Metadata object in the v1 schema.
@@ -173,6 +202,31 @@ pub struct BmsonInfo {
     /// Long-note type, a beatoraja extension (JSON key `lnType`).
     #[serde(alias = "lnType", default, skip_serializing_if = "Option::is_none")]
     pub ln_type: Option<LnMode>,
+
+    // KaleidBeat extensions (not part of the bmson schema or beatoraja).
+    /// `KaleidBeat` extension: explicit difficulty value or name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub difficulty: Option<crate::Difficulty>,
+    /// `KaleidBeat` extension: song-select comment.
+    #[serde(default)]
+    pub comment: String,
+    /// `KaleidBeat` extension: override for the displayed BPM string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_bpm: Option<String>,
+    /// `KaleidBeat` extension: MIDI accompaniment file.
+    #[serde(
+        default,
+        deserialize_with = "crate::de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub midi_file: Option<PathBuf>,
+    /// `KaleidBeat` extension: pomu2 character definition file.
+    #[serde(
+        default,
+        deserialize_with = "crate::de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub chara_file: Option<PathBuf>,
 }
 
 /// Default value 100.0 used by `#[serde(default)]` on fields such as `judge_rank`.
@@ -192,6 +246,83 @@ pub struct SoundChannel {
     /// Notes referencing this audio file.
     #[serde(rename = "notes")]
     pub notes: Vec<crate::NoteEvent>,
+}
+
+impl SoundChannel {
+    /// Parse the channel name as a `KaleidBeat` filter object, if present.
+    ///
+    /// `KaleidBeat` extension: not part of the bmson schema or beatoraja.
+    #[must_use]
+    pub fn filter(&self) -> Option<crate::SoundFilter> {
+        self.name.to_str().and_then(crate::SoundFilter::parse)
+    }
+}
+
+/// A conditional block in the v1 schema.
+///
+/// `KaleidBeat` extension: not part of the bmson schema or beatoraja.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ConditionalBlock {
+    /// Evaluation pulse.
+    pub y: u64,
+    /// Branches in source order.
+    #[serde(default)]
+    pub branches: Vec<ConditionalBranch>,
+}
+
+/// One branch of a v1 [`ConditionalBlock`].
+///
+/// `KaleidBeat` extension: not part of the bmson schema or beatoraja.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ConditionalBranch {
+    /// Condition expression.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<String>,
+    /// Whether this is the fallback branch.
+    #[serde(default)]
+    pub default: bool,
+    /// Sound channels active in this branch.
+    #[serde(default)]
+    pub sound_channels: Vec<SoundChannel>,
+    /// Invisible key channels active in this branch.
+    #[serde(default)]
+    pub key_channels: Vec<KeyChannel>,
+    /// Mine channels active in this branch.
+    #[serde(default)]
+    pub mine_channels: Vec<MineChannel>,
+    /// Free-zone channels active in this branch.
+    #[serde(default)]
+    pub free_zone_channels: Vec<crate::FreeZoneChannel>,
+    /// Potion notes active in this branch.
+    #[serde(default)]
+    pub potion_notes: Vec<crate::PotionNote>,
+    /// Dummy notes active in this branch.
+    #[serde(default)]
+    pub dummy_notes: Vec<crate::DummyNote>,
+    /// Dummy mines active in this branch.
+    #[serde(default)]
+    pub dummy_mine_notes: Vec<crate::DummyMineNote>,
+    /// Dummy potions active in this branch.
+    #[serde(default)]
+    pub dummy_potion_notes: Vec<crate::DummyPotionNote>,
+    /// BPM changes active in this branch.
+    #[serde(default)]
+    pub bpm_events: Vec<crate::BpmEvent>,
+    /// Stop events active in this branch.
+    #[serde(default)]
+    pub stop_events: Vec<crate::StopEvent>,
+    /// Scroll events active in this branch.
+    #[serde(default)]
+    pub scroll_events: Vec<crate::ScrollEvent>,
+    /// Speed keyframes active in this branch.
+    #[serde(default)]
+    pub speed_events: Vec<crate::SpeedEvent>,
+    /// Bar lines active in this branch.
+    #[serde(default)]
+    pub lines: Vec<crate::BarLine>,
+    /// BGA data active in this branch.
+    #[serde(default)]
+    pub bga: crate::BGA,
 }
 
 use crate::{Bmson as RootBmson, ChartData, ChartInfo, SongInfo};
@@ -217,6 +348,11 @@ impl From<Bmson> for RootBmson {
             preview_music: info.preview_music,
             title_image: info.title_image,
             bga: v1.bga,
+            difficulty: info.difficulty,
+            comment: info.comment,
+            display_bpm: info.display_bpm,
+            midi_file: info.midi_file,
+            chara_file: info.chara_file,
         };
 
         let chart_data = ChartData {
@@ -258,6 +394,19 @@ impl From<Bmson> for RootBmson {
             scroll_events: v1.scroll_events,
             mine_channels: v1.mine_channels,
             key_channels: v1.key_channels,
+            speed_events: v1.speed_events,
+            text_events: v1.text_events,
+            judge_rank_events: v1.judge_rank_events,
+            free_zone_channels: v1.free_zone_channels,
+            potion_notes: v1.potion_notes,
+            dummy_notes: v1.dummy_notes,
+            dummy_mine_notes: v1.dummy_mine_notes,
+            dummy_potion_notes: v1.dummy_potion_notes,
+            conditional_blocks: v1
+                .conditional_blocks
+                .into_iter()
+                .map(v1_block_to_root)
+                .collect(),
         }
     }
 }
@@ -285,10 +434,16 @@ impl From<RootBmson> for Bmson {
             ln_type: root.chart_data.ln_type_hint.map(|hint| match hint {
                 crate::LnType::Cn => crate::LnMode::Cn,
                 crate::LnType::Hcn => crate::LnMode::Hcn,
+                crate::LnType::Hln => crate::LnMode::Hln,
                 // An explicit `ln` stays explicit so the undeclared state
                 // survives v2 -> v1 -> v2 roundtrips.
                 crate::LnType::Ln => crate::LnMode::Ln,
             }),
+            difficulty: root.chart_info.difficulty,
+            comment: root.chart_info.comment,
+            display_bpm: root.chart_info.display_bpm,
+            midi_file: root.chart_info.midi_file,
+            chara_file: root.chart_info.chara_file,
         };
 
         Self {
@@ -310,6 +465,91 @@ impl From<RootBmson> for Bmson {
             scroll_events: root.scroll_events,
             mine_channels: root.mine_channels,
             key_channels: root.key_channels,
+            speed_events: root.speed_events,
+            text_events: root.text_events,
+            judge_rank_events: root.judge_rank_events,
+            free_zone_channels: root.free_zone_channels,
+            potion_notes: root.potion_notes,
+            dummy_notes: root.dummy_notes,
+            dummy_mine_notes: root.dummy_mine_notes,
+            dummy_potion_notes: root.dummy_potion_notes,
+            conditional_blocks: root
+                .conditional_blocks
+                .into_iter()
+                .map(root_block_to_v1)
+                .collect(),
         }
+    }
+}
+
+/// Convert a v1 conditional block to the v2 root shape.
+fn v1_block_to_root(block: ConditionalBlock) -> crate::ConditionalBlock {
+    crate::ConditionalBlock {
+        y: block.y,
+        branches: block
+            .branches
+            .into_iter()
+            .map(|branch| crate::ConditionalBranch {
+                when: branch.when,
+                default: branch.default,
+                sound_channels: branch
+                    .sound_channels
+                    .into_iter()
+                    .map(|channel| crate::SoundChannel {
+                        name: channel.name,
+                        note_events: channel.notes,
+                    })
+                    .collect(),
+                key_channels: branch.key_channels,
+                mine_channels: branch.mine_channels,
+                free_zone_channels: branch.free_zone_channels,
+                potion_notes: branch.potion_notes,
+                dummy_notes: branch.dummy_notes,
+                dummy_mine_notes: branch.dummy_mine_notes,
+                dummy_potion_notes: branch.dummy_potion_notes,
+                bpm_events: branch.bpm_events,
+                stop_events: branch.stop_events,
+                scroll_events: branch.scroll_events,
+                speed_events: branch.speed_events,
+                lines: branch.lines,
+                bga: branch.bga,
+            })
+            .collect(),
+    }
+}
+
+/// Convert a v2 root conditional block to the v1 shape.
+fn root_block_to_v1(block: crate::ConditionalBlock) -> ConditionalBlock {
+    ConditionalBlock {
+        y: block.y,
+        branches: block
+            .branches
+            .into_iter()
+            .map(|branch| ConditionalBranch {
+                when: branch.when,
+                default: branch.default,
+                sound_channels: branch
+                    .sound_channels
+                    .into_iter()
+                    .map(|channel| SoundChannel {
+                        name: channel.name,
+                        notes: channel.note_events,
+                    })
+                    .collect(),
+                key_channels: branch.key_channels,
+                mine_channels: branch.mine_channels,
+                free_zone_channels: branch.free_zone_channels,
+                potion_notes: branch.potion_notes,
+                dummy_notes: branch.dummy_notes,
+                dummy_mine_notes: branch.dummy_mine_notes,
+                dummy_potion_notes: branch.dummy_potion_notes,
+                bpm_events: branch.bpm_events,
+                stop_events: branch.stop_events,
+                scroll_events: branch.scroll_events,
+                speed_events: branch.speed_events,
+                lines: branch.lines,
+                bga: branch.bga,
+            })
+            .collect(),
     }
 }

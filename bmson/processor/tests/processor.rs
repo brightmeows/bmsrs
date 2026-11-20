@@ -52,6 +52,11 @@ fn make_simple_bmson() -> bmsrs_bmson_model::Bmson {
             preview_music: None,
             title_image: None,
             bga: BGA::default(),
+            difficulty: None,
+            comment: String::new(),
+            display_bpm: None,
+            midi_file: None,
+            chara_file: None,
         },
         chart_data: ChartData {
             mode_hint: ModeHint::Beat7k,
@@ -72,6 +77,15 @@ fn make_simple_bmson() -> bmsrs_bmson_model::Bmson {
         scroll_events: vec![],
         mine_channels: vec![],
         key_channels: vec![],
+        speed_events: vec![],
+        text_events: vec![],
+        judge_rank_events: vec![],
+        free_zone_channels: vec![],
+        potion_notes: vec![],
+        dummy_notes: vec![],
+        dummy_mine_notes: vec![],
+        dummy_potion_notes: vec![],
+        conditional_blocks: vec![],
     }
 }
 
@@ -1241,4 +1255,35 @@ fn bmson_total_percent_stays_uninterpreted() -> TestResult {
     assert_eq!(info.total_percent, Some(120.0));
     assert_eq!(info.total, None);
     Ok(())
+}
+
+#[test]
+fn kaleid_extensions_reach_the_sidecar() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_info.comment = "note".to_owned();
+    bmson.speed_events = vec![bmsrs_bmson_model::SpeedEvent { y: 0, rate: 2.0 }];
+    bmson.potion_notes = vec![bmsrs_bmson_model::PotionNote {
+        x: 1,
+        y: 0,
+        recovery: 10.0,
+    }];
+    bmson.chart_data.sound_channels = vec![bmsrs_bmson_model::SoundChannel {
+        name: "LPF 8000 200 96 Q4".into(),
+        note_events: vec![],
+    }];
+
+    let processed = BmsonProcessor::process::<Beat>(&bmson)
+        .expect("process should succeed")
+        .value;
+    let kaleid = processed
+        .kaleid
+        .expect("extension chart should have a sidecar");
+    assert_eq!(kaleid.comment, "note");
+    assert_eq!(kaleid.speed_events.len(), 1);
+    assert_eq!(kaleid.potion_notes.len(), 1);
+    assert_eq!(kaleid.filters.len(), 1);
+    assert_eq!(
+        kaleid.filters[0].1.kind,
+        bmsrs_bmson_model::SoundFilterKind::Lpf
+    );
 }

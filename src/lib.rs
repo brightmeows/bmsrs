@@ -473,10 +473,7 @@ pub mod bmson {
     pub fn process(
         bmson: &model::Bmson,
     ) -> Result<
-        bmsrs_pipeline::Outcome<
-            crate::chart::Chart<processor::BmsonNoteExt>,
-            processor::BmsonProcessWarning,
-        >,
+        bmsrs_pipeline::Outcome<processor::BmsonProcessed, processor::BmsonProcessWarning>,
         processor::ProcessError,
     > {
         processor::BmsonProcessor::process_default(bmson)
@@ -490,10 +487,7 @@ pub mod bmson {
     pub fn process_with<L: processor::layout::BmsonLayout>(
         bmson: &model::Bmson,
     ) -> Result<
-        bmsrs_pipeline::Outcome<
-            crate::chart::Chart<processor::BmsonNoteExt>,
-            processor::BmsonProcessWarning,
-        >,
+        bmsrs_pipeline::Outcome<processor::BmsonProcessed, processor::BmsonProcessWarning>,
         processor::ProcessError,
     > {
         processor::BmsonProcessor::process::<L>(bmson)
@@ -508,10 +502,7 @@ pub mod bmson {
         bmson: &model::Bmson,
         keys: u8,
     ) -> Result<
-        bmsrs_pipeline::Outcome<
-            crate::chart::Chart<processor::BmsonNoteExt>,
-            processor::BmsonProcessWarning,
-        >,
+        bmsrs_pipeline::Outcome<processor::BmsonProcessed, processor::BmsonProcessWarning>,
         processor::ProcessError,
     > {
         processor::BmsonProcessor::process_nkeys(bmson, keys)

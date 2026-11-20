@@ -296,6 +296,11 @@ impl TryFrom<Bmson> for crate::Bmson {
             preview_music: info.preview_music,
             title_image: info.title_image,
             bga: v0.bga,
+            difficulty: None,
+            comment: String::new(),
+            display_bpm: None,
+            midi_file: None,
+            chara_file: None,
         };
 
         #[expect(
@@ -355,6 +360,15 @@ impl TryFrom<Bmson> for crate::Bmson {
             scroll_events: v0.scroll_events,
             mine_channels: v0.mine_channels,
             key_channels: v0.key_channels,
+            speed_events: Vec::new(),
+            text_events: Vec::new(),
+            judge_rank_events: Vec::new(),
+            free_zone_channels: Vec::new(),
+            potion_notes: Vec::new(),
+            dummy_notes: Vec::new(),
+            dummy_mine_notes: Vec::new(),
+            dummy_potion_notes: Vec::new(),
+            conditional_blocks: Vec::new(),
         })
     }
 }
@@ -399,6 +413,7 @@ impl TryFrom<crate::Bmson> for Bmson {
             ln_type: root.chart_data.ln_type_hint.map(|hint| match hint {
                 crate::LnType::Cn => crate::LnMode::Cn,
                 crate::LnType::Hcn => crate::LnMode::Hcn,
+                crate::LnType::Hln => crate::LnMode::Hln,
                 // An explicit `ln` stays explicit so the undeclared state
                 // survives v2 -> v0 -> v2 roundtrips.
                 crate::LnType::Ln => crate::LnMode::Ln,
@@ -455,6 +470,7 @@ impl TryFrom<crate::Bmson> for Bmson {
                                     crate::LnType::Ln => LnMode::Ln,
                                     crate::LnType::Cn => LnMode::Cn,
                                     crate::LnType::Hcn => LnMode::Hcn,
+                                    crate::LnType::Hln => LnMode::Hln,
                                 });
                             }
                             note

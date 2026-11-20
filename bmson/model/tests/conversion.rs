@@ -306,6 +306,11 @@ fn v0_try_from_writes_explicit_ln_type_hint() {
             preview_music: None,
             title_image: None,
             bga: bmsrs_bmson_model::BGA::default(),
+            difficulty: None,
+            comment: String::new(),
+            display_bpm: None,
+            midi_file: None,
+            chara_file: None,
         },
         chart_data: ChartData {
             mode_hint: bmsrs_bmson_model::ModeHint::Beat7k,
@@ -326,6 +331,15 @@ fn v0_try_from_writes_explicit_ln_type_hint() {
         scroll_events: vec![],
         mine_channels: vec![],
         key_channels: vec![],
+        speed_events: vec![],
+        text_events: vec![],
+        judge_rank_events: vec![],
+        free_zone_channels: vec![],
+        potion_notes: vec![],
+        dummy_notes: vec![],
+        dummy_mine_notes: vec![],
+        dummy_potion_notes: vec![],
+        conditional_blocks: vec![],
     };
 
     let v0: bmsrs_bmson_model::v0::Bmson = bmsrs_bmson_model::v0::Bmson::try_from(root).unwrap();
@@ -402,6 +416,11 @@ fn root_to_v0_invalid_init_bpm_errors() {
             preview_music: None,
             title_image: None,
             bga: bmsrs_bmson_model::BGA::default(),
+            difficulty: None,
+            comment: String::new(),
+            display_bpm: None,
+            midi_file: None,
+            chara_file: None,
         },
         chart_data: ChartData {
             mode_hint: bmsrs_bmson_model::ModeHint::Beat7k,
@@ -422,6 +441,15 @@ fn root_to_v0_invalid_init_bpm_errors() {
         scroll_events: vec![],
         mine_channels: vec![],
         key_channels: vec![],
+        speed_events: vec![],
+        text_events: vec![],
+        judge_rank_events: vec![],
+        free_zone_channels: vec![],
+        potion_notes: vec![],
+        dummy_notes: vec![],
+        dummy_mine_notes: vec![],
+        dummy_potion_notes: vec![],
+        conditional_blocks: vec![],
     };
     let result: Result<bmsrs_bmson_model::v0::Bmson, _> = root.try_into();
     assert!(result.is_err());

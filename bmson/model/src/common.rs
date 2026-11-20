@@ -143,6 +143,8 @@ pub enum LnType {
     Cn,
     /// Hell charge note (HCN): beatoraja extension, not v2 standard.
     Hcn,
+    /// Hell long note (HLN): `KaleidBeat` extension, not v2 standard.
+    Hln,
 }
 
 /// Long-note judgment hint (`"normal"` or `"ticks"`).
@@ -197,6 +199,8 @@ pub enum LnMode {
     Cn,
     /// HCN (3): hell charge note.
     Hcn,
+    /// HLN (4): `KaleidBeat` extension, no end judgment.
+    Hln,
 }
 
 impl Serialize for LnMode {
@@ -205,6 +209,7 @@ impl Serialize for LnMode {
             Self::Ln => serializer.serialize_u64(1),
             Self::Cn => serializer.serialize_u64(2),
             Self::Hcn => serializer.serialize_u64(3),
+            Self::Hln => serializer.serialize_u64(4),
         }
     }
 }
@@ -216,9 +221,10 @@ impl<'de> Deserialize<'de> for LnMode {
             1 => Ok(Self::Ln),
             2 => Ok(Self::Cn),
             3 => Ok(Self::Hcn),
+            4 => Ok(Self::Hln),
             other => Err(de::Error::invalid_value(
                 Unexpected::Unsigned(other),
-                &"1 (LN), 2 (CN), or 3 (HCN)",
+                &"1 (LN), 2 (CN), 3 (HCN), or 4 (HLN)",
             )),
         }
     }
@@ -396,6 +402,17 @@ pub struct SoundChannel {
     ///
     /// This field serializes as `note_events` (v2 convention).
     pub note_events: Vec<NoteEvent>,
+}
+
+impl SoundChannel {
+    /// Parse the channel name as a `KaleidBeat` filter object, if present.
+    ///
+    /// `KaleidBeat` extension: filter objects are not part of the bmson schema
+    /// or beatoraja. An ordinary file path returns `None`.
+    #[must_use]
+    pub fn filter(&self) -> Option<crate::SoundFilter> {
+        self.name.to_str().and_then(crate::SoundFilter::parse)
+    }
 }
 
 /// **Barline** event marking measure boundaries in a chart.
