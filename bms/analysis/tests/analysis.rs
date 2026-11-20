@@ -159,3 +159,71 @@ fn update_shifts_line_starts_for_later_entries() {
         Some("02")
     );
 }
+
+#[test]
+fn kaleid_extension_commands_report_information_diagnostics() {
+    let analysis = Analysis::from_text(
+        "#TITLE t\n#CONDITIONAL 1\n#WHEN SCORE>=2\n#00111:01\n#DEFAULT\n#00111:02\n#ENDCONDITIONAL\n",
+    );
+
+    let extensions: Vec<_> = analysis
+        .diagnostics()
+        .iter()
+        .filter(|d| d.code() == Some("extension"))
+        .collect();
+    assert_eq!(extensions.len(), 4);
+    assert_eq!(
+        analysis
+            .diagnostics()
+            .iter()
+            .filter(|d| d.severity() == bmsrs_bms_analysis::Severity::Information)
+            .count(),
+        4
+    );
+    assert!(
+        extensions
+            .iter()
+            .all(|d| d.message().contains("preserved verbatim"))
+    );
+}
+
+#[test]
+fn kaleid_extension_channels_report_and_skip_symbol_index() {
+    let analysis = Analysis::from_text("#WAV01 a.wav\n#001ST:0101\n#001SF:0101\n#00111:01\n");
+
+    assert_eq!(
+        analysis
+            .diagnostics()
+            .iter()
+            .filter(|d| d.code() == Some("extension"))
+            .count(),
+        2
+    );
+    // Ordinary notes keep their references.
+    assert_eq!(
+        analysis
+            .index()
+            .references_for(SymbolKind::Wav, "01")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn ordinary_key_seven_channels_are_not_extension_channels() {
+    let analysis = Analysis::from_text("#WAV01 a.wav\n#00117:0101\n#00127:0101\n");
+
+    assert!(
+        analysis
+            .diagnostics()
+            .iter()
+            .all(|d| d.code() != Some("extension"))
+    );
+}
+
+#[test]
+fn kaleid_docs_are_reachable() {
+    assert!(bmsrs_bms_analysis::Docs::header("CONDITIONAL").is_some());
+    assert!(bmsrs_bms_analysis::Docs::header("WHEN").is_some());
+    assert!(bmsrs_bms_analysis::Docs::header("ENDCONDITIONAL").is_some());
+}

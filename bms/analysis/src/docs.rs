@@ -33,6 +33,9 @@ pub struct ChannelDoc {
 /// Link to the BMS command memo.
 const MEMO: &str = "https://hitkey.nekokan.dyndns.info/cmdsJP.htm";
 
+/// Link to the reference implementation of the `KaleidBeat` dialect.
+const KALEID: &str = "https://github.com/hyrorre/bmz-player";
+
 /// Header command table.
 static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
@@ -514,6 +517,72 @@ static HEADER_DOCS: &[HeaderDoc] = &[
         title: "#ENDSWITCH",
         summary: "Alias for #ENDSW.",
         link: MEMO,
+    },
+    HeaderDoc {
+        command: "CONDITIONAL",
+        title: "#CONDITIONAL",
+        summary: "Starts a KaleidBeat conditional block evaluated at a measure position during play (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "WHEN",
+        title: "#WHEN",
+        summary: "Branch inside a KaleidBeat #CONDITIONAL block, guarded by a play-state comparison (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "ELSEWHEN",
+        title: "#ELSEWHEN",
+        summary: "Alternative branch inside a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "DEFAULT",
+        title: "#DEFAULT",
+        summary: "Fallback branch of a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "ENDCONDITIONAL",
+        title: "#ENDCONDITIONAL",
+        summary: "Ends a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "BMD",
+        title: "#BMD",
+        summary: "KaleidBeat dialect marker (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "SOUNDFONT",
+        title: "#SOUNDFONT",
+        summary: "KaleidBeat sound-font declaration (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "TARGETHASH",
+        title: "#TARGETHASH",
+        summary: "KaleidBeat target-file hash constraint (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "LOADINGFILE",
+        title: "#LOADINGFILE",
+        summary: "KaleidBeat loading-screen image (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "READYFILE",
+        title: "#READYFILE",
+        summary: "KaleidBeat ready-screen image (dialect; preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "BGAOVERFLOW",
+        title: "#BGAOVERFLOW",
+        summary: "KaleidBeat BGA overflow behavior switch (dialect; preserved verbatim).",
+        link: KALEID,
     },
 ];
 

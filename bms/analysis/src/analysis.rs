@@ -155,6 +155,18 @@ fn collect_line(
     let line_number = u32::try_from(line_index).unwrap_or(u32::MAX);
     match line.kind() {
         SyntaxLineKind::Header if !line.is_directive() => {
+            if let Some(command) = line.command_name()
+                && let Some(name) = extension_command(command.text())
+            {
+                diagnostics.push(AnalysisDiagnostic::new(
+                    command.text_range(),
+                    Severity::Information,
+                    format!(
+                        "KaleidBeat extension command `#{name}`: preserved verbatim, semantics not modeled"
+                    ),
+                    Some("extension"),
+                ));
+            }
             let content_text = line.content_text();
             if let Some(content) = content_text.as_deref()
                 && let Ok(Some(message)) = BmsMessage::parse(content)
@@ -267,6 +279,17 @@ fn collect_message(
             return;
         }
     };
+    if let Some(code) = extension_channel_code(message.channel()) {
+        diagnostics.push(AnalysisDiagnostic::new(
+            line.range(),
+            Severity::Information,
+            format!(
+                "KaleidBeat extension channel {code}: preserved verbatim, semantics not modeled"
+            ),
+            Some("extension"),
+        ));
+        return;
+    }
     let body_start = content
         .find(':')
         .map_or(0, |offset| offset.saturating_add(1));
@@ -280,6 +303,50 @@ fn collect_message(
         base,
         index,
     );
+}
+
+/// Header commands from the `KaleidBeat` chart dialect that this repository
+/// recognizes but does not model. The lossless pipeline preserves such lines
+/// verbatim; the diagnostic only marks their presence for editors.
+const EXTENSION_COMMANDS: &[&str] = &[
+    "CONDITIONAL",
+    "WHEN",
+    "ELSEWHEN",
+    "DEFAULT",
+    "ENDCONDITIONAL",
+    "BMD",
+    "SOUNDFONT",
+    "TARGETHASH",
+    "LOADINGFILE",
+    "READYFILE",
+    "BGAOVERFLOW",
+];
+
+/// Return the canonical name when `command` is a recognized dialect-extension
+/// command.
+fn extension_command(command: &str) -> Option<&'static str> {
+    let upper = command.to_ascii_uppercase();
+    EXTENSION_COMMANDS
+        .iter()
+        .find(|candidate| **candidate == upper)
+        .copied()
+}
+
+/// Return the channel code when `channel` is an unambiguous dialect-extension
+/// channel.
+///
+/// `17` / `27` are deliberately not reported: in a standard chart they are the
+/// second key of each player, and only the dialect gives them a different
+/// meaning, so flagging them would mislabel ordinary charts.
+fn extension_channel_code(channel: BmsChannel) -> Option<String> {
+    let text = match channel {
+        BmsChannel::Note(index) | BmsChannel::Unknown(index) => index.to_string(),
+        _ => return None,
+    };
+    let code = text.to_ascii_uppercase();
+    let is_extension = matches!(code.as_str(), "ST" | "SF" | "SG" | "SH" | "SI")
+        || matches!(code.as_bytes(), [b'F'..=b'O', b'1'..=b'9']);
+    is_extension.then_some(code)
 }
 
 /// Collect message references for a channel.
