@@ -448,3 +448,96 @@ fn note_greater_than_unit_variants() {
 fn unknown_greater_than_note() {
     assert!(BmsChannel::Note(idx("11")) < BmsChannel::Unknown(idx("00")));
 }
+
+// KaleidBeat extension channels
+
+#[test]
+fn kaleidbarline_and_free_zones_classify() {
+    use bmsrs_bms_values::ExtensionChannel;
+
+    assert_eq!(ch("ST"), BmsChannel::Extension(ExtensionChannel::BarLine));
+    assert_eq!(
+        ch("SF"),
+        BmsChannel::Extension(ExtensionChannel::FreeZone {
+            side: 1,
+            paired: false
+        })
+    );
+    assert_eq!(
+        ch("SG"),
+        BmsChannel::Extension(ExtensionChannel::FreeZone {
+            side: 1,
+            paired: true
+        })
+    );
+    assert_eq!(
+        ch("SH"),
+        BmsChannel::Extension(ExtensionChannel::FreeZone {
+            side: 2,
+            paired: false
+        })
+    );
+    assert_eq!(
+        ch("SI"),
+        BmsChannel::Extension(ExtensionChannel::FreeZone {
+            side: 2,
+            paired: true
+        })
+    );
+}
+
+#[test]
+fn kaleidpotion_and_dummy_channels_classify() {
+    use bmsrs_bms_values::ExtensionChannel;
+
+    assert_eq!(
+        ch("F1"),
+        BmsChannel::Extension(ExtensionChannel::Potion { side: 1, lane: 1 })
+    );
+    assert_eq!(
+        ch("G9"),
+        BmsChannel::Extension(ExtensionChannel::Potion { side: 2, lane: 9 })
+    );
+    assert_eq!(
+        ch("H1"),
+        BmsChannel::Extension(ExtensionChannel::DummyTap { side: 1, lane: 1 })
+    );
+    assert_eq!(
+        ch("I2"),
+        BmsChannel::Extension(ExtensionChannel::DummyTap { side: 2, lane: 2 })
+    );
+    assert_eq!(
+        ch("J1"),
+        BmsChannel::Extension(ExtensionChannel::DummyLong { side: 1, lane: 1 })
+    );
+    assert_eq!(
+        ch("K2"),
+        BmsChannel::Extension(ExtensionChannel::DummyLong { side: 2, lane: 2 })
+    );
+    assert_eq!(
+        ch("L1"),
+        BmsChannel::Extension(ExtensionChannel::DummyMine { side: 1, lane: 1 })
+    );
+    assert_eq!(
+        ch("M2"),
+        BmsChannel::Extension(ExtensionChannel::DummyMine { side: 2, lane: 2 })
+    );
+    assert_eq!(
+        ch("N1"),
+        BmsChannel::Extension(ExtensionChannel::DummyPotion { side: 1, lane: 1 })
+    );
+    assert_eq!(
+        ch("O9"),
+        BmsChannel::Extension(ExtensionChannel::DummyPotion { side: 2, lane: 9 })
+    );
+}
+
+#[test]
+fn kaleidchannels_roundtrip_through_as_str() {
+    for code in [
+        "ST", "SF", "SG", "SH", "SI", "F1", "G9", "H1", "I2", "J1", "K2", "L1", "M2", "N1", "O9",
+    ] {
+        assert_eq!(&*ch(code).as_str(), code, "{code}");
+        assert_eq!(ch(code).as_u8_hex(), None, "{code}");
+    }
+}

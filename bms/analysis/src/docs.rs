@@ -54,9 +54,9 @@ pub struct ChannelDoc {
 /// Link to the BMS command memo.
 const MEMO: &str = "https://hitkey.nekokan.dyndns.info/cmdsJP.htm";
 
-/// Link to the `KaleidBeat` extension contract as documented by the reference
-/// implementation. This is the only written specification of the dialect; no
-/// upstream format document exists.
+/// Link to the `KaleidBeat` reference implementation's contract. The shipped
+/// manual inside the release archive is authoritative; this is a secondary
+/// implementation contract.
 const KALEID: &str = "https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md";
 
 /// Header command table.
@@ -190,7 +190,7 @@ static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "OPTION",
         title: "#OPTION",
-        summary: "Chart-level option definition.",
+        summary: "Chart-level option definition; `KaleidBeat` adds CONSTANT, FORECAST, DISPLAYINVISIBLE, and STRICTMINE.",
         link: MEMO,
     },
     HeaderDoc {
@@ -214,7 +214,7 @@ static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "LNMODE",
         title: "#LNMODE",
-        summary: "beatoraja long-note mode: LN / CN / HCN.",
+        summary: "Long-note mode: LN / CN / HCN, plus `KaleidBeat` HLN (4, no end judgment).",
         link: MEMO,
     },
     HeaderDoc {
@@ -322,7 +322,7 @@ static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "SPEED",
         title: "#SPEEDxx",
-        summary: "Visual note spacing definition; referenced by channel SP.",
+        summary: "Visual spacing factor definition, referenced by channel SP; Bemuse / StepMania5 compatible, 0 stops and negatives reverse.",
         link: MEMO,
     },
     HeaderDoc {
@@ -592,7 +592,7 @@ static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "LOADINGFILE",
         title: "#LOADINGFILE",
-        summary: "`KaleidBeat` loading-screen image: named in the contract but deliberately unimplemented there too (preserved verbatim).",
+        summary: "`KaleidBeat` loading-screen image, falling back to `#STAGEFILE` when omitted; kept in the dialect sidecar.",
         link: KALEID,
     },
     HeaderDoc {

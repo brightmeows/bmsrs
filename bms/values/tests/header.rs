@@ -289,7 +289,7 @@ fn parse_option() {
         .unwrap();
     assert_eq!(
         result,
-        BmsHeader::Gameplay(BmsHeaderGameplay::Option("-R".to_owned()))
+        BmsHeader::Gameplay(BmsHeaderGameplay::Option("-R".parse().unwrap()))
     );
 }
 
@@ -1647,4 +1647,58 @@ fn parse_wavcmd_pitch_0_boundary_still_allows_volume_over_100() {
         result,
         BmsHeader::ResDefAudio(BmsHeaderResDefAudio::WavCmd { .. })
     ));
+}
+
+#[test]
+fn parse_kaleid_declaration_headers() {
+    use bmsrs_bms_values::{BgaOverflow, BmsHeaderKaleid, SongSoundMode};
+
+    let parse = |line| BmsHeader::parse(line, &['#', '%']).unwrap().unwrap();
+
+    assert_eq!(
+        parse("#LOADINGFILE load.png"),
+        BmsHeader::Kaleid(BmsHeaderKaleid::LoadingFile("load.png".to_owned()))
+    );
+    assert_eq!(
+        parse("#READYFILE ready.png"),
+        BmsHeader::Kaleid(BmsHeaderKaleid::ReadyFile("ready.png".to_owned()))
+    );
+    assert_eq!(
+        parse("#BGAOVERFLOW Y"),
+        BmsHeader::Kaleid(BmsHeaderKaleid::BgaOverflow(BgaOverflow::Up))
+    );
+    assert_eq!(
+        parse("#TARGETHASH abc"),
+        BmsHeader::Kaleid(BmsHeaderKaleid::TargetHash("abc".to_owned()))
+    );
+    assert_eq!(
+        parse("#SOUNDFONT piano.sf2"),
+        BmsHeader::Kaleid(BmsHeaderKaleid::SoundFont("piano.sf2".to_owned()))
+    );
+    assert_eq!(
+        parse("#SONGSOUNDMODE mix"),
+        BmsHeader::Kaleid(BmsHeaderKaleid::SongSoundMode(SongSoundMode::Mix))
+    );
+}
+
+#[test]
+fn option_words_are_typed_and_preserved() {
+    use bmsrs_bms_values::BmsOptionWord;
+
+    let header = BmsHeader::parse("#OPTION CONSTANT FORECAST,STRICTMINE", &['#', '%'])
+        .unwrap()
+        .unwrap();
+    let BmsHeader::Gameplay(BmsHeaderGameplay::Option(option)) = header else {
+        panic!("expected an OPTION header");
+    };
+    assert_eq!(
+        option.words(),
+        &[
+            BmsOptionWord::Constant,
+            BmsOptionWord::Forecast,
+            BmsOptionWord::StrictMine
+        ]
+    );
+    assert_eq!(option.raw(), "CONSTANT FORECAST,STRICTMINE");
+    assert_eq!(option.to_string(), "CONSTANT FORECAST,STRICTMINE");
 }

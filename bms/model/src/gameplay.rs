@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use bmsrs_bms_values::{
     BmsBase, BmsHeaderGameplay, ChangeOptionIndex, ExRankIndex, LnMode, LnObjIndex, LnType,
-    PlayerMode, Rank,
+    OptionWords, PlayerMode, Rank,
 };
 
 /// Gameplay behavior settings.
@@ -45,8 +45,12 @@ pub struct Gameplay {
     pub change_option_defs: BTreeMap<ChangeOptionIndex, String>,
     /// Octave / fold-point flag (`#OCT` / `#FP` / `#OCT/FP`).
     pub oct_fp: Option<bool>,
-    /// Engine-specific option string (`#OPTION`).
-    pub option: Option<String>,
+    /// Engine-specific option lines (`#OPTION`), in source order.
+    ///
+    /// `KaleidBeat` adds the four chart-local words documented on
+    /// [`BmsOptionWord`](bmsrs_bms_values::BmsOptionWord); the `#OPTION` header
+    /// itself is a nanasi extension.
+    pub option: Vec<OptionWords>,
 }
 
 impl Gameplay {
@@ -90,7 +94,7 @@ impl Gameplay {
             }
             BmsHeaderGameplay::Base(m) => self.base = Some(*m),
             BmsHeaderGameplay::OctFp => self.oct_fp = Some(true),
-            BmsHeaderGameplay::Option(s) => self.option = Some(s.clone()),
+            BmsHeaderGameplay::Option(s) => self.option.push(s.clone()),
             BmsHeaderGameplay::ChangeOption { id, value } => {
                 self.change_option_defs.insert(
                     ChangeOptionIndex::from(id.normalize(ext_base)),

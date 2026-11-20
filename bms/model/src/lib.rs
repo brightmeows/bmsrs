@@ -7,6 +7,7 @@
 mod audio;
 mod display;
 mod gameplay;
+mod kaleid;
 mod messages;
 mod metadata;
 mod timing;
@@ -19,6 +20,7 @@ use bmsrs_bms_values::{BmsBase, BmsHeader, BmsHeaderGameplay, BmsHeaderTiming, B
 pub use audio::{Audio, OwnedExWavParams};
 pub use display::Display;
 pub use gameplay::Gameplay;
+pub use kaleid::Kaleid;
 pub use messages::{
     BgaEvent, BgmEvent, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, MeasureLength,
     Messages, MessagesBuilder, MineEvent, NonEventData, NoteEvent, Position, ScrollEvent,
@@ -44,6 +46,8 @@ pub struct Bms {
     pub metadata: metadata::Metadata,
     /// Gameplay behavior settings (from `BmsHeaderGameplay`).
     pub gameplay: gameplay::Gameplay,
+    /// `KaleidBeat` chart-local declarations (dialect extension).
+    pub kaleid: kaleid::Kaleid,
     /// Timing definitions (from `BmsHeaderTiming`).
     pub timing: timing::Timing,
     /// Display resources and difficulty markers (from `BmsHeaderDisplay`).
@@ -103,6 +107,7 @@ impl Bms {
         match header {
             BmsHeader::Metadata(m) => self.metadata.apply(m),
             BmsHeader::Gameplay(g) => self.gameplay.apply(g, base),
+            BmsHeader::Kaleid(k) => self.kaleid.apply(k),
             BmsHeader::Timing(t) => {
                 self.timing.apply(t, base);
                 // #STP crosses sub-structure boundaries.

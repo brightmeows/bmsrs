@@ -20,9 +20,10 @@ treat `docs.rs` as the specification text.
 
 - Definitions and reference rules live in the rustdoc on `Analysis` and
   `SymbolIndex`; `docs.rs` stays a summary, not the specification.
-- `KaleidBeat` dialect lines produce Information diagnostics with the stable
-  code `extension` and are excluded from reference indexing. The shipped manual
-  is authoritative; bmz-player's `docs/kaleid.md` is a secondary contract.
+- Typed `KaleidBeat` declaration and channel lines are modeled by the values and
+  processor crates; only the conditional family and the `#BMD` trigger still
+  produce Information diagnostics with the stable code `extension`. The shipped
+  manual is authoritative; bmz-player's `docs/kaleid.md` is a secondary contract.
 - References: non-`00` two-character values in channel bodies; the channel kind
   determines the resource kind
 - Non-canonical addresses (such as `#1:0101`) fall back to

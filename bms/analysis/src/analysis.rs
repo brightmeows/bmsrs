@@ -176,7 +176,7 @@ fn collect_line(
                         line.range(),
                         Severity::Information,
                         format!(
-                            "`KaleidBeat` extension channel {code}: preserved verbatim, semantics not modeled"
+                            "`KaleidBeat` extension channel {code}: kept in the dialect sidecar"
                         ),
                         Some("extension"),
                     ));
@@ -295,9 +295,7 @@ fn collect_message(
         diagnostics.push(AnalysisDiagnostic::new(
             line.range(),
             Severity::Information,
-            format!(
-                "`KaleidBeat` extension channel {code}: preserved verbatim, semantics not modeled"
-            ),
+            format!("`KaleidBeat` extension channel {code}: kept in the dialect sidecar"),
             Some("extension"),
         ));
         return;
@@ -325,9 +323,13 @@ fn collect_message(
 /// [`Docs::header`](crate::Docs::header); this list decides recognition.
 ///
 /// The dialect belongs to the `KaleidBeat` player
-/// (<https://github.com/curecoma/KaleidBeat-releases>); the only written
-/// contract available is the reference implementation's
-/// [kaleid.md](https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md).
+/// (<https://github.com/curecoma/KaleidBeat-releases>). Its format manual ships
+/// inside the release archive as `KaleidBeat/documents/format-header.html`;
+/// the reference implementation's `docs/kaleid.md` is a secondary contract.
+///
+/// Commands already modeled by `bmsrs-bms-values` are intentionally absent:
+/// they no longer produce a "not modeled" diagnostic. Only the conditional
+/// family and the `#BMD` trigger remain here.
 const EXTENSION_COMMANDS: &[&str] = &[
     "CONDITIONAL",
     "WHEN",
@@ -335,18 +337,6 @@ const EXTENSION_COMMANDS: &[&str] = &[
     "DEFAULT",
     "ENDCONDITIONAL",
     "BMD",
-    "SOUNDFONT",
-    "TARGETHASH",
-    "LOADINGFILE",
-    "READYFILE",
-    "BGAOVERFLOW",
-    "DECIDEFILE",
-    "PLAYSTOPFILE",
-    "RESULTFILE",
-    "RESULTCLEARFILE",
-    "RESULTFAILFILE",
-    "RESULTFIRSTFILE",
-    "SONGSOUNDMODE",
 ];
 
 /// Return the canonical name when `command` is a recognized dialect-extension
@@ -378,6 +368,7 @@ fn extension_command(command: &str) -> Option<&'static str> {
 fn extension_channel_code(channel: BmsChannel) -> Option<String> {
     let text = match channel {
         BmsChannel::Note(index) | BmsChannel::Unknown(index) => index.to_string(),
+        BmsChannel::Extension(extension) => extension.to_string(),
         _ => return None,
     };
     let code = text.to_ascii_uppercase();
@@ -506,6 +497,7 @@ const fn reference_kind(channel: BmsChannel) -> Option<SymbolKind> {
         | BmsChannel::BgaArgbLayer2
         | BmsChannel::BgaArgbPoor
         | BmsChannel::BgaKeyBound
+        | BmsChannel::Extension(_)
         | BmsChannel::Unknown(_) => None,
     }
 }

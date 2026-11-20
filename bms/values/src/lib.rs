@@ -30,16 +30,17 @@ mod message;
 
 pub use bmsrs_bms_values_derive::{BmsIndexNewtype, BmsTokenAttr};
 pub use body::{BodyCells, Cell};
-pub use channel::BmsChannel;
+pub use channel::{BmsChannel, ExtensionChannel};
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::{
-    ArgbParams, AtBgaParams, BgaParams, DifficultyLevel, ExBmpParams, ExWavParams, LnMode, LnType,
-    ParseDifficultyError, PlayerMode, PoorBgaMode, Rank, StpParams, SwBgaParams, WavCmdKind,
-    WavCmdParams,
+    ArgbParams, AtBgaParams, BgaOverflow, BgaParams, BmsOptionWord, DifficultyLevel, ExBmpParams,
+    ExWavParams, LnMode, LnType, OptionWords, ParseDifficultyError, PlayerMode, PoorBgaMode, Rank,
+    SongSoundMode, StpParams, SwBgaParams, WavCmdKind, WavCmdParams,
 };
 pub use header::{
     BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback, BmsHeaderGameplay,
-    BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming,
+    BmsHeaderKaleid, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
+    BmsHeaderTiming,
 };
 pub use index::{
     BmpIndex, BmsBase, BmsIndex, BmsIndexError, BpmIndex, ChangeOptionIndex, ChannelIndex,

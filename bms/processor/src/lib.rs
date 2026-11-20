@@ -34,6 +34,7 @@ mod audio;
 mod bga;
 pub mod custom_event;
 mod error;
+mod kaleid;
 mod long_note;
 mod note_ext;
 mod notes;
@@ -62,6 +63,7 @@ use thiserror::Error;
 
 pub use crate::audio::BmsAudio;
 pub use crate::error::{ProcessWarning, ProcessWarningKind};
+pub use crate::kaleid::{BmsKaleid, KaleidObject, KaleidObjectKind};
 pub use crate::long_note::LnMarker;
 pub use crate::note_ext::BmsNoteExt;
 
@@ -113,6 +115,10 @@ pub struct Processed {
     pub gameplay: BmsGameplay,
     /// Raw BMS audio parameters that do not enter the core `AudioAsset`.
     pub audio: BmsAudio,
+    /// `KaleidBeat` declarations and extension-channel objects, when present.
+    ///
+    /// `KaleidBeat` extension: not part of the BMS specification or beatoraja.
+    pub kaleid: Option<BmsKaleid>,
 }
 
 /// Sidecar for BMS gameplay parameters.
@@ -126,8 +132,11 @@ pub struct BmsGameplay {
     pub player: Option<PlayerMode>,
     /// Per-position judgment width overrides (`#EXRANKxx`).
     pub ex_rank_defs: BTreeMap<ExRankIndex, f64>,
-    /// Engine-specific option string (`#OPTION`).
-    pub option: Option<String>,
+    /// Engine-specific option lines (`#OPTION`), in source order.
+    ///
+    /// `KaleidBeat` adds four chart-local words; the header itself is a nanasi
+    /// extension.
+    pub option: Vec<bmsrs_bms_values::OptionWords>,
     /// Dynamic option change definitions (`#CHANGEOPTIONxx`).
     pub change_option_defs: BTreeMap<ChangeOptionIndex, String>,
 }
@@ -299,6 +308,7 @@ impl BmsProcessor {
         warnings.extend(conv.warnings);
         let gameplay = BmsGameplay::from(&bms.gameplay);
         let audio = BmsAudio::from(&bms.audio);
+        let kaleid = kaleid::build(bms);
 
         let chart = Chart::new(song, chart_info, data)?;
         if let AssetLookup::Probe(probe) = assets {
@@ -331,6 +341,7 @@ impl BmsProcessor {
                 chart,
                 gameplay,
                 audio,
+                kaleid,
             },
             warnings,
         ))

@@ -7,9 +7,9 @@
 
 use bmsrs_bms_model::{Bms, OwnedExWavParams, OwnedSwBgaParams};
 use bmsrs_bms_values::{
-    ArgbParams, AtBgaParams, BgaParams, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
-    BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ExBmpParams, ExWavParams,
-    SwBgaParams, WavCmdParams,
+    ArgbParams, AtBgaParams, BgaParams, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderKaleid,
+    BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ExBmpParams,
+    ExWavParams, SwBgaParams, WavCmdParams,
 };
 
 /// Serialize all header command lines.
@@ -24,6 +24,7 @@ pub fn write_headers(bms: &Bms) -> Vec<String> {
     display(&bms.display, &mut out);
     audio(&bms.audio, &mut out);
     visual(&bms.visual, &mut out);
+    kaleid(&bms.kaleid, &mut out);
     for (key, value) in &bms.fallback_headers {
         out.push(format!("#{key} {value}"));
     }
@@ -89,10 +90,12 @@ fn gameplay(g: &bmsrs_bms_model::Gameplay, out: &mut Vec<String>) {
         g.hln_obj.map(BmsHeaderGameplay::HlnObj),
         g.ln_mode.map(BmsHeaderGameplay::LnMode),
         g.base.map(BmsHeaderGameplay::Base),
-        g.option.clone().map(BmsHeaderGameplay::Option),
     ];
     for h in scalars.into_iter().flatten() {
         push_header!(h, out);
+    }
+    for option in &g.option {
+        push_header!(BmsHeaderGameplay::Option(option.clone()), out);
     }
     if g.oct_fp == Some(true) {
         push_header!(BmsHeaderGameplay::OctFp, out);
@@ -174,6 +177,33 @@ fn display(d: &bmsrs_bms_model::Display, out: &mut Vec<String>) {
         d.play_level.map(BmsHeaderDisplay::PlayLevel),
         d.difficulty.map(BmsHeaderDisplay::Difficulty),
         d.preview.clone().map(BmsHeaderDisplay::Preview),
+    ];
+    for h in headers.into_iter().flatten() {
+        push_header!(h, out);
+    }
+}
+
+/// Serialize the `KaleidBeat` declaration domain.
+fn kaleid(k: &bmsrs_bms_model::Kaleid, out: &mut Vec<String>) {
+    let headers = [
+        k.loading_file.clone().map(BmsHeaderKaleid::LoadingFile),
+        k.ready_file.clone().map(BmsHeaderKaleid::ReadyFile),
+        k.bga_overflow.map(BmsHeaderKaleid::BgaOverflow),
+        k.target_hash.clone().map(BmsHeaderKaleid::TargetHash),
+        k.sound_font.clone().map(BmsHeaderKaleid::SoundFont),
+        k.decide_file.clone().map(BmsHeaderKaleid::DecideFile),
+        k.play_stop_file.clone().map(BmsHeaderKaleid::PlayStopFile),
+        k.result_file.clone().map(BmsHeaderKaleid::ResultFile),
+        k.result_clear_file
+            .clone()
+            .map(BmsHeaderKaleid::ResultClearFile),
+        k.result_fail_file
+            .clone()
+            .map(BmsHeaderKaleid::ResultFailFile),
+        k.result_first_file
+            .clone()
+            .map(BmsHeaderKaleid::ResultFirstFile),
+        k.song_sound_mode.map(BmsHeaderKaleid::SongSoundMode),
     ];
     for h in headers.into_iter().flatten() {
         push_header!(h, out);
