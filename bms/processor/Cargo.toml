@@ -26,6 +26,7 @@ thiserror.workspace = true
 bmsrs-bms-parser = { path = "../../bms/parser" }
 bmsrs-bms-syntax = { path = "../../bms/syntax" }
 bmsrs-player = { path = "../../common/player" }
+bmsrs-bms-writer = { path = "../../bms/writer" }
 
 [lib]
 

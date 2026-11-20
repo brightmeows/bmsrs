@@ -29,6 +29,12 @@ pub struct Gameplay {
     pub ln_type: Option<LnType>,
     /// WAV index used as a long-note terminator marker (`#LNOBJ`).
     pub ln_obj: Option<LnObjIndex>,
+    /// WAV index used as a charge-note terminator marker (`#CNOBJ`).
+    pub cn_obj: Option<LnObjIndex>,
+    /// WAV index used as a hell-charge-note terminator marker (`#HCNOBJ`).
+    pub hcn_obj: Option<LnObjIndex>,
+    /// WAV index used as a hell-long-note terminator marker (`#HLNOBJ`).
+    pub hln_obj: Option<LnObjIndex>,
     /// Forced LN / CN / HCN mode (`#LNMODE`).
     pub ln_mode: Option<LnMode>,
     /// Radix base for indexed commands (`#BASE`).
@@ -73,6 +79,15 @@ impl Gameplay {
                 self.ln_obj = Some(LnObjIndex::from(id.normalize(base)));
             }
             BmsHeaderGameplay::LnMode(m) => self.ln_mode = Some(*m),
+            BmsHeaderGameplay::CnObj(id) => {
+                self.cn_obj = Some(LnObjIndex::from(id.normalize(base)));
+            }
+            BmsHeaderGameplay::HcnObj(id) => {
+                self.hcn_obj = Some(LnObjIndex::from(id.normalize(base)));
+            }
+            BmsHeaderGameplay::HlnObj(id) => {
+                self.hln_obj = Some(LnObjIndex::from(id.normalize(base)));
+            }
             BmsHeaderGameplay::Base(m) => self.base = Some(*m),
             BmsHeaderGameplay::OctFp => self.oct_fp = Some(true),
             BmsHeaderGameplay::Option(s) => self.option = Some(s.clone()),

@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use bmsrs_bms_model::{KeyType, LongNoteEvent, NoteEvent};
 use bmsrs_bms_values::{LnObjIndex, WavIndex};
+use bmsrs_chart::LnTypeHint;
 
 use crate::position::MeasureTable;
 
@@ -40,6 +41,9 @@ pub struct PairedLn {
     pub player: u8,
     /// Original lane (1-9).
     pub lane: u8,
+    /// Per-note long-note type from a typed `#CNOBJ`/`#HCNOBJ`/`#HLNOBJ`
+    /// marker; `None` for LNTYPE / plain `#LNOBJ` pairing.
+    pub hint: Option<LnTypeHint>,
 }
 
 /// Return `true` when the WAV index represents an empty / no-note position (the
@@ -92,6 +96,7 @@ pub fn pair_lntype1(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairing
                 wav_id: start.wav_id,
                 player,
                 lane,
+                hint: None,
             });
         }
     }
@@ -147,6 +152,7 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairing
                             wav_id: start.wav_id,
                             player,
                             lane,
+                            hint: None,
                         });
                     }
                     in_ln = false;
@@ -173,20 +179,32 @@ pub fn pair_lntype2(events: &[LongNoteEvent], table: &MeasureTable) -> LnPairing
     }
 }
 
-/// Pair LNOBJ long notes from ordinary note events.
+/// One long-note terminator marker of the `#LNOBJ` family.
+pub struct LnMarker {
+    /// The WAV index acting as the terminator marker.
+    pub wav: LnObjIndex,
+    /// Long-note type assigned to pairs ending on this marker. Plain
+    /// `#LNOBJ` passes `None`; `#CNOBJ` / `#HCNOBJ` / `#HLNOBJ` pass their
+    /// type. When several markers designate the same WAV the caller keeps
+    /// only the highest-priority one (HLN > HCN > CN > LN).
+    pub hint: Option<LnTypeHint>,
+}
+
+/// Pair `#LNOBJ`-family long notes from ordinary note events.
 ///
-/// Scans `note_events` for notes whose `wav_id` matches the `#LNOBJ` marker.
-/// Each such note is a long-note end; the previous note on the same
-/// `(player, lane)` (one that is not the LNOBJ marker) is the start.
+/// Scans `note_events` for notes whose `wav_id` matches any marker. Each such
+/// note is a long-note end; the previous note on the same `(player, lane)`
+/// (one that is not a marker) is the start. The pair's per-note hint comes
+/// from the matched marker.
 ///
-/// `#LNOBJ` applies to the visible channels `11`-`29` only; invisible notes
-/// carrying the marker index stay ordinary invisible notes.
+/// Markers apply to the visible channels `11`-`29` only; invisible notes
+/// carrying a marker index stay ordinary invisible notes.
 ///
 /// Returns the paired long notes and the indices of consumed note events
 /// (including both start and end) so the caller can remove them.
 pub fn pair_lnobj(
     note_events: &[NoteEvent],
-    ln_obj: LnObjIndex,
+    markers: &[LnMarker],
     table: &MeasureTable,
 ) -> (Vec<PairedLn>, HashSet<usize>) {
     // Index notes by (player, lane) to find the preceding note.
@@ -200,7 +218,8 @@ pub fn pair_lnobj(
         }
         // Compare the underlying BmsIndex values (case-insensitive in standard
         // BMS).
-        if *ev.wav_id == *ln_obj {
+        let matched = markers.iter().find(|marker| *ev.wav_id == *marker.wav);
+        if let Some(marker) = matched {
             // This is a long-note end. Find the preceding note on the same
             // (player, lane).
             if let Some(&(start_idx, start_ev)) = last_by_lane.get(&(ev.player, ev.lane)) {
@@ -214,6 +233,7 @@ pub fn pair_lnobj(
                     wav_id: start_ev.wav_id,
                     player: ev.player,
                     lane: ev.lane,
+                    hint: marker.hint,
                 });
                 consumed.insert(start_idx);
                 consumed.insert(i);
@@ -327,7 +347,14 @@ mod tests {
             note_event(1, 1, 1, 0, "FF"), // LNOBJ marker.
         ];
         let table = make_table();
-        let (paired, consumed) = pair_lnobj(&notes, ln_obj, &table);
+        let (paired, consumed) = pair_lnobj(
+            &notes,
+            &[LnMarker {
+                wav: ln_obj,
+                hint: None,
+            }],
+            &table,
+        );
 
         assert_eq!(paired.len(), 1);
         assert_eq!(paired[0].tick, 0);
@@ -345,7 +372,14 @@ mod tests {
             note_event(1, 2, 0, 0, "BB"), // Regular note, not consumed.
         ];
         let table = make_table();
-        let (paired, consumed) = pair_lnobj(&notes, ln_obj, &table);
+        let (paired, consumed) = pair_lnobj(
+            &notes,
+            &[LnMarker {
+                wav: ln_obj,
+                hint: None,
+            }],
+            &table,
+        );
 
         assert_eq!(paired.len(), 1);
         assert!(consumed.contains(&0));
@@ -360,7 +394,14 @@ mod tests {
             note_event(1, 1, 0, 0, "FF"), // Marker with no preceding note.
         ];
         let table = make_table();
-        let (paired, consumed) = pair_lnobj(&notes, ln_obj, &table);
+        let (paired, consumed) = pair_lnobj(
+            &notes,
+            &[LnMarker {
+                wav: ln_obj,
+                hint: None,
+            }],
+            &table,
+        );
 
         assert!(paired.is_empty());
         assert!(consumed.is_empty());

@@ -413,6 +413,10 @@ fn definition_kind(command: &str) -> Option<(SymbolKind, String)> {
         ("SEEK", SymbolKind::Seek),
         ("TEXT", SymbolKind::Text),
         ("SONG", SymbolKind::Text),
+        ("HLNOBJ", SymbolKind::LnObj),
+        ("HCNOBJ", SymbolKind::LnObj),
+        ("CNOBJ", SymbolKind::LnObj),
+        ("LNOBJ", SymbolKind::LnObj),
     ];
 
     prefixes.iter().find_map(|(prefix, kind)| {
