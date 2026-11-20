@@ -262,3 +262,19 @@ fn holder_line_style_extension_channel_reports_like_a_message_line() {
         0
     );
 }
+
+#[test]
+fn kaleid_extension_channels_have_hover_docs() {
+    for code in [
+        "ST", "SF", "SG", "SH", "SI", "F1", "G9", "H1", "I2", "J1", "K2", "L1", "M2", "N1", "O9",
+    ] {
+        let found = bmsrs_bms_analysis::Docs::channel(code);
+        assert!(found.is_some(), "missing channel doc for {code}");
+        assert!(
+            found.is_some_and(|entry| entry.summary.contains("KaleidBeat")),
+            "{code}"
+        );
+    }
+    // Standard channels keep their docs.
+    assert!(bmsrs_bms_analysis::Docs::channel("17").is_some());
+}

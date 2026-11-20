@@ -793,7 +793,7 @@ impl Docs {
         {
             return Some(*doc);
         }
-        note_channel_doc(&normalized)
+        note_channel_doc(&normalized).or_else(|| extension_channel_doc(&normalized))
     }
 
     /// Return all channel descriptions.
@@ -840,5 +840,74 @@ const fn note_channel_doc(code: &str) -> Option<ChannelDoc> {
         title,
         summary,
         link: MEMO,
+    })
+}
+
+/// Description for a `KaleidBeat` dialect channel.
+///
+/// `ST` forces a bar line at its object positions. `SF`/`SG`/`SH`/`SI` and the
+/// `17`/`27` aliases delimit free zones (one-shot by position value, or paired
+/// start/end): notes inside them are excluded from judgment and scoring in the
+/// dialect. `F`-`O` carry the dialect's recovery and dummy objects.
+fn extension_channel_doc(code: &str) -> Option<ChannelDoc> {
+    let (title, summary) = match code {
+        "ST" => (
+            "ST bar lines",
+            "KaleidBeat: draws a bar line at each object position (preserved verbatim).",
+        ),
+        "SF" | "17" => (
+            "SF free zone (1P)",
+            "KaleidBeat: starts a 1P free zone; notes inside are excluded from judgment and scoring (preserved verbatim).",
+        ),
+        "SH" | "27" => (
+            "SH free zone (2P)",
+            "KaleidBeat: starts a 2P free zone; notes inside are excluded from judgment and scoring (preserved verbatim).",
+        ),
+        "SG" => (
+            "SG free zone pair (1P)",
+            "KaleidBeat: paired 1P free-zone delimiter; the first object opens the zone and the next closes it (preserved verbatim).",
+        ),
+        "SI" => (
+            "SI free zone pair (2P)",
+            "KaleidBeat: paired 2P free-zone delimiter; the first object opens the zone and the next closes it (preserved verbatim).",
+        ),
+        _ => {
+            let bytes = code.as_bytes();
+            let &[first, second] = bytes else {
+                return None;
+            };
+            if !second.is_ascii_alphanumeric() {
+                return None;
+            }
+            match first {
+                b'F' | b'G' => (
+                    "KaleidBeat potion notes",
+                    "KaleidBeat: recovery note; the object value is the recovery amount in base36 (preserved verbatim).",
+                ),
+                b'H' | b'I' => (
+                    "KaleidBeat dummy taps",
+                    "KaleidBeat: display-only tap excluded from judgment and score (preserved verbatim).",
+                ),
+                b'J' | b'K' => (
+                    "KaleidBeat dummy long notes",
+                    "KaleidBeat: display-only long note excluded from judgment and score (preserved verbatim).",
+                ),
+                b'L' | b'M' => (
+                    "KaleidBeat dummy mines",
+                    "KaleidBeat: display-only mine that never damages the gauge (preserved verbatim).",
+                ),
+                b'N' | b'O' => (
+                    "KaleidBeat dummy potions",
+                    "KaleidBeat: display-only recovery object excluded from judgment (preserved verbatim).",
+                ),
+                _ => return None,
+            }
+        }
+    };
+    Some(ChannelDoc {
+        code: "ST",
+        title,
+        summary,
+        link: KALEID_ADAPTER,
     })
 }

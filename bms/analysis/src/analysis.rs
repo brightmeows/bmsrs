@@ -318,8 +318,11 @@ fn collect_message(
 }
 
 /// Header commands from the `KaleidBeat` chart dialect that this repository
-/// recognizes but does not model. The lossless pipeline preserves such lines
-/// verbatim; the diagnostic only marks their presence for editors.
+/// recognizes but does not model.
+///
+/// The lossless pipeline preserves such lines verbatim; the diagnostic only
+/// marks their presence for editors. Command semantics live in
+/// [`Docs::header`](crate::Docs::header); this list decides recognition.
 const EXTENSION_COMMANDS: &[&str] = &[
     "CONDITIONAL",
     "WHEN",
@@ -346,6 +349,15 @@ fn extension_command(command: &str) -> Option<&'static str> {
 
 /// Return the channel code when `channel` is an unambiguous dialect-extension
 /// channel.
+///
+/// | Code | Dialect meaning |
+/// |------|-----------------|
+/// | `ST` | bar line at the object positions |
+/// | `SF` / `SH` | one-shot free zone (1P / 2P) |
+/// | `SG` / `SI` | paired free-zone delimiter (1P / 2P) |
+/// | `F`-`O` + digit | potion, dummy tap, dummy long, dummy mine, or dummy potion |
+///
+/// Per-channel summaries live in [`Docs::channel`](crate::Docs::channel).
 ///
 /// `17` / `27` are deliberately not reported: in a standard chart they are the
 /// second key of each player, and only the dialect gives them a different
