@@ -162,7 +162,7 @@ fn collect_line(
                     command.text_range(),
                     Severity::Information,
                     format!(
-                        "KaleidBeat extension command `#{name}`: preserved verbatim, semantics not modeled"
+                        "`KaleidBeat` extension command `#{name}`: preserved verbatim, semantics not modeled"
                     ),
                     Some("extension"),
                 ));
@@ -176,7 +176,7 @@ fn collect_line(
                         line.range(),
                         Severity::Information,
                         format!(
-                            "KaleidBeat extension channel {code}: preserved verbatim, semantics not modeled"
+                            "`KaleidBeat` extension channel {code}: preserved verbatim, semantics not modeled"
                         ),
                         Some("extension"),
                     ));
@@ -296,7 +296,7 @@ fn collect_message(
             line.range(),
             Severity::Information,
             format!(
-                "KaleidBeat extension channel {code}: preserved verbatim, semantics not modeled"
+                "`KaleidBeat` extension channel {code}: preserved verbatim, semantics not modeled"
             ),
             Some("extension"),
         ));
@@ -323,6 +323,11 @@ fn collect_message(
 /// The lossless pipeline preserves such lines verbatim; the diagnostic only
 /// marks their presence for editors. Command semantics live in
 /// [`Docs::header`](crate::Docs::header); this list decides recognition.
+///
+/// The dialect belongs to the `KaleidBeat` player
+/// (<https://github.com/curecoma/KaleidBeat-releases>); the only written
+/// contract available is the reference implementation's
+/// [kaleid.md](https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md).
 const EXTENSION_COMMANDS: &[&str] = &[
     "CONDITIONAL",
     "WHEN",

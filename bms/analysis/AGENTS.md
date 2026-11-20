@@ -27,9 +27,13 @@ treat `docs.rs` as the specification text.
   `#SCROLLxx`, `#SPEEDxx`, `#EXRANKxx`, `#CHANGEOPTIONxx`, `#SEEKxx`,
   `#TEXTxx` / `#SONGxx`; the `#LNOBJ` family carries its id as the command
   **value**, so it is read from the parsed header rather than a name suffix
-- KaleidBeat dialect lines produce Information diagnostics with the stable
+- `KaleidBeat` dialect lines produce Information diagnostics with the stable
   code `extension` and are excluded from reference indexing; recognition and
   per-command / per-channel summaries live in `Docs` (`analysis.rs`, `docs.rs`)
+- The dialect has no public specification: it belongs to the `KaleidBeat` player
+  (`curecoma/KaleidBeat-releases`, IR at `kaleidir.com`), whose manual ships
+  with the app. The only written contract we verified is bmz-player's
+  `docs/kaleid.md`; cite it rather than re-deriving semantics from code
 - References: non-`00` two-character values in channel bodies; the channel kind
   determines the resource kind
 - Non-canonical addresses (such as `#1:0101`) fall back to
