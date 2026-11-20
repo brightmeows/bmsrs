@@ -211,6 +211,14 @@ pub enum ProcessWarningKind {
     #[error(transparent)]
     UnparsableValue(#[from] ChannelValueWarning),
 
+    /// A referenced sound or image file does not exist according to the
+    /// caller-supplied probe.
+    #[error("referenced asset {path:?} does not exist")]
+    MissingAssetFile {
+        /// Path as declared by the chart.
+        path: String,
+    },
+
     /// The `#TOTAL` header is not defined.
     #[error("TOTAL is not defined")]
     MissingTotal,

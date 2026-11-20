@@ -909,8 +909,10 @@ fn build_chart_info(
             value: bmson.chart_data.judge_multiplier * 100.0,
             kind: bmsrs_chart::JudgeRankKind::BmsonJudgeRank,
         }),
-        // BMSON has no #TOTAL or #VOLWAV concept.
+        // BMSON carries no concrete #TOTAL: `info.total` is a percentage of
+        // the engine's default gauge total, kept uninterpreted here.
         total: None,
+        total_percent: Some(bmson.chart_data.life_multiplier * 100.0),
         volwav_percent: None,
         subartists: bmson
             .chart_info

@@ -1510,3 +1510,42 @@ fn lnmode_four_maps_to_the_hln_hint() {
         Some(bmsrs_chart::LnTypeHint::Hln)
     );
 }
+
+#[test]
+fn asset_probe_reports_missing_sound_and_image_files() {
+    use bmsrs_bms_processor::AssetLookup;
+
+    let bms = parse_text(
+        "#WAV01 present.wav\n#WAV02 missing.wav\n#BMP01 missing.bmp\n#00111:01\n#00211:02\n#00104:01\n",
+    );
+    let probe = |path: &std::path::Path| path.to_string_lossy().starts_with("present");
+    let processed = BmsProcessor::process_with_assets::<Bme>(&bms, AssetLookup::Probe(&probe))
+        .expect("process should succeed");
+
+    let missing: Vec<_> = processed
+        .warnings
+        .iter()
+        .filter_map(|warning| match &warning.kind {
+            ProcessWarningKind::MissingAssetFile { path } => Some(path.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(missing.contains(&"missing.wav"), "warnings: {missing:?}");
+    assert!(missing.contains(&"missing.bmp"), "warnings: {missing:?}");
+    assert!(!missing.contains(&"present.wav"), "warnings: {missing:?}");
+}
+
+#[test]
+fn declared_asset_lookup_never_touches_the_probe() {
+    use bmsrs_bms_processor::AssetLookup;
+
+    let bms = parse_text("#WAV01 a.wav\n#00111:01\n");
+    let processed = BmsProcessor::process_with_assets::<Bme>(&bms, AssetLookup::Declared)
+        .expect("process should succeed");
+    assert!(
+        processed
+            .warnings
+            .iter()
+            .all(|warning| !matches!(warning.kind, ProcessWarningKind::MissingAssetFile { .. }))
+    );
+}

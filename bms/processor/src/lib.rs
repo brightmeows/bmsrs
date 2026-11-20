@@ -146,6 +146,29 @@ impl From<&Gameplay> for BmsGameplay {
 /// Default beat resolution for BMS charts (ticks per quarter note).
 const RESOLUTION: u64 = 240;
 
+/// How the processor treats the sound and image files a chart references.
+///
+/// The processor never touches the file system itself; callers that want
+/// existence checks supply a probe.
+#[derive(Clone, Copy)]
+pub enum AssetLookup<'a> {
+    /// Only the declared references are kept; nothing is checked.
+    Declared,
+    /// Ask `probe` about each referenced path (relative to the chart file) and
+    /// report the ones it rejects. The probe owns the file-system policy, so
+    /// the processor stays free of I/O.
+    Probe(&'a dyn Fn(&std::path::Path) -> bool),
+}
+
+impl std::fmt::Debug for AssetLookup<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Declared => formatter.write_str("Declared"),
+            Self::Probe(_) => formatter.write_str("Probe(..)"),
+        }
+    }
+}
+
 impl BmsProcessor {
     /// Process a BMS chart with an explicit mode-family layout.
     ///
@@ -158,6 +181,25 @@ impl BmsProcessor {
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (initial BPM missing, zero, or non-finite).
     pub fn process<L>(bms: &Bms) -> Result<Outcome<Processed, ProcessWarning>, ProcessError>
+    where
+        L: BmsLayout,
+    {
+        Self::process_with_assets::<L>(bms, AssetLookup::Declared)
+    }
+
+    /// Process a BMS chart with an explicit layout and asset policy.
+    ///
+    /// `assets` decides whether referenced file paths are checked for
+    /// existence through a caller-supplied probe; see [`AssetLookup`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProcessError::Timing`] when timing track construction fails
+    /// (initial BPM missing, zero, or non-finite).
+    pub fn process_with_assets<L>(
+        bms: &Bms,
+        assets: AssetLookup<'_>,
+    ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError>
     where
         L: BmsLayout,
     {
@@ -258,9 +300,35 @@ impl BmsProcessor {
         let gameplay = BmsGameplay::from(&bms.gameplay);
         let audio = BmsAudio::from(&bms.audio);
 
+        let chart = Chart::new(song, chart_info, data)?;
+        if let AssetLookup::Probe(probe) = assets {
+            for asset in chart.data().audio_assets() {
+                if !probe(&asset.path) {
+                    warnings.push(ProcessWarning::new(
+                        None,
+                        ProcessWarningKind::MissingAssetFile {
+                            path: asset.path.display().to_string(),
+                        },
+                    ));
+                }
+            }
+            for resource in &chart.chart_info().bga_resources {
+                if let BgaResourceContent::File { path, .. } = resource
+                    && !probe(path)
+                {
+                    warnings.push(ProcessWarning::new(
+                        None,
+                        ProcessWarningKind::MissingAssetFile {
+                            path: path.display().to_string(),
+                        },
+                    ));
+                }
+            }
+        }
+
         Ok(Outcome::new(
             Processed {
-                chart: Chart::new(song, chart_info, data)?,
+                chart,
                 gameplay,
                 audio,
             },
@@ -656,6 +724,7 @@ impl BmsConverter<'_> {
                 key_count: key_count(&self.events),
                 judge_rank,
                 total: self.bms.gameplay.total,
+                total_percent: None,
                 volwav_percent: self.bms.gameplay.vol_wav.map(|v| v.round() as u8),
             },
         )

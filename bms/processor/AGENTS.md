@@ -101,6 +101,7 @@ engines).
 | Judge/life multipliers | BMS `#RANK`/`#TOTAL` are not converted into the multiplier fields; they enter `ChartInfo.judge_rank`/`ChartInfo.total` as raw values instead, and both multiplier fields stay `None` for BMS |
 | Undefined reference warnings | Undefined BMP/TEXT/SWBGA/EXRANK references emit `MissingBmpDefinition`/`MissingTextDefinition`/`MissingSwBgaDefinition`/`MissingExRankDefinition` with the resolved key and tick; the corresponding event is dropped or carries a clear/blank semantics |
 | `#PATH_WAV` | Joined when constructing `AudioAsset.path`; the raw prefix stays in `Processed.audio.path_wav` |
+| Asset existence | `AssetLookup::Probe` asks a caller-supplied closure about each audio and BGA path and reports `MissingAssetFile`; the processor itself never touches the file system (`Declared` is the default) |
 | Warning shape | `ProcessWarning { span, kind }`; `ProcessWarningKind` carries the payload, `span` is the source line when available |
 | `#BPM 0` | Returns `ProcessError::ZeroBpm` instead of falling back to 130; the current time model cannot represent zero BPM |
 | Conversion steps belong to `BmsConverter` | `collect_*`/`build_*` are methods on the private internal `BmsConverter`, not free functions |
