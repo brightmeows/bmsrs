@@ -82,3 +82,28 @@ fn bmson_parse_file_reads_chart_from_path() {
     std::fs::remove_file(&path).expect("remove fixture");
     assert_eq!(bmson.song_info.title, "T");
 }
+
+#[test]
+fn jbms_compat_mode_and_lr2_rng_run_through_the_facade() {
+    use bmsrs::bms::{ControlFlowCompat, ControlFlowRng as _, JavaRandom, Lr2Mt19937};
+
+    // beatoraja-jbms behavior: `#RANDOM 0` clamps to 1 and draws once.
+    let parsed = bmsrs::bms::parse_with(
+        "#RANDOM 0\n#IF 1\n#TITLE zero\n#ENDIF\n",
+        &bmsrs::bms::ParseOptions {
+            control_flow_compat: ControlFlowCompat::Jbms,
+            ..bmsrs::bms::ParseOptions::default()
+        },
+        |_| 1,
+        bmsrs::bms::ErrorStrategy::CollectAll,
+    )
+    .expect("parse should succeed");
+    assert_eq!(parsed.value.metadata.title.as_deref(), Some("zero"));
+
+    // Both standard sources satisfy the draw contract, so one call site can
+    // swap engines.
+    let mut java = JavaRandom::new(1);
+    let mut lr2 = Lr2Mt19937::new(1);
+    assert!((1..=4).contains(&java.draw(4)));
+    assert!((1..=4).contains(&lr2.draw(4)));
+}

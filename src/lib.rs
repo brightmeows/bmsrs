@@ -36,6 +36,7 @@ pub mod bms {
     pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
 
     pub use crate::java_random::JavaRandom;
+    pub use syntax::{ControlFlowCompat, ControlFlowRng, LR2_SEED_MAX, Lr2Mt19937};
 
     /// Error type for the whole-pipeline entry points.
     #[derive(Debug, thiserror::Error)]

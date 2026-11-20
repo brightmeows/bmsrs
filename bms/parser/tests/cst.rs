@@ -79,6 +79,7 @@ fn from_document_accepts_custom_header_prefix() {
     let document = bmsrs_bms_source::Document::from_text("@TITLE A\n");
     let options = bmsrs_bms_syntax::ParseOptions {
         header_prefixes: vec!['@'],
+        ..bmsrs_bms_syntax::ParseOptions::default()
     };
     let result = BmsParser::parse_document_with(
         &document,

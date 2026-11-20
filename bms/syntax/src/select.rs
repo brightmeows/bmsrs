@@ -37,6 +37,26 @@ impl fmt::Display for BlockKind {
     }
 }
 
+/// Control-flow compatibility mode.
+///
+/// The two modes differ only where player implementations differ:
+///
+/// | Case | [`Ideal`](Self::Ideal) | [`Jbms`](Self::Jbms) |
+/// |------|------------------------|---------------------|
+/// | `#RANDOM 0` / `#SWITCH 0` | no branch matches; no random value is drawn | clamped to `1`; one value is drawn |
+/// | `#ELSE` / `#ELSEIF` | a real fallback branch | the directive line is ignored, so every following branch body stays under the preceding `#IF` condition |
+///
+/// [`Jbms`](Self::Jbms) reproduces beatoraja, which delegates branch
+/// selection to jbms-parser and inherits those behaviors.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ControlFlowCompat {
+    /// Fallback branches work as written; zero bounds match nothing.
+    #[default]
+    Ideal,
+    /// jbms-parser / beatoraja behavior.
+    Jbms,
+}
+
 /// Decision for a single control-flow block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockDecision {
@@ -157,9 +177,17 @@ impl std::error::Error for BranchMismatch {}
 pub struct BranchSelection {
     /// Decisions in traversal order.
     decisions: Vec<BlockDecision>,
+    /// Compatibility mode the decisions were taken under.
+    compat: ControlFlowCompat,
 }
 
 impl BranchSelection {
+    /// Return the compatibility mode the decisions were taken under.
+    #[must_use]
+    pub const fn compat(&self) -> ControlFlowCompat {
+        self.compat
+    }
+
     /// Return the decision list.
     #[must_use]
     pub fn decisions(&self) -> &[BlockDecision] {
@@ -187,6 +215,8 @@ struct Walker<'a> {
     error: Option<BranchMismatch>,
     /// Decisions recorded during the current pass.
     selection: BranchSelection,
+    /// Control-flow compatibility mode.
+    compat: ControlFlowCompat,
 }
 
 impl Walker<'_> {
@@ -218,6 +248,7 @@ impl Walker<'_> {
             Source::Rng(next) => {
                 let value = match (is_set, raw) {
                     (true, fixed) => fixed,
+                    (false, 0) if self.compat == ControlFlowCompat::Jbms => next(1),
                     (false, 0) => 0,
                     (false, bound) => next(bound),
                 };
@@ -322,6 +353,20 @@ impl Walker<'_> {
             .children()
             .filter(|child| child.kind() == SyntaxKind::RandomBranch)
             .collect();
+        if self.compat == ControlFlowCompat::Jbms {
+            // jbms-parser only reserves RANDOM / IF / ENDIF / ENDRANDOM.
+            // `#ELSE` and `#ELSEIF` lines are ignored, so every following
+            // body remains under the first `#IF` condition.
+            let matched = branches
+                .first()
+                .is_some_and(|branch| branch_matches(branch, value));
+            if matched {
+                for branch in &branches {
+                    self.select_body(branch, lines);
+                }
+            }
+            return if matched { 0 } else { branches.len() };
+        }
         let selected = branches
             .iter()
             .position(|branch| branch_matches(branch, value))
@@ -391,15 +436,45 @@ impl SourceFile {
     /// `#SETSWITCH` do not call it.
     #[must_use]
     pub fn select_lines(&self, next: impl FnMut(u64) -> u64) -> (Vec<SyntaxLine>, BranchSelection) {
+        self.select_lines_with_compat(next, ControlFlowCompat::Ideal)
+    }
+
+    /// Select branches with an explicit compatibility mode.
+    ///
+    /// [`ControlFlowCompat::Jbms`] reproduces jbms-parser / beatoraja
+    /// semantics for `#RANDOM 0` and `#ELSE` / `#ELSEIF`; see
+    /// [`ControlFlowCompat`].
+    #[must_use]
+    pub fn select_lines_with_compat(
+        &self,
+        next: impl FnMut(u64) -> u64,
+        compat: ControlFlowCompat,
+    ) -> (Vec<SyntaxLine>, BranchSelection) {
         let mut walker = Walker {
             source: Source::Rng(Box::new(next)),
             block_index: 0,
             error: None,
             selection: BranchSelection::default(),
+            compat,
         };
         let mut lines = Vec::new();
         walker.select_children(self.syntax(), &mut lines);
         (lines, walker.selection)
+    }
+
+    /// Select branches drawing values from a [`ControlFlowRng`](crate::ControlFlowRng).
+    ///
+    /// Unlike [`SourceFile::select_lines`], the generator stays with the
+    /// caller, so its remaining stream is available afterwards. LR2 needs
+    /// exactly that: `#RANDOM` values are drawn first, and the RANDOM lane
+    /// option continues from the same stream.
+    #[must_use]
+    pub fn select_lines_with_rng<R: crate::random::ControlFlowRng + ?Sized>(
+        &self,
+        rng: &mut R,
+        compat: ControlFlowCompat,
+    ) -> (Vec<SyntaxLine>, BranchSelection) {
+        self.select_lines_with_compat(|max| rng.draw(max), compat)
     }
 
     /// Select branches using the recorded decisions, and return the selected
@@ -424,6 +499,7 @@ impl SourceFile {
             block_index: 0,
             error: None,
             selection: BranchSelection::default(),
+            compat: selection.compat(),
         };
         let mut lines = Vec::new();
         walker.select_children(self.syntax(), &mut lines);

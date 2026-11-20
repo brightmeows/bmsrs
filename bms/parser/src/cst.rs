@@ -88,7 +88,8 @@ impl BmsParser {
         rng: impl FnMut(u64) -> u64,
     ) -> BmsParse {
         let all_tokens = tokenize_lines_with(file, options);
-        let (bms, selection, selected_ranges) = build_selected(file, &all_tokens, rng);
+        let (bms, selection, selected_ranges) =
+            build_selected(file, &all_tokens, rng, options.control_flow_compat);
         let warnings = token_warnings(&all_tokens)
             .into_iter()
             .filter(|warning| selected_ranges.contains(&warning.range))
@@ -145,7 +146,8 @@ impl BmsParser {
             return Err(first.clone());
         }
 
-        let (bms, selection, _selected_ranges) = build_selected(&file, &all_tokens, rng);
+        let (bms, selection, _selected_ranges) =
+            build_selected(&file, &all_tokens, rng, options.control_flow_compat);
         Ok(BmsParse {
             bms,
             selection,
@@ -159,6 +161,7 @@ fn build_selected(
     file: &SourceFile,
     all_tokens: &[LineToken],
     rng: impl FnMut(u64) -> u64,
+    compat: bmsrs_bms_syntax::ControlFlowCompat,
 ) -> (Bms, BranchSelection, HashSet<TextRange>) {
     let mut token_map: HashMap<TextRange, BmsToken> = all_tokens
         .iter()
@@ -170,7 +173,7 @@ fn build_selected(
         })
         .collect();
 
-    let (lines, selection) = file.select_lines(rng);
+    let (lines, selection) = file.select_lines_with_compat(rng, compat);
     let mut tokens = Vec::new();
     let mut selected_ranges = HashSet::new();
     for line in &lines {

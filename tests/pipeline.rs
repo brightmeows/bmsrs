@@ -132,6 +132,7 @@ fn parse_with_collect_all_reports_unselected_branch_error() {
 fn parse_with_accepts_custom_header_prefix() {
     let options = ParseOptions {
         header_prefixes: vec!['@'],
+        ..ParseOptions::default()
     };
     let outcome = bmsrs::bms::parse_with("@TITLE A\n", &options, |_| 1, ErrorStrategy::CollectAll)
         .unwrap_or_else(|error| panic!("{error}"));

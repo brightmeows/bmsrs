@@ -125,6 +125,12 @@ impl JavaRandom {
     }
 }
 
+impl bmsrs_bms_syntax::ControlFlowRng for JavaRandom {
+    fn draw(&mut self, max: u64) -> u64 {
+        self.choice(max)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
