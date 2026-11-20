@@ -8,16 +8,19 @@
 //!
 //! The dialect belongs to the `KaleidBeat` BMS player
 //! (<https://github.com/curecoma/KaleidBeat-releases>, with its own IR at
-//! <https://kaleidir.com>). Its official manual ships with the application and
-//! is not version-controlled in a public repository, and no public format
-//! specification exists.
+//! <https://kaleidir.com>). Its format manual is not a website: it ships
+//! inside the release archive as `KaleidBeat/documents/format-header.html`,
+//! `format-channel.html`, and `format-bmd.html`
+//! (<https://github.com/curecoma/KaleidBeat-releases/releases/download/v0.6.5/KaleidBeat.zip>).
+//! The summaries below are taken from that manual; check it before changing a
+//! summary.
 //!
-//! The only written contract this repository could verify is the reference
-//! implementation's `docs/kaleid.md`
-//! (<https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md>). That
-//! document covers the ED-rian implementation of the extension and states that
-//! it does not aim for full `KaleidBeat` compatibility, so treat it as the
-//! dialect's implementation contract rather than its official specification.
+//! The reference implementation additionally publishes an implementation
+//! contract, `docs/kaleid.md`
+//! (<https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md>). It
+//! covers the ED-rian implementation and explicitly does not aim for full
+//! `KaleidBeat` compatibility, so the shipped manual is the authority when the
+//! two disagree.
 //!
 //! Entries below only recognize dialect lines; the dialect's play semantics
 //! are not modeled.
@@ -571,19 +574,19 @@ static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "BMD",
         title: "#BMD",
-        summary: "`KaleidBeat` dialect marker: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        summary: "BMD charts are declared by the `.bmd` extension, not by a header; the token is recognized only because the reference implementation lists it as a trigger (preserved verbatim).",
         link: KALEID,
     },
     HeaderDoc {
         command: "SOUNDFONT",
         title: "#SOUNDFONT",
-        summary: "`KaleidBeat` sound-font declaration: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        summary: "`KaleidBeat` BMD: sound font (`file.sf2`) used to synthesize the chart's defined notes (preserved verbatim).",
         link: KALEID,
     },
     HeaderDoc {
         command: "TARGETHASH",
         title: "#TARGETHASH",
-        summary: "`KaleidBeat` target-file hash constraint: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        summary: "`KaleidBeat`: names the base chart a differential patch targets by its SHA-256, used by automatic patch import (preserved verbatim).",
         link: KALEID,
     },
     HeaderDoc {
@@ -601,7 +604,49 @@ static HEADER_DOCS: &[HeaderDoc] = &[
     HeaderDoc {
         command: "BGAOVERFLOW",
         title: "#BGAOVERFLOW",
-        summary: "`KaleidBeat` BGA overflow switch: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        summary: "`KaleidBeat`: lets BGA draw past its frame; 0 = off, 1 = on, Y = also upward; omitted means the player auto-detects (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "DECIDEFILE",
+        title: "#DECIDEFILE",
+        summary: "`KaleidBeat`: replaces the song-select confirm sound (decide.wav) with a file from the chart folder (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "PLAYSTOPFILE",
+        title: "#PLAYSTOPFILE",
+        summary: "`KaleidBeat`: replaces the hard-gauge close sound (playstop.wav) (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "RESULTFILE",
+        title: "#RESULTFILE",
+        summary: "`KaleidBeat`: replaces the result-screen sound; clear/fail/first variants take priority over it (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "RESULTCLEARFILE",
+        title: "#RESULTCLEARFILE",
+        summary: "`KaleidBeat`: result sound played on clear (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "RESULTFAILFILE",
+        title: "#RESULTFAILFILE",
+        summary: "`KaleidBeat`: result sound played on failure (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "RESULTFIRSTFILE",
+        title: "#RESULTFIRSTFILE",
+        summary: "`KaleidBeat`: result sound played only on the chart's first play; highest priority (preserved verbatim).",
+        link: KALEID,
+    },
+    HeaderDoc {
+        command: "SONGSOUNDMODE",
+        title: "#SONGSOUNDMODE",
+        summary: "`KaleidBeat`: how the chart-defined sounds play: EXCLUSIVE replaces the player's sound (default), MIX plays both (preserved verbatim).",
         link: KALEID,
     },
 ];
@@ -859,32 +904,34 @@ const fn note_channel_doc(code: &str) -> Option<ChannelDoc> {
 
 /// Description for a `KaleidBeat` dialect channel.
 ///
-/// `ST` only draws bar lines. `SF`/`SH` open a free zone lasting one beat;
+/// `ST` adds bar lines. `SF`/`SH` declare a one-shot 1P/2P scratch free zone;
 /// `SG`/`SI` delimit one by paired start/end objects; `17`/`27` are the legacy
-/// forms of the same idea. Free zones collapse the notes inside them into a
-/// single scored zone. `F`-`O` carry the dialect's recovery and dummy objects.
-/// The contract text is the {@link KALEID} document linked from each entry.
+/// forms, which the player recognizes only through chart-era inference and
+/// skips as ordinary notes when it decides they are not free zones. `F`-`O`
+/// carry the dialect's recovery and dummy objects. The `#SPEEDxx` / channel
+/// `SP` spacing factor is a standard speed channel here, not an extension.
+/// The manual entry linked from each item is the authority.
 fn extension_channel_doc(code: &str) -> Option<ChannelDoc> {
     let (title, summary) = match code {
         "ST" => (
             "ST bar lines",
-            "`KaleidBeat`: draws a bar line at each object position (preserved verbatim).",
+            "`KaleidBeat`: draws one extra bar line per object; the automatic measure-start lines stay (preserved verbatim).",
         ),
         "SF" | "17" => (
             "SF free zone (1P)",
-            "`KaleidBeat`: opens a 1P free zone lasting one beat; notes inside collapse to a single scored zone (preserved verbatim).",
+            "`KaleidBeat`: one-shot 1P scratch free-zone declaration; unlike the legacy 17 it needs no era inference (preserved verbatim).",
         ),
         "SH" | "27" => (
             "SH free zone (2P)",
-            "`KaleidBeat`: opens a 2P free zone lasting one beat; notes inside collapse to a single scored zone (preserved verbatim).",
+            "`KaleidBeat`: one-shot 2P scratch free-zone declaration; unlike the legacy 27 it needs no era inference (preserved verbatim).",
         ),
         "SG" => (
             "SG free zone pair (1P)",
-            "`KaleidBeat`: paired 1P free-zone delimiter; the first object is the start and the next is the end. The 17 alias keeps its standard note meaning outside dialect charts (preserved verbatim).",
+            "`KaleidBeat`: paired 1P free-zone start/end, written like LNTYPE 1 (the manual recommends this form over 17) (preserved verbatim).",
         ),
         "SI" => (
             "SI free zone pair (2P)",
-            "`KaleidBeat`: paired 2P free-zone delimiter; the first object is the start and the next is the end. The 27 alias keeps its standard note meaning outside dialect charts (preserved verbatim).",
+            "`KaleidBeat`: paired 2P free-zone start/end, written like LNTYPE 1 (the manual recommends this form over 27) (preserved verbatim).",
         ),
         _ => {
             let bytes = code.as_bytes();
@@ -897,23 +944,23 @@ fn extension_channel_doc(code: &str) -> Option<ChannelDoc> {
             match first {
                 b'F' | b'G' => (
                     "`KaleidBeat` potion notes",
-                    "`KaleidBeat`: recovery note; the object value is the recovery amount in base36 (preserved verbatim).",
+                    "`KaleidBeat`: recovery note; the value is the recovery percentage (clamped at 100) and the note never counts toward TOTAL (preserved verbatim).",
                 ),
                 b'H' | b'I' => (
                     "`KaleidBeat` dummy taps",
-                    "`KaleidBeat`: display-only tap excluded from judgment and score (preserved verbatim).",
+                    "`KaleidBeat`: display-only tap; no judgment, gauge, score, or empty-POOR effect, but it counts as lane usage for mode detection (preserved verbatim).",
                 ),
                 b'J' | b'K' => (
                     "`KaleidBeat` dummy long notes",
-                    "`KaleidBeat`: display-only long note excluded from judgment and score (preserved verbatim).",
+                    "`KaleidBeat`: display-only long note; same display-only behavior as dummy taps (preserved verbatim).",
                 ),
                 b'L' | b'M' => (
                     "`KaleidBeat` dummy mines",
-                    "`KaleidBeat`: display-only mine that never damages the gauge (preserved verbatim).",
+                    "`KaleidBeat`: display-only mine; never damages the gauge and is removed with mineMode REMOVE (preserved verbatim).",
                 ),
                 b'N' | b'O' => (
                     "`KaleidBeat` dummy potions",
-                    "`KaleidBeat`: display-only recovery object excluded from judgment (preserved verbatim).",
+                    "`KaleidBeat`: display-only recovery object; no gauge effect (preserved verbatim).",
                 ),
                 _ => return None,
             }

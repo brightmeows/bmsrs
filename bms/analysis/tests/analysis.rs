@@ -163,7 +163,7 @@ fn update_shifts_line_starts_for_later_entries() {
 #[test]
 fn kaleid_extension_commands_report_information_diagnostics() {
     let analysis = Analysis::from_text(
-        "#TITLE t\n#CONDITIONAL 1\n#WHEN SCORE>=2\n#00111:01\n#DEFAULT\n#00111:02\n#ENDCONDITIONAL\n",
+        "#TITLE t\n#CONDITIONAL 1\n#WHEN SCORE>=2\n#00111:01\n#DEFAULT\n#00111:02\n#ENDCONDITIONAL\n#SONGSOUNDMODE MIX\n#RESULTFIRSTFILE first.wav\n",
     );
 
     let extensions: Vec<_> = analysis
@@ -171,14 +171,14 @@ fn kaleid_extension_commands_report_information_diagnostics() {
         .iter()
         .filter(|d| d.code() == Some("extension"))
         .collect();
-    assert_eq!(extensions.len(), 4);
+    assert_eq!(extensions.len(), 6);
     assert_eq!(
         analysis
             .diagnostics()
             .iter()
             .filter(|d| d.severity() == bmsrs_bms_analysis::Severity::Information)
             .count(),
-        4
+        6
     );
     assert!(
         extensions
@@ -283,7 +283,23 @@ fn kaleid_extension_channels_have_hover_docs() {
             "missing contract link for {code}"
         );
     }
-    for command in ["CONDITIONAL", "WHEN", "BMD", "BGAOVERFLOW"] {
+    for command in [
+        "CONDITIONAL",
+        "WHEN",
+        "BMD",
+        "BGAOVERFLOW",
+        "DECIDEFILE",
+        "PLAYSTOPFILE",
+        "RESULTFILE",
+        "RESULTCLEARFILE",
+        "RESULTFAILFILE",
+        "RESULTFIRSTFILE",
+        "SONGSOUNDMODE",
+        "SOUNDFONT",
+        "TARGETHASH",
+        "LOADINGFILE",
+        "READYFILE",
+    ] {
         assert!(
             bmsrs_bms_analysis::Docs::header(command)
                 .is_some_and(|entry| entry.link.ends_with("/docs/kaleid.md")),

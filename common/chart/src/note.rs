@@ -159,9 +159,9 @@ pub enum NoteKind {
 /// Chart-level or per-note long-note type hint.
 ///
 /// `Ln` and `Cn` correspond to the BMSON v2 standard values `"ln"`/`"cn"`.
-/// `Hcn` is a beatoraja extension and is not part of v2. `Hln` combines the
-/// end-of-note judgment of a CN with the hold gauge of an HCN
-/// (`KaleidBeat` extension, declared by `#HLNOBJ` / `#LNMODE 4`).
+/// `Hcn` is a beatoraja extension and is not part of v2. `Hln` is HCN without
+/// the end judgment, so the pair counts as one judgment (`KaleidBeat`
+/// extension, declared by `#HLNOBJ` / `#LNMODE 4`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum LnTypeHint {
     /// Long note (LN): judged only on press.
@@ -171,8 +171,8 @@ pub enum LnTypeHint {
     Cn,
     /// Hell charge note (HCN): beatoraja extension, non-standard.
     Hcn,
-    /// Hell long note (HLN): end judgment plus hold gauge (`KaleidBeat`
-    /// extension, non-standard).
+    /// Hell long note (HLN): HCN hold behavior without the end judgment, one
+    /// judgment per pair (`KaleidBeat` extension, non-standard).
     Hln,
 }
 

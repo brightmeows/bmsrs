@@ -88,7 +88,7 @@ pub enum LnType {
 /// | `1` | LN | standard long note: press at the start, release at the end |
 /// | `2` | CN | charge note: hold through the note; no release required at the end |
 /// | `3` | HCN | hell charge note: like CN but with stricter judgment |
-/// | `4` | HLN | hell long note: end judgment plus hold gauge (`KaleidBeat`) |
+/// | `4` | HLN | hell long note: HCN without the end judgment, one judgment per pair (`KaleidBeat`) |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
 pub enum LnMode {
     /// Standard long note (`#LNMODE 1`).
@@ -103,7 +103,8 @@ pub enum LnMode {
     #[bms_token("3")]
     #[bms_token("03")]
     Hcn,
-    /// Hell long note (`#LNMODE 4`, `KaleidBeat` extension).
+    /// Hell long note (`#LNMODE 4`, `KaleidBeat` extension): HCN hold
+    /// behavior without the end judgment.
     #[bms_token("4")]
     #[bms_token("04")]
     Hln,
@@ -260,7 +261,8 @@ pub enum BmsHeaderGameplay {
     /// `#CNOBJ`: designates a `#WAV` index as a charge-note (CN) terminator
     /// marker on channels `#xxx11-29` (beatoraja extension). Same pairing
     /// rules as [`BmsHeaderGameplay::LnObj`]; notes ending on this marker are
-    /// charge notes.
+    /// charge notes. A normal note placed in the same lane and position as the
+    /// end object becomes the release sound.
     #[bms_token("#CNOBJ {}")]
     CnObj(LnObjIndex),
     /// `#HCNOBJ`: designates a `#WAV` index as a hell-charge-note (HCN)

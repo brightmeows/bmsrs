@@ -340,6 +340,13 @@ const EXTENSION_COMMANDS: &[&str] = &[
     "LOADINGFILE",
     "READYFILE",
     "BGAOVERFLOW",
+    "DECIDEFILE",
+    "PLAYSTOPFILE",
+    "RESULTFILE",
+    "RESULTCLEARFILE",
+    "RESULTFAILFILE",
+    "RESULTFIRSTFILE",
+    "SONGSOUNDMODE",
 ];
 
 /// Return the canonical name when `command` is a recognized dialect-extension
@@ -364,9 +371,10 @@ fn extension_command(command: &str) -> Option<&'static str> {
 ///
 /// Per-channel summaries live in [`Docs::channel`](crate::Docs::channel).
 ///
-/// `17` / `27` are deliberately not reported: in a standard chart they are the
-/// second key of each player, and only the dialect gives them a different
-/// meaning, so flagging them would mislabel ordinary charts.
+/// `17` / `27` are deliberately not reported: the manual treats them as the
+/// legacy free-zone form whose meaning the player infers from the chart's era,
+/// and other extensions (such as nanasi's foot pedal) also place objects
+/// there, so flagging them would mislabel ordinary charts.
 fn extension_channel_code(channel: BmsChannel) -> Option<String> {
     let text = match channel {
         BmsChannel::Note(index) | BmsChannel::Unknown(index) => index.to_string(),
