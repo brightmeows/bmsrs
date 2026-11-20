@@ -15,30 +15,9 @@ caller.
 `Player::new` derives `TimingTrack` from `EventKind::Bpm` and `EventKind::Stop`;
 the event stream is the only timing source.
 
-| Method | Purpose |
-|--------|---------|
-| `Player::new(chart)` | derives timing/caches/NoteTable from an already validated `Chart`; infallible |
-| `advance(Duration)` | pure playback-time accumulation (O(1)); ticks derived on demand |
-| `seek(Duration)` | jump to an absolute position |
-| `current_time() -> Duration` | current playback position (the only mutable state) |
-| `current_tick() -> u64` | rounded tick position (O(log n)) |
-| `current_tick_f64() -> f64` | continuous tick position for smooth scroll |
-| `duration_to_tick_f64(Duration)` | continuous time-to-tick conversion |
-
 During a STOP, `current_time()` keeps flowing while ticks freeze. Use
 `current_tick_f64()` for rendering positions; convert a tick through
 `tick_to_duration` when "before the pause" semantics are needed.
-
-## Queries
-
-| Query type | Purpose |
-|------------|---------|
-| Events | `events_in_range` (Bound-correct), `events_in_time_range([start, end))`, `next_event_after` |
-| Notes | `notes_in_range` returns `NoteRef`/`NotePoint`; `long_notes()`; `note(id)` |
-| Audio | `audio_assets()` plus time-range event queries |
-| BGA | `bga_resources()` plus time-range event queries |
-| Scroll/SPEED | `scroll_rate_at`, `scroll_position_at`, `scroll_position_at_f64`, `scroll_delta`, `spacing_at_time` |
-| Visibility | `Viewport::visible_notes_at`, `visible_long_notes_at`, `visible_lines_at`; delta-range variants `visible_notes_in` / `visible_long_notes_in` / `visible_lines_in` plus `max_scroll_delta_at` |
 
 `NoteTable` assigns stable `NoteId`s in event order and groups note ids by
 `(NoteSide, Lane)`. It does not store a `judgeable` flag.

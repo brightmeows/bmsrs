@@ -18,10 +18,7 @@ flowchart LR
     Proc --> Chart["Chart&lt;T&gt;"]
 ```
 
-| Stage | Crate | Responsibility |
-|-------|-------|----------------|
-| Type definition and deserialization | `bmsrs-bmson-model` | pure BMSON data model (v0/v1/v2) with serde deserialization |
-| Conversion | `bmsrs-bmson-processor` | `Bmson` (v2) to `Chart` |
+Stage responsibilities live in each crate's AGENTS.md.
 
 ## Version model
 
@@ -39,7 +36,5 @@ processor can handle them.
 
 ## Tests
 
-```bash
-cargo test -p bmsrs-bmson-model
-cargo test -p bmsrs-bmson-processor
-```
+Completion: `cargo test -p bmsrs-bmson-model` and
+`cargo test -p bmsrs-bmson-processor` green.

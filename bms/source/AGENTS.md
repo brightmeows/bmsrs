@@ -29,14 +29,6 @@ and control flow belong to the CST in `bmsrs-bms-syntax`.
   of multi-line `/* */` block comments
 - `LineKind`: `Blank` / `Comment` / `Text` / `Error`
 
-## Text bridge
-
-- `Document::to_text()`: removes the BOM, keeps original line endings, and uses
-  replacement characters for decode errors
-- `Document::try_to_text()`: strict variant returning `TextDecodeError`
-- `Document::render_line_indices(&[usize])`: selects 0-based lines, includes the
-  BOM, and slices unedited lines verbatim
-
 ## Comment state machine
 
 The state machine scans **raw bytes**, not decoded text. The reason: in every
@@ -45,34 +37,17 @@ line terminators never appear in the trailing byte of a multi-byte character
 (trailing bytes start at `0x40` in `Shift_JIS` / `GBK` / `Big5` and at `0xA1` in
 `EUC-KR` / `EUC-JP`). UTF-16 is scanned as 2-byte code units.
 
-| Syntax | Rule |
-|--------|------|
-| `//` | Opens a line comment when the previous character is whitespace or at line start; ignored inside strings |
-| `;` | Opens a whole-line comment only at line start (leading whitespace allowed) |
-| `/* */` | Not nested; may span lines; the content span freezes at the first comment |
-| `"..."` | Backslash escapes; string state is preserved across lines |
-
 ## Encoding
 
 - Supports every ASCII-compatible, stateless encoding plus UTF-16; rejects
   `ISO-2022-JP` (cross-line state) and `replacement` (cannot decode)
-- Detection order: BOM, `#CHARSET`, strict UTF-8, then `Shift_JIS` / `EUC-KR` /
-  `GBK` / `Big5`
-- When the `#CHARSET` declaration fails to decode, falls back to the candidate
-  table and reports `DetectionMethod::DeclaredFallback`
 - When encoding an edited line, checks the `had_unmappable` flag returned by
   `Encoding::encode`; that function replaces unmappable characters with numeric
   character references, so a true flag discards the result and returns an error
 
 ## Tests
 
-```bash
-cargo test -p bmsrs-bms-source
-```
-
-Public API tests live in `tests/` and cover byte roundtrips (each encoding and
-each terminator), line classification, the comment state machine, line editing,
-and encoding detection.
+Completion: `cargo test -p bmsrs-bms-source` green.
 
 ## Always / Ask / Never
 

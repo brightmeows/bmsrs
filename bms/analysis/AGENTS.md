@@ -8,13 +8,9 @@ repository.
 
 ## Output
 
-| Data | Description |
-|------|-------------|
-| `Analysis::diagnostics()` | CST syntax and control-flow diagnostics, tokenizer errors, duplicate definitions, missing references |
-| `Analysis::index()` | definitions and references for WAV / BMP / BGA / BPM / STOP / SCROLL / SPEED / EXRANK / CHANGEOPTION / TEXT / SEEK |
-| `Analysis::update(text)` | refresh the CST through `IncrementalParser` and rebuild diagnostics/index |
-| `Docs::header()` | English header command descriptions, matched by command prefix (`WAV01` gives `WAV`) |
-| `Docs::channel()` | English channel descriptions, including note-channel groups |
+`Analysis` carries CST/tokenizer diagnostics, duplicate-definition and
+missing-reference warnings, a symbol index over eleven resource kinds, and
+incremental refresh through `Analysis::update`.
 
 `docs.rs` is a manually maintained summary; the BMS command memo linked from
 each entry is authoritative. Check the memo before changing a summary; do not
@@ -22,19 +18,11 @@ treat `docs.rs` as the specification text.
 
 ## Index rules
 
-- Definitions: `#WAVxx` / `#EXWAVxx`, `#BMPxx` / `#EXBMPxx`, `#BGAxx` /
-  `#@BGAxx` / `#SWBGAxx` / `#ARGBxx`, `#BPMxx` / `#EXBPMxx`, `#STOPxx`,
-  `#SCROLLxx`, `#SPEEDxx`, `#EXRANKxx`, `#CHANGEOPTIONxx`, `#SEEKxx`,
-  `#TEXTxx` / `#SONGxx`; the `#LNOBJ` family carries its id as the command
-  **value**, so it is read from the parsed header rather than a name suffix
+- Definitions and reference rules live in the rustdoc on `Analysis` and
+  `SymbolIndex`; `docs.rs` stays a summary, not the specification.
 - `KaleidBeat` dialect lines produce Information diagnostics with the stable
-  code `extension` and are excluded from reference indexing; recognition and
-  per-command / per-channel summaries live in `Docs` (`analysis.rs`, `docs.rs`)
-- The dialect's format manual is not a website: it ships in the release
-  archive as `KaleidBeat/documents/format-header.html` (`format-channel.html`,
-  `format-bmd.html`). Cite that manual rather than re-deriving semantics from
-  code; bmz-player's `docs/kaleid.md` is a secondary implementation contract
-  and loses to the manual when they disagree
+  code `extension` and are excluded from reference indexing. The shipped manual
+  is authoritative; bmz-player's `docs/kaleid.md` is a secondary contract.
 - References: non-`00` two-character values in channel bodies; the channel kind
   determines the resource kind
 - Non-canonical addresses (such as `#1:0101`) fall back to
@@ -52,13 +40,7 @@ treat `docs.rs` as the specification text.
 
 ## Tests
 
-```bash
-cargo test -p bmsrs-bms-analysis
-```
-
-Coverage: definition/reference indices, incremental updates, missing references, duplicate
-definitions, BGA to BMP fallback, control-flow diagnostics, header value errors,
-and documentation lookup.
+Completion: `cargo test -p bmsrs-bms-analysis` green.
 
 ## Always / Ask / Never
 

@@ -9,15 +9,6 @@ the player.
 (`bmsrs-bms-*`, `bmsrs-bmson-*`) or on `bmsrs-player`; see `../AGENTS.md`
 for the full rule.
 
-## Time model
-
-| Domain | Type | Use |
-|--------|------|-----|
-| Tick | `u64` | all event positions, LN durations |
-| Stop pause | `Duration` | `EventKind::Stop`'s `duration`; precise time, not quantized to ticks |
-| Time | `Duration` | `AudioAsset.start`, `Player::duration()` |
-| Musical time | `Duration` | `TimingTrack::tick_to_musical_duration`, excluding STOP pauses; used for audio slicing |
-
 `resolution` defines ticks per quarter note (default 240).
 
 `ChartData` stores the scalar timing configuration (`init_bpm`, `resolution`)

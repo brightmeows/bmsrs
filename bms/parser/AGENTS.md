@@ -8,34 +8,14 @@ warnings, and the `BmsParser` entry points.
 
 ## Entry points
 
-- `BmsParser::parse` / `parse_with`: build from the selected branches of a
-  `SourceFile`; warnings cover selected lines only.
-- `BmsParser::parse_doc` / `parse_doc_with`: tokenize every line from a
-  `Document`; errors in unselected branches also become warnings.
-- `BmsParser::parse_from_selection` / `parse_from_selection_with`: replay a
-  recorded `BranchSelection` strictly; drift fails with `BranchMismatch`.
-- `tokenize_lines` / `tokenize_lines_with`: `LineToken` with 1-based line
-  numbers.
-- `ErrorStrategy::CollectAll` collects everything; `FailFast` returns the first
-  `BmsParseWarning` sorted by line number.
-
-## Warnings
-
-| Type | Content |
-|------|---------|
-| `BmsParseWarning` | line number, text range, and category |
-| `BmsParseWarningKind::Syntax` | CST syntax or control-flow diagnostic |
-| `BmsParseWarningKind::Tokenize` | single-line value parse error |
-| `BmsParseWarningKind::Decode` | source text decode error |
+`BmsParser` and its warning semantics are documented on the type. Key
+distinction: `parse`/`parse_with` report warnings from selected branches only;
+`parse_document` collects warnings from every line; `parse_from_selection`
+replays a recorded `BranchSelection` strictly.
 
 ## Tests
 
-```bash
-cargo test -p bmsrs-bms-parser
-```
-
-Coverage: branch selection, selected vs unselected warnings, custom header
-prefixes, and tokenizer error handling.
+Completion: `cargo test -p bmsrs-bms-parser` green.
 
 ## Always / Ask / Never
 

@@ -7,16 +7,6 @@ error-tolerant parsing, nested control flow, and branch-selection queries. It
 does not handle byte encoding (`bmsrs-bms-source`) or semantic value parsing
 (`bmsrs-bms-parser`).
 
-## Core invariants
-
-| Invariant | Meaning |
-|-----------|---------|
-| Lossless | Every character enters a token; `SyntaxNode::text()` reconstructs the input |
-| Error-tolerant | Invalid lines, unclosed blocks, and orphan directives never panic; errors become `Diagnostic` |
-| Line-oriented | Every line has at least one `Line` node; control-flow blocks nest under `SourceFile` |
-| Semantics-free | Does not construct `BmsHeader` / `BmsMessage`; keeps only command names and value text |
-| Branches optional | The CST keeps all branches; `select_lines` returns the selected lines for a random value |
-
 ## Tree shape
 
 ```text
@@ -48,26 +38,15 @@ SourceFile
 - Invalid content is wrapped in `ErrorLine` or `ErrorToken`, preserving the
   original text where possible
 
-## API
+## API notes
 
-- `SourceFile::parse(text)` returns `SyntaxParse`; `SyntaxParse::source_file()` / `errors()`
-- `IncrementalParser::new(text, options)` / `update(text)` / `parse()` reuses
-  the green tree for single-line content edits, re-lexes only the changed line,
-  and falls back to a full parse for control-flow text or structural edits
-- `SourceFile::parse_with(text, &ParseOptions)` supports custom header prefixes
-- `SourceFile::parse_document(&Document)` / `parse_document_with` enter the CST
-  from a lossless document
-- `SourceFile::lines()` iterates all lines depth-first
-- `SyntaxLine::command_name()` / `value()` / `measure()` / `channel()` / `body_chunks()`
-- `SyntaxLine::content_range()` returns the first-to-last non-trivia token range
-- `SourceFile::select_lines(rng)` returns `(Vec<SyntaxLine>, BranchSelection)`;
-  `rng(max)` returns `[1, max]`, and `#SETRANDOM` / `#SETSWITCH` do not call it
-- `SourceFile::select_lines_with(&BranchSelection)` replays recorded decisions
-  strictly; drift in block count, kind, or declared bound fails with
-  `BranchMismatch`. `BlockDecision` records kind, declared max, value, and
-  selected index
-- `ParseOptions.header_prefixes` defaults to `['#', '%']`; non-default prefixes
-  produce a `Prefix` token
+- `IncrementalParser` reuses the green tree for single-line content edits,
+  re-lexes only the changed line, and falls back to a full parse for
+  control-flow or structural edits
+- `select_lines_with` replay is strict: drift in block count, kind, or declared
+  bound fails with `BranchMismatch`; `#SETRANDOM` / `#SETSWITCH` values are
+  taken from the current file, not the recording
+- `ParseOptions.header_prefixes` defaults to `['#', '%']`
 
 ## Control-flow selection
 
@@ -82,20 +61,9 @@ SourceFile
 
 ## Tests
 
-```bash
-cargo test -p bmsrs-bms-syntax
-```
-
-Public API tests live in `tests/` and cover losslessness, inline tokens, nested
-control flow, error recovery, and branch selection. Add a lossless assertion
-when adding a syntax node.
-
-```bash
-cargo bench -p bmsrs-bms-syntax --bench incremental -- --quick
-```
-
-The incremental benchmark covers 1k/10k/20k/50k lines and compares a single
-line edit against a full parse.
+Completion: `cargo test -p bmsrs-bms-syntax` green; the incremental benchmark
+(`--bench incremental -- --quick`) compares single-line edits against a full
+parse.
 
 ## Always / Ask / Never
 
@@ -104,7 +72,8 @@ line edit against a full parse.
 - Add a new token/node to `SyntaxKind` first, then update the lexer, parser, and
   builder together
 - Keep every character in exactly one token; use `SyntaxNode::text()` for
-  regression checks
+  regression checks; add a lossless assertion to the integration tests when
+  adding a syntax node
 - Control-flow directive lines produce structure nodes only; do not stuff
   payload into them
 
