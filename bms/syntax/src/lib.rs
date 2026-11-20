@@ -17,6 +17,7 @@ mod ast;
 mod language;
 mod lexer;
 mod parser;
+mod random;
 mod select;
 mod syntax_kind;
 
@@ -24,8 +25,9 @@ pub use ast::{SourceFile, SyntaxLine};
 pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, SyntaxToken};
 pub use lexer::SyntaxLineKind;
 pub use parser::{Diagnostic, DiagnosticKind, IncrementalParser, SyntaxParse};
+pub use random::{ControlFlowRng, LR2_SEED_MAX, Lr2Mt19937};
 pub use rowan::{TextRange, TextSize};
-pub use select::{BlockDecision, BlockKind, BranchMismatch, BranchSelection};
+pub use select::{BlockDecision, BlockKind, BranchMismatch, BranchSelection, ControlFlowCompat};
 pub use syntax_kind::SyntaxKind;
 
 /// Syntax parsing options.
@@ -33,12 +35,15 @@ pub use syntax_kind::SyntaxKind;
 pub struct ParseOptions {
     /// Allowed header command prefix characters; defaults to `['#', '%']`.
     pub header_prefixes: Vec<char>,
+    /// Control-flow compatibility mode; defaults to [`ControlFlowCompat::Ideal`].
+    pub control_flow_compat: ControlFlowCompat,
 }
 
 impl Default for ParseOptions {
     fn default() -> Self {
         Self {
             header_prefixes: vec!['#', '%'],
+            control_flow_compat: ControlFlowCompat::Ideal,
         }
     }
 }

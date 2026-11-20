@@ -5,7 +5,7 @@
 //! fallback, `#SKIP` fall-through, multiple blocks, nesting, zero values, and
 //! deep nesting.
 
-use bmsrs_bms_syntax::{SourceFile, SyntaxLine};
+use bmsrs_bms_syntax::{ControlFlowCompat, Lr2Mt19937, SourceFile, SyntaxLine};
 
 /// Test RNG that returns preset random values in order.
 struct SequenceRng {
@@ -260,4 +260,84 @@ fn deep_nested_random_10_levels_does_not_panic() {
         (wavs(&lines), selection.decisions().len()),
         (vec!["deep.wav".to_owned()], 10)
     );
+}
+
+#[test]
+fn jbms_mode_clamps_random_zero_and_draws_once() {
+    let file = SourceFile::parse("#RANDOM 0\n#IF 1\n#00111:01\n#ENDIF\n").source_file();
+    let mut draws = 0;
+    let (lines, selection) = file.select_lines_with_compat(
+        |max| {
+            draws += 1;
+            assert_eq!(max, 1);
+            1
+        },
+        ControlFlowCompat::Jbms,
+    );
+    assert_eq!(draws, 1);
+    assert_eq!(selection.decisions()[0].value(), 1);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.channel().is_some_and(|channel| channel.text() == "11"))
+    );
+}
+
+#[test]
+fn ideal_mode_keeps_random_zero_from_drawing() {
+    let file = SourceFile::parse("#RANDOM 0\n#IF 1\n#00111:01\n#ENDIF\n").source_file();
+    let mut draws = 0;
+    let (_lines, selection) = file.select_lines(|_| {
+        draws += 1;
+        1
+    });
+    assert_eq!(draws, 0);
+    assert_eq!(selection.decisions()[0].value(), 0);
+}
+
+#[test]
+fn jbms_mode_keeps_else_body_under_the_matching_if() {
+    let text = "#RANDOM 2\n#IF 1\n#00111:01\n#ELSE\n#00112:02\n#ENDIF\n";
+    let file = SourceFile::parse(text).source_file();
+
+    let (lines, _) = file.select_lines_with_compat(|_| 1, ControlFlowCompat::Jbms);
+    let kept: Vec<_> = lines
+        .iter()
+        .filter_map(|line| line.channel().map(|channel| channel.text().to_owned()))
+        .collect();
+    assert_eq!(kept, ["11", "12"]);
+
+    let (else_lines, _) = file.select_lines_with_compat(|_| 2, ControlFlowCompat::Jbms);
+    assert!(else_lines.iter().all(|line| line.channel().is_none()));
+}
+
+#[test]
+fn ideal_mode_treats_else_as_a_fallback() {
+    let text = "#RANDOM 2\n#IF 1\n#00111:01\n#ELSE\n#00112:02\n#ENDIF\n";
+    let file = SourceFile::parse(text).source_file();
+
+    let (if_lines, _) = file.select_lines_with_compat(|_| 1, ControlFlowCompat::Ideal);
+    let kept: Vec<_> = if_lines
+        .iter()
+        .filter_map(|line| line.channel().map(|channel| channel.text().to_owned()))
+        .collect();
+    assert_eq!(kept, ["11"]);
+
+    let (fallback_lines, _) = file.select_lines_with_compat(|_| 2, ControlFlowCompat::Ideal);
+    let fallback_kept: Vec<_> = fallback_lines
+        .iter()
+        .filter_map(|line| line.channel().map(|channel| channel.text().to_owned()))
+        .collect();
+    assert_eq!(fallback_kept, ["12"]);
+}
+
+#[test]
+fn lr2_rng_state_continues_into_the_lane_shuffle() {
+    let file = SourceFile::parse("#RANDOM 2\n#IF 1\n#00111:01\n#ENDIF\n").source_file();
+    let mut rng = Lr2Mt19937::new(391);
+    let (_lines, _selection) = file.select_lines_with_rng(&mut rng, ControlFlowCompat::Jbms);
+    // One `#RANDOM` draw happened; the shuffle continues from that state.
+    let table = rng.shuffle_key_table(7);
+    assert_eq!(table.len(), 8);
+    assert_ne!(table, [0, 1, 2, 3, 4, 5, 6, 7].map(|v: usize| v));
 }

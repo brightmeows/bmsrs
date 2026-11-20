@@ -158,6 +158,7 @@ fn token_at_offset_finds_command_name() {
 fn custom_header_prefix_is_recognized() {
     let options = ParseOptions {
         header_prefixes: vec!['@'],
+        ..ParseOptions::default()
     };
     let parse = SourceFile::parse_with("@TITLE Song\n", &options);
     let line = parse
