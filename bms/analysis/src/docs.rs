@@ -33,14 +33,10 @@ pub struct ChannelDoc {
 /// Link to the BMS command memo.
 const MEMO: &str = "https://hitkey.nekokan.dyndns.info/cmdsJP.htm";
 
-/// Link to the reference implementation of the `KaleidBeat` conditional
-/// blocks.
-const KALEID_CONDITIONAL: &str =
-    "https://github.com/hyrorre/bmz-player/blob/main/crates/bmz-chart/src/conditional.rs";
-
-/// Link to the reference implementation of the remaining `KaleidBeat`
-/// dialect commands and channels.
-const KALEID_ADAPTER: &str = "https://github.com/hyrorre/bmz-player/blob/main/crates/bmz-chart/src/import/bms_rs_adapter/kaleid.rs";
+/// Link to the `KaleidBeat` extension contract as documented by the reference
+/// implementation. This is the only written specification of the dialect; no
+/// upstream format document exists.
+const KALEID: &str = "https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md";
 
 /// Header command table.
 static HEADER_DOCS: &[HeaderDoc] = &[
@@ -528,67 +524,67 @@ static HEADER_DOCS: &[HeaderDoc] = &[
         command: "CONDITIONAL",
         title: "#CONDITIONAL",
         summary: "Starts a KaleidBeat conditional block evaluated at a measure position during play (dialect; preserved verbatim).",
-        link: KALEID_CONDITIONAL,
+        link: KALEID,
     },
     HeaderDoc {
         command: "WHEN",
         title: "#WHEN",
         summary: "Branch inside a KaleidBeat #CONDITIONAL block, guarded by a play-state comparison (dialect; preserved verbatim).",
-        link: KALEID_CONDITIONAL,
+        link: KALEID,
     },
     HeaderDoc {
         command: "ELSEWHEN",
         title: "#ELSEWHEN",
         summary: "Alternative branch inside a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
-        link: KALEID_CONDITIONAL,
+        link: KALEID,
     },
     HeaderDoc {
         command: "DEFAULT",
         title: "#DEFAULT",
         summary: "Fallback branch of a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
-        link: KALEID_CONDITIONAL,
+        link: KALEID,
     },
     HeaderDoc {
         command: "ENDCONDITIONAL",
         title: "#ENDCONDITIONAL",
         summary: "Ends a KaleidBeat #CONDITIONAL block (dialect; preserved verbatim).",
-        link: KALEID_CONDITIONAL,
+        link: KALEID,
     },
     HeaderDoc {
         command: "BMD",
         title: "#BMD",
-        summary: "KaleidBeat dialect marker (preserved verbatim).",
-        link: KALEID_ADAPTER,
+        summary: "KaleidBeat dialect marker: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        link: KALEID,
     },
     HeaderDoc {
         command: "SOUNDFONT",
         title: "#SOUNDFONT",
-        summary: "KaleidBeat sound-font declaration (dialect; preserved verbatim).",
-        link: KALEID_ADAPTER,
+        summary: "KaleidBeat sound-font declaration: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        link: KALEID,
     },
     HeaderDoc {
         command: "TARGETHASH",
         title: "#TARGETHASH",
-        summary: "KaleidBeat target-file hash constraint (dialect; preserved verbatim).",
-        link: KALEID_ADAPTER,
+        summary: "KaleidBeat target-file hash constraint: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        link: KALEID,
     },
     HeaderDoc {
         command: "LOADINGFILE",
         title: "#LOADINGFILE",
-        summary: "KaleidBeat loading-screen image (dialect; preserved verbatim).",
-        link: KALEID_ADAPTER,
+        summary: "KaleidBeat loading-screen image: named in the contract but deliberately unimplemented there too (preserved verbatim).",
+        link: KALEID,
     },
     HeaderDoc {
         command: "READYFILE",
         title: "#READYFILE",
-        summary: "KaleidBeat ready-screen image (dialect; preserved verbatim).",
-        link: KALEID_ADAPTER,
+        summary: "KaleidBeat ready-screen image: named in the contract but deliberately unimplemented there too (preserved verbatim).",
+        link: KALEID,
     },
     HeaderDoc {
         command: "BGAOVERFLOW",
         title: "#BGAOVERFLOW",
-        summary: "KaleidBeat BGA overflow behavior switch (dialect; preserved verbatim).",
-        link: KALEID_ADAPTER,
+        summary: "KaleidBeat BGA overflow switch: recognized by name only; the extension contract models no semantics (preserved verbatim).",
+        link: KALEID,
     },
 ];
 
@@ -845,10 +841,11 @@ const fn note_channel_doc(code: &str) -> Option<ChannelDoc> {
 
 /// Description for a `KaleidBeat` dialect channel.
 ///
-/// `ST` forces a bar line at its object positions. `SF`/`SG`/`SH`/`SI` and the
-/// `17`/`27` aliases delimit free zones (one-shot by position value, or paired
-/// start/end): notes inside them are excluded from judgment and scoring in the
-/// dialect. `F`-`O` carry the dialect's recovery and dummy objects.
+/// `ST` only draws bar lines. `SF`/`SH` open a free zone lasting one beat;
+/// `SG`/`SI` delimit one by paired start/end objects; `17`/`27` are the legacy
+/// forms of the same idea. Free zones collapse the notes inside them into a
+/// single scored zone. `F`-`O` carry the dialect's recovery and dummy objects.
+/// The contract text is the {@link KALEID} document linked from each entry.
 fn extension_channel_doc(code: &str) -> Option<ChannelDoc> {
     let (title, summary) = match code {
         "ST" => (
@@ -857,19 +854,19 @@ fn extension_channel_doc(code: &str) -> Option<ChannelDoc> {
         ),
         "SF" | "17" => (
             "SF free zone (1P)",
-            "KaleidBeat: starts a 1P free zone; notes inside are excluded from judgment and scoring (preserved verbatim).",
+            "KaleidBeat: opens a 1P free zone lasting one beat; notes inside collapse to a single scored zone (preserved verbatim).",
         ),
         "SH" | "27" => (
             "SH free zone (2P)",
-            "KaleidBeat: starts a 2P free zone; notes inside are excluded from judgment and scoring (preserved verbatim).",
+            "KaleidBeat: opens a 2P free zone lasting one beat; notes inside collapse to a single scored zone (preserved verbatim).",
         ),
         "SG" => (
             "SG free zone pair (1P)",
-            "KaleidBeat: paired 1P free-zone delimiter; the first object opens the zone and the next closes it (preserved verbatim).",
+            "KaleidBeat: paired 1P free-zone delimiter; the first object is the start and the next is the end. The 17 alias keeps its standard note meaning outside dialect charts (preserved verbatim).",
         ),
         "SI" => (
             "SI free zone pair (2P)",
-            "KaleidBeat: paired 2P free-zone delimiter; the first object opens the zone and the next closes it (preserved verbatim).",
+            "KaleidBeat: paired 2P free-zone delimiter; the first object is the start and the next is the end. The 27 alias keeps its standard note meaning outside dialect charts (preserved verbatim).",
         ),
         _ => {
             let bytes = code.as_bytes();
@@ -908,6 +905,6 @@ fn extension_channel_doc(code: &str) -> Option<ChannelDoc> {
         code: "ST",
         title,
         summary,
-        link: KALEID_ADAPTER,
+        link: KALEID,
     })
 }

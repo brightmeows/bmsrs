@@ -275,6 +275,21 @@ fn kaleid_extension_channels_have_hover_docs() {
             "{code}"
         );
     }
+    // Every dialect entry links to the contract document, not the repo root.
+    for code in ["ST", "SF", "SG", "SH", "SI", "F1", "J1"] {
+        assert!(
+            bmsrs_bms_analysis::Docs::channel(code)
+                .is_some_and(|entry| entry.link.ends_with("/docs/kaleid.md")),
+            "missing contract link for {code}"
+        );
+    }
+    for command in ["CONDITIONAL", "WHEN", "BMD", "BGAOVERFLOW"] {
+        assert!(
+            bmsrs_bms_analysis::Docs::header(command)
+                .is_some_and(|entry| entry.link.ends_with("/docs/kaleid.md")),
+            "missing contract link for {command}"
+        );
+    }
     // Standard channels keep their docs.
     assert!(bmsrs_bms_analysis::Docs::channel("17").is_some());
 }
