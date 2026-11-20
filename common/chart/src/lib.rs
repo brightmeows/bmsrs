@@ -180,6 +180,14 @@ pub struct ChartInfo {
     /// Maximum life gauge increase (`#TOTAL`). `None` means the source did not
     /// specify it.
     pub total: Option<f64>,
+    /// Source `TOTAL` as a percentage of the engine's default gauge total.
+    ///
+    /// Unlike [`total`](Self::total), this keeps the bmson `info.total`
+    /// percentage uninterpreted: the conversion into a concrete gauge total
+    /// depends on the engine's note-count formula and stays with the caller.
+    /// `None` for BMS (where `#TOTAL` is already the concrete value) and when
+    /// bmson omits the field.
+    pub total_percent: Option<f64>,
     /// Master volume percentage (`#VOLWAV`; `100` is the original volume).
     /// `None` means the source did not specify it.
     pub volwav_percent: Option<u8>,

@@ -1230,3 +1230,15 @@ fn process_poor_event_referencing_sequence_clip() -> TestResult {
     assert_eq!(poor, vec![Some(bmsrs_chart::BgaResourceId::new(2))]);
     Ok(())
 }
+
+#[test]
+fn bmson_total_percent_stays_uninterpreted() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.life_multiplier = 1.2;
+    let processed = BmsonProcessor::process_default(&bmson)?;
+
+    let info = processed.value.chart_info();
+    assert_eq!(info.total_percent, Some(120.0));
+    assert_eq!(info.total, None);
+    Ok(())
+}

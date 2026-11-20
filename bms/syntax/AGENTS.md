@@ -77,7 +77,8 @@ SourceFile
 | `#SETRANDOM` | Uses a fixed value and does not call the RNG |
 | `#SWITCH` | One random value per block; after the first matching `#CASE`, falls through until a case with `#SKIP` |
 | `#DEF` | Always matches |
-| Zero value | `#RANDOM 0` / `#SWITCH 0` are treated as no match and do not panic |
+| Zero value | `#RANDOM 0` / `#SWITCH 0` are treated as no match and do not panic; `ControlFlowCompat::Jbms` clamps to `1` and draws once |
+| RNG ownership | `select_lines_with_rng` leaves the generator with the caller so the stream continues (LR2's RANDOM lane option relies on it); `random` provides `Lr2Mt19937`, and the facade's `JavaRandom` implements the same draw contract |
 
 ## Tests
 
