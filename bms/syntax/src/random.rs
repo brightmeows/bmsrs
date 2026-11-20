@@ -56,7 +56,7 @@ impl Lr2Mt19937 {
     pub fn new(seed: u32) -> Self {
         let mut state = Box::new([0u32; N]);
         let mut step = seed;
-        for word in &mut state {
+        for word in &mut *state {
             *word = step & 0xFFFF_0000;
             step = step.wrapping_mul(69_069).wrapping_add(1);
             *word |= (step & 0xFFFF_0000) >> 16;
