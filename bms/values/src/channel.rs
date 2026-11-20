@@ -76,6 +76,14 @@ pub enum BmsChannel {
     /// Channel `SP`: SPEED (visual note spacing).
     Speed,
 
+    // KaleidBeat extension channels (non-hexadecimal)
+    /// A `KaleidBeat` extension channel.
+    ///
+    /// `KaleidBeat` extension: these channels are not defined by the BMS
+    /// specification or beatoraja. The typed inner value keeps the player
+    /// side, lane, and paired/one-shot distinction.
+    Extension(ExtensionChannel),
+
     // Note channels
     /// A note channel in one of the known playable ranges:
     /// `11-1Z`, `21-2Z`, `31-3Z`, `41-4Z`, `51-5Z`, `61-6Z`,
@@ -89,6 +97,145 @@ pub enum BmsChannel {
     /// Unknown or reserved channel (such as `00`, `0F`, `10`, `20`, `70-96`,
     /// `ZZ`, and so on).
     Unknown(ChannelIndex),
+}
+
+/// A `KaleidBeat` extension channel.
+///
+/// `KaleidBeat` extension: none of these channels are defined by the BMS
+/// specification or beatoraja. `side` is 1 for 1P and 2 for 2P; `lane` is the
+/// key or scratch lane number from the channel suffix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtensionChannel {
+    /// Potion note (`F1`-`F9` for 1P, `G1`-`G9` for 2P).
+    Potion {
+        /// Player side (1 or 2).
+        side: u8,
+        /// Lane number (1-9).
+        lane: u8,
+    },
+    /// Display-only dummy tap (`H1`-`H9` for 1P, `I1`-`I9` for 2P).
+    DummyTap {
+        /// Player side (1 or 2).
+        side: u8,
+        /// Lane number (1-9).
+        lane: u8,
+    },
+    /// Display-only dummy long note (`J1`-`J9` for 1P, `K1`-`K9` for 2P).
+    DummyLong {
+        /// Player side (1 or 2).
+        side: u8,
+        /// Lane number (1-9).
+        lane: u8,
+    },
+    /// Display-only dummy mine (`L1`-`L9` for 1P, `M1`-`M9` for 2P).
+    DummyMine {
+        /// Player side (1 or 2).
+        side: u8,
+        /// Lane number (1-9).
+        lane: u8,
+    },
+    /// Display-only dummy potion (`N1`-`N9` for 1P, `O1`-`O9` for 2P).
+    DummyPotion {
+        /// Player side (1 or 2).
+        side: u8,
+        /// Lane number (1-9).
+        lane: u8,
+    },
+    /// Additional bar line object (`ST`).
+    BarLine,
+    /// Scratch free zone (`SF`/`SG` for 1P, `SH`/`SI` for 2P).
+    ///
+    /// `paired` is true for the start/end form (`SG`/`SI`) and false for the
+    /// one-shot form (`SF`/`SH`).
+    FreeZone {
+        /// Player side (1 or 2).
+        side: u8,
+        /// Whether the channel uses the paired start/end form.
+        paired: bool,
+    },
+}
+
+impl ExtensionChannel {
+    /// Return the player side, or `None` for the side-independent bar line.
+    #[must_use]
+    pub const fn side(self) -> Option<u8> {
+        match self {
+            Self::Potion { side, .. }
+            | Self::DummyTap { side, .. }
+            | Self::DummyLong { side, .. }
+            | Self::DummyMine { side, .. }
+            | Self::DummyPotion { side, .. }
+            | Self::FreeZone { side, .. } => Some(side),
+            Self::BarLine => None,
+        }
+    }
+
+    /// Return the lane number, or `None` for side-independent channels.
+    #[must_use]
+    pub const fn lane(self) -> Option<u8> {
+        match self {
+            Self::Potion { lane, .. }
+            | Self::DummyTap { lane, .. }
+            | Self::DummyLong { lane, .. }
+            | Self::DummyMine { lane, .. }
+            | Self::DummyPotion { lane, .. } => Some(lane),
+            Self::BarLine | Self::FreeZone { .. } => None,
+        }
+    }
+
+    /// Return whether this is the paired free-zone form.
+    #[must_use]
+    pub const fn is_paired(self) -> bool {
+        matches!(self, Self::FreeZone { paired: true, .. })
+    }
+}
+
+impl fmt::Display for ExtensionChannel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Potion { side, lane } => {
+                f.write_str(if side == 1 { "F" } else { "G" })?;
+                write!(f, "{lane}")
+            }
+            Self::DummyTap { side, lane } => {
+                f.write_str(if side == 1 { "H" } else { "I" })?;
+                write!(f, "{lane}")
+            }
+            Self::DummyLong { side, lane } => {
+                f.write_str(if side == 1 { "J" } else { "K" })?;
+                write!(f, "{lane}")
+            }
+            Self::DummyMine { side, lane } => {
+                f.write_str(if side == 1 { "L" } else { "M" })?;
+                write!(f, "{lane}")
+            }
+            Self::DummyPotion { side, lane } => {
+                f.write_str(if side == 1 { "N" } else { "O" })?;
+                write!(f, "{lane}")
+            }
+            Self::BarLine => f.write_str("ST"),
+            Self::FreeZone {
+                side: 1,
+                paired: false,
+            } => f.write_str("SF"),
+            Self::FreeZone {
+                side: 1,
+                paired: true,
+            } => f.write_str("SG"),
+            Self::FreeZone {
+                side: 2,
+                paired: false,
+            } => f.write_str("SH"),
+            Self::FreeZone {
+                side: 2,
+                paired: true,
+            } => f.write_str("SI"),
+            Self::FreeZone { side, .. } => {
+                // Construction keeps side at 1 or 2; this arm is defensive.
+                write!(f, "S{side}")
+            }
+        }
+    }
 }
 
 // Construction
@@ -115,6 +262,7 @@ impl BmsChannel {
     pub fn as_str(&self) -> std::borrow::Cow<'_, str> {
         match self {
             Self::Note(idx) | Self::Unknown(idx) => std::borrow::Cow::Owned(idx.to_string()),
+            Self::Extension(ext) => std::borrow::Cow::Owned(ext.to_string()),
             fixed => std::borrow::Cow::Borrowed(fixed_number(*fixed)),
         }
     }
@@ -149,8 +297,8 @@ const fn fixed_number(ch: BmsChannel) -> &'static str {
         BmsChannel::Option => "A6",
         BmsChannel::Scroll => "SC",
         BmsChannel::Speed => "SP",
-        // Variants carrying an index are handled in `as_str`.
-        BmsChannel::Note(_) | BmsChannel::Unknown(_) => "",
+        // Variants carrying data are handled in `as_str`.
+        BmsChannel::Note(_) | BmsChannel::Unknown(_) | BmsChannel::Extension(_) => "",
     }
 }
 
@@ -230,7 +378,37 @@ pub fn classify_channel(ch: ChannelIndex) -> BmsChannel {
                 (b'A', b'6') => return BmsChannel::Option,
                 (b'S', b'C') => return BmsChannel::Scroll,
                 (b'S', b'P') => return BmsChannel::Speed,
+                (b'S', b'T') => return BmsChannel::Extension(ExtensionChannel::BarLine),
+                (b'S', b'F') => {
+                    return BmsChannel::Extension(ExtensionChannel::FreeZone {
+                        side: 1,
+                        paired: false,
+                    });
+                }
+                (b'S', b'G') => {
+                    return BmsChannel::Extension(ExtensionChannel::FreeZone {
+                        side: 1,
+                        paired: true,
+                    });
+                }
+                (b'S', b'H') => {
+                    return BmsChannel::Extension(ExtensionChannel::FreeZone {
+                        side: 2,
+                        paired: false,
+                    });
+                }
+                (b'S', b'I') => {
+                    return BmsChannel::Extension(ExtensionChannel::FreeZone {
+                        side: 2,
+                        paired: true,
+                    });
+                }
                 _ => {}
+            }
+
+            // KaleidBeat potion and dummy channels: F-O plus a lane digit.
+            if let Some(extension) = extension_channel(first, second) {
+                return BmsChannel::Extension(extension);
             }
 
             // Note channel detection.
@@ -255,6 +433,36 @@ pub fn classify_channel(ch: ChannelIndex) -> BmsChannel {
             unreachable!("ChannelIndex::as_bytes() returns 1 or 2 bytes")
         }
     }
+}
+
+/// Classify a `KaleidBeat` potion or dummy channel.
+///
+/// Returns `None` for every other pair of bytes.
+fn extension_channel(first: u8, second: u8) -> Option<ExtensionChannel> {
+    let lane = second.checked_sub(b'0')?;
+    if !(1..=9).contains(&lane) {
+        return None;
+    }
+    let (side, kind) = match first {
+        b'F' => (1, 0u8),
+        b'G' => (2, 0),
+        b'H' => (1, 1),
+        b'I' => (2, 1),
+        b'J' => (1, 2),
+        b'K' => (2, 2),
+        b'L' => (1, 3),
+        b'M' => (2, 3),
+        b'N' => (1, 4),
+        b'O' => (2, 4),
+        _ => return None,
+    };
+    Some(match kind {
+        0 => ExtensionChannel::Potion { side, lane },
+        1 => ExtensionChannel::DummyTap { side, lane },
+        2 => ExtensionChannel::DummyLong { side, lane },
+        3 => ExtensionChannel::DummyMine { side, lane },
+        _ => ExtensionChannel::DummyPotion { side, lane },
+    })
 }
 
 // Accessors
@@ -294,7 +502,7 @@ impl BmsChannel {
             Self::BgaArgbPoor => Some(0xA4),
             Self::BgaKeyBound => Some(0xA5),
             Self::Option => Some(0xA6),
-            Self::Scroll | Self::Speed => None,
+            Self::Scroll | Self::Speed | Self::Extension(_) => None,
             Self::Note(raw) | Self::Unknown(raw) => raw.as_u8_hex(),
         }
     }
@@ -331,6 +539,7 @@ impl fmt::Display for BmsChannel {
             Self::Option => f.write_str("A6"),
             Self::Scroll => f.write_str("SC"),
             Self::Speed => f.write_str("SP"),
+            Self::Extension(ext) => fmt::Display::fmt(ext, f),
             Self::Note(raw) | Self::Unknown(raw) => fmt::Display::fmt(raw, f),
         }
     }

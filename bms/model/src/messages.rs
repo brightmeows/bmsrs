@@ -608,6 +608,7 @@ impl Messages {
             | BmsChannel::BgaKeyBound
             | BmsChannel::Seek
             | BmsChannel::Option
+            | BmsChannel::Extension(_)
             | BmsChannel::Unknown(_) => {
                 let values = normalize_merged_values(&merged, BmsBase::Base36);
                 self.non_event_data.push(NonEventData {

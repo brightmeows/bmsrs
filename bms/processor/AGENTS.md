@@ -9,13 +9,14 @@ The processor performs **lossy conversions**: merge priority (`#BGA`/`#BMP`),
 reference resolution (WAV/BPM), and table lookup (def tables) all live here. See
 `bms/AGENTS.md` for domain-level criteria.
 
-`Processed` carries two sidecars in addition to `chart`; recoverable warnings
+`Processed` carries three sidecars in addition to `chart`; recoverable warnings
 come back in the `bmsrs_pipeline::Outcome` wrapper:
 
 | Field | Content |
 |-------|---------|
 | `gameplay` | raw values of `#PLAYER`/`#EXRANKxx`/`#OPTION`/`#CHANGEOPTIONxx` |
 | `audio` | raw values of `#EXWAV` parameters, `#WAVCMD`, `#CDDA`, `#MIDIFILE`, `#PATH_WAV` |
+| `kaleid` | `KaleidBeat` declarations and extension-channel objects; `None` for ordinary charts |
 
 `#PATH_WAV` is applied to `AudioAsset.path` as well; the sidecar keeps the raw
 prefix.

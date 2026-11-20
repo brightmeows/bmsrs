@@ -193,7 +193,7 @@ fn gameplay_option_roundtrip() {
     let parsed = BmsHeaderGameplay::try_match_header("OPTION", "-R")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderGameplay::Option("-R".to_owned()));
+    assert_eq!(parsed, BmsHeaderGameplay::Option("-R".parse().unwrap()));
     let (cmd, val) = parsed.format_header();
     assert_eq!(cmd, "#OPTION");
     assert_eq!(val, "-R");

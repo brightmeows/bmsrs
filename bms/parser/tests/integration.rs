@@ -223,7 +223,8 @@ fn dropped_audio_headers_stored() {
 fn dropped_gameplay_headers_stored() {
     let bms = parse("#OCT 1\n#OPTION -R\n");
     assert_eq!(bms.gameplay.oct_fp, Some(true));
-    assert_eq!(bms.gameplay.option.as_deref(), Some("-R"));
+    assert_eq!(bms.gameplay.option.len(), 1);
+    assert_eq!(bms.gameplay.option[0].raw(), "-R");
 }
 
 #[test]
@@ -1040,7 +1041,8 @@ fn oct_fp_stored() {
 #[test]
 fn option_stored() {
     let bms = parse("#OPTION -R");
-    assert_eq!(bms.gameplay.option.as_deref(), Some("-R"));
+    assert_eq!(bms.gameplay.option.len(), 1);
+    assert_eq!(bms.gameplay.option[0].raw(), "-R");
 }
 
 #[test]

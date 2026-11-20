@@ -171,14 +171,14 @@ fn kaleid_extension_commands_report_information_diagnostics() {
         .iter()
         .filter(|d| d.code() == Some("extension"))
         .collect();
-    assert_eq!(extensions.len(), 6);
+    assert_eq!(extensions.len(), 4);
     assert_eq!(
         analysis
             .diagnostics()
             .iter()
             .filter(|d| d.severity() == bmsrs_bms_analysis::Severity::Information)
             .count(),
-        6
+        4
     );
     assert!(
         extensions

@@ -3,6 +3,7 @@
 mod control_flow;
 mod display;
 mod gameplay;
+mod kaleid;
 mod metadata;
 mod res_def_audio;
 mod res_def_visual;
@@ -10,7 +11,10 @@ mod timing;
 
 pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
-pub use gameplay::{BmsHeaderGameplay, LnMode, LnType, PlayerMode, Rank};
+pub use gameplay::{
+    BmsHeaderGameplay, BmsOptionWord, LnMode, LnType, OptionWords, PlayerMode, Rank,
+};
+pub use kaleid::{BgaOverflow, BmsHeaderKaleid, SongSoundMode};
 pub use metadata::BmsHeaderMetadata;
 pub use res_def_audio::{BmsHeaderResDefAudio, ExWavParams, WavCmdKind, WavCmdParams};
 pub use res_def_visual::{
@@ -38,6 +42,8 @@ pub enum BmsHeader {
     ControlFlow(BmsHeaderControlFlow),
     /// Gameplay behavior (`#PLAYER`, `#RANK`, `#TOTAL`, `#LNTYPE`, and so on).
     Gameplay(BmsHeaderGameplay),
+    /// `KaleidBeat` declaration headers (dialect extension).
+    Kaleid(BmsHeaderKaleid),
     /// Display and difficulty markers (`#STAGEFILE`, `#DIFFICULTY`, and so on).
     Display(BmsHeaderDisplay),
     /// Song and chart identity (`#TITLE`, `#ARTIST`, `#GENRE`, and so on).

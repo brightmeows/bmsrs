@@ -8,8 +8,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::BmsTokenAttr;
 use crate::index::{BmsBase, ChangeOptionIndex, ExRankIndex, LnObjIndex};
+use crate::{BmsTokenAttr, ParseBmsValueError};
 
 /// Gameplay mode specified by `#PLAYER`.
 ///
@@ -180,6 +180,87 @@ impl fmt::Display for Rank {
 // BmsBaseMode). It is used here through an import; the BmsTokenAttr derive
 // ensures `#BASE 16`, `#BASE 36`, and `#BASE 62` parse correctly.
 
+/// One word from an `#OPTION` line.
+///
+/// `KaleidBeat` extension: the four named words are defined by `KaleidBeat`
+/// and are not part of the BMS specification or beatoraja. The `#OPTION`
+/// header itself is a nanasi extension; unknown words are preserved in
+/// [`Other`](Self::Other).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BmsOptionWord {
+    /// `CONSTANT`: oraja-style constant display time.
+    Constant,
+    /// `FORECAST`: show the next BPM change before it happens.
+    Forecast,
+    /// `DISPLAYINVISIBLE`: draw invisible notes with a yellow frame.
+    DisplayInvisible,
+    /// `STRICTMINE`: use LR2-style mine press handling.
+    StrictMine,
+    /// Any other word, preserved verbatim.
+    Other(String),
+}
+
+impl BmsOptionWord {
+    /// Parse one option word (case-insensitive for the four known words).
+    #[must_use]
+    pub fn parse(word: &str) -> Self {
+        match word.to_ascii_uppercase().as_str() {
+            "CONSTANT" => Self::Constant,
+            "FORECAST" => Self::Forecast,
+            "DISPLAYINVISIBLE" => Self::DisplayInvisible,
+            "STRICTMINE" => Self::StrictMine,
+            _ => Self::Other(word.to_owned()),
+        }
+    }
+}
+
+/// One `#OPTION` line, preserving the original text and the parsed words.
+///
+/// `KaleidBeat` allows a line to contain multiple words separated by spaces or
+/// commas. The raw text is kept so the writer can reproduce the line without
+/// canonicalizing separators.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptionWords {
+    /// Original value text, trimmed at both ends.
+    raw: String,
+    /// Parsed words in source order.
+    words: Vec<BmsOptionWord>,
+}
+
+impl OptionWords {
+    /// Return the original value text, trimmed at both ends.
+    #[must_use]
+    pub fn raw(&self) -> &str {
+        &self.raw
+    }
+
+    /// Return the parsed words in source order.
+    #[must_use]
+    pub fn words(&self) -> &[BmsOptionWord] {
+        &self.words
+    }
+}
+
+impl fmt::Display for OptionWords {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.raw)
+    }
+}
+
+impl FromStr for OptionWords {
+    type Err = ParseBmsValueError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let raw = s.trim().to_owned();
+        let words = raw
+            .split(|c: char| c.is_ascii_whitespace() || c == ',')
+            .filter(|word| !word.is_empty())
+            .map(BmsOptionWord::parse)
+            .collect();
+        Ok(Self { raw, words })
+    }
+}
+
 /// Gameplay behavior headers.
 ///
 /// These commands control *how* the chart is played: judgment strictness, life
@@ -285,10 +366,12 @@ pub enum BmsHeaderGameplay {
     /// `#OPTION`: forces player-side options from the BMS file (nanasi).
     ///
     /// Values use a vendor prefix (for example, `774:HI-SPEED_x0.77`). Multiple
-    /// `#OPTION` lines may coexist; for the same option, the line closest to
-    /// EOF is used.
+    /// `#OPTION` lines may coexist. `KaleidBeat` adds the four chart-local words
+    /// [`BmsOptionWord::Constant`], [`BmsOptionWord::Forecast`],
+    /// [`BmsOptionWord::DisplayInvisible`], and [`BmsOptionWord::StrictMine`];
+    /// these words are a `KaleidBeat` extension.
     #[bms_token("#OPTION {}")]
-    Option(String),
+    Option(OptionWords),
     /// `#CHANGEOPTION{id}`: changes options dynamically during play (nanasi).
     ///
     /// Referenced by channel `#xxxA6`. Not every option supports dynamic

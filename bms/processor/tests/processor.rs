@@ -490,14 +490,12 @@ fn process_preserves_bms_audio_sidecar() {
 fn process_preserves_bms_gameplay_sidecar() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.gameplay.option = Some("774:HI-SPEED_x1.00".to_owned());
+    bms.gameplay.option = vec!["774:HI-SPEED_x1.00".parse().unwrap()];
 
     let processed = BmsProcessor::process::<Bme>(&bms).unwrap().value;
 
-    assert_eq!(
-        processed.gameplay.option.as_deref(),
-        Some("774:HI-SPEED_x1.00")
-    );
+    assert_eq!(processed.gameplay.option.len(), 1);
+    assert_eq!(processed.gameplay.option[0].raw(), "774:HI-SPEED_x1.00");
 }
 
 #[test]
@@ -1547,5 +1545,113 @@ fn declared_asset_lookup_never_touches_the_probe() {
             .warnings
             .iter()
             .all(|warning| !matches!(warning.kind, ProcessWarningKind::MissingAssetFile { .. }))
+    );
+}
+
+#[test]
+fn kaleid_sidecar_collects_declarations_and_objects() {
+    use bmsrs_bms_processor::KaleidObjectKind;
+    use bmsrs_bms_values::BgaOverflow;
+
+    let bms = parse_text(
+        "#WAV01 a.wav\n#LOADINGFILE load.png\n#BGAOVERFLOW Y\n#001F1:0A\n#001H1:01\n#001ST:01\n#001SG:01\n#001SI:01\n",
+    );
+    let processed = BmsProcessor::process::<Bme>(&bms)
+        .expect("process should succeed")
+        .value;
+    let kaleid = processed
+        .kaleid
+        .expect("dialect chart should have a sidecar");
+
+    assert_eq!(
+        kaleid.declarations.loading_file.as_deref(),
+        Some("load.png")
+    );
+    assert_eq!(kaleid.declarations.bga_overflow, Some(BgaOverflow::Up));
+    assert_eq!(kaleid.objects.len(), 5);
+
+    let potion = kaleid.objects.iter().find_map(|object| match object.kind {
+        KaleidObjectKind::Potion { recovery, .. } => Some(recovery),
+        _ => None,
+    });
+    assert_eq!(potion, Some(10));
+    assert!(kaleid.objects.iter().any(|object| {
+        matches!(
+            object.kind,
+            KaleidObjectKind::FreeZone {
+                side: 2,
+                paired: true,
+                ..
+            }
+        )
+    }));
+    assert!(
+        kaleid
+            .objects
+            .iter()
+            .any(|object| matches!(object.kind, KaleidObjectKind::BarLine))
+    );
+}
+
+#[test]
+fn kaleid_potion_recovery_stays_base36_under_base62() {
+    use bmsrs_bms_processor::KaleidObjectKind;
+
+    let bms = parse_text("#BASE 62\n#001F1:0a\n");
+    let processed = BmsProcessor::process::<Bme>(&bms)
+        .expect("process should succeed")
+        .value;
+    let kaleid = processed
+        .kaleid
+        .expect("dialect chart should have a sidecar");
+    let recovery = kaleid.objects.iter().find_map(|object| match object.kind {
+        KaleidObjectKind::Potion { recovery, .. } => Some(recovery),
+        _ => None,
+    });
+    assert_eq!(recovery, Some(10));
+}
+
+#[test]
+fn ordinary_chart_has_no_kaleid_sidecar() {
+    let bms = parse_text("#WAV01 a.wav\n#00111:01\n");
+    let processed = BmsProcessor::process::<Bme>(&bms)
+        .expect("process should succeed")
+        .value;
+    assert!(processed.kaleid.is_none());
+}
+
+#[test]
+fn kaleid_declarations_and_objects_survive_writer_roundtrip() {
+    use bmsrs_bms_writer::BmsWriter;
+
+    let bms = parse_text("#WAV01 a.wav\n#LOADINGFILE load.png\n#001F1:0A\n#001ST:01\n");
+    let written = BmsWriter::write(&bms);
+    let reparsed = parse_text(&written);
+
+    assert_eq!(reparsed.kaleid, bms.kaleid);
+    assert_eq!(
+        reparsed.messages.raw().get(&1).and_then(|channels| {
+            channels.get(&BmsChannel::from_raw("F1").expect("valid channel"))
+        }),
+        bms.messages.raw().get(&1).and_then(|channels| {
+            channels.get(&BmsChannel::from_raw("F1").expect("valid channel"))
+        })
+    );
+}
+
+#[test]
+fn kaleid_option_words_create_a_sidecar() {
+    use bmsrs_bms_values::BmsOptionWord;
+
+    let bms = parse_text("#OPTION CONSTANT FORECAST\n");
+    let processed = BmsProcessor::process::<Bme>(&bms)
+        .expect("process should succeed")
+        .value;
+    let kaleid = processed
+        .kaleid
+        .expect("option chart should have a sidecar");
+    assert_eq!(
+        kaleid.options[0].words(),
+        &[BmsOptionWord::Constant, BmsOptionWord::Forecast]
     );
 }
