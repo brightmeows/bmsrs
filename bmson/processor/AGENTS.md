@@ -1,3 +1,6 @@
+## `KaleidBeat` sidecar
+
+`BmsonProcessed` carries the chart plus `Option<BmsonKaleid>`. The sidecar holds the extension metadata, notes, conditional blocks, and filter objects; `speed_events` also map to core Speed events. Ordinary files leave the sidecar as `None`.
 # bmsrs-bmson-processor
 
 ## Role

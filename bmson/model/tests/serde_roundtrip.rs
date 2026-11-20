@@ -26,6 +26,11 @@ fn make_test_bmson() -> Bmson {
             preview_music: None,
             title_image: None,
             bga: BGA::default(),
+            difficulty: None,
+            comment: String::new(),
+            display_bpm: None,
+            midi_file: None,
+            chara_file: None,
         },
         chart_data: ChartData {
             mode_hint: ModeHint::Beat7k,
@@ -49,6 +54,15 @@ fn make_test_bmson() -> Bmson {
         scroll_events: vec![],
         mine_channels: vec![],
         key_channels: vec![],
+        speed_events: vec![],
+        text_events: vec![],
+        judge_rank_events: vec![],
+        free_zone_channels: vec![],
+        potion_notes: vec![],
+        dummy_notes: vec![],
+        dummy_mine_notes: vec![],
+        dummy_potion_notes: vec![],
+        conditional_blocks: vec![],
     }
 }
 
@@ -330,4 +344,49 @@ fn resolution_zero_is_kept_for_the_processor_fallback() {
     // The model keeps 0 faithfully; the processor falls back to 240 with a
     // warning.
     assert_eq!(bmson.chart_data.resolution, 0);
+}
+
+#[test]
+fn kaleid_extensions_roundtrip() {
+    let json = r#"{
+        "version": "2.0.0",
+        "song_info": {"title": "T", "artist": "A", "genre": "G"},
+        "chart_info": {
+            "level": 8,
+            "comment": "note",
+            "display_bpm": "120-180",
+            "difficulty": "HYPER",
+            "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
+        },
+        "chart_data": {
+            "init_bpm": 120.0,
+            "resolution": 240,
+            "lines": [],
+            "bpm_events": [],
+            "stop_events": [],
+            "sound_channels": []
+        },
+        "speed_events": [{"y": 0, "rate": 2.0}],
+        "text_events": [{"y": 0, "text": "Intro"}],
+        "judge_rank_events": [{"y": 0, "judge_rank": 50.0}],
+        "free_zone_channels": [{"name": "fz.wav", "notes": [{"x": 8, "y": 0, "l": 240}]}],
+        "potion_notes": [{"x": 1, "y": 0, "recovery": 10.0}],
+        "dummy_notes": [{"x": 2, "y": 0, "l": 0, "t": 4}],
+        "dummy_mine_notes": [{"x": 3, "y": 0}],
+        "dummy_potion_notes": [{"x": 4, "y": 0}],
+        "conditional_blocks": [{
+            "y": 0,
+            "branches": [
+                {"when": "MISS>=100", "sound_channels": []},
+                {"default": true, "sound_channels": []}
+            ]
+        }]
+    }"#;
+    let bmson: Bmson = serde_json::from_str(json).expect("valid extension JSON");
+    let encoded = serde_json::to_string(&bmson).expect("serializable");
+    let decoded: Bmson = serde_json::from_str(&encoded).expect("roundtrip");
+    assert_eq!(decoded, bmson);
+    assert_eq!(decoded.speed_events.len(), 1);
+    assert_eq!(decoded.potion_notes[0].recovery, 10.0);
+    assert_eq!(decoded.conditional_blocks[0].branches.len(), 2);
 }

@@ -28,6 +28,11 @@ fn make_v1_bmson() -> v1::Bmson {
             title_image: None,
             resolution: 240,
             ln_type: None,
+            difficulty: None,
+            comment: String::new(),
+            display_bpm: None,
+            midi_file: None,
+            chara_file: None,
         },
         lines: None,
         bpm_events: vec![BpmEvent { y: 960, bpm: 180.0 }],
@@ -55,6 +60,15 @@ fn make_v1_bmson() -> v1::Bmson {
         scroll_events: vec![],
         mine_channels: vec![],
         key_channels: vec![],
+        speed_events: vec![],
+        text_events: vec![],
+        judge_rank_events: vec![],
+        free_zone_channels: vec![],
+        potion_notes: vec![],
+        dummy_notes: vec![],
+        dummy_mine_notes: vec![],
+        dummy_potion_notes: vec![],
+        conditional_blocks: vec![],
     }
 }
 

@@ -20,6 +20,7 @@
 //! every unique note tick (see the internal `slice` module).
 
 mod error;
+mod kaleid;
 mod slice;
 
 pub mod layout;
@@ -40,6 +41,7 @@ use bmsrs_pipeline::Outcome;
 use thiserror::Error;
 
 pub use crate::error::BmsonProcessWarning;
+pub use crate::kaleid::BmsonKaleid;
 
 use crate::layout::{Beat, BmsonLayout, GenericLayout, Pms};
 
@@ -106,6 +108,25 @@ pub enum ProcessError {
     },
 }
 
+/// bmson processing result.
+#[derive(Debug)]
+pub struct BmsonProcessed {
+    /// Chart produced by processing.
+    pub chart: Chart<BmsonNoteExt>,
+    /// `KaleidBeat` extensions, when present.
+    ///
+    /// `KaleidBeat` extension: not part of the bmson schema or beatoraja.
+    pub kaleid: Option<BmsonKaleid>,
+}
+
+impl std::ops::Deref for BmsonProcessed {
+    type Target = Chart<BmsonNoteExt>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.chart
+    }
+}
+
 /// Zero-sized processor that converts [`bmsrs_bmson_model::Bmson`] into
 /// [`Chart<BmsonNoteExt>`].
 ///
@@ -123,7 +144,7 @@ impl BmsonProcessor {
     /// (invalid initial BPM or zero resolution).
     pub fn process<L>(
         bmson: &bmsrs_bmson_model::Bmson,
-    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError>
+    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError>
     where
         L: BmsonLayout,
     {
@@ -143,7 +164,7 @@ impl BmsonProcessor {
     pub fn process_nkeys(
         bmson: &bmsrs_bmson_model::Bmson,
         keys: u8,
-    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
+    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
         let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
     }
@@ -167,7 +188,7 @@ impl BmsonProcessor {
     ///   empty key mapping.
     pub fn process_default(
         bmson: &bmsrs_bmson_model::Bmson,
-    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
+    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
         match &bmson.chart_data.mode_hint {
             bmsrs_bmson_model::ModeHint::Popn5k | bmsrs_bmson_model::ModeHint::Popn9k => {
                 Self::process::<Pms>(bmson)
@@ -194,7 +215,7 @@ impl BmsonProcessor {
     fn process_body(
         bmson: &bmsrs_bmson_model::Bmson,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    ) -> Result<Outcome<Chart<BmsonNoteExt>, BmsonProcessWarning>, ProcessError> {
+    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
         let bmson_data = &bmson.chart_data;
 
         // A resolution of 0 falls back to the default 240 per the
@@ -228,6 +249,7 @@ impl BmsonProcessor {
         conv.collect_bpm_events();
         conv.collect_stop_events();
         conv.collect_scroll_events();
+        conv.collect_speed_events();
         conv.collect_bga_events();
         conv.build_bar_lines();
 
@@ -265,8 +287,12 @@ impl BmsonProcessor {
         .with_judge_deltas(judge_deltas)
         .with_life_deltas(life_deltas);
 
+        let kaleid = BmsonKaleid::from_bmson(bmson);
         Ok(Outcome::new(
-            Chart::new(song_info, chart_info, data)?,
+            BmsonProcessed {
+                chart: Chart::new(song_info, chart_info, data)?,
+                kaleid,
+            },
             conv.warnings,
         ))
     }
@@ -421,6 +447,17 @@ impl BmsonConverter<'_> {
     }
 
     /// Collect SCROLL events.
+    /// Map `KaleidBeat` spacing keyframes to core Speed events.
+    fn collect_speed_events(&mut self) {
+        self.events.extend(
+            self.bmson
+                .speed_events
+                .iter()
+                .map(|event| Event::speed(event.y, event.rate)),
+        );
+    }
+
+    /// Map scroll keyframes to core Scroll events.
     fn collect_scroll_events(&mut self) {
         self.events.extend(
             self.bmson

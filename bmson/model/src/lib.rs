@@ -37,6 +37,7 @@ pub mod v0;
 pub mod v1;
 
 mod common;
+mod kaleid;
 
 pub use common::{
     BGA, BGAEvent, BGAHeader, BGASequence, BGASequenceFrame, BarLine, BpmEvent, KeyChannel,
@@ -47,6 +48,12 @@ pub use common::{
 pub use common::{
     de_opt_path, de_path, default_multiplier, default_resolution, deserialize_resolution,
     null_to_default,
+};
+
+pub use kaleid::{
+    ConditionalBlock, ConditionalBranch, Difficulty, DummyMineNote, DummyNote, DummyPotionNote,
+    FreeZoneChannel, FreeZoneNote, JudgeRankEvent, PotionNote, SoundFilter, SoundFilterKind,
+    SpeedEvent, TextEvent,
 };
 
 use serde::{Deserialize, Serialize};
@@ -136,6 +143,35 @@ pub struct Bmson {
     /// Invisible ("key") channels (beatoraja extension).
     #[serde(default)]
     pub key_channels: Vec<KeyChannel>,
+
+    // KaleidBeat extensions (not part of the bmson schema or beatoraja).
+    /// `KaleidBeat` extension: spacing-factor keyframes.
+    #[serde(default)]
+    pub speed_events: Vec<SpeedEvent>,
+    /// `KaleidBeat` extension: timed text events.
+    #[serde(default)]
+    pub text_events: Vec<TextEvent>,
+    /// `KaleidBeat` extension: judge-rank keyframes.
+    #[serde(default)]
+    pub judge_rank_events: Vec<JudgeRankEvent>,
+    /// `KaleidBeat` extension: free-zone sound channels.
+    #[serde(default)]
+    pub free_zone_channels: Vec<FreeZoneChannel>,
+    /// `KaleidBeat` extension: potion notes.
+    #[serde(default)]
+    pub potion_notes: Vec<PotionNote>,
+    /// `KaleidBeat` extension: display-only dummy notes.
+    #[serde(default)]
+    pub dummy_notes: Vec<DummyNote>,
+    /// `KaleidBeat` extension: display-only dummy mines.
+    #[serde(default)]
+    pub dummy_mine_notes: Vec<DummyMineNote>,
+    /// `KaleidBeat` extension: display-only dummy potions.
+    #[serde(default)]
+    pub dummy_potion_notes: Vec<DummyPotionNote>,
+    /// `KaleidBeat` extension: runtime conditional blocks.
+    #[serde(default)]
+    pub conditional_blocks: Vec<ConditionalBlock>,
 }
 
 /// Song-level metadata (v2.0.0-rc1).
@@ -253,6 +289,31 @@ pub struct ChartInfo {
     /// Background animation data.
     #[serde(rename = "bga")]
     pub bga: BGA,
+
+    // KaleidBeat extensions (not part of the bmson schema or beatoraja).
+    /// `KaleidBeat` extension: explicit difficulty value or name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub difficulty: Option<Difficulty>,
+    /// `KaleidBeat` extension: song-select comment.
+    #[serde(default)]
+    pub comment: String,
+    /// `KaleidBeat` extension: override for the displayed BPM string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_bpm: Option<String>,
+    /// `KaleidBeat` extension: MIDI accompaniment file.
+    #[serde(
+        default,
+        deserialize_with = "de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub midi_file: Option<std::path::PathBuf>,
+    /// `KaleidBeat` extension: pomu2 character definition file.
+    #[serde(
+        default,
+        deserialize_with = "de_opt_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub chara_file: Option<std::path::PathBuf>,
 }
 
 /// Actual chart data (v2.0.0-rc1).
@@ -538,5 +599,6 @@ pub(crate) const fn ln_mode_to_type_hint(lt: LnMode) -> LnType {
         LnMode::Ln => LnType::Ln,
         LnMode::Cn => LnType::Cn,
         LnMode::Hcn => LnType::Hcn,
+        LnMode::Hln => LnType::Hln,
     }
 }
