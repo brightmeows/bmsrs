@@ -1655,3 +1655,52 @@ fn kaleid_option_words_create_a_sidecar() {
         &[BmsOptionWord::Constant, BmsOptionWord::Forecast]
     );
 }
+
+#[test]
+fn kaleid_conditional_branches_stay_out_of_the_chart() {
+    use bmsrs_bms_writer::BmsWriter;
+
+    let text = "#WAV01 a.wav\n#WAV02 b.wav\n#WAV03 c.wav\n#WAV04 d.wav\n#00111:01\n#CONDITIONAL 65.5\n#WHEN MISS>=100\n#00211:02\n#ELSEWHEN GAUGE<30\n#00311:03\n#DEFAULT\n#00411:04\n#ENDCONDITIONAL\n#00511:05\n";
+    let bms = parse_text(text);
+
+    assert_eq!(bms.conditional.len(), 1);
+    assert_eq!(bms.conditional[0].position, 65.5);
+    assert_eq!(bms.conditional[0].branches.len(), 3);
+    assert!(bms.messages.raw().get(&2).is_none());
+    assert!(bms.messages.raw().get(&3).is_none());
+    assert!(bms.messages.raw().get(&4).is_none());
+    assert!(bms.messages.raw().get(&1).is_some());
+    assert!(bms.messages.raw().get(&5).is_some());
+
+    let processed = BmsProcessor::process::<Bme>(&bms)
+        .expect("process should succeed")
+        .value;
+    let kaleid = processed
+        .kaleid
+        .expect("conditional chart should have a sidecar");
+    assert_eq!(kaleid.conditional.len(), 1);
+    assert_eq!(kaleid.conditional[0].branches.len(), 3);
+
+    let written = BmsWriter::write(&bms);
+    let reparsed = parse_text(&written);
+    assert_eq!(reparsed.conditional.len(), bms.conditional.len());
+    for (reparsed_block, block) in reparsed.conditional.iter().zip(&bms.conditional) {
+        assert_eq!(reparsed_block.position, block.position);
+        assert_eq!(reparsed_block.branches.len(), block.branches.len());
+        for (reparsed_branch, branch) in reparsed_block.branches.iter().zip(&block.branches) {
+            assert_eq!(reparsed_branch.condition, branch.condition);
+            let reparsed_lines: Vec<_> = reparsed_branch
+                .messages
+                .iter()
+                .map(bmsrs_bms_values::BmsMessage::to_line_text)
+                .collect();
+            let lines: Vec<_> = branch
+                .messages
+                .iter()
+                .map(bmsrs_bms_values::BmsMessage::to_line_text)
+                .collect();
+            assert_eq!(reparsed_lines, lines);
+        }
+    }
+    assert_eq!(reparsed.messages.raw(), bms.messages.raw());
+}

@@ -1702,3 +1702,39 @@ fn option_words_are_typed_and_preserved() {
     assert_eq!(option.raw(), "CONSTANT FORECAST,STRICTMINE");
     assert_eq!(option.to_string(), "CONSTANT FORECAST,STRICTMINE");
 }
+
+#[test]
+fn parse_kaleid_conditional_commands() {
+    use bmsrs_bms_values::{BmsConditionOperator, BmsConditionVariable, BmsHeaderConditional};
+
+    let parse = |line| BmsHeader::parse(line, &['#', '%']).unwrap().unwrap();
+
+    assert_eq!(
+        parse("#CONDITIONAL 65.5"),
+        BmsHeader::Conditional(BmsHeaderConditional::Conditional(65.5))
+    );
+    let BmsHeader::Conditional(BmsHeaderConditional::When(condition)) = parse("#WHEN MISS>=100")
+    else {
+        panic!("expected WHEN");
+    };
+    assert_eq!(condition.variable, BmsConditionVariable::Miss);
+    assert_eq!(condition.operator, BmsConditionOperator::GreaterEqual);
+    assert_eq!(condition.value, 100.0);
+
+    let BmsHeader::Conditional(BmsHeaderConditional::ElseWhen(gauge_condition)) =
+        parse("#ELSEWHEN GAUGE<30")
+    else {
+        panic!("expected ELSEWHEN");
+    };
+    assert_eq!(gauge_condition.variable, BmsConditionVariable::Gauge);
+    assert_eq!(gauge_condition.operator, BmsConditionOperator::Less);
+
+    assert_eq!(
+        parse("#DEFAULT"),
+        BmsHeader::Conditional(BmsHeaderConditional::Default)
+    );
+    assert_eq!(
+        parse("#ENDCONDITIONAL"),
+        BmsHeader::Conditional(BmsHeaderConditional::EndConditional)
+    );
+}

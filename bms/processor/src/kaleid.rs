@@ -4,7 +4,7 @@
 //! format-neutral `Chart`. Callers that understand the dialect read them from
 //! [`crate::Processed::kaleid`](crate::Processed::kaleid).
 
-use bmsrs_bms_model::{Bms, Messages, Position};
+use bmsrs_bms_model::{Bms, ConditionalBlock, Messages, Position};
 use bmsrs_bms_values::{
     BmsBase, BmsChannel, BmsIndex, BodyCells, ExtensionChannel, OptionWords, WavIndex,
 };
@@ -14,7 +14,7 @@ use bmsrs_bms_values::{
 /// `KaleidBeat` extension: this structure is not part of the BMS
 /// specification or beatoraja. Ordinary charts leave
 /// [`crate::Processed::kaleid`] as `None`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BmsKaleid {
     /// Chart-local declaration headers.
     pub declarations: bmsrs_bms_model::Kaleid,
@@ -25,6 +25,11 @@ pub struct BmsKaleid {
     pub options: Vec<OptionWords>,
     /// Extension-channel objects in source order.
     pub objects: Vec<KaleidObject>,
+    /// Runtime conditional blocks in source order.
+    ///
+    /// `KaleidBeat` extension: not defined by the BMS specification or
+    /// beatoraja.
+    pub conditional: Vec<ConditionalBlock>,
 }
 
 /// One object on a `KaleidBeat` extension channel.
@@ -105,13 +110,18 @@ pub enum KaleidObjectKind {
 pub fn build(bms: &Bms) -> Option<BmsKaleid> {
     let objects = collect_objects(bms);
     let options = bms.gameplay.option.clone();
-    if bms.kaleid.is_empty() && objects.is_empty() && options.is_empty() {
+    if bms.kaleid.is_empty()
+        && objects.is_empty()
+        && options.is_empty()
+        && bms.conditional.is_empty()
+    {
         return None;
     }
     Some(BmsKaleid {
         declarations: bms.kaleid.clone(),
         options,
         objects,
+        conditional: bms.conditional.clone(),
     })
 }
 

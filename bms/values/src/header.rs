@@ -1,5 +1,6 @@
 //! BMS header command parsing, grouped by semantic domain.
 
+mod conditional;
 mod control_flow;
 mod display;
 mod gameplay;
@@ -9,6 +10,9 @@ mod res_def_audio;
 mod res_def_visual;
 mod timing;
 
+pub use conditional::{
+    BmsCondition, BmsConditionOperator, BmsConditionVariable, BmsHeaderConditional,
+};
 pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
 pub use gameplay::{
@@ -44,6 +48,8 @@ pub enum BmsHeader {
     Gameplay(BmsHeaderGameplay),
     /// `KaleidBeat` declaration headers (dialect extension).
     Kaleid(BmsHeaderKaleid),
+    /// `KaleidBeat` runtime conditional-branch commands (dialect extension).
+    Conditional(BmsHeaderConditional),
     /// Display and difficulty markers (`#STAGEFILE`, `#DIFFICULTY`, and so on).
     Display(BmsHeaderDisplay),
     /// Song and chart identity (`#TITLE`, `#ARTIST`, `#GENRE`, and so on).

@@ -5,6 +5,7 @@
 //! values and reference resolution belong to `bmsrs-bms-processor`.
 
 mod audio;
+mod conditional;
 mod display;
 mod gameplay;
 mod kaleid;
@@ -14,10 +15,13 @@ mod timing;
 mod visual;
 mod warnings;
 
-use bmsrs_bms_values::{BmsBase, BmsHeader, BmsHeaderGameplay, BmsHeaderTiming, BmsToken};
+use bmsrs_bms_values::{
+    BmsBase, BmsHeader, BmsHeaderConditional, BmsHeaderGameplay, BmsHeaderTiming, BmsToken,
+};
 
 // Re-export all public types from the submodules.
 pub use audio::{Audio, OwnedExWavParams};
+pub use conditional::{ConditionalBlock, ConditionalBranch};
 pub use display::Display;
 pub use gameplay::Gameplay;
 pub use kaleid::Kaleid;
@@ -58,8 +62,20 @@ pub struct Bms {
     pub visual: visual::Visual,
     /// Channel message data (raw data plus parsed events).
     pub messages: messages::Messages,
+    /// `KaleidBeat` runtime conditional blocks (dialect extension).
+    pub conditional: Vec<conditional::ConditionalBlock>,
     /// Unrecognized or engine-specific header commands.
     pub fallback_headers: Vec<(String, String)>,
+}
+
+/// Move the branch under construction into its block.
+fn flush_branch(
+    block: Option<&mut conditional::ConditionalBlock>,
+    branch: &mut Option<conditional::ConditionalBranch>,
+) {
+    if let (Some(current), Some(pending)) = (block, branch.take()) {
+        current.branches.push(pending);
+    }
 }
 
 impl Bms {
@@ -78,17 +94,72 @@ impl Bms {
         let all_tokens: Vec<_> = tokens.into_iter().collect();
         let bms_base = detect_base(&all_tokens);
         let mut messages = messages::MessagesBuilder::new();
+        let mut conditional = vec![];
+        let mut current_block: Option<conditional::ConditionalBlock> = None;
+        let mut current_branch: Option<conditional::ConditionalBranch> = None;
 
         for token in &all_tokens {
             match token {
                 BmsToken::Header(header) => {
+                    if let BmsHeader::Conditional(command) = header {
+                        match command {
+                            BmsHeaderConditional::Conditional(position) => {
+                                flush_branch(current_block.as_mut(), &mut current_branch);
+                                if let Some(block) = current_block.take() {
+                                    conditional.push(block);
+                                }
+                                current_block = Some(conditional::ConditionalBlock {
+                                    position: *position,
+                                    branches: vec![],
+                                });
+                            }
+                            BmsHeaderConditional::When(condition)
+                            | BmsHeaderConditional::ElseWhen(condition) => {
+                                if let Some(block) = current_block.as_mut() {
+                                    flush_branch(Some(block), &mut current_branch);
+                                    current_branch = Some(conditional::ConditionalBranch {
+                                        condition: Some(*condition),
+                                        messages: vec![],
+                                    });
+                                }
+                            }
+                            BmsHeaderConditional::Default => {
+                                if let Some(block) = current_block.as_mut() {
+                                    flush_branch(Some(block), &mut current_branch);
+                                    current_branch = Some(conditional::ConditionalBranch {
+                                        condition: None,
+                                        messages: vec![],
+                                    });
+                                }
+                            }
+                            BmsHeaderConditional::EndConditional => {
+                                flush_branch(current_block.as_mut(), &mut current_branch);
+                                if let Some(block) = current_block.take() {
+                                    conditional.push(block);
+                                }
+                            }
+                        }
+                        continue;
+                    }
                     bms.process_header(header, bms_base, &mut messages);
                 }
-                BmsToken::Message(msg) => messages.push_message(msg),
+                BmsToken::Message(msg) => {
+                    if let Some(branch) = current_branch.as_mut() {
+                        branch.messages.push(msg.clone());
+                    } else {
+                        messages.push_message(msg);
+                    }
+                }
             }
         }
 
+        flush_branch(current_block.as_mut(), &mut current_branch);
+        if let Some(block) = current_block {
+            conditional.push(block);
+        }
+
         bms.messages = messages.finish(bms_base);
+        bms.conditional = conditional;
         bms
     }
 
@@ -125,7 +196,8 @@ impl Bms {
             BmsHeader::ResDefAudio(a) => self.audio.apply(a, base),
             BmsHeader::ResDefVisual(v) => self.visual.apply(v, base),
             BmsHeader::Display(d) => self.display.apply(d),
-            BmsHeader::ControlFlow(_) => { /* skipped, not stored in Bms */ }
+            BmsHeader::ControlFlow(_) | BmsHeader::Conditional(_) => { /* structural, handled elsewhere */
+            }
             BmsHeader::Fallback(f) => self
                 .fallback_headers
                 .push((f.command.clone(), f.value.clone())),

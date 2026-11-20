@@ -13,6 +13,7 @@
 //! bmsrs_bms_model::Bms -> BmsWriter::write -> String (BMS text)
 //! ```
 
+mod conditional;
 mod headers;
 mod messages;
 
@@ -31,17 +32,19 @@ impl BmsWriter {
     /// Output layout:
     /// 1. Header commands grouped as metadata, gameplay, timing, display,
     ///    audio, visual, then unrecognized headers (original order)
-    /// 2. Channel lines sorted ascending by (measure, channel); multiple lines
+    /// 2. `KaleidBeat` conditional blocks in source order
+    /// 3. Channel lines sorted ascending by (measure, channel); multiple lines
     ///    for the same (measure, channel) are merged into one line by position
     ///    (non-`00` overrides, `00` preserves the position), matching
     ///    [`bmsrs_bms_model`]'s parse-time merge semantics
-    /// 3. Terminated by a newline
+    /// 4. Terminated by a newline
     ///
     /// Output is Unicode text; character-encoding conversion (`Shift-JIS` and
     /// so on) is the caller's responsibility.
     #[must_use]
     pub fn write(bms: &Bms) -> String {
         let mut lines = headers::write_headers(bms);
+        lines.extend(conditional::write_blocks(&bms.conditional));
         lines.extend(messages::write_messages(&bms.messages));
         let mut text = lines.join("\n");
         if !text.is_empty() {
