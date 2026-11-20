@@ -14,31 +14,10 @@ enter downstream dependency trees.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    BProc[bmsrs-bms-processor] --> Chart["bmsrs-chart (Chart&lt;T&gt;)"]
-    BMProc[bmsrs-bmson-processor] --> Chart
-    Chart --> Player[bmsrs-player]
-```
-
-| Crate | Responsibility |
-|-------|----------------|
-| `bmsrs-chart` | `Chart<T>` central IR: format-agnostic model of events, timing, and notes |
-| `bmsrs-player` | pure simulation layer for `Chart<T>`: time-based query interface |
-| `bmsrs-pipeline` | shared pipeline result and diagnostic types: `Outcome<T, W>`, `SourceSpan`, `Diagnostic` |
-
-## Time model
-
-| Domain | Type | Use |
-|--------|------|-----|
-| Tick | `u64` | all event positions, LN durations |
-| Time | `Duration` | `AudioAsset.start`, `Player::duration()`, player public API |
-
-`ChartData` stores the scalar timing configuration (`init_bpm`, `resolution`)
-and the event stream. `bmsrs-player` derives `TimingTrack` from
-`EventKind::Bpm`/`EventKind::Stop`; the event stream is the only timing source.
-`BpmLookup` serves lightweight BPM queries before constructing a `TimingTrack`.
-Both live in `bmsrs-chart`.
+Three crates: `bmsrs-chart` (the `Chart<T>` central IR), `bmsrs-player`
+(pure simulation queries), and `bmsrs-pipeline` (`Outcome<T, W>`,
+`SourceSpan`, `Diagnostic`). The time model is documented in
+`bmsrs-chart`'s crate-level docs.
 
 ## Design principles
 
@@ -60,10 +39,3 @@ before then.
 | The two `ProcessError` types are defined separately | they share only `TimingTrackError` (forwarded through `#[from]`); BMSON also has `InvalidKeyCount`, and merging would drag format-specific errors into a shared type |
 | `TimingTrack` forward and inverse segments accumulate time separately | two implementations of the same mathematical transform (`new` and `merge_inv`); if a third kind of timing distortion appears (such as gradual BPM), reassess before writing a third copy |
 
-## Tests
-
-```bash
-cargo test -p bmsrs-chart
-cargo test -p bmsrs-player
-cargo bench -p bmsrs-player          # hot-path performance benchmarks
-```

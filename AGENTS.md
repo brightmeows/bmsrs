@@ -35,15 +35,15 @@ flowchart LR
 
 | Crate | Role | Input to output |
 |-------|------|-----------------|
-| `bmsrs-bms-source` | BMS source-text layer: bytes, encoding, line index, byte-faithful editing | `Vec<u8>` to `Document` |
-| `bmsrs-bms-syntax` | BMS syntax layer: rowan CST, lexing, error-tolerant parsing, control-flow queries | `&str` to `SourceFile` |
-| `bmsrs-bms-values` | BMS single-line syntax and typed values: headers/messages, indices, parsing | `&str` (one line) to typed values |
-| `bmsrs-bms-model` | BMS whole-file model: metadata, timing, resources, and channel messages | token stream to `Bms` |
+| `bmsrs-bms-source` | source-text layer | `Vec<u8>` to `Document` |
+| `bmsrs-bms-syntax` | syntax layer (rowan CST) | `&str` to `SourceFile` |
+| `bmsrs-bms-values` | single-line typed values | `&str` (one line) to typed values |
+| `bmsrs-bms-model` | whole-file `Bms` model | token stream to `Bms` |
 | `bmsrs-bms-parser` | BMS semantic layer: CST to `Bms` model | CST to `Bms` |
 | `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro | no runtime logic |
 | `bmsrs-bms-processor` | `Bms` to format-agnostic `Chart` | `Bms` to `Chart` |
 | `bmsrs-bms-writer` | BMS generator: rewrites the full `Bms` model as BMS text | `Bms` to `String` |
-| `bmsrs-bms-analysis` | BMS analysis layer: diagnostics, symbol index, editor data | `&str` to `Analysis` |
+| `bmsrs-bms-analysis` | analysis layer (diagnostics, symbols) | `&str` to `Analysis` |
 | `bmsrs-bmson-model` | bmson JSON type definitions (v0/v1/v2) | data model only |
 | `bmsrs-bmson-processor` | `Bmson` to `Chart` | `Bmson` to `Chart` |
 | `bmsrs-chart` | Format-agnostic chart data model | `Chart<T>` as the central IR |
@@ -71,31 +71,11 @@ add the corresponding `pub mod` and `pub use` in `src/lib.rs`.
 
 ## Commands
 
-### Automatic checks before commit (pre-commit hooks)
-
-```bash
-pre-commit run --all-files          # run every hook manually
-```
-
-Hooks are configured in `.pre-commit-config.yaml`:
-
-| Hook | Purpose | Failure means |
-|------|---------|---------------|
-| `cargo fmt --check` | formatting is not canonical | run `cargo fmt` |
-| `cargo clippy --workspace --all-targets -- -D warnings` | lint failure | fix the warnings |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | API doc warning | fix the doc issue |
-| `no-comment-decorations` | decorative comment blocks | remove decorations such as `// ===` and `// ---` |
-| `no-confusable-unicode` | confusable Unicode characters | replace them with ASCII equivalents |
-| `no-module-level-expect-allow` | module-level `#![expect]/#[allow]` | use function-level `#[expect(..., reason = "...")]` |
-| `no-cjk-in-comments` | CJK characters in full-line `//` or `/* ... */` Rust comments or `expect` reasons | translate the comment; string fixtures are not checked |
-
-### Manual
-
-```bash
-cargo test --workspace --quiet        # workspace tests
-cargo bench -p bmsrs-player          # hot-path performance benchmarks
-cargo deny check                       # dependency audit (CI)
-```
+Every change passes `pre-commit run --all-files`; the hook list and each
+failure's fix live in `.pre-commit-config.yaml`. Workspace tests run with
+`cargo test --workspace --quiet`, hot-path benchmarks with
+`cargo bench -p bmsrs-player`, and the dependency audit with
+`cargo deny check` (CI).
 
 ## Conventions
 
@@ -113,18 +93,11 @@ the release-plz changelog template renders it into the changelog entry.
 
 Git worktrees live under `.worktrees/`.
 
-### MSRV and Edition
-
-| Item | Value |
-|------|-------|
-| MSRV | 1.95 |
-| Edition | 2024 (`resolver = "3"`) |
-
 ### Lint conventions
 
 - The workspace uses a shared `[lints]` configuration: `allow_attributes = "deny"`
 - `#[allow]` is **forbidden**; always use `#[expect(clippy::lint, reason = "...")]`
-- clippy `all` and `pedantic` are enabled by default
+- The full lint table lives in `[workspace.lints]` in the root `Cargo.toml`
 
 ### API design
 

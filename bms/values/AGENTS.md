@@ -8,22 +8,11 @@ build a CST; `bmsrs-bms-syntax` owns whole-file structure, `bmsrs-bms-parser`
 owns CST to `Bms`, and `bmsrs-bms-analysis` reuses this crate's value types
 directly.
 
-## Boundaries
-
-| Does | Does not |
-|------|----------|
-| Single-line command matching and value parsing | Line splitting, comment state machine, encoding detection |
-| Typed `BmsHeader` / `BmsMessage` | Control-flow expansion and branch selection |
-| Base36 / Base62 indices and normalization | The `Bms` aggregate model |
-| Single-line roundtrip (parse and format) | Whole-file write-back |
-
 ## Three-layer parsing
 
-| Layer | Mechanism | Failure path |
-|-------|-----------|--------------|
-| Command match | derive matches the command name and extracts `{id}` | No match falls through to `BmsHeaderFallback` |
-| Value parse | `String` / `FromStr` / `BmsValue::parse` | Failure gives `BmsTokenizeError`; `#[bms_fallback]` returns `None` |
-| Fallback | `#[bms_fallback]` captures unmatched input | Falls through to `BmsHeaderFallback` |
+Header parsing runs command match, then value parse, then fallback. A failed
+command match falls through to `BmsHeaderFallback`; a failed value parse gives
+`BmsTokenizeError`, unless `#[bms_fallback]` captures it as `Ok(None)`.
 
 ## Non-obvious rules
 
@@ -39,12 +28,7 @@ directly.
 
 ## Tests
 
-```bash
-cargo test -p bmsrs-bms-values
-```
-
-Coverage: command matching, value parsing, indices, channel classification,
-single-line roundtrip, and derive.
+Completion: `cargo test -p bmsrs-bms-values` green.
 
 ## Always / Ask / Never
 

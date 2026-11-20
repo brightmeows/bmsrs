@@ -19,16 +19,8 @@ flowchart LR
     Syn --> Analysis[bmsrs-bms-analysis]
 ```
 
-| Stage | Crate | Responsibility |
-|-------|-------|----------------|
-| 0 source text | `bmsrs-bms-source` | raw bytes to encoding, lines, trivia, and editing; no semantic classification |
-| 1 values | `bmsrs-bms-values` | single-line text to typed headers/messages, indices, and values |
-| 2 syntax | `bmsrs-bms-syntax` | decoded text to rowan CST; lexing, error-tolerant parsing, control-flow queries |
-| 3 semantics | `bmsrs-bms-parser` | CST to `Bms`; aggregate and faithful model |
-| 3 model | `bmsrs-bms-model` | whole-file `Bms` model, header groups, and channel messages |
-| derivation | `bmsrs-bms-values-derive` | `#[derive(BmsTokenAttr)]` proc-macro, no runtime logic |
-| 4 conversion | `bmsrs-bms-processor` | `Bms` to `Chart` |
-| 5 analysis | `bmsrs-bms-analysis` | diagnostics, symbol index, and editor data |
+Stage responsibilities live in each crate's AGENTS.md; the root file holds the
+full crate matrix.
 
 ## Design principles
 
@@ -71,15 +63,8 @@ processor.
 
 ## Tests
 
-```bash
-cargo test -p bmsrs-bms-source
-cargo test -p bmsrs-bms-values
-cargo test -p bmsrs-bms-syntax
-cargo test -p bmsrs-bms-parser
-cargo test -p bmsrs-bms-processor
-cargo test -p bmsrs-bms-analysis
-# bmsrs-bms-values-derive is tested indirectly through bmsrs-bms-values roundtrips.
-```
+Completion: `cargo test --workspace --quiet` green (`bmsrs-bms-values-derive`
+is covered indirectly through `bmsrs-bms-values` roundtrips).
 
 ## Domain constraints
 

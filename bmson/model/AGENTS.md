@@ -6,14 +6,9 @@ Type definitions for the bmson JSON format (v0/v1/v2).
 
 ## Module structure
 
-| Path | Content |
-|------|---------|
-| `common.rs` | common types (`NoteEvent`, `BpmEvent`, `BGA`, `ModeHint`, and so on), re-exported from the crate root |
-| `v0.rs` / `v1.rs` | version-specific types plus `From`/`TryFrom` conversion traits |
-| `lib.rs` (root) | v2-specific types (`Bmson` v2, `SongInfo`, `ChartInfo`, `ChartData`), defined at the crate root without a separate module |
-
-`v0` and `v1` are **independent modules**, each with its own `Bmson`, `BmsonInfo`,
-and `SoundChannel`. Import them from `bmsrs_bmson_model::v0` or `bmsrs_bmson_model::v1`.
+`v0` and `v1` are **independent modules** with their own conversions; import
+them as `bmsrs_bmson_model::v0` / `::v1`. Common types live in `common.rs`
+re-exported from the root; v2 types live at the crate root.
 
 ## Version detection
 

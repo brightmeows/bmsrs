@@ -23,6 +23,11 @@
 //! construction. Wall-clock time is obtained through
 //! [`TimingTrack::tick_to_duration`].
 //!
+//! Stop pauses are [`Duration`] values on [`EventKind::Stop`], not quantized
+//! to ticks: during a pause, ticks freeze while time keeps flowing.
+//! [`TimingTrack::tick_to_musical_duration`] converts ticks excluding stop
+//! pauses; it is the right domain for audio slicing.
+//!
 //! # Unified event timeline
 //!
 //! All timed events live in a single [`events`](ChartData::events) vector sorted

@@ -14,61 +14,18 @@ come back in the `bmsrs_pipeline::Outcome` wrapper:
 
 | Field | Content |
 |-------|---------|
-| `gameplay` | raw values of `#PLAYER`/`#EXRANKxx`/`#OPTION`/`#CHANGEOPTIONxx` (`#RANK`/`#DEFEXRANK`/`#TOTAL`/`#VOLWAV` now enter `ChartInfo`) |
+| `gameplay` | raw values of `#PLAYER`/`#EXRANKxx`/`#OPTION`/`#CHANGEOPTIONxx` |
 | `audio` | raw values of `#EXWAV` parameters, `#WAVCMD`, `#CDDA`, `#MIDIFILE`, `#PATH_WAV` |
 
 `#PATH_WAV` is applied to `AudioAsset.path` as well; the sidecar keeps the raw
 prefix.
 
-## Key conversions
+## Long-note modes and stop conversion
 
-| Conversion | Input | Output | Notes |
-|------------|-------|--------|-------|
-| Notes | `NoteEvent` + `LongNoteEvent` + `MineEvent` | `Event::Note` | notes consumed by LNOBJ are excluded from ordinary notes; same-position conflicts keep the later definition; notes covered by a long note move to BGM with `NoteCoveredByLongNote` (matching beatoraja), except a same-WAV note on the long-note start, which is dropped as redundant |
-| Timing | `BpmChange` + `StopEvent` + `MeasureTable` | `TimingTrack` | measure length is computed from `length_ratio` (f64) |
-| BGM | `BgmEvent` | `Event::Bgm` | LNOBJ end markers are silent (matching beatoraja/LR2) |
-| BGA | `BgaEvent` | `Event::Bga` | four layers (Base / Poor / Layer / Layer2); `BmsBgaLayer` maps to `chart::BgaLayer` here |
-| BGA clear | channel value `00` is a rest; an undefined BMP index | `Event::Bga` with `resource_id: None` | undefined references emit `MissingBmpDefinition` and clear the layer instead of dropping the event |
-| SWBGA | `#SWBGAxx` definitions plus ch A5 | `ChartInfo.swbga_resources` + `BmsCustomEvent::BgaKeyBound { swbga_id }` | the A5 value indexes the SWBGA definition table (not the BMP table); pattern frames resolve against `bga_resources` |
-| Judge rank | ch A0 referencing `#EXRANKxx` | `Event::JudgeRank { percent }` | the definition value is the judgment width percentage (`100` is standard); undefined references warn and are skipped |
-| Display metadata | `BmsHeaderDisplay` | `ChartInfo` | `#BANNER`/`#BACKBMP`/`#STAGEFILE`/`#PREVIEW` are handled by `build_metadata` |
-| Timed text | `#TEXTxx` definitions plus ch 99 | `BmsCustomEvent::TextDisplay { text }` | the resolved text body travels with the event; `#TEXT00` maps to `ChartInfo.miss_text` and never becomes an event |
-| SCROLL | `ScrollEvent` | `Event::Scroll` | scroll speed multiplier |
-| SPEED | `SpeedEvent` | `Event::Speed` | visual spacing keyframes with linear interpolation |
-| Long-note mode hint | `#LNMODE` | `Option<LnTypeHint>` | 1:1 mapping of Ln/Cn/Hcn; no `#LNMODE` stays `None` (unspecified), matching beatoraja's undefined LN mode |
-| BGA crop | `#BGA`/`#@BGA` | `BgaResource.crop` | `build_bmp_map` merges the three namespaces; `#@BGA` (w/h) is normalized to the bottom-right corner |
-| Video asset | `#VIDEOFILE`/`#MOVIE` | `ChartInfo.video` | looping `#VIDEOFILE` takes priority over single-play `#MOVIE`; attaches `#VIDEOf/s`/`#VIDEOCOLORS`/`#VIDEODLY` |
-| Video SEEK | `#SEEK` definition plus ch 05 | `BmsCustomEvent::VideoSeek` | looks up `seek_defs` for milliseconds (not the raw Base36 value); undefined ids are skipped |
-| `non_event_data` custom events | `NonEventData.values` | `BmsCustomEvent` | every 2-character index is already normalized in the parser layer, so lookups hit directly without another `normalize(base)` |
-| Value parse warnings | `Messages.warnings` | `ProcessWarning::UnparsableValue` | forwards the parser layer's `ChannelValueWarning` (measure/channel/value); missing references are covered by `Missing*` variants |
-
-## Long-note modes (auto-detection)
-
-| Mode | Detection | Pairing algorithm |
-|------|-----------|-------------------|
-| LNOBJ | `#LNOBJ` is defined | ordinary notes paired with LNOBJ markers |
-| LNTYPE 1 (RDM) | default (or `#LNTYPE 1`) | ch 51-69, filter `"00"`, pair consecutively |
-| LNTYPE 2 (MGQ) | `#LNTYPE 2` | ch 51-69, `"00"` means LN end |
-
-## Position conversion
-
-`MeasureTable` precomputes the cumulative tick offset of each measure to handle
-variable time signatures:
-
-```text
-tick = measure_starts[measure] + numer * measure_len / denom
-```
-
-Each measure length is `resolution * 4 * length_ratio`, where `length_ratio` is
-the `#xxx02` value.
-
-## Stop conversion
-
-| Source | Conversion formula |
-|--------|--------------------|
-| `#STOP` (ch 09) | `raw / 192.0 * 4` beats converted to seconds through `bpm_at_tick` |
-| `#STP` (header) | milliseconds converted directly to `Duration` (no quantization); same-position entries accumulate per the specification (`001.500` 500 + 4000 = 4500 ms total) |
-| Negative `#STOP` definition values | clamped to `0` and skipped with a warning; beatoraja (jbms-parser) takes the absolute value instead, deliberately not followed |
+Long-note mode detection: LNOBJ when `#LNOBJ` is defined, otherwise LNTYPE 1
+(RDM) pairing by default, LNTYPE 2 (MGQ) with `#LNTYPE 2`. Pairing algorithms
+live in `long_note.rs`. `#STP` header milliseconds are never quantized;
+same-position entries accumulate per the specification.
 
 ## Mode families
 
@@ -96,6 +53,12 @@ engines).
 | LNOBJ end silence | The end marker's WAV does not play (matching beatoraja/LR2/bmz); the RDM-spec end-marker BGM behavior is deliberately not implemented |
 | ch51-69 under LNOBJ | Mutually exclusive with LNOBJ (memo/10 leaves it undefined); not discarded, kept as ordinary visible notes |
 | Mine `damage` | `MineEvent.raw_value` (`Option<u16>`) goes through `mine_damage()`: `Some(1295)` gives INFINITY, `Some(n)` gives n/2, `None` gives 1.0 |
+| Visible notes under a long-channel pair | move to BGM with `NoteCoveredByLongNote` (matching beatoraja); a same-WAV note on the long-note start is dropped as redundant |
+| BGA clear semantics | channel value `00` is a rest; an undefined BMP reference emits `MissingBmpDefinition` and clears the layer (`resource_id: None`) instead of dropping the event |
+| SWBGA indexing | the A5 value indexes the SWBGA definition table, not the BMP table; pattern frames resolve against `bga_resources` |
+| nanasi miss text | `#TEXT00` maps to `ChartInfo.miss_text` and never becomes a channel event |
+| Video SEEK resolution | `#SEEK` resolves milliseconds (not the raw Base36 value); undefined ids are skipped |
+| Negative `#STOP` values | clamped to `0` and skipped with a warning; beatoraja (jbms-parser) takes the absolute value instead, deliberately not followed |
 | `process_default` layout | Uses `DscOctFp` when `#OCT/FP` is true, otherwise `Bme`; `#PLAYER` is still ignored, and modes such as PMS must be specified explicitly |
 | `key_count` | Sum of the maximum `Lane::Key` number per side across the event stream; `None` when there are no key notes |
 | Judge/life multipliers | BMS `#RANK`/`#TOTAL` are not converted into the multiplier fields; they enter `ChartInfo.judge_rank`/`ChartInfo.total` as raw values instead, and both multiplier fields stay `None` for BMS |
@@ -105,9 +68,9 @@ engines).
 | Warning shape | `ProcessWarning { span, kind }`; `ProcessWarningKind` carries the payload, `span` is the source line when available |
 | `#BPM 0` | Returns `ProcessError::ZeroBpm` instead of falling back to 130; the current time model cannot represent zero BPM |
 | Conversion steps belong to `BmsConverter` | `collect_*`/`build_*` are methods on the private internal `BmsConverter`, not free functions |
-| `non_event_data` index normalization | Done in the parser layer; consumed by the processor | Every 2-character value in `non_event_data` was normalized in the parser's `finalize_merged` using the pre-scanned `#BASE`. Processor lookups hit directly. The `BmsConverter.base` field was removed because it is no longer needed |
+| `non_event_data` index normalization | Done in the parser layer: every 2-character value was normalized in `finalize_merged` using the pre-scanned `#BASE`, so processor lookups hit directly without another `normalize(base)`. The `BmsConverter.base` field was removed because it is no longer needed |
 | `bpm_at_tick` source | Delegates to `BpmLookup::new(init_bpm, changes).bpm_at_tick(tick)` (the former local duplicate is gone). STP-to-tick conversion still has to happen before `TimingTrack` construction, but the algorithm is unified |
-| BGA crop source path | The `bmp_index` of `#BGA`/`#@BGA` is a decimal source number; it is matched against `bmp_files` keys by hexadecimal value (for example, `16` gives `"10"`), and only 0-255 is referenceable. Crop ids whose source path cannot be resolved are skipped |
+| BGA crop source path | The `bmp_index` of `#BGA`/`#@BGA` is a decimal source number; it is matched against `bmp_files` keys by hexadecimal value (for example, `16` gives `"10"`), and only 0-255 is referenceable; `#@BGA` (w/h) is normalized to the bottom-right corner. Crop ids whose source path cannot be resolved are skipped |
 
 ## Deliberate deferral (parsed but not converted here)
 
