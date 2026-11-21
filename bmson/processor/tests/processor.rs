@@ -1299,3 +1299,53 @@ fn kaleid_extensions_reach_the_sidecar() {
         Some(bmsrs_bmson_model::SoundFilterKind::Lpf)
     );
 }
+
+#[test]
+fn filters_cover_every_sliced_asset() {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.sound_channels = vec![bmsrs_bmson_model::SoundChannel {
+        name: "LPF 8000 200 96 Q4".into(),
+        note_events: vec![
+            bmsrs_bmson_model::NoteEvent {
+                x: 1,
+                y: 0,
+                l: 0,
+                c: false,
+                t: None,
+                up: None,
+                ln_type_hint: None,
+                ln_judge_hint: None,
+                ln_life_hint: None,
+                vol: None,
+                pan: None,
+            },
+            bmsrs_bmson_model::NoteEvent {
+                x: 1,
+                y: 480,
+                l: 0,
+                c: false,
+                t: None,
+                up: None,
+                ln_type_hint: None,
+                ln_judge_hint: None,
+                ln_life_hint: None,
+                vol: None,
+                pan: None,
+            },
+        ],
+    }];
+
+    let processed = BmsonProcessor::process::<Beat>(&bmson)
+        .expect("process should succeed")
+        .value;
+    let kaleid = processed
+        .kaleid
+        .expect("filter chart should have a sidecar");
+    assert_eq!(kaleid.filters.len(), 2);
+    assert!(
+        kaleid
+            .filters
+            .values()
+            .all(|filter| { filter.kind == bmsrs_bmson_model::SoundFilterKind::Lpf })
+    );
+}

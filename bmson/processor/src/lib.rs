@@ -525,14 +525,15 @@ impl BmsonConverter<'_> {
             let path = normalize_path(&channel.name)?;
             let base = self.audio_assets.len();
             let sliced = slice_channel(channel, &self.timing, &path);
-            if let Some(filter) = channel.filter()
-                && !sliced.assets.is_empty()
-            {
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    reason = "audio asset count fits in u32"
-                )]
-                self.filters.insert(AudioIndex::new(base as u32), filter);
+            if let Some(filter) = channel.filter() {
+                for offset in 0..sliced.assets.len() {
+                    #[expect(
+                        clippy::cast_possible_truncation,
+                        reason = "audio asset count fits in u32"
+                    )]
+                    self.filters
+                        .insert(AudioIndex::new((base + offset) as u32), filter.clone());
+                }
             }
 
             let channel_playable: HashSet<u64> = channel
