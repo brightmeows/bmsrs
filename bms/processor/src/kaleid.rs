@@ -7,9 +7,7 @@
 use std::collections::BTreeMap;
 
 use bmsrs_bms_model::{Bms, ConditionalBlock, Messages, Position};
-use bmsrs_bms_values::{
-    BmsBase, BmsChannel, BmsIndex, BodyCells, ExtensionChannel, OptionWords, WavIndex,
-};
+use bmsrs_bms_values::{BmsBase, BmsChannel, BmsIndex, BodyCells, ExtensionChannel, WavIndex};
 use bmsrs_chart::audio::AudioIndex;
 
 /// `KaleidBeat` sidecar attached to [`crate::Processed`].
@@ -21,13 +19,6 @@ use bmsrs_chart::audio::AudioIndex;
 pub struct BmsKaleid {
     /// Chart-local declaration headers.
     pub declarations: bmsrs_bms_model::Kaleid,
-    /// `#OPTION` lines carried by the dialect chart.
-    ///
-    /// The four named `KaleidBeat` words are a dialect extension; the header
-    /// itself is a nanasi extension. These lines are also available from
-    /// [`crate::BmsGameplay::option`]; this field is a copy for sidecar-only
-    /// consumers.
-    pub options: Vec<OptionWords>,
     /// Extension-channel objects in source order.
     pub objects: Vec<KaleidObject>,
     /// Runtime conditional blocks in source order.
@@ -120,18 +111,12 @@ pub fn build(
     synth: &BTreeMap<AudioIndex, bmsrs_bms_model::SynthParams>,
 ) -> Option<BmsKaleid> {
     let objects = collect_objects(bms);
-    let options = bms.gameplay.option.clone();
-    if bms.kaleid.is_empty()
-        && objects.is_empty()
-        && options.is_empty()
-        && bms.conditional.is_empty()
-        && synth.is_empty()
+    if bms.kaleid.is_empty() && objects.is_empty() && bms.conditional.is_empty() && synth.is_empty()
     {
         return None;
     }
     Some(BmsKaleid {
         declarations: bms.kaleid.clone(),
-        options,
         objects,
         conditional: bms.conditional.clone(),
         synth: synth.clone(),

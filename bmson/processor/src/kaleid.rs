@@ -7,7 +7,7 @@ use bmsrs_chart::audio::AudioIndex;
 
 use bmsrs_bmson_model::{
     Bmson, ConditionalBlock, Difficulty, DummyMineNote, DummyNote, DummyPotionNote,
-    FreeZoneChannel, JudgeRankEvent, PotionNote, SoundFilter, SpeedEvent, TextEvent,
+    FreeZoneChannel, JudgeRankEvent, PotionNote, SoundFilter, TextEvent,
 };
 
 /// `KaleidBeat` extensions carried by a bmson file.
@@ -27,12 +27,6 @@ pub struct BmsonKaleid {
     pub midi_file: Option<PathBuf>,
     /// pomu2 character definition file.
     pub chara_file: Option<PathBuf>,
-    /// Spacing-factor keyframes.
-    ///
-    /// Common events are also mapped to `Chart` Speed events; conditional
-    /// branch events exist only here. Consumers should choose one view rather
-    /// than applying both.
-    pub speed_events: Vec<SpeedEvent>,
     /// Timed text events.
     pub text_events: Vec<TextEvent>,
     /// Judge-rank keyframes.
@@ -65,7 +59,6 @@ impl BmsonKaleid {
             display_bpm: bmson.chart_info.display_bpm.clone(),
             midi_file: bmson.chart_info.midi_file.clone(),
             chara_file: bmson.chart_info.chara_file.clone(),
-            speed_events: bmson.speed_events.clone(),
             text_events: bmson.text_events.clone(),
             judge_rank_events: bmson.judge_rank_events.clone(),
             free_zone_channels: bmson.free_zone_channels.clone(),
@@ -91,7 +84,6 @@ impl BmsonKaleid {
             && self.display_bpm.is_none()
             && self.midi_file.is_none()
             && self.chara_file.is_none()
-            && self.speed_events.is_empty()
             && self.text_events.is_empty()
             && self.judge_rank_events.is_empty()
             && self.free_zone_channels.is_empty()

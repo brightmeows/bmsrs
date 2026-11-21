@@ -1674,11 +1674,9 @@ fn kaleid_option_words_create_a_sidecar() {
     let processed = BmsProcessor::process::<Bme>(&bms)
         .expect("process should succeed")
         .value;
-    let kaleid = processed
-        .kaleid
-        .expect("option chart should have a sidecar");
+    assert!(processed.kaleid.is_none());
     assert_eq!(
-        kaleid.options[0].words(),
+        processed.gameplay.option[0].words(),
         &[BmsOptionWord::Constant, BmsOptionWord::Forecast]
     );
 }

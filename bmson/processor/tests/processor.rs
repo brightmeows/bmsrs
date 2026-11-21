@@ -1291,8 +1291,10 @@ fn kaleid_extensions_reach_the_sidecar() {
         .kaleid
         .expect("extension chart should have a sidecar");
     assert_eq!(kaleid.comment, "note");
-    assert_eq!(kaleid.speed_events.len(), 1);
     assert_eq!(kaleid.potion_notes.len(), 1);
+    assert!(processed.chart.data().events().iter().any(|event| {
+        matches!(event.kind, EventKind::Speed { rate } if (rate - 2.0).abs() < f64::EPSILON)
+    }));
     assert_eq!(kaleid.filters.len(), 1);
     assert_eq!(
         kaleid.filters.values().next().map(|filter| filter.kind),
