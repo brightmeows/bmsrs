@@ -107,3 +107,19 @@ fn jbms_compat_mode_and_lr2_rng_run_through_the_facade() {
     assert!((1..=4).contains(&java.draw(4)));
     assert!((1..=4).contains(&lr2.draw(4)));
 }
+
+#[test]
+fn bmd_parse_file_selects_the_dialect_format() {
+    let path = std::env::temp_dir().join(format!("bmsrs-facade-test-{}.bmd", std::process::id()));
+    std::fs::write(
+        &path,
+        "#WAV01 P0 N60 V100 G48\n#00111:01 ; inline comment\n",
+    )
+    .expect("write fixture");
+    let parsed = bmsrs::bms::parse_file(&path).expect("valid BMD file");
+    std::fs::remove_file(&path).expect("remove fixture");
+
+    assert_eq!(parsed.value.format, bmsrs::pipeline::SourceFormat::Bmd);
+    assert_eq!(parsed.value.audio.wav_sources.len(), 1);
+    assert!(parsed.value.audio.wav_files.is_empty());
+}

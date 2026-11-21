@@ -8,6 +8,7 @@ use bmsrs_bms_model::{Bms, ConditionalBlock, Messages, Position};
 use bmsrs_bms_values::{
     BmsBase, BmsChannel, BmsIndex, BodyCells, ExtensionChannel, OptionWords, WavIndex,
 };
+use bmsrs_chart::audio::AudioIndex;
 
 /// `KaleidBeat` sidecar attached to [`crate::Processed`].
 ///
@@ -30,6 +31,11 @@ pub struct BmsKaleid {
     /// `KaleidBeat` extension: not defined by the BMS specification or
     /// beatoraja.
     pub conditional: Vec<ConditionalBlock>,
+    /// BMD synthesis definitions keyed by the chart's audio index.
+    ///
+    /// `KaleidBeat` extension: not defined by the BMS specification or
+    /// beatoraja.
+    pub synth: Vec<(AudioIndex, bmsrs_bms_model::SynthParams)>,
 }
 
 /// One object on a `KaleidBeat` extension channel.
@@ -107,13 +113,14 @@ pub enum KaleidObjectKind {
 /// Build the `KaleidBeat` sidecar, or `None` when the chart has no dialect
 /// declarations and no extension-channel objects.
 #[must_use]
-pub fn build(bms: &Bms) -> Option<BmsKaleid> {
+pub fn build(bms: &Bms, synth: &[(AudioIndex, bmsrs_bms_model::SynthParams)]) -> Option<BmsKaleid> {
     let objects = collect_objects(bms);
     let options = bms.gameplay.option.clone();
     if bms.kaleid.is_empty()
         && objects.is_empty()
         && options.is_empty()
         && bms.conditional.is_empty()
+        && synth.is_empty()
     {
         return None;
     }
@@ -122,6 +129,7 @@ pub fn build(bms: &Bms) -> Option<BmsKaleid> {
         options,
         objects,
         conditional: bms.conditional.clone(),
+        synth: synth.to_vec(),
     })
 }
 

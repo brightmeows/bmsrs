@@ -227,7 +227,7 @@ impl BmsProcessor {
             warnings: Vec::new(),
         };
 
-        let (wav_map, audio_assets) = BmsConverter::build_audio_assets(&bms.audio);
+        let (wav_map, audio_assets, synth_assets) = BmsConverter::build_audio_assets(&bms.audio);
         let bpm_changes = conv.build_bpm_changes();
         let bpm_lookup = BpmLookup::new(init_bpm, &bpm_changes);
 
@@ -308,11 +308,14 @@ impl BmsProcessor {
         warnings.extend(conv.warnings);
         let gameplay = BmsGameplay::from(&bms.gameplay);
         let audio = BmsAudio::from(&bms.audio);
-        let kaleid = kaleid::build(bms);
+        let kaleid = kaleid::build(bms, &synth_assets);
 
         let chart = Chart::new(song, chart_info, data)?;
         if let AssetLookup::Probe(probe) = assets {
             for asset in chart.data().audio_assets() {
+                if asset.path.to_string_lossy().starts_with("bmd:") {
+                    continue;
+                }
                 if !probe(&asset.path) {
                     warnings.push(ProcessWarning::new(
                         None,

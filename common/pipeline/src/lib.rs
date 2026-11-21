@@ -191,3 +191,41 @@ impl Diagnostic {
         matches!(self.severity, Severity::Error)
     }
 }
+
+/// Source format selected by the entry layer.
+///
+/// `Bms` covers the BMS text family (`.bms`, `.bme`, `.bml`, and extensionless
+/// files), `Bmc` is the `KaleidBeat`-recommended marker for dialect charts,
+/// `Bmd` is the BMS-derived synthesis format, and `Bmson` is JSON.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SourceFormat {
+    /// Standard BMS text family.
+    #[default]
+    Bms,
+    /// `.bmc` dialect marker; parsed exactly like BMS.
+    Bmc,
+    /// `.bmd` synthesis format.
+    Bmd,
+    /// `.bmson` JSON.
+    Bmson,
+}
+
+impl SourceFormat {
+    /// Infer the format from a file path's extension.
+    ///
+    /// Unknown extensions fall back to [`Bms`](Self::Bms).
+    #[must_use]
+    pub fn from_path(path: &std::path::Path) -> Self {
+        match path
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .map(str::to_ascii_lowercase)
+            .as_deref()
+        {
+            Some("bmd") => Self::Bmd,
+            Some("bmc") => Self::Bmc,
+            Some("bmson") => Self::Bmson,
+            _ => Self::Bms,
+        }
+    }
+}

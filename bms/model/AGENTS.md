@@ -28,6 +28,7 @@ writer. Control-flow headers are skipped here (handled by
 | Rule | Explanation |
 |------|-------------|
 | `Bms` is rebuildable | fields roundtrip through `bmsrs-bms-writer` |
+| `.bmd` format | `Bms.format` is `Bmd`; `#WAV` values that parse as `SynthParams` go to `Audio.wav_sources`, while file names stay in `Audio.wav_files`; the effective base is Base62 without rewriting `Gameplay.base` |
 | `"00"` differs per channel | note channels mean no note; BPM ch03 means rest; LN/ext channels treat it as a value |
 | Normalization contract | every `apply` on `Timing`/`Visual`/`Gameplay` receives `base` and normalizes index keys |
 | Derived values are forbidden | store the raw literal; move damage, reference resolution, and table lookup to the processor |

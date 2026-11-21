@@ -48,11 +48,20 @@ impl From<&Audio> for BmsAudio {
 
 impl BmsConverter<'_> {
     /// Build WAV audio assets and return the lookup table and asset vector.
+    #[expect(
+        clippy::type_complexity,
+        reason = "map, assets, and synth sidecar travel together"
+    )]
     pub fn build_audio_assets(
         bms_audio: &Audio,
-    ) -> (BTreeMap<WavIndex, AudioIndex>, Vec<AudioAsset>) {
+    ) -> (
+        BTreeMap<WavIndex, AudioIndex>,
+        Vec<AudioAsset>,
+        Vec<(AudioIndex, bmsrs_bms_model::SynthParams)>,
+    ) {
         let mut wav_map = BTreeMap::new();
         let mut audio_assets = Vec::new();
+        let mut synth_assets = Vec::new();
         for (&wav_id, path) in &bms_audio.wav_files {
             #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
             let idx = AudioIndex::new(audio_assets.len() as u32);
@@ -67,6 +76,17 @@ impl BmsConverter<'_> {
             });
             wav_map.insert(wav_id, idx);
         }
-        (wav_map, audio_assets)
+        for (&wav_id, params) in &bms_audio.wav_sources {
+            #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
+            let idx = AudioIndex::new(audio_assets.len() as u32);
+            audio_assets.push(AudioAsset {
+                path: Arc::from(PathBuf::from(format!("bmd:{wav_id}"))),
+                start: Duration::ZERO,
+                duration: None,
+            });
+            synth_assets.push((idx, params.clone()));
+            wav_map.insert(wav_id, idx);
+        }
+        (wav_map, audio_assets, synth_assets)
     }
 }
