@@ -21,6 +21,25 @@ tools only need to consume this layer.
 
 The project uses Rust 2024 edition with MSRV 1.95.
 
+## Format scope and sources
+
+bmsrs implements the BMS text family (including `.bmc` and `.bmd`) and the
+BMSON v0/v1/v2 schemas. It also recognizes the KaleidBeat dialect, whose format
+manual is not a website: it ships inside the player's release archive. The
+library keeps judging, scoring, gauge, and playback policy in the player; the
+sidecars carry the dialect metadata and source structures.
+
+| Area | Source |
+|------|--------|
+| BMS commands and channels | [BMS command memo](https://hitkey.nekokan.dyndns.info/cmdsJP.htm) |
+| BMSON schemas | [BMSON specification](https://bmson-spec.readthedocs.io/) and [bmson/bmson](https://github.com/bmson/bmson) |
+| beatoraja extensions | [beatoraja](https://github.com/exch-bms2/beatoraja) |
+| KaleidBeat dialect | [KaleidBeat releases](https://github.com/curecoma/KaleidBeat-releases); the manual is `KaleidBeat/documents/format-header.html`, `format-channel.html`, and `format-bmd.html` inside the release archive |
+| KaleidBeat secondary contract | [bmz-player `docs/kaleid.md`](https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md) |
+
+The KaleidBeat manual wins when the secondary contract disagrees. The
+repository does not vendor these external documents.
+
 ## Pipeline
 
 | Input | Processing | Output |

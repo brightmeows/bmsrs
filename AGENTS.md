@@ -115,19 +115,28 @@ set or belong to the same conversion process. This is a recommendation, not a
 requirement: pure helpers and simple stateless utilities may remain free
 functions.
 
+### Format sources
+
+The format documents are external; the repository does not vendor them. Cite
+the original sources, not intermediate notes.
+
+| Area | Source |
+|------|--------|
+| BMS commands and channels | <https://hitkey.nekokan.dyndns.info/cmdsJP.htm> |
+| BMSON schemas | <https://bmson-spec.readthedocs.io/> and <https://github.com/bmson/bmson> |
+| beatoraja extensions | <https://github.com/exch-bms2/beatoraja> |
+| KaleidBeat dialect | <https://github.com/curecoma/KaleidBeat-releases>; the manual is `KaleidBeat/documents/format-header.html`, `format-channel.html`, and `format-bmd.html` inside the release archive |
+| KaleidBeat secondary contract | <https://github.com/hyrorre/bmz-player/blob/main/docs/kaleid.md> |
+
+The KaleidBeat manual wins when the secondary contract disagrees.
+
 ### Development references
 
-The following skills are maintained outside this repository and are not part of
-it. This root file is the only place in the repository that names them;
-crate-level AGENTS.md files and source comments stay self-contained.
+The following skill is maintained outside this repository.
 
 | Skill | Source repository | Purpose |
 |-------|-------------------|---------|
-| `bms` / `bmson` | <https://github.com/brightmeows/bms-skills> | BMS/bmson format specifications and terminology lookup |
 | `rust-meta-cognition` | <https://github.com/brightmeows/rust-meta-skills> | routing for Rust design and compilation problems |
-
-When citing their content, link to the original sources the skills point to,
-not to the skill documents themselves.
 
 ### Comment style
 
