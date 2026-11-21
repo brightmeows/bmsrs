@@ -16,7 +16,7 @@ come back in the `bmsrs_pipeline::Outcome` wrapper:
 |-------|---------|
 | `gameplay` | raw values of `#PLAYER`/`#EXRANKxx`/`#OPTION`/`#CHANGEOPTIONxx` |
 | `audio` | raw values of `#EXWAV` parameters, `#WAVCMD`, `#CDDA`, `#MIDIFILE`, `#PATH_WAV` |
-| `kaleid` | `KaleidBeat` declarations, `#OPTION` lines, extension-channel objects, conditional blocks, and BMD synth definitions; `None` for ordinary charts |
+| `kaleid` | `KaleidBeat` declarations, extension-channel objects, conditional blocks, and BMD synth definitions; `None` for ordinary charts. `#OPTION` stays only in `gameplay.option` |
 
 `#PATH_WAV` is applied to `AudioAsset.path` as well; the sidecar keeps the raw
 prefix.
