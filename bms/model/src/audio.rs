@@ -34,6 +34,19 @@ impl From<&ExWavParams> for OwnedExWavParams {
     }
 }
 
+/// One `#WAV` source.
+///
+/// `File` is the standard BMS file reference. `Synth` is a `KaleidBeat`
+/// extension used by BMD charts and is not part of the BMS specification or
+/// beatoraja.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WavSource {
+    /// Ordinary audio file name.
+    File(String),
+    /// BMD synthesis parameters.
+    Synth(SynthParams),
+}
+
 /// Audio resource definitions.
 ///
 /// Indexed definitions use `BTreeMap`; scalar fields use `Option`.
@@ -85,5 +98,18 @@ impl Audio {
             BmsHeaderResDefAudio::Midifile(s) => self.midifile = Some(s.clone()),
             BmsHeaderResDefAudio::PathWav(s) => self.path_wav = Some(s.clone()),
         }
+    }
+
+    /// Return the source for one `#WAV` index.
+    ///
+    /// File entries and BMD synthesis entries are disjoint; this method hides
+    /// the two backing maps from callers.
+    #[must_use]
+    pub fn wav_source(&self, id: WavIndex) -> Option<WavSource> {
+        self.wav_files
+            .get(&id)
+            .cloned()
+            .map(WavSource::File)
+            .or_else(|| self.wav_sources.get(&id).cloned().map(WavSource::Synth))
     }
 }

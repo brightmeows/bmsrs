@@ -22,7 +22,7 @@ use bmsrs_bms_values::{
 use bmsrs_pipeline::SourceFormat;
 
 // Re-export all public types from the submodules.
-pub use audio::{Audio, OwnedExWavParams};
+pub use audio::{Audio, OwnedExWavParams, WavSource};
 pub use conditional::{ConditionalBlock, ConditionalBranch};
 pub use display::Display;
 pub use gameplay::Gameplay;

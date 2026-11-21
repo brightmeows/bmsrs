@@ -22,7 +22,9 @@ pub struct BmsKaleid {
     /// `#OPTION` lines carried by the dialect chart.
     ///
     /// The four named `KaleidBeat` words are a dialect extension; the header
-    /// itself is a nanasi extension.
+    /// itself is a nanasi extension. These lines are also available from
+    /// [`crate::BmsGameplay::option`]; this field is a copy for sidecar-only
+    /// consumers.
     pub options: Vec<OptionWords>,
     /// Extension-channel objects in source order.
     pub objects: Vec<KaleidObject>,

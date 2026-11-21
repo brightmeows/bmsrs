@@ -17,6 +17,9 @@ bmsrs 处理两种谱面格式：
 
 项目使用 Rust 2024 edition，MSRV 为 1.95。
 
+格式范围与来源（BMS 命令 memo、BMSON 规范、beatoraja、KaleidBeat 发布包内的
+手册）见英文版 [README.md](README.md) 的 “Format scope and sources” 一节。
+
 ## 快速开始
 
 从 crates.io 安装：

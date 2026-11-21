@@ -25,6 +25,10 @@ pub struct BmsonKaleid {
     /// pomu2 character definition file.
     pub chara_file: Option<PathBuf>,
     /// Spacing-factor keyframes.
+    ///
+    /// Common events are also mapped to `Chart` Speed events; conditional
+    /// branch events exist only here. Consumers should choose one view rather
+    /// than applying both.
     pub speed_events: Vec<SpeedEvent>,
     /// Timed text events.
     pub text_events: Vec<TextEvent>,
