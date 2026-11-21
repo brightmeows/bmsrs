@@ -119,14 +119,6 @@ pub struct BmsonProcessed {
     pub kaleid: Option<BmsonKaleid>,
 }
 
-impl std::ops::Deref for BmsonProcessed {
-    type Target = Chart<BmsonNoteExt>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.chart
-    }
-}
-
 /// Zero-sized processor that converts [`bmsrs_bmson_model::Bmson`] into
 /// [`Chart<BmsonNoteExt>`].
 ///
@@ -241,6 +233,7 @@ impl BmsonProcessor {
             audio_assets: Vec::new(),
             events: Vec::new(),
             warnings,
+            filters: BTreeMap::new(),
         };
 
         conv.process_sound_channels()?;
@@ -287,7 +280,7 @@ impl BmsonProcessor {
         .with_judge_deltas(judge_deltas)
         .with_life_deltas(life_deltas);
 
-        let kaleid = BmsonKaleid::from_bmson(bmson);
+        let kaleid = BmsonKaleid::from_bmson(bmson, conv.filters);
         Ok(Outcome::new(
             BmsonProcessed {
                 chart: Chart::new(song_info, chart_info, data)?,
@@ -323,6 +316,8 @@ struct BmsonConverter<'a> {
     events: Vec<Event<BmsonNoteExt>>,
     /// Recoverable warnings collected during processing.
     warnings: Vec<BmsonProcessWarning>,
+    /// Filter objects keyed by the first sliced audio asset of their channel.
+    filters: BTreeMap<AudioIndex, bmsrs_bmson_model::SoundFilter>,
 }
 
 /// A note waiting to be merged at the same `(side, lane, tick)`.
@@ -528,7 +523,17 @@ impl BmsonConverter<'_> {
 
         for channel in &self.bmson.chart_data.sound_channels {
             let path = normalize_path(&channel.name)?;
+            let base = self.audio_assets.len();
             let sliced = slice_channel(channel, &self.timing, &path);
+            if let Some(filter) = channel.filter()
+                && !sliced.assets.is_empty()
+            {
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "audio asset count fits in u32"
+                )]
+                self.filters.insert(AudioIndex::new(base as u32), filter);
+            }
 
             let channel_playable: HashSet<u64> = channel
                 .note_events
