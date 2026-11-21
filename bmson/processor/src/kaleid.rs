@@ -1,6 +1,9 @@
 //! `KaleidBeat` sidecar extraction for bmson.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+use bmsrs_chart::audio::AudioIndex;
 
 use bmsrs_bmson_model::{
     Bmson, ConditionalBlock, Difficulty, DummyMineNote, DummyNote, DummyPotionNote,
@@ -46,21 +49,16 @@ pub struct BmsonKaleid {
     pub dummy_potion_notes: Vec<DummyPotionNote>,
     /// Runtime conditional blocks.
     pub conditional_blocks: Vec<ConditionalBlock>,
-    /// Filter objects keyed by the sound-channel index.
-    pub filters: Vec<(usize, SoundFilter)>,
+    /// Filter objects keyed by the chart audio index.
+    ///
+    /// `KaleidBeat` extension: not part of the bmson schema or beatoraja.
+    pub filters: BTreeMap<AudioIndex, SoundFilter>,
 }
 
 impl BmsonKaleid {
     /// Build the sidecar, or `None` when the file carries no extension.
     #[must_use]
-    pub fn from_bmson(bmson: &Bmson) -> Option<Self> {
-        let filters: Vec<_> = bmson
-            .chart_data
-            .sound_channels
-            .iter()
-            .enumerate()
-            .filter_map(|(index, channel)| channel.filter().map(|filter| (index, filter)))
-            .collect();
+    pub fn from_bmson(bmson: &Bmson, filters: BTreeMap<AudioIndex, SoundFilter>) -> Option<Self> {
         let kaleid = Self {
             difficulty: bmson.chart_info.difficulty.clone(),
             comment: bmson.chart_info.comment.clone(),
@@ -87,7 +85,7 @@ impl BmsonKaleid {
 
     /// Return whether every extension field is empty.
     #[must_use]
-    pub const fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.difficulty.is_none()
             && self.comment.is_empty()
             && self.display_bpm.is_none()
