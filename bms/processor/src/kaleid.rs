@@ -4,6 +4,8 @@
 //! format-neutral `Chart`. Callers that understand the dialect read them from
 //! [`crate::Processed::kaleid`](crate::Processed::kaleid).
 
+use std::collections::BTreeMap;
+
 use bmsrs_bms_model::{Bms, ConditionalBlock, Messages, Position};
 use bmsrs_bms_values::{
     BmsBase, BmsChannel, BmsIndex, BodyCells, ExtensionChannel, OptionWords, WavIndex,
@@ -37,14 +39,12 @@ pub struct BmsKaleid {
     ///
     /// `KaleidBeat` extension: not defined by the BMS specification or
     /// beatoraja.
-    pub synth: Vec<(AudioIndex, bmsrs_bms_model::SynthParams)>,
+    pub synth: BTreeMap<AudioIndex, bmsrs_bms_model::SynthParams>,
 }
 
 /// One object on a `KaleidBeat` extension channel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KaleidObject {
-    /// Measure number.
-    pub measure: u16,
     /// Position within the measure.
     pub position: Position,
     /// Object payload.
@@ -115,7 +115,10 @@ pub enum KaleidObjectKind {
 /// Build the `KaleidBeat` sidecar, or `None` when the chart has no dialect
 /// declarations and no extension-channel objects.
 #[must_use]
-pub fn build(bms: &Bms, synth: &[(AudioIndex, bmsrs_bms_model::SynthParams)]) -> Option<BmsKaleid> {
+pub fn build(
+    bms: &Bms,
+    synth: &BTreeMap<AudioIndex, bmsrs_bms_model::SynthParams>,
+) -> Option<BmsKaleid> {
     let objects = collect_objects(bms);
     let options = bms.gameplay.option.clone();
     if bms.kaleid.is_empty()
@@ -131,7 +134,7 @@ pub fn build(bms: &Bms, synth: &[(AudioIndex, bmsrs_bms_model::SynthParams)]) ->
         options,
         objects,
         conditional: bms.conditional.clone(),
-        synth: synth.to_vec(),
+        synth: synth.clone(),
     })
 }
 
@@ -159,11 +162,7 @@ fn collect_objects(bms: &Bms) -> Vec<KaleidObject> {
                 let Some(kind) = object_kind(extension, cell.text, base) else {
                     continue;
                 };
-                objects.push(KaleidObject {
-                    measure,
-                    position,
-                    kind,
-                });
+                objects.push(KaleidObject { position, kind });
             }
         }
     }
