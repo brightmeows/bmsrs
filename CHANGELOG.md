@@ -6,6 +6,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-v0.0.2...bmsrs-v0.0.3) - 2026-11-21
+
+### Bug Fixes
+
+- *(syntax)* iterate the MT state through a deref for MSRV 1.95
+- *(bmson)* finish clip offset semantics from review feedback
+- *(processor)* assign dense BGA resource ids by insertion position
+- *(bmson-model)* default BGAEvent id and document bga_sequence in the track table
+- *(release)* make internal dev-dependencies path-only
+
+### CI
+
+- 补齐 Dependabot 分组
+
+### Documentation
+
+- require approval before merging, not opening
+- gate pull requests on user review
+- record format provenance and tighten the sidecar API
+- consolidate AGENTS.md toward single sources of truth
+- move AGENTS-only details into rustdoc
+- correct the free-zone row and record the LNTYPE 2 divergence
+- point the free_zone limitation at the dialect provenance
+- *(common)* replace zero-external-dependency rule with dependency direction
+- *(agents)* require path-only internal dev-dependencies
+- *(readme)* flip install instructions to the released 0.0.2
+- *(agents)* mark 0.0.2 as released
+
+### Features
+
+- [**breaking**] add BMD synthesis and source-format detection (migration: Bms gains format; Audio gains wav_sources; BmsKaleid gains synth; ParseOptions gains format.)
+- [**breaking**] add KaleidBeat bmson extensions and sidecar (migration: BmsonProcessed replaces the bare Chart return; Bmson and v1::Bmson gain extension fields; LnMode/LnType gain Hln.)
+- [**breaking**] preserve KaleidBeat conditional blocks (migration: Bms gains conditional blocks; BmsKaleid gains conditional; BmsHeader gains Conditional.)
+- [**breaking**] add the KaleidBeat declaration and object sidecar (migration: BmsChannel gains Extension; Processed gains kaleid; Gameplay.option and BmsGameplay.option become Vec<OptionWords>.)
+- [**breaking**] keep bmson total percent and add caller-probed asset checks (migration: ChartInfo gains a field, so struct literals need
+total_percent; ChartInfo is non-exhaustive by convention (Default exists).)
+- *(syntax)* standard control-flow RNGs and jbms compat mode
+- feat!(chart): add frame-sequence BGA resources
+
+### Other
+
+- *(pre-commit)* enforce common dependency direction with a hook
+- *(pre-commit)* reject version-carrying internal dev-dependencies
+
+### Refactoring
+
+- [**breaking**] tighten the bmson KaleidBeat sidecar (migration: BmsonKaleid.filters is BTreeMap<AudioIndex, SoundFilter>; BmsonProcessed no longer dereferences to Chart.)
+- [**breaking**] tighten BMS KaleidBeat sidecar shapes (migration: KaleidObject no longer has measure; BmsKaleid.synth is a BTreeMap.)
+- [**breaking**] unify WAV sources behind WavSource (migration: Audio.wav_files is removed; Audio.wav_sources now stores WavSource values.)
+
+### Testing
+
+- *(processor)* pin dense BGA resource ids after skipped crops
+- *(processor)* add long-note conflict reference tests from jbms-parser
 ## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-v0.0.1...bmsrs-v0.0.2) - 2026-11-10
 
 ### Bug Fixes

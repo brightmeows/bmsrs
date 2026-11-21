@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-parser-v0.0.2...bmsrs-bms-parser-v0.0.3) - 2026-11-21
+
+### Documentation
+
+- record format provenance and tighten the sidecar API
+- consolidate AGENTS.md toward single sources of truth
+- move AGENTS-only details into rustdoc
+- *(readme)* flip install instructions to the released 0.0.2
+
+### Features
+
+- [**breaking**] add BMD synthesis and source-format detection (migration: Bms gains format; Audio gains wav_sources; BmsKaleid gains synth; ParseOptions gains format.)
+- [**breaking**] add the KaleidBeat declaration and object sidecar (migration: BmsChannel gains Extension; Processed gains kaleid; Gameplay.option and BmsGameplay.option become Vec<OptionWords>.)
+- *(syntax)* standard control-flow RNGs and jbms compat mode
+- *(syntax)* add JavaRandom and strict branch-selection replay
+
+### Refactoring
+
+- [**breaking**] unify WAV sources behind WavSource (migration: Audio.wav_files is removed; Audio.wav_sources now stores WavSource values.)
 ## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-parser-v0.0.1...bmsrs-bms-parser-v0.0.2) - 2026-11-10
 
 ### Documentation

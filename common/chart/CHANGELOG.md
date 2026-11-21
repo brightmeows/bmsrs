@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-chart-v0.0.2...bmsrs-chart-v0.0.3) - 2026-11-21
+
+### Documentation
+
+- record format provenance and tighten the sidecar API
+- consolidate AGENTS.md toward single sources of truth
+- move AGENTS-only details into rustdoc
+- *(analysis)* align the dialect reference with the shipped manual
+- *(common)* replace zero-external-dependency rule with dependency direction
+- *(readme)* flip install instructions to the released 0.0.2
+
+### Features
+
+- [**breaking**] keep bmson total percent and add caller-probed asset checks (migration: ChartInfo gains a field, so struct literals need
+total_percent; ChartInfo is non-exhaustive by convention (Default exists).)
+- feat!(processor): support CNOBJ/HCNOBJ/HLNOBJ typed LN markers
+- feat!(chart): add frame-sequence BGA resources
 ## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-chart-v0.0.1...bmsrs-chart-v0.0.2) - 2026-11-10
 
 ### Documentation
