@@ -208,7 +208,7 @@ one side silently.
 ### Always
 
 - Run `pre-commit run --all-files` after changes (or let the hooks run automatically)
-- Before opening or merging a pull request, present the planned scope, a diff summary, and the check results to the user, then wait for explicit approval
+- Open a pull request once its checks pass; before merging, present the planned scope, a diff summary, and the check results, then wait for explicit approval
 - Commit messages follow Conventional Commits with a scope; titles and bodies are written in English
 - Each commit contains exactly one logical change; do not mix `feat:` and `fix:` in the same commit
 - Doc comments (`///`, `//!`) and implementation comments (`//`) are written in English; code identifiers stay in backticks
