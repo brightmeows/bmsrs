@@ -1704,3 +1704,38 @@ fn kaleid_conditional_branches_stay_out_of_the_chart() {
     }
     assert_eq!(reparsed.messages.raw(), bms.messages.raw());
 }
+
+#[test]
+fn bmd_synth_uses_a_reserved_uri_and_reaches_the_sidecar() {
+    use bmsrs_bms_model::SynthParams;
+    use bmsrs_bms_values::WavIndex;
+
+    let mut bms = Bms {
+        format: bmsrs_pipeline::SourceFormat::Bmd,
+        ..Bms::default()
+    };
+    let id = "01".parse::<WavIndex>().expect("valid wav index");
+    bms.audio.wav_sources.insert(
+        id,
+        SynthParams::parse("P0 N60 V100 G48").expect("synth params"),
+    );
+
+    let processed = BmsProcessor::process::<Bme>(&bms)
+        .expect("process should succeed")
+        .value;
+    let kaleid = processed.kaleid.expect("BMD chart should have a sidecar");
+    assert_eq!(kaleid.synth.len(), 1);
+    assert_eq!(
+        processed
+            .chart
+            .data()
+            .audio_assets()
+            .first()
+            .expect("synthetic asset")
+            .path
+            .to_string_lossy(),
+        "bmd:01"
+    );
+    let written = bmsrs_bms_writer::BmsWriter::write(&bms);
+    assert!(written.contains("#WAV01 P0 N60 V100 G48"), "{written}");
+}

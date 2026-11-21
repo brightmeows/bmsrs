@@ -5,6 +5,9 @@
 use std::collections::BTreeMap;
 
 use bmsrs_bms_values::{BmsBase, BmsHeaderResDefAudio, ExWavParams, WavCmdParams, WavIndex};
+use bmsrs_pipeline::SourceFormat;
+
+use crate::SynthParams;
 
 /// Owned parameters for `#EXWAV` (the owned counterpart of the tokenizer's
 /// `ExWavParams`).
@@ -38,6 +41,8 @@ impl From<&ExWavParams> for OwnedExWavParams {
 pub struct Audio {
     /// Sound-effect and BGM file definitions (`#WAV`, `#EXWAV`).
     pub wav_files: BTreeMap<WavIndex, String>,
+    /// `BMD` synthesis definitions by index (`KaleidBeat` extension).
+    pub wav_sources: BTreeMap<WavIndex, SynthParams>,
     /// `#EXWAV` effect parameters by index (pan, volume, frequency).
     pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
     /// Audio playback command (`#WAVCMD`).
@@ -55,11 +60,17 @@ impl Audio {
     ///
     /// Index keys (`WavIndex`) are normalized with `base` for case-insensitive
     /// comparison in standard (Base36) BMS files.
-    pub fn apply(&mut self, header: &BmsHeaderResDefAudio, base: BmsBase) {
+    pub fn apply(&mut self, header: &BmsHeaderResDefAudio, base: BmsBase, format: SourceFormat) {
         match header {
             BmsHeaderResDefAudio::Wav { id, filename } => {
-                self.wav_files
-                    .insert(WavIndex::from(id.normalize(base)), filename.clone());
+                let normalized = WavIndex::from(id.normalize(base));
+                if format == SourceFormat::Bmd
+                    && let Some(params) = SynthParams::parse(filename)
+                {
+                    self.wav_sources.insert(normalized, params);
+                } else {
+                    self.wav_files.insert(normalized, filename.clone());
+                }
             }
             BmsHeaderResDefAudio::ExWav { id, params } => {
                 let nid = WavIndex::from(id.normalize(base));

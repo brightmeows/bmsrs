@@ -92,8 +92,13 @@ impl BmsParser {
         rng: impl FnMut(u64) -> u64,
     ) -> BmsParse {
         let all_tokens = tokenize_lines_with(file, options);
-        let (bms, selection, selected_ranges) =
-            build_selected(file, &all_tokens, rng, options.control_flow_compat);
+        let (bms, selection, selected_ranges) = build_selected(
+            file,
+            &all_tokens,
+            rng,
+            options.control_flow_compat,
+            options.format,
+        );
         let warnings = token_warnings(&all_tokens)
             .into_iter()
             .filter(|warning| selected_ranges.contains(&warning.range))
@@ -150,8 +155,13 @@ impl BmsParser {
             return Err(first.clone());
         }
 
-        let (bms, selection, _selected_ranges) =
-            build_selected(&file, &all_tokens, rng, options.control_flow_compat);
+        let (bms, selection, _selected_ranges) = build_selected(
+            &file,
+            &all_tokens,
+            rng,
+            options.control_flow_compat,
+            options.format,
+        );
         Ok(BmsParse {
             bms,
             selection,
@@ -166,6 +176,7 @@ fn build_selected(
     all_tokens: &[LineToken],
     rng: impl FnMut(u64) -> u64,
     compat: bmsrs_bms_syntax::ControlFlowCompat,
+    format: bmsrs_pipeline::SourceFormat,
 ) -> (Bms, BranchSelection, HashSet<TextRange>) {
     let mut token_map: HashMap<TextRange, BmsToken> = all_tokens
         .iter()
@@ -190,7 +201,11 @@ fn build_selected(
         }
     }
 
-    (Bms::from_flat_tokens(tokens), selection, selected_ranges)
+    (
+        Bms::from_flat_tokens_with(tokens, format),
+        selection,
+        selected_ranges,
+    )
 }
 
 /// Collect CST syntax diagnostics.
@@ -259,22 +274,52 @@ pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<Lin
             Some(LineToken {
                 line: NonZeroUsize::new(index.saturating_add(1)).unwrap_or(NonZeroUsize::MIN),
                 range: line.range(),
-                token: tokenize_line_with(&content, &options.header_prefixes, line.range()),
+                token: tokenize_line_with(
+                    &content,
+                    &options.header_prefixes,
+                    line.range(),
+                    options.format,
+                ),
             })
         })
         .collect()
 }
 
 /// Parse one line of content into a token.
+/// Strip a `.bmd` inline comment from channel data.
+///
+/// `KaleidBeat` extension: `.bmd` ignores spaces and `;` comments inside the
+/// channel data area; standard BMS treats `;` as an ordinary character there.
+#[expect(
+    clippy::string_slice,
+    reason = "BMS lines are ASCII; the colon and semicolon are byte boundaries"
+)]
+fn bmd_content(content: &str, format: bmsrs_pipeline::SourceFormat) -> std::borrow::Cow<'_, str> {
+    if format != bmsrs_pipeline::SourceFormat::Bmd {
+        return std::borrow::Cow::Borrowed(content);
+    }
+    let Some(colon) = content.find(':') else {
+        return std::borrow::Cow::Borrowed(content);
+    };
+    content[colon..]
+        .find(';')
+        .map_or(std::borrow::Cow::Borrowed(content), |offset| {
+            std::borrow::Cow::Owned(content[..colon + offset].trim_end().to_owned())
+        })
+}
+
+/// Parse one line of content into a token, applying the source format.
 fn tokenize_line_with(
     content: &str,
     prefixes: &[char],
     line_range: TextRange,
+    format: bmsrs_pipeline::SourceFormat,
 ) -> Result<BmsToken, BmsTokenizeError> {
-    let Some(mut token) = BmsToken::parse_line(content, prefixes)? else {
+    let normalized = bmd_content(content, format);
+    let Some(mut token) = BmsToken::parse_line(normalized.as_ref(), prefixes)? else {
         return Err(BmsTokenizeError::OutOfRange {
             context: "line",
-            value: content.to_owned(),
+            value: normalized.to_string(),
             expected: "header or message",
         });
     };
@@ -345,7 +390,7 @@ impl BmsParser {
             .filter(|warning| selected_ranges.contains(&warning.range))
             .collect();
         Ok(BmsParse {
-            bms: Bms::from_flat_tokens(tokens),
+            bms: Bms::from_flat_tokens_with(tokens, options.format),
             selection: replayed,
             warnings,
         })

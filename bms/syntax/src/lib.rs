@@ -39,6 +39,11 @@ pub use syntax_kind::SyntaxKind;
 /// Syntax parsing options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseOptions {
+    /// Source format selected by the entry layer.
+    ///
+    /// The syntax layer itself ignores this; the parser uses it for `.bmd`
+    /// base and comment rules.
+    pub format: bmsrs_pipeline::SourceFormat,
     /// Allowed header command prefix characters; defaults to `['#', '%']`.
     pub header_prefixes: Vec<char>,
     /// Control-flow compatibility mode; defaults to [`ControlFlowCompat::Ideal`].
@@ -50,6 +55,7 @@ impl Default for ParseOptions {
         Self {
             header_prefixes: vec!['#', '%'],
             control_flow_compat: ControlFlowCompat::Ideal,
+            format: bmsrs_pipeline::SourceFormat::Bms,
         }
     }
 }

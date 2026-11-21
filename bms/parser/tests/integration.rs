@@ -1292,3 +1292,25 @@ fn implicit_subtitle_from_parse_then_call_splits_title() {
     assert_eq!(meta.title.as_deref(), Some("song"));
     assert_eq!(meta.subtitle.as_deref(), Some("ver2"));
 }
+
+#[test]
+fn bmd_forces_base62_and_strips_inline_semicolons() {
+    use bmsrs_bms_syntax::ParseOptions;
+    use bmsrs_pipeline::SourceFormat;
+
+    let options = ParseOptions {
+        format: SourceFormat::Bmd,
+        ..ParseOptions::default()
+    };
+    let text = "#WAV01 P0 N60 V100 G48\n#00111:01 ; inline comment\n#00211:0a\n#00211:0b\n";
+    let parsed = bmsrs_bms_syntax::SourceFile::parse_with(text, &options);
+    let bms = bmsrs_bms_parser::BmsParser::parse_with(&parsed.source_file(), &options, |_| 1).bms;
+
+    assert_eq!(bms.format, SourceFormat::Bmd);
+    assert_eq!(bms.audio.wav_sources.len(), 1);
+    assert!(bms.audio.wav_files.is_empty());
+    assert_eq!(
+        bms.audio.wav_sources.values().next().unwrap().program,
+        Some(0)
+    );
+}

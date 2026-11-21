@@ -221,6 +221,15 @@ fn audio(a: &bmsrs_bms_model::Audio, out: &mut Vec<String>) {
             out
         );
     }
+    for (id, params) in &a.wav_sources {
+        push_header!(
+            BmsHeaderResDefAudio::Wav {
+                id: *id,
+                filename: params.to_string(),
+            },
+            out
+        );
+    }
     for (id, params) in &a.ex_wav_params {
         push_header!(
             BmsHeaderResDefAudio::ExWav {

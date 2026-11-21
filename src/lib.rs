@@ -273,8 +273,19 @@ pub mod bms {
     pub fn parse_file(
         path: impl AsRef<std::path::Path>,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
-        let bytes = std::fs::read(path)?;
-        parse_bytes(bytes)
+        let file_path = path.as_ref();
+        let options = syntax::ParseOptions {
+            format: bmsrs_pipeline::SourceFormat::from_path(file_path),
+            ..syntax::ParseOptions::default()
+        };
+        let bytes = std::fs::read(file_path)?;
+        parse_bytes_with(
+            bytes,
+            &source::DocumentOptions::default(),
+            &options,
+            first_branch,
+            ErrorStrategy::CollectAll,
+        )
     }
 
     /// Convert `Bms` to a format-agnostic chart with the default layout.

@@ -11,6 +11,7 @@ mod gameplay;
 mod kaleid;
 mod messages;
 mod metadata;
+mod synth;
 mod timing;
 mod visual;
 mod warnings;
@@ -18,6 +19,7 @@ mod warnings;
 use bmsrs_bms_values::{
     BmsBase, BmsHeader, BmsHeaderConditional, BmsHeaderGameplay, BmsHeaderTiming, BmsToken,
 };
+use bmsrs_pipeline::SourceFormat;
 
 // Re-export all public types from the submodules.
 pub use audio::{Audio, OwnedExWavParams};
@@ -31,6 +33,7 @@ pub use messages::{
     SpeedEvent, StopEvent, StpEvent,
 };
 pub use metadata::Metadata;
+pub use synth::SynthParams;
 pub use timing::Timing;
 pub use visual::{OwnedExBmpParams, OwnedSwBgaParams, Visual};
 pub use warnings::ChannelValueWarning;
@@ -52,6 +55,8 @@ pub struct Bms {
     pub gameplay: gameplay::Gameplay,
     /// `KaleidBeat` chart-local declarations (dialect extension).
     pub kaleid: kaleid::Kaleid,
+    /// Source format selected by the entry layer.
+    pub format: SourceFormat,
     /// Timing definitions (from `BmsHeaderTiming`).
     pub timing: timing::Timing,
     /// Display resources and difficulty markers (from `BmsHeaderDisplay`).
@@ -87,12 +92,30 @@ impl Bms {
     ///    (`WavIndex`, `BmpIndex`, and so on) for case-insensitive comparison
     ///    in standard (Base36) BMS files.
     pub fn from_flat_tokens(tokens: impl IntoIterator<Item = BmsToken>) -> Self {
-        let mut bms = Self::default();
+        Self::from_flat_tokens_with(tokens, SourceFormat::Bms)
+    }
+
+    /// Build `Bms` from a flat token stream with an explicit source format.
+    ///
+    /// `.bmd` forces Base62 normalization regardless of a `#BASE` header;
+    /// other formats keep the normal pre-scan.
+    pub fn from_flat_tokens_with(
+        tokens: impl IntoIterator<Item = BmsToken>,
+        format: SourceFormat,
+    ) -> Self {
+        let mut bms = Self {
+            format,
+            ..Self::default()
+        };
 
         // Pre-scan #BASE. Collect the token iterator first because it is
         // iterated twice (once for BASE, once for processing).
         let all_tokens: Vec<_> = tokens.into_iter().collect();
-        let bms_base = detect_base(&all_tokens);
+        let bms_base = if format == SourceFormat::Bmd {
+            BmsBase::Base62
+        } else {
+            detect_base(&all_tokens)
+        };
         let mut messages = messages::MessagesBuilder::new();
         let mut conditional = vec![];
         let mut current_block: Option<conditional::ConditionalBlock> = None;
@@ -193,7 +216,7 @@ impl Bms {
                     });
                 }
             }
-            BmsHeader::ResDefAudio(a) => self.audio.apply(a, base),
+            BmsHeader::ResDefAudio(a) => self.audio.apply(a, base, self.format),
             BmsHeader::ResDefVisual(v) => self.visual.apply(v, base),
             BmsHeader::Display(d) => self.display.apply(d),
             BmsHeader::ControlFlow(_) | BmsHeader::Conditional(_) => { /* structural, handled elsewhere */

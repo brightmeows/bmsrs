@@ -159,6 +159,7 @@ name = "bmsrs-bms-syntax"
 version = "0.0.2"
 dependencies = [
  "bmsrs-bms-source",
+ "bmsrs-pipeline",
  "criterion",
  "insta",
  "proptest",
