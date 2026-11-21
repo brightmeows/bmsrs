@@ -212,23 +212,12 @@ fn kaleid(k: &bmsrs_bms_model::Kaleid, out: &mut Vec<String>) {
 
 /// Serialize the audio domain.
 fn audio(a: &bmsrs_bms_model::Audio, out: &mut Vec<String>) {
-    for (id, filename) in &a.wav_files {
-        push_header!(
-            BmsHeaderResDefAudio::Wav {
-                id: *id,
-                filename: filename.clone(),
-            },
-            out
-        );
-    }
-    for (id, params) in &a.wav_sources {
-        push_header!(
-            BmsHeaderResDefAudio::Wav {
-                id: *id,
-                filename: params.to_string(),
-            },
-            out
-        );
+    for (id, source) in &a.wav_sources {
+        let filename = match source {
+            bmsrs_bms_model::WavSource::File(path) => path.clone(),
+            bmsrs_bms_model::WavSource::Synth(params) => params.to_string(),
+        };
+        push_header!(BmsHeaderResDefAudio::Wav { id: *id, filename }, out);
     }
     for (id, params) in &a.ex_wav_params {
         push_header!(

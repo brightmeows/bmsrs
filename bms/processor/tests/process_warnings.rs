@@ -12,9 +12,10 @@ fn missing_wav_key_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     // Define WAV "01", but the note references the undefined "ZZ".
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -55,9 +56,10 @@ fn base16_missing_wav_key_uses_hex_numeric_value() {
 fn untermined_long_note_produces_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "a.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
     // In LNTYPE 1 mode, a single long-note event cannot be paired.
     bms.messages.long_note_events.push(LongNoteEvent {
         position: Position::new(0, 0, 8),
@@ -79,9 +81,10 @@ fn normal_chart_produces_no_warnings() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.gameplay.total = Some(100.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,

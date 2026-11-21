@@ -62,29 +62,30 @@ impl BmsConverter<'_> {
         let mut wav_map = BTreeMap::new();
         let mut audio_assets = Vec::new();
         let mut synth_assets = Vec::new();
-        for (&wav_id, path) in &bms_audio.wav_files {
+        for (&wav_id, source) in &bms_audio.wav_sources {
             #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
             let idx = AudioIndex::new(audio_assets.len() as u32);
-            let resolved_path = bms_audio.path_wav.as_ref().map_or_else(
-                || PathBuf::from(path),
-                |prefix| Path::new(prefix).join(path),
-            );
-            audio_assets.push(AudioAsset {
-                path: Arc::from(resolved_path),
-                start: Duration::ZERO,
-                duration: None,
-            });
-            wav_map.insert(wav_id, idx);
-        }
-        for (&wav_id, params) in &bms_audio.wav_sources {
-            #[expect(clippy::cast_possible_truncation, reason = "WAV count fits in u32")]
-            let idx = AudioIndex::new(audio_assets.len() as u32);
-            audio_assets.push(AudioAsset {
-                path: Arc::from(PathBuf::from(format!("bmd:{wav_id}"))),
-                start: Duration::ZERO,
-                duration: None,
-            });
-            synth_assets.push((idx, params.clone()));
+            match source {
+                bmsrs_bms_model::WavSource::File(path) => {
+                    let resolved_path = bms_audio.path_wav.as_ref().map_or_else(
+                        || PathBuf::from(path),
+                        |prefix| Path::new(prefix).join(path),
+                    );
+                    audio_assets.push(AudioAsset {
+                        path: Arc::from(resolved_path),
+                        start: Duration::ZERO,
+                        duration: None,
+                    });
+                }
+                bmsrs_bms_model::WavSource::Synth(params) => {
+                    audio_assets.push(AudioAsset {
+                        path: Arc::from(PathBuf::from(format!("bmd:{wav_id}"))),
+                        start: Duration::ZERO,
+                        duration: None,
+                    });
+                    synth_assets.push((idx, params.clone()));
+                }
+            }
             wav_map.insert(wav_id, idx);
         }
         (wav_map, audio_assets, synth_assets)

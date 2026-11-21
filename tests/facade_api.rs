@@ -121,5 +121,8 @@ fn bmd_parse_file_selects_the_dialect_format() {
 
     assert_eq!(parsed.value.format, bmsrs::pipeline::SourceFormat::Bmd);
     assert_eq!(parsed.value.audio.wav_sources.len(), 1);
-    assert!(parsed.value.audio.wav_files.is_empty());
+    assert!(matches!(
+        parsed.value.audio.wav_sources.values().next(),
+        Some(bmsrs::raw::model::WavSource::Synth(_))
+    ));
 }

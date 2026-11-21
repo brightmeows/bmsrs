@@ -13,9 +13,10 @@ fn chart_with_wav(names: &[&str]) -> Bms {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     for (index, name) in ["01", "AA", "BB", "CC"].iter().zip(names) {
-        bms.audio
-            .wav_files
-            .insert((*index).parse().unwrap(), (*name).to_owned());
+        bms.audio.wav_sources.insert(
+            (*index).parse().unwrap(),
+            bmsrs_bms_model::WavSource::File((*name).to_owned()),
+        );
     }
     bms
 }
