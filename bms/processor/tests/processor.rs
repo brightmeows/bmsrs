@@ -86,9 +86,10 @@ fn nanasi_maps_foot_pedal_channel_17() {
 fn process_basic_note() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -123,9 +124,10 @@ fn process_basic_note() {
 fn process_key_count_uses_used_lanes() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     for lane in [1, 2, 3, 4, 5, 8, 9] {
         bms.messages.note_events.push(NoteEvent {
             position: Position::new(0, 0, 8),
@@ -461,9 +463,10 @@ fn process_applies_path_wav_to_audio_asset() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.audio.path_wav = Some("snd".to_owned());
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
 
     let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
 
@@ -503,9 +506,10 @@ fn process_default_detects_oct_fp_layout() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.gameplay.oct_fp = Some(true);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 2,
@@ -531,9 +535,10 @@ fn process_key7_note_lands_on_key_seven() {
     // End-to-end regression for the KEY7 channel 19 drop bug.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "k7.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("k7.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -620,9 +625,10 @@ fn process_nan_bpm_change_produces_warning() {
 fn process_bgm_events_mapped() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "bgm.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("bgm.wav".to_owned()),
+    );
     bms.messages.bgm_events.push(BgmEvent {
         position: Position::new(0, 0, 8),
         wav_id: "01".parse().unwrap(),
@@ -667,9 +673,10 @@ fn process_default_uses_bme_and_maps_both_sides() {
     // affect the mapping). 2P notes report NoteSide::P2.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "a.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -707,12 +714,14 @@ fn process_default_uses_bme_and_maps_both_sides() {
 fn process_lnobj_produces_long_note() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("02".parse().unwrap(), "b.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "02".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
     let ln_obj: LnObjIndex = "02".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
     bms.messages.note_events.push(NoteEvent {
@@ -759,12 +768,14 @@ fn process_lnobj_produces_long_note() {
 fn lnobj_preserves_long_note_channel_events_as_normal() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("02".parse().unwrap(), "b.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "02".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
     bms.gameplay.ln_obj = Some("02".parse::<LnObjIndex>().unwrap());
     bms.messages.long_note_events.push(LongNoteEvent {
         position: Position::new(0, 0, 4),
@@ -868,9 +879,10 @@ fn process_bar_lines_generated() {
 fn process_invisible_note_mapped() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "se.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("se.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -971,12 +983,14 @@ fn lnobj_end_marker_emits_no_bgm() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     // Register the start WAV and the LNOBJ WAV.
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("FF".parse().unwrap(), "ln_end.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "FF".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("ln_end.wav".to_owned()),
+    );
     let ln_obj: LnObjIndex = "FF".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
     // Long-note start (a visible note with WAV 01).
@@ -1023,9 +1037,10 @@ fn orphan_lnobj_marker_emits_no_bgm() {
     // formed, so no LNOBJ BGM should be emitted.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("FF".parse().unwrap(), "orphan.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "FF".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("orphan.wav".to_owned()),
+    );
     let ln_obj: LnObjIndex = "FF".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
     // An LNOBJ marker with no predecessor on the same (player, lane).
@@ -1054,12 +1069,14 @@ fn duplicate_same_position_note_keeps_last_definition() {
     // two visible notes land on the same position.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "first.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("02".parse().unwrap(), "second.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("first.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "02".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("second.wav".to_owned()),
+    );
     for wav in ["01", "02"] {
         bms.messages.note_events.push(NoteEvent {
             position: Position::new(1, 0, 8),
@@ -1103,9 +1120,10 @@ fn mine_on_occupied_note_position_is_dropped() {
     // A mine never overwrites an occupied slot (matching beatoraja).
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(1, 0, 8),
         player: 1,
@@ -1141,9 +1159,10 @@ fn note_on_mine_position_replaces_mine() {
     // dropped with a warning (matching beatoraja's channel order).
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     bms.messages.mine_events.push(MineEvent {
         position: Position::new(1, 0, 8),
         player: 1,
@@ -1180,9 +1199,10 @@ fn note_on_mine_position_replaces_mine() {
 fn mine_inside_long_note_range_is_dropped() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     // Long note on lane 1 across measure 0 (ch51): start at 0/8, end at 8/8.
     bms.messages.long_note_events.push(LongNoteEvent {
         position: Position::new(0, 0, 8),
@@ -1221,9 +1241,10 @@ fn mine_on_unterminated_long_note_start_is_dropped() {
     // dropped.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
     bms.messages.long_note_events.push(LongNoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -1253,12 +1274,14 @@ fn note_on_long_note_start_with_other_wav_moves_to_bgm() {
     // start WAV to the BGM lane (keysound layering on the LN start).
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "start.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("02".parse().unwrap(), "layer.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("start.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "02".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("layer.wav".to_owned()),
+    );
     // Long note on lane 1 (ch51): start at 0/8, end at 4/8.
     bms.messages.long_note_events.push(LongNoteEvent {
         position: Position::new(0, 0, 8),
@@ -1308,9 +1331,10 @@ fn note_on_long_note_start_with_same_wav_is_dropped() {
     // replaces it without moving it to BGM).
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "start.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("start.wav".to_owned()),
+    );
     bms.messages.long_note_events.push(LongNoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -1356,15 +1380,18 @@ fn lnobj_end_position_note_moves_to_bgm() {
     // keysound keeps playing. The marker itself emits nothing.
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "kick.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("02".parse().unwrap(), "other.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("FF".parse().unwrap(), "ln_end.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "02".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("other.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "FF".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("ln_end.wav".to_owned()),
+    );
     let ln_obj: LnObjIndex = "FF".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
     // Long-note start (WAV 01) and the LNOBJ end marker (WAV FF) on lane 1.
@@ -1717,7 +1744,9 @@ fn bmd_synth_uses_a_reserved_uri_and_reaches_the_sidecar() {
     let id = "01".parse::<WavIndex>().expect("valid wav index");
     bms.audio.wav_sources.insert(
         id,
-        SynthParams::parse("P0 N60 V100 G48").expect("synth params"),
+        bmsrs_bms_model::WavSource::Synth(
+            SynthParams::parse("P0 N60 V100 G48").expect("synth params"),
+        ),
     );
 
     let processed = BmsProcessor::process::<Bme>(&bms)

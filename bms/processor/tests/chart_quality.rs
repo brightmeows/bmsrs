@@ -12,9 +12,10 @@ use bmsrs_bms_values::PlayerMode;
 fn chart_with_first_side_note() -> Bms {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(60.0);
-    bms.audio
-        .wav_files
-        .insert("01".parse().unwrap(), "a.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "01".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,

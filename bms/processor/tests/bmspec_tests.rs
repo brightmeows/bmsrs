@@ -761,18 +761,33 @@ fn bmspec_1_08_wav_references() {
     let wav02: bmsrs_bms_values::WavIndex = "02".parse().unwrap();
 
     assert_eq!(
-        bms.audio.wav_files.get(&wav01).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&wav01)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("index.mp3")
     );
     assert_eq!(
-        bms.audio.wav_files.get(&wav_zz).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&wav_zz)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("wow.mp3")
     );
     assert_eq!(
-        bms.audio.wav_files.get(&wav_aa).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&wav_aa)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("zz.ogg")
     );
-    assert_eq!(bms.audio.wav_files.get(&wav02).map(String::as_str), None);
+    assert_eq!(
+        bms.audio
+            .wav_sources
+            .get(&wav02)
+            .and_then(bmsrs_bms_model::WavSource::file),
+        None
+    );
 }
 
 /// bmspec-6-SPEED: stays at the default 1.0 when unset.

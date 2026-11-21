@@ -517,7 +517,7 @@ fn empty_input() {
     assert!(bms.gameplay.player.is_none());
     assert!(bms.timing.bpm.is_none());
     assert!(bms.display.stage_file.is_none());
-    assert!(bms.audio.wav_files.is_empty());
+    assert!(bms.audio.wav_sources.is_empty());
     assert!(bms.visual.bmp_files.is_empty());
     assert!(bms.messages.raw().is_empty());
     assert_eq!(
@@ -594,7 +594,7 @@ fn mixed_headers_and_messages() {
 
     assert_eq!(bms.metadata.title.as_deref(), Some("My Song"));
     assert_eq!(bms.timing.bpm, Some(180.0));
-    assert_eq!(bms.audio.wav_files.len(), 2);
+    assert_eq!(bms.audio.wav_sources.len(), 2);
     assert_eq!(bms.gameplay.player, Some(PlayerMode::Couple));
     assert_eq!(bms.messages.note_events.len(), 6); // 4 from ch11 plus 2 from ch21.
 }
@@ -611,11 +611,17 @@ fn wav_and_bpm_defs() {
     let stp1: StopIndex = "01".parse().unwrap();
 
     assert_eq!(
-        bms.audio.wav_files.get(&wav1).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&wav1)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("a.wav")
     );
     assert_eq!(
-        bms.audio.wav_files.get(&wav2).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&wav2)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("b.wav")
     );
     assert_eq!(bms.timing.bpm_defs.get(&bpm1), Some(&180.0));
@@ -629,7 +635,7 @@ fn wav_and_bpm_defs() {
 fn default_bms_is_empty() {
     let bms = Bms::default();
     assert!(bms.metadata.title.is_none());
-    assert!(bms.audio.wav_files.is_empty());
+    assert!(bms.audio.wav_sources.is_empty());
     assert!(bms.messages.raw().is_empty());
     assert_eq!(
         bms.fallback_headers,
@@ -759,7 +765,10 @@ fn parse_with_string_container() {
     assert_eq!(bms.metadata.artist.as_deref(), Some("composer"));
     let wav_id: WavIndex = "01".try_into().unwrap();
     assert_eq!(
-        bms.audio.wav_files.get(&wav_id).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&wav_id)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("kick.wav")
     );
     assert_eq!(bms.fallback_headers.len(), 1);
@@ -771,20 +780,29 @@ fn base62_wav_indices_case_sensitive() {
     // In Base62 mode, WAVAA and WAVaa are distinct indices.
     let bms = parse("#BASE 62\n#WAVAA kick.wav\n#WAVaa snare.wav\n#WAVaA hat.wav\n");
     // All three should be stored separately.
-    assert_eq!(bms.audio.wav_files.len(), 3);
+    assert_eq!(bms.audio.wav_sources.len(), 3);
     let aa: WavIndex = "AA".parse().unwrap();
     let a_lower: WavIndex = "aa".parse().unwrap();
     let a_cap_lower: WavIndex = "aA".parse().unwrap();
     assert_eq!(
-        bms.audio.wav_files.get(&aa).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&aa)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("kick.wav")
     );
     assert_eq!(
-        bms.audio.wav_files.get(&a_lower).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&a_lower)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("snare.wav")
     );
     assert_eq!(
-        bms.audio.wav_files.get(&a_cap_lower).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&a_cap_lower)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("hat.wav")
     );
 }
@@ -822,10 +840,13 @@ fn base62_bmp_indices_case_sensitive() {
 fn base36_wav_indices_case_insensitive() {
     // Standard mode (no #BASE 62): AA and aa map to the same index (last wins).
     let bms = parse("#WAVAA kick.wav\n#WAVaa snare.wav\n");
-    assert_eq!(bms.audio.wav_files.len(), 1);
+    assert_eq!(bms.audio.wav_sources.len(), 1);
     let idx: WavIndex = "AA".parse().unwrap();
     assert_eq!(
-        bms.audio.wav_files.get(&idx).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&idx)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("snare.wav")
     );
 }
@@ -836,10 +857,13 @@ fn base16_wav_indices_are_case_insensitive_and_resolve() {
     // compatibility declaration selects Base16 normalization and decoding.
     let bms = parse("#BASE 16\n#WAV0F kick.wav\n#WAV0f snare.wav\n#00111:0F\n");
     assert_eq!(bms.gameplay.base, Some(BmsBase::Base16));
-    assert_eq!(bms.audio.wav_files.len(), 1);
+    assert_eq!(bms.audio.wav_sources.len(), 1);
     let idx: WavIndex = "0F".parse().unwrap();
     assert_eq!(
-        bms.audio.wav_files.get(&idx).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&idx)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("snare.wav")
     );
     assert_eq!(bms.messages.note_events.len(), 1);
@@ -940,11 +964,17 @@ fn wav_definitions_stored() {
     let id1: WavIndex = "01".try_into().unwrap();
     let id2: WavIndex = "02".try_into().unwrap();
     assert_eq!(
-        bms.audio.wav_files.get(&id1).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&id1)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("a.wav")
     );
     assert_eq!(
-        bms.audio.wav_files.get(&id2).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&id2)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("b.wav")
     );
 }
@@ -994,7 +1024,10 @@ fn lib_mixed_headers_and_messages() {
     assert_eq!(bms.timing.bpm, Some(180.0));
     let wav_id: WavIndex = "01".try_into().unwrap();
     assert_eq!(
-        bms.audio.wav_files.get(&wav_id).map(String::as_str),
+        bms.audio
+            .wav_sources
+            .get(&wav_id)
+            .and_then(bmsrs_bms_model::WavSource::file),
         Some("kick.wav")
     );
     let ch = BmsChannel::from_raw("11").unwrap();
@@ -1024,7 +1057,7 @@ fn default_is_all_none_empty() {
     assert!(bms.metadata.title.is_none());
     assert!(bms.metadata.artist.is_none());
     assert!(bms.timing.bpm.is_none());
-    assert!(bms.audio.wav_files.is_empty());
+    assert!(bms.audio.wav_sources.is_empty());
     assert!(bms.messages.raw().is_empty());
     assert_eq!(
         bms.fallback_headers,
@@ -1308,9 +1341,9 @@ fn bmd_forces_base62_and_strips_inline_semicolons() {
 
     assert_eq!(bms.format, SourceFormat::Bmd);
     assert_eq!(bms.audio.wav_sources.len(), 1);
-    assert!(bms.audio.wav_files.is_empty());
-    assert_eq!(
-        bms.audio.wav_sources.values().next().unwrap().program,
-        Some(0)
-    );
+    let source = bms.audio.wav_sources.values().next().unwrap();
+    let bmsrs_bms_model::WavSource::Synth(params) = source else {
+        panic!("expected synth source");
+    };
+    assert_eq!(params.program, Some(0));
 }

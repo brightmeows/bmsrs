@@ -11,15 +11,18 @@ use bmsrs_chart::{EventKind, Note, NoteKind};
 fn visible_note_inside_lntype1_range_removed() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("CC".parse().unwrap(), "c.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "CC".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("c.wav".to_owned()),
+    );
 
     // ch51 (long start) at slot 2 with wav BB
     bms.messages
@@ -89,12 +92,14 @@ fn visible_note_inside_lntype1_range_removed() {
 fn visible_note_at_ln_start_tick_suppressed() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
 
     // LN from slot 0 to slot 4
     bms.messages
@@ -142,12 +147,14 @@ fn visible_note_at_ln_start_tick_suppressed() {
 fn visible_note_at_ln_end_tick_suppressed() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
 
     bms.messages
         .long_note_events
@@ -194,15 +201,18 @@ fn visible_note_at_ln_end_tick_suppressed() {
 fn visible_note_on_different_lane_preserved() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("CC".parse().unwrap(), "c.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "CC".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("c.wav".to_owned()),
+    );
 
     // LN on lane 1
     bms.messages
@@ -265,12 +275,14 @@ fn visible_note_on_different_lane_preserved() {
 fn visible_note_at_unpaired_ln_start_suppressed() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
 
     // Only a single LN event (unpaired, odd count)
     bms.messages
@@ -313,15 +325,18 @@ fn visible_note_at_unpaired_ln_start_suppressed() {
 fn visible_note_in_gap_between_lns_preserved() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("CC".parse().unwrap(), "c.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "CC".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("c.wav".to_owned()),
+    );
 
     // LN1: slot 0 → slot 2
     bms.messages
@@ -398,15 +413,18 @@ fn visible_note_in_gap_between_lns_preserved() {
 fn lnobj_visible_note_inside_range_removed() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("CC".parse().unwrap(), "c.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "CC".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("c.wav".to_owned()),
+    );
     let ln_obj: bmsrs_bms_values::LnObjIndex = "FF".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
 
@@ -477,15 +495,18 @@ fn lnobj_visible_note_inside_range_removed() {
 fn lntype2_visible_note_inside_range_removed() {
     let mut bms = bmsrs_bms_model::Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.audio
-        .wav_files
-        .insert("AA".parse().unwrap(), "a.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("BB".parse().unwrap(), "b.wav".to_owned());
-    bms.audio
-        .wav_files
-        .insert("CC".parse().unwrap(), "c.wav".to_owned());
+    bms.audio.wav_sources.insert(
+        "AA".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "BB".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("b.wav".to_owned()),
+    );
+    bms.audio.wav_sources.insert(
+        "CC".parse().unwrap(),
+        bmsrs_bms_model::WavSource::File("c.wav".to_owned()),
+    );
 
     bms.gameplay.ln_type = Some(bmsrs_bms_values::LnType::Type2);
 

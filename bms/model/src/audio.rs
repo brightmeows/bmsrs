@@ -47,15 +47,27 @@ pub enum WavSource {
     Synth(SynthParams),
 }
 
+impl WavSource {
+    /// Return the file name when this is a file source.
+    #[must_use]
+    pub fn file(&self) -> Option<&str> {
+        match self {
+            Self::File(path) => Some(path),
+            Self::Synth(_) => None,
+        }
+    }
+}
+
 /// Audio resource definitions.
 ///
 /// Indexed definitions use `BTreeMap`; scalar fields use `Option`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Audio {
-    /// Sound-effect and BGM file definitions (`#WAV`, `#EXWAV`).
-    pub wav_files: BTreeMap<WavIndex, String>,
-    /// `BMD` synthesis definitions by index (`KaleidBeat` extension).
-    pub wav_sources: BTreeMap<WavIndex, SynthParams>,
+    /// `#WAV` definitions: file names or BMD synthesis parameters.
+    ///
+    /// `BMD` synthesis entries are a `KaleidBeat` extension; ordinary charts
+    /// only contain [`WavSource::File`].
+    pub wav_sources: BTreeMap<WavIndex, WavSource>,
     /// `#EXWAV` effect parameters by index (pan, volume, frequency).
     pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
     /// Audio playback command (`#WAVCMD`).
@@ -80,14 +92,17 @@ impl Audio {
                 if format == SourceFormat::Bmd
                     && let Some(params) = SynthParams::parse(filename)
                 {
-                    self.wav_sources.insert(normalized, params);
+                    self.wav_sources
+                        .insert(normalized, WavSource::Synth(params));
                 } else {
-                    self.wav_files.insert(normalized, filename.clone());
+                    self.wav_sources
+                        .insert(normalized, WavSource::File(filename.clone()));
                 }
             }
             BmsHeaderResDefAudio::ExWav { id, params } => {
                 let nid = WavIndex::from(id.normalize(base));
-                self.wav_files.insert(nid, params.filename.clone());
+                self.wav_sources
+                    .insert(nid, WavSource::File(params.filename.clone()));
                 self.ex_wav_params
                     .insert(nid, OwnedExWavParams::from(params));
             }
@@ -101,15 +116,8 @@ impl Audio {
     }
 
     /// Return the source for one `#WAV` index.
-    ///
-    /// File entries and BMD synthesis entries are disjoint; this method hides
-    /// the two backing maps from callers.
     #[must_use]
-    pub fn wav_source(&self, id: WavIndex) -> Option<WavSource> {
-        self.wav_files
-            .get(&id)
-            .cloned()
-            .map(WavSource::File)
-            .or_else(|| self.wav_sources.get(&id).cloned().map(WavSource::Synth))
+    pub fn wav_source(&self, id: WavIndex) -> Option<&WavSource> {
+        self.wav_sources.get(&id)
     }
 }
