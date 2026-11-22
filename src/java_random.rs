@@ -18,14 +18,13 @@ const MASK: u64 = (1 << 48) - 1;
 /// rng contract via [`JavaRandom::choice`]:
 ///
 /// ```
-/// use bmsrs::bms::{ErrorStrategy, JavaRandom, parse_with};
+/// use bmsrs::bms::{JavaRandom, parse_with};
 ///
 /// let mut rng = JavaRandom::new(123_456_789);
 /// let parsed = parse_with(
 ///     "#RANDOM 2\n#IF 1\n#TITLE from-one\n#ENDIF\n",
 ///     &Default::default(),
 ///     |max| rng.choice(max),
-///     ErrorStrategy::CollectAll,
 /// );
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -35,6 +35,7 @@ description.workspace = true
 repository.workspace = true
 authors.workspace = true
 homepage.workspace = true
+documentation = "https://docs.rs/bmsrs"
 keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true

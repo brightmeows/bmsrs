@@ -48,6 +48,9 @@ pub struct ParseOptions {
     pub header_prefixes: Vec<char>,
     /// Control-flow compatibility mode; defaults to [`ControlFlowCompat::Ideal`].
     pub control_flow_compat: ControlFlowCompat,
+    /// Error collection strategy; defaults to
+    /// [`bmsrs_pipeline::ErrorStrategy::CollectAll`].
+    pub error_strategy: bmsrs_pipeline::ErrorStrategy,
 }
 
 impl Default for ParseOptions {
@@ -55,6 +58,7 @@ impl Default for ParseOptions {
         Self {
             header_prefixes: vec!['#', '%'],
             control_flow_compat: ControlFlowCompat::Ideal,
+            error_strategy: bmsrs_pipeline::ErrorStrategy::CollectAll,
             format: bmsrs_pipeline::SourceFormat::Bms,
         }
     }

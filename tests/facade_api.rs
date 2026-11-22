@@ -29,13 +29,11 @@ fn java_random_seed_reproduces_branch_layout_and_replays() {
     let text =
         "#RANDOM 5\n#IF 1\n#TITLE ONE\n#ENDIF\n#IF 5\n#TITLE FIVE\n#ENDIF\n#ENDRANDOM\n#BPM 120\n";
     let mut rng = bmsrs::bms::JavaRandom::new(123_456_789);
-    let (recorded, selection) = bmsrs::bms::parse_with_recording(
-        text,
-        &bmsrs::bms::ParseOptions::default(),
-        |max| rng.choice(max),
-        bmsrs::bms::ErrorStrategy::CollectAll,
-    )
-    .expect("valid BMS");
+    let (recorded, selection) =
+        bmsrs::bms::parse_with_recording(text, &bmsrs::bms::ParseOptions::default(), |max| {
+            rng.choice(max)
+        })
+        .expect("valid BMS");
     let title_from_seed = recorded.value.metadata.title;
     assert!(
         title_from_seed.as_deref() == Some("ONE") || title_from_seed.as_deref() == Some("FIVE"),
@@ -95,7 +93,6 @@ fn jbms_compat_mode_and_lr2_rng_run_through_the_facade() {
             ..bmsrs::bms::ParseOptions::default()
         },
         |_| 1,
-        bmsrs::bms::ErrorStrategy::CollectAll,
     )
     .expect("parse should succeed");
     assert_eq!(parsed.value.metadata.title.as_deref(), Some("zero"));

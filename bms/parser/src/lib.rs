@@ -6,7 +6,5 @@
 
 mod cst;
 
-pub use cst::{
-    BmsParse, BmsParseWarning, BmsParseWarningKind, BmsParser, ErrorStrategy, LineToken,
-    tokenize_lines, tokenize_lines_with,
-};
+pub use bmsrs_pipeline::ErrorStrategy;
+pub use cst::{BmsParse, BmsParseWarning, BmsParseWarningKind, BmsParser, LineToken};

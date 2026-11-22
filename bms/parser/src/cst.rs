@@ -8,19 +8,9 @@ use bmsrs_bms_syntax::{
     BranchMismatch, BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
-use bmsrs_pipeline::SourceSpan;
+use bmsrs_pipeline::{ErrorStrategy, SourceSpan};
 
 use bmsrs_bms_model::Bms;
-
-/// Error-handling strategy for token extraction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ErrorStrategy {
-    /// Collect errors from every line.
-    #[default]
-    CollectAll,
-    /// Return at the first error.
-    FailFast,
-}
 
 /// Warning categories produced by CST or document parsing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,7 +81,7 @@ impl BmsParser {
         options: &ParseOptions,
         rng: impl FnMut(u64) -> u64,
     ) -> BmsParse {
-        let all_tokens = tokenize_lines_with(file, options);
+        let all_tokens = Self::tokenize_lines_with(file, options);
         let (bms, selection, selected_ranges) = build_selected(
             file,
             &all_tokens,
@@ -120,9 +110,8 @@ impl BmsParser {
     pub fn parse_document(
         document: &Document,
         rng: impl FnMut(u64) -> u64,
-        strategy: ErrorStrategy,
     ) -> Result<BmsParse, BmsParseWarning> {
-        Self::parse_document_with(document, &ParseOptions::default(), rng, strategy)
+        Self::parse_document_with(document, &ParseOptions::default(), rng)
     }
 
     /// Build `Bms` from a lossless document with parse options.
@@ -135,7 +124,6 @@ impl BmsParser {
         document: &Document,
         options: &ParseOptions,
         rng: impl FnMut(u64) -> u64,
-        strategy: ErrorStrategy,
     ) -> Result<BmsParse, BmsParseWarning> {
         let text = document.try_to_text().map_err(|error| BmsParseWarning {
             line: NonZeroUsize::MIN,
@@ -144,12 +132,12 @@ impl BmsParser {
         })?;
         let parse = SourceFile::parse_with(&text, options);
         let file = parse.source_file();
-        let all_tokens = tokenize_lines_with(&file, options);
+        let all_tokens = Self::tokenize_lines_with(&file, options);
         let mut warnings = syntax_warnings(&parse, &file);
         warnings.extend(token_warnings(&all_tokens));
         warnings.sort_by_key(|warning| (warning.line, warning.range.start()));
 
-        if strategy == ErrorStrategy::FailFast
+        if options.error_strategy == ErrorStrategy::FailFast
             && let Some(first) = warnings.first()
         {
             return Err(first.clone());
@@ -251,38 +239,40 @@ fn token_warnings(tokens: &[LineToken]) -> Vec<BmsParseWarning> {
         .collect()
 }
 
-/// Extract typed tokens from every Header/Message line in the CST.
-#[must_use]
-pub fn tokenize_lines(file: &SourceFile) -> Vec<LineToken> {
-    tokenize_lines_with(file, &ParseOptions::default())
-}
+impl BmsParser {
+    /// Extract typed tokens from every Header/Message line in the CST.
+    #[must_use]
+    pub fn tokenize_lines(file: &SourceFile) -> Vec<LineToken> {
+        Self::tokenize_lines_with(file, &ParseOptions::default())
+    }
 
-/// Extract typed tokens from every Header/Message line in the CST with parse
-/// options.
-#[must_use]
-pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<LineToken> {
-    file.lines()
-        .enumerate()
-        .filter_map(|(index, line)| {
-            if !matches!(
-                line.kind(),
-                SyntaxLineKind::Header | SyntaxLineKind::Message
-            ) {
-                return None;
-            }
-            let content = line.content_text()?;
-            Some(LineToken {
-                line: NonZeroUsize::new(index.saturating_add(1)).unwrap_or(NonZeroUsize::MIN),
-                range: line.range(),
-                token: tokenize_line_with(
-                    &content,
-                    &options.header_prefixes,
-                    line.range(),
-                    options.format,
-                ),
+    /// Extract typed tokens from every Header/Message line in the CST with parse
+    /// options.
+    #[must_use]
+    pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<LineToken> {
+        file.lines()
+            .enumerate()
+            .filter_map(|(index, line)| {
+                if !matches!(
+                    line.kind(),
+                    SyntaxLineKind::Header | SyntaxLineKind::Message
+                ) {
+                    return None;
+                }
+                let content = line.content_text()?;
+                Some(LineToken {
+                    line: NonZeroUsize::new(index.saturating_add(1)).unwrap_or(NonZeroUsize::MIN),
+                    range: line.range(),
+                    token: tokenize_line_with(
+                        &content,
+                        &options.header_prefixes,
+                        line.range(),
+                        options.format,
+                    ),
+                })
             })
-        })
-        .collect()
+            .collect()
+    }
 }
 
 /// Parse one line of content into a token.
@@ -363,7 +353,7 @@ impl BmsParser {
         selection: &BranchSelection,
         options: &ParseOptions,
     ) -> Result<BmsParse, BranchMismatch> {
-        let all_tokens = tokenize_lines_with(file, options);
+        let all_tokens = Self::tokenize_lines_with(file, options);
         let (lines, replayed) = file.select_lines_with(selection)?;
         let mut token_map: HashMap<TextRange, BmsToken> = all_tokens
             .iter()

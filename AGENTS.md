@@ -104,9 +104,10 @@ Git worktrees live under `.worktrees/`.
 Public operations are exposed as associated functions on types (structs or
 zero-sized `*Builder` types); free functions are **forbidden** as public API.
 Exceptions: the facade's whole-pipeline entry points (the `bms::parse` and
-`bms::process` families) and low-level pure functions (`bmsrs-bms-source` line
-and encoding helpers) may remain free functions. They have no domain type to
-attach to, and wrapping them in a builder only adds call-site cost.
+`bms::process` families) and the `base36_digit_value` helper in
+`bmsrs-bms-values` (a char-to-value conversion with no domain type to attach
+to) may remain free functions. They have no domain type to attach to, and
+wrapping them in a builder only adds call-site cost.
 Use a `*Builder` only when the API has configurable parameters; use plain struct
 methods when there is no state.
 Private operations **should** follow the same pattern (attached to types rather
