@@ -8,5 +8,4 @@ mod cst;
 
 pub use cst::{
     BmsParse, BmsParseWarning, BmsParseWarningKind, BmsParser, ErrorStrategy, LineToken,
-    tokenize_lines, tokenize_lines_with,
 };

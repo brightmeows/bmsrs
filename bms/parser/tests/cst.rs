@@ -35,7 +35,7 @@ fn cst_reports_tokenize_warning() {
 #[test]
 fn tokenize_lines_returns_typed_message() {
     let parse = SourceFile::parse("#TITLE A\n#00111:0100\n");
-    let lines = bmsrs_bms_parser::tokenize_lines(&parse.source_file());
+    let lines = BmsParser::tokenize_lines(&parse.source_file());
     assert!(lines.iter().any(|entry| matches!(
         entry,
         bmsrs_bms_parser::LineToken { line, token: Ok(bmsrs_bms_values::BmsToken::Message(_)), .. }
