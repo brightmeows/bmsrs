@@ -48,12 +48,7 @@ fn from_document_collects_unselected_branch_warning() {
     let document = bmsrs_bms_source::Document::from_text(
         "#RANDOM 2\n#IF 1\n#BPM 120\n#ENDIF\n#IF 2\n#BPM abc\n#ENDIF\n#ENDRANDOM\n",
     );
-    let result = BmsParser::parse_document(
-        &document,
-        |_| 1,
-        bmsrs_bms_parser::ErrorStrategy::CollectAll,
-    )
-    .unwrap();
+    let result = BmsParser::parse_document(&document, |_| 1).unwrap();
     assert!(matches!(
         result.warnings.as_slice(),
         [bmsrs_bms_parser::BmsParseWarning { line, kind: bmsrs_bms_parser::BmsParseWarningKind::Tokenize(_), .. }]
@@ -66,8 +61,11 @@ fn from_document_fail_fast_returns_unselected_branch_warning() {
     let document = bmsrs_bms_source::Document::from_text(
         "#RANDOM 2\n#IF 1\n#BPM 120\n#ENDIF\n#IF 2\n#BPM abc\n#ENDIF\n#ENDRANDOM\n",
     );
-    let result =
-        BmsParser::parse_document(&document, |_| 1, bmsrs_bms_parser::ErrorStrategy::FailFast);
+    let options = bmsrs_bms_syntax::ParseOptions {
+        error_strategy: bmsrs_bms_parser::ErrorStrategy::FailFast,
+        ..bmsrs_bms_syntax::ParseOptions::default()
+    };
+    let result = BmsParser::parse_document_with(&document, &options, |_| 1);
     assert!(matches!(
         result,
         Err(bmsrs_bms_parser::BmsParseWarning { line, .. }) if line.get() == 6
@@ -81,12 +79,6 @@ fn from_document_accepts_custom_header_prefix() {
         header_prefixes: vec!['@'],
         ..bmsrs_bms_syntax::ParseOptions::default()
     };
-    let result = BmsParser::parse_document_with(
-        &document,
-        &options,
-        |_| 1,
-        bmsrs_bms_parser::ErrorStrategy::CollectAll,
-    )
-    .unwrap();
+    let result = BmsParser::parse_document_with(&document, &options, |_| 1).unwrap();
     assert_eq!(result.bms.metadata.title, Some("A".to_owned()));
 }

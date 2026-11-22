@@ -110,9 +110,8 @@ impl BmsParser {
     pub fn parse_document(
         document: &Document,
         rng: impl FnMut(u64) -> u64,
-        strategy: ErrorStrategy,
     ) -> Result<BmsParse, BmsParseWarning> {
-        Self::parse_document_with(document, &ParseOptions::default(), rng, strategy)
+        Self::parse_document_with(document, &ParseOptions::default(), rng)
     }
 
     /// Build `Bms` from a lossless document with parse options.
@@ -125,7 +124,6 @@ impl BmsParser {
         document: &Document,
         options: &ParseOptions,
         rng: impl FnMut(u64) -> u64,
-        strategy: ErrorStrategy,
     ) -> Result<BmsParse, BmsParseWarning> {
         let text = document.try_to_text().map_err(|error| BmsParseWarning {
             line: NonZeroUsize::MIN,
@@ -139,7 +137,7 @@ impl BmsParser {
         warnings.extend(token_warnings(&all_tokens));
         warnings.sort_by_key(|warning| (warning.line, warning.range.start()));
 
-        if strategy == ErrorStrategy::FailFast
+        if options.error_strategy == ErrorStrategy::FailFast
             && let Some(first) = warnings.first()
         {
             return Err(first.clone());

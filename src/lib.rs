@@ -32,7 +32,7 @@ pub mod bms {
     // points and facade-owned types.
     use crate::raw::{model, parser, processor, source, syntax, values, writer};
 
-    pub use parser::ErrorStrategy;
+    pub use bmsrs_pipeline::ErrorStrategy;
     pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
 
     pub use crate::java_random::JavaRandom;
@@ -117,12 +117,7 @@ pub mod bms {
     pub fn parse(
         text: &str,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
-        parse_with(
-            text,
-            &syntax::ParseOptions::default(),
-            first_branch,
-            ErrorStrategy::CollectAll,
-        )
+        parse_with(text, &syntax::ParseOptions::default(), first_branch)
     }
 
     /// Parse BMS text with explicit options.
@@ -134,10 +129,9 @@ pub mod bms {
         text: &str,
         options: &syntax::ParseOptions,
         rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
         let document = source::Document::from_text(text);
-        from_document(&document, options, rng, error_strategy)
+        from_document(&document, options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
     }
 
@@ -204,7 +198,6 @@ pub mod bms {
         text: &str,
         options: &syntax::ParseOptions,
         rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
     ) -> Result<
         (
             bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>,
@@ -213,9 +206,8 @@ pub mod bms {
         FromTextError,
     > {
         let document = source::Document::from_text(text);
-        let parsed =
-            parser::BmsParser::parse_document_with(&document, options, rng, error_strategy)
-                .map_err(from_parse_error)?;
+        let parsed = parser::BmsParser::parse_document_with(&document, options, rng)
+            .map_err(from_parse_error)?;
         let warnings = parsed
             .warnings
             .into_iter()
@@ -240,7 +232,6 @@ pub mod bms {
             &source::DocumentOptions::default(),
             &syntax::ParseOptions::default(),
             first_branch,
-            ErrorStrategy::CollectAll,
         )
     }
 
@@ -254,10 +245,9 @@ pub mod bms {
         doc_options: &source::DocumentOptions,
         parse_options: &syntax::ParseOptions,
         rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
         let document = source::Document::from_bytes_with(bytes, doc_options);
-        from_document(&document, parse_options, rng, error_strategy)
+        from_document(&document, parse_options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
     }
 
@@ -284,7 +274,6 @@ pub mod bms {
             &source::DocumentOptions::default(),
             &options,
             first_branch,
-            ErrorStrategy::CollectAll,
         )
     }
 
@@ -327,9 +316,8 @@ pub mod bms {
         document: &source::Document,
         options: &syntax::ParseOptions,
         rng: impl FnMut(u64) -> u64,
-        error_strategy: ErrorStrategy,
     ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
-        let parsed = parser::BmsParser::parse_document_with(document, options, rng, error_strategy)
+        let parsed = parser::BmsParser::parse_document_with(document, options, rng)
             .map_err(from_parse_error)?;
         Ok((
             parsed.bms,
