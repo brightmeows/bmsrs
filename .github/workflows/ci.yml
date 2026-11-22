@@ -142,7 +142,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-binstall
         # Same install script as release-plz-pr.yml; cargo-deny is pinned to minor
-        # 0.20, consistent with release-plz pinning cargo-semver-checks@0.51.
+        # 0.22, consistent with release-plz pinning cargo-semver-checks@0.51.
         run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
       - name: Restore cargo registry
         uses: actions/cache@v6
@@ -163,7 +163,7 @@ jobs:
           restore-keys: |
             rust-advisory-${{ runner.os }}-
       - run: |
-          cargo binstall --no-confirm cargo-deny@0.20
+          cargo binstall --no-confirm cargo-deny@0.22
           cargo deny check
 
   msrv:
