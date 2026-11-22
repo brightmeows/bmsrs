@@ -102,10 +102,10 @@ pub mod bms {
     }
 
     /// Default control-flow branch selector for [`parse_with`] and
-    /// [`parse_bytes_with`]: always evaluates to the first branch, regardless
-    /// of the seed.
+    /// [`parse_bytes_with`]: always selects the first branch, regardless of
+    /// the drawn upper bound.
     #[must_use]
-    pub const fn first_branch(_seed: u64) -> u64 {
+    pub const fn first_branch(_max: u64) -> u64 {
         1
     }
 
@@ -133,6 +133,24 @@ pub mod bms {
         let document = source::Document::from_text(text);
         from_document(&document, options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
+    }
+
+    /// Parse BMS text with explicit options and a stateful control-flow RNG.
+    ///
+    /// Unlike [`parse_with`], the generator stays with the caller, so its
+    /// remaining stream is available afterwards; LR2's `#RANDOM` lane option
+    /// continues from the same stream. The rng draws one value per block in
+    /// `[1, max]` through [`ControlFlowRng::draw`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FromTextError`] when `FailFast` encounters an error.
+    pub fn parse_with_rng(
+        text: &str,
+        options: &syntax::ParseOptions,
+        rng: &mut impl syntax::ControlFlowRng,
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+        parse_with(text, options, |max| rng.draw(max))
     }
 
     /// Error type for recorded-selection replay entry points.
@@ -602,7 +620,10 @@ pub mod raw {
 /// families go through the full [`processor`](crate::raw::processor) paths.
 pub mod prelude {
     pub use crate::bms::process_with;
-    pub use crate::bms::{FromTextError, FromTextWarning, parse, parse_bytes, process, write};
+    pub use crate::bms::{
+        FromTextError, FromTextWarning, parse, parse_bytes, parse_with, parse_with_rng, process,
+        write,
+    };
     #[cfg(feature = "bmson")]
     pub use crate::bmson::BmsonParseError;
     #[cfg(feature = "bmson")]
