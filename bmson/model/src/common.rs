@@ -723,3 +723,18 @@ pub fn de_opt_path<'de, D: Deserializer<'de>>(
     let s: Option<String> = Deserialize::deserialize(deserializer)?;
     Ok(s.map(PathBuf::from))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{default_multiplier, default_resolution};
+
+    #[test]
+    fn default_multiplier_is_one() {
+        assert!((default_multiplier() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn default_resolution_is_240() {
+        assert_eq!(default_resolution(), 240);
+    }
+}

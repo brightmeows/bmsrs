@@ -45,7 +45,10 @@ pub use common::{
     ScrollEvent, SoundChannel, StopEvent,
 };
 
-pub use common::{
+// Serde attribute paths (`#[serde(default = "default_multiplier")]` and
+// `crate::null_to_default` in v0/v1) resolve against the crate root; this
+// private import keeps them working without re-exporting the helpers.
+use common::{
     de_opt_path, de_path, default_multiplier, default_resolution, deserialize_resolution,
     null_to_default,
 };

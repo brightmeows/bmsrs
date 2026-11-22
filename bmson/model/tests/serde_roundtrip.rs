@@ -328,16 +328,6 @@ fn bga_default_is_empty() {
 }
 
 #[test]
-fn default_multiplier_is_one() {
-    assert!((default_multiplier() - 1.0).abs() < f64::EPSILON);
-}
-
-#[test]
-fn default_resolution_is_240() {
-    assert_eq!(default_resolution(), 240);
-}
-
-#[test]
 fn resolution_zero_is_kept_for_the_processor_fallback() {
     let json = r#"{"version":"2.0.0","song_info":{"title":"T","artist":"A","genre":"G"},"chart_info":{"subtitle":"","subartists":[],"chart_name":"","level":1,"bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}},"chart_data":{"init_bpm":120.0,"lines":null,"bpm_events":[],"stop_events":[],"sound_channels":[],"resolution":0}}"#;
     let bmson: Bmson = serde_json::from_str(json).unwrap();
