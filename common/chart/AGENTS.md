@@ -2,11 +2,12 @@
 
 ## Role
 
-Format-agnostic chart data model: the central IR between format processors and
-the player.
+Format-agnostic chart data model: the central IR between the format processors
+(BMS, BMSON, osu!mania) and the player.
 
 **Dependency direction.** `bmsrs-chart` must not depend on domain crates
-(`bmsrs-bms-*`, `bmsrs-bmson-*`) or on `bmsrs-player`; see `../AGENTS.md`
+(`bmsrs-bms-*`, `bmsrs-bmson-*`, `bmsrs-osu-*`) or on `bmsrs-player`; see
+`../AGENTS.md`
 for the full rule.
 
 `resolution` defines ticks per quarter note (default 240).
@@ -23,7 +24,7 @@ from them. There is no second timing source to keep in sync.
 | Parameter | Default | Use |
 |-----------|---------|-----|
 | `T: NoteExt` | `()` | per-note extension data (volume, pan, LN mode, and so on) |
-| `C: CustomEvent` | `NoCustomEvent` | format-specific custom event type |
+| `C: CustomEvent` | `NoCustomEvent` | format-specific custom event type (for example, `BmsCustomEvent`, `OsuCustomEvent`) |
 
 Core note fields:
 
