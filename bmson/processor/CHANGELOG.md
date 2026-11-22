@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bmson-processor-v0.0.2...bmsrs-bmson-processor-v0.0.3) - 2026-11-22
+
+### Bug Fixes
+
+- *(bmson)* map filters to every sliced asset
+- *(bmson)* finish clip offset semantics from review feedback
+
+### Documentation
+
+- record format provenance and tighten the sidecar API
+- *(readme)* flip install instructions to the released 0.0.2
+
+### Features
+
+- [**breaking**] add KaleidBeat bmson extensions and sidecar (migration: BmsonProcessed replaces the bare Chart return; Bmson and v1::Bmson gain extension fields; LnMode/LnType gain Hln.)
+- [**breaking**] keep bmson total percent and add caller-probed asset checks (migration: ChartInfo gains a field, so struct literals need
+total_percent; ChartInfo is non-exhaustive by convention (Default exists).)
+- feat!(chart): add frame-sequence BGA resources
+
+### Refactoring
+
+- [**breaking**] remove duplicated sidecar views (migration: BmsKaleid.options and BmsonKaleid.speed_events are removed.)
+- [**breaking**] tighten the bmson KaleidBeat sidecar (migration: BmsonKaleid.filters is BTreeMap<AudioIndex, SoundFilter>; BmsonProcessed no longer dereferences to Chart.)
 ## [0.0.2](https://github.com/brightmeows/bmsrs/compare/bmsrs-bmson-processor-v0.0.1...bmsrs-bmson-processor-v0.0.2) - 2026-11-10
 
 ### Documentation
