@@ -54,6 +54,16 @@ impl<T, W> Outcome<T, W> {
     }
 }
 
+/// Error-handling strategy for whole-file parsing pipelines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ErrorStrategy {
+    /// Collect errors from every line.
+    #[default]
+    CollectAll,
+    /// Return at the first error.
+    FailFast,
+}
+
 /// A byte range in source text.
 ///
 /// Offsets are half-open: `start` is inclusive and `end` is exclusive.

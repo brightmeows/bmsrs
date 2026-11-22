@@ -8,19 +8,9 @@ use bmsrs_bms_syntax::{
     BranchMismatch, BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
-use bmsrs_pipeline::SourceSpan;
+use bmsrs_pipeline::{ErrorStrategy, SourceSpan};
 
 use bmsrs_bms_model::Bms;
-
-/// Error-handling strategy for token extraction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ErrorStrategy {
-    /// Collect errors from every line.
-    #[default]
-    CollectAll,
-    /// Return at the first error.
-    FailFast,
-}
 
 /// Warning categories produced by CST or document parsing.
 #[derive(Debug, Clone, PartialEq, Eq)]
