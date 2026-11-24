@@ -151,6 +151,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
     // into `raw`.
     let resolved = [
         named::<bmsrs::bms::Bms>(),
+        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::FromTextWarning>>(),
         named::<bmsrs::bms::Processed>(),
         named::<bmsrs::bms::ProcessWarning>(),
         named::<bmsrs::bms::ProcessError>(),
@@ -166,7 +167,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::FromTextWarning>(),
         named::<bmsrs::bms::ReplayParseError>(),
     ];
-    assert_eq!(resolved.len(), 15);
+    assert_eq!(resolved.len(), 16);
     // `type_name` reports the defining crate, not the re-export path, so the
     // value only has to exist; resolving these paths is the assertion.
     assert!(resolved.iter().all(|name| !name.is_empty()));
@@ -185,12 +186,15 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
 
     let resolved = [
         named::<bmsrs::bmson::Bmson>(),
+        named::<
+            bmsrs::bmson::Outcome<bmsrs::bmson::BmsonProcessed, bmsrs::bmson::BmsonProcessWarning>,
+        >(),
         named::<bmsrs::bmson::BmsonProcessed>(),
         named::<bmsrs::bmson::BmsonProcessWarning>(),
         named::<bmsrs::bmson::ProcessError>(),
         named::<bmsrs::bmson::BmsonParseError>(),
     ];
-    assert_eq!(resolved.len(), 5);
+    assert_eq!(resolved.len(), 6);
     assert!(resolved.iter().all(|name| !name.is_empty()));
 
     bmson_layout::<bmsrs::bmson::Beat>();

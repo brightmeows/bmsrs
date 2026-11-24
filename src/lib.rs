@@ -32,7 +32,7 @@ pub mod bms {
     // points and facade-owned types.
     use crate::raw::{model, parser, processor, source, syntax, values, writer};
 
-    pub use bmsrs_pipeline::ErrorStrategy;
+    pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
     pub use processor::layout::{Bme, BmsLayout};
     pub use processor::{ProcessError, ProcessWarning, Processed};
@@ -440,6 +440,7 @@ pub mod bmson {
     use crate::raw::bmson_model as model;
     use crate::raw::bmson_processor as processor;
 
+    pub use bmsrs_pipeline::Outcome;
     pub use model::Bmson;
     pub use processor::layout::{Beat, BmsonLayout};
     pub use processor::{BmsonProcessWarning, BmsonProcessed, ProcessError};
