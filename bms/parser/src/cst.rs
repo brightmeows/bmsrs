@@ -8,7 +8,7 @@ use bmsrs_bms_syntax::{
     BranchMismatch, BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
-use bmsrs_pipeline::{ErrorStrategy, SourceSpan};
+use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, SourceSpan};
 
 use bmsrs_bms_model::Bms;
 
@@ -19,8 +19,13 @@ pub enum BmsParseWarningKind {
     Tokenize(BmsTokenizeError),
     /// Document decode error.
     Decode(TextDecodeError),
-    /// CST syntax or control-flow diagnostic.
-    Syntax(String),
+    /// CST syntax or control-flow diagnostic, with its stable code.
+    Syntax {
+        /// Diagnostic message.
+        message: String,
+        /// Stable code assigned by the syntax layer.
+        code: DiagnosticCode,
+    },
 }
 
 /// A parse warning with a line number.
@@ -219,7 +224,10 @@ fn syntax_warnings(
             BmsParseWarning {
                 line,
                 range: error.range(),
-                kind: BmsParseWarningKind::Syntax(error.message().to_owned()),
+                kind: BmsParseWarningKind::Syntax {
+                    message: error.message().to_owned(),
+                    code: error.code(),
+                },
             }
         })
         .collect()

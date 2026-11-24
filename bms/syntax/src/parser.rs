@@ -1,5 +1,6 @@
 //! Error-tolerant parsing: assemble line tokens into a rowan CST.
 
+use bmsrs_pipeline::{DiagnosticCode, Severity};
 use rowan::{GreenNode, GreenNodeBuilder, TextRange, TextSize};
 
 use crate::ast::SourceFile;
@@ -8,34 +9,48 @@ use bmsrs_bms_source::ScanState;
 
 use crate::{ParseOptions, SyntaxKind};
 
-/// Diagnostic category.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiagnosticKind {
-    /// Syntax error.
-    Syntax,
-    /// Control-flow structure error.
-    ControlFlow,
-}
-
 /// A parse diagnostic.
+///
+/// The CST knows whether a problem is a syntax error or a control-flow
+/// structure issue, so it carries both the severity and the stable code
+/// instead of a category enum that every later layer has to translate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     /// Text range.
     range: TextRange,
+    /// Severity assigned by the syntax layer.
+    severity: Severity,
     /// Diagnostic message.
     message: String,
-    /// Diagnostic category.
-    kind: DiagnosticKind,
+    /// Stable diagnostic code.
+    code: DiagnosticCode,
 }
 
 impl Diagnostic {
-    /// Construct a diagnostic.
-    fn new(range: TextRange, message: impl Into<String>, kind: DiagnosticKind) -> Self {
+    /// Construct a syntax error.
+    fn syntax(range: TextRange, message: impl Into<String>) -> Self {
         Self {
             range,
+            severity: Severity::Error,
             message: message.into(),
-            kind,
+            code: DiagnosticCode::Syntax,
         }
+    }
+
+    /// Construct a control-flow structure warning.
+    fn control_flow(range: TextRange, message: impl Into<String>) -> Self {
+        Self {
+            range,
+            severity: Severity::Warning,
+            message: message.into(),
+            code: DiagnosticCode::ControlFlow,
+        }
+    }
+
+    /// Move this diagnostic onto another range.
+    const fn with_range(mut self, range: TextRange) -> Self {
+        self.range = range;
+        self
     }
 
     /// Return the text range.
@@ -44,16 +59,22 @@ impl Diagnostic {
         self.range
     }
 
+    /// Return the severity assigned by the syntax layer.
+    #[must_use]
+    pub const fn severity(&self) -> Severity {
+        self.severity
+    }
+
     /// Return the diagnostic message.
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
     }
 
-    /// Return the diagnostic category.
+    /// Return the stable diagnostic code.
     #[must_use]
-    pub const fn kind(&self) -> DiagnosticKind {
-        self.kind
+    pub const fn code(&self) -> DiagnosticCode {
+        self.code
     }
 }
 
@@ -181,11 +202,7 @@ fn collect_lex_errors(lines: &[LineData<'_>], errors: &mut Vec<Diagnostic>) {
                     || line_range(line),
                     |token| TextRange::new(text_size(token.start), text_size(token.end())),
                 );
-            errors.push(Diagnostic::new(
-                range,
-                "invalid BMS line",
-                DiagnosticKind::Syntax,
-            ));
+            errors.push(Diagnostic::syntax(range, "invalid BMS line"));
         }
     }
 }
@@ -223,10 +240,9 @@ fn parse_item<'a>(
     } else if is_switch_open(line) {
         parse_switch(lines, index, end, errors)
     } else if is_control_directive(line) {
-        errors.push(Diagnostic::new(
+        errors.push(Diagnostic::control_flow(
             line_range(line),
             "unmatched control-flow directive",
-            DiagnosticKind::ControlFlow,
         ));
         let mut error = line.clone();
         error.kind = SyntaxLineKind::Error;
@@ -260,10 +276,9 @@ fn parse_random<'a>(
     if end_index.is_none()
         && let Some(line) = lines.get(start)
     {
-        errors.push(Diagnostic::new(
+        errors.push(Diagnostic::control_flow(
             line_range(line),
             "unclosed #RANDOM",
-            DiagnosticKind::ControlFlow,
         ));
     }
     let next = end_index.map_or(inner_end, |index| index.saturating_add(1));
@@ -365,10 +380,9 @@ fn parse_random_inner<'a>(
         if chain.end.is_none()
             && let Some(line) = chain.branches.first().map(|branch| &branch.directive)
         {
-            errors.push(Diagnostic::new(
+            errors.push(Diagnostic::control_flow(
                 line_range(line),
                 "#IF without #ENDIF",
-                DiagnosticKind::ControlFlow,
             ));
         }
         chains.push(chain);
@@ -389,10 +403,9 @@ fn close_chain<'a>(
         if let Some(branch) = current_branch.take() {
             chain.branches.push(branch);
         }
-        errors.push(Diagnostic::new(
+        errors.push(Diagnostic::control_flow(
             line_range(line),
             "previous #IF chain missing #ENDIF",
-            DiagnosticKind::ControlFlow,
         ));
         chains.push(chain);
     }
@@ -412,10 +425,9 @@ fn parse_switch<'a>(
     if end_index.is_none()
         && let Some(line) = lines.get(start)
     {
-        errors.push(Diagnostic::new(
+        errors.push(Diagnostic::control_flow(
             line_range(line),
             "unclosed #SWITCH",
-            DiagnosticKind::ControlFlow,
         ));
     }
     let next = end_index.map_or(inner_end, |index| index.saturating_add(1));
@@ -544,11 +556,7 @@ fn error_line<'a>(
     message: &str,
     errors: &mut Vec<Diagnostic>,
 ) -> LineData<'a> {
-    errors.push(Diagnostic::new(
-        line_range(line),
-        message,
-        DiagnosticKind::ControlFlow,
-    ));
+    errors.push(Diagnostic::control_flow(line_range(line), message));
     let mut error = line.clone();
     error.kind = SyntaxLineKind::Error;
     error
@@ -860,7 +868,7 @@ impl IncrementalParser {
                 } else {
                     error.range()
                 };
-                Diagnostic::new(range, error.message(), error.kind())
+                error.clone().with_range(range)
             })
             .collect();
         collect_lex_errors(std::slice::from_ref(&new_line), &mut errors);

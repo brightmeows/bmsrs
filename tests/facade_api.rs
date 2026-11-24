@@ -199,3 +199,30 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
 
     bmson_layout::<bmsrs::bmson::Beat>();
 }
+
+#[test]
+fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
+    use bmsrs::pipeline::{Diagnostic, DiagnosticCode};
+
+    // An unclosed control-flow block is a structure warning, not a syntax one.
+    let unclosed = bmsrs::bms::parse("#RANDOM 2\n#IF 1\n#TITLE A\n").expect("valid BMS");
+    let codes: Vec<_> = unclosed
+        .warnings
+        .into_iter()
+        .map(Diagnostic::from)
+        .filter_map(|diagnostic| diagnostic.code)
+        .collect();
+    assert!(codes.contains(&DiagnosticCode::ControlFlow));
+    assert!(!codes.contains(&DiagnosticCode::Syntax));
+
+    // A line whose command word is empty is a syntax error.
+    let invalid = bmsrs::bms::parse("# BAD\n").expect("valid BMS");
+    let invalid_codes: Vec<_> = invalid
+        .warnings
+        .into_iter()
+        .map(Diagnostic::from)
+        .filter_map(|diagnostic| diagnostic.code)
+        .collect();
+    assert!(invalid_codes.contains(&DiagnosticCode::Syntax));
+    assert!(!invalid_codes.contains(&DiagnosticCode::ControlFlow));
+}

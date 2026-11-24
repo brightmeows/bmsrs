@@ -56,6 +56,8 @@ pub mod bms {
             range: syntax::TextRange,
             /// Error message.
             message: String,
+            /// Stable code assigned by the syntax layer.
+            code: bmsrs_pipeline::DiagnosticCode,
         },
         /// Single-line value parse error.
         #[error("tokenization error at {range:?}: {error}")]
@@ -89,6 +91,8 @@ pub mod bms {
             range: syntax::TextRange,
             /// Warning message.
             message: String,
+            /// Stable code assigned by the syntax layer.
+            code: bmsrs_pipeline::DiagnosticCode,
         },
         /// Single-line value parsing failed and the line was skipped.
         #[error("tokenization warning at {range:?}: {error}")]
@@ -202,6 +206,7 @@ pub mod bms {
             .map(|error| FromTextWarning::Syntax {
                 range: error.range(),
                 message: error.message().to_owned(),
+                code: error.code(),
             })
             .collect();
         let parsed = parser::BmsParser::parse_from_selection(&parse.source_file(), selection)
@@ -357,9 +362,10 @@ pub mod bms {
     /// Convert a parser-layer warning into a facade warning.
     fn from_parse_warning(warning: parser::BmsParseWarning) -> FromTextWarning {
         match warning.kind {
-            parser::BmsParseWarningKind::Syntax(message) => FromTextWarning::Syntax {
+            parser::BmsParseWarningKind::Syntax { message, code } => FromTextWarning::Syntax {
                 range: warning.range,
                 message,
+                code,
             },
             parser::BmsParseWarningKind::Tokenize(error) => FromTextWarning::Tokenize {
                 range: warning.range,
@@ -375,9 +381,10 @@ pub mod bms {
     /// Convert a parser-layer warning into a facade error.
     fn from_parse_error(warning: parser::BmsParseWarning) -> FromTextError {
         match warning.kind {
-            parser::BmsParseWarningKind::Syntax(message) => FromTextError::Syntax {
+            parser::BmsParseWarningKind::Syntax { message, code } => FromTextError::Syntax {
                 range: warning.range,
                 message,
+                code,
             },
             parser::BmsParseWarningKind::Tokenize(error) => FromTextError::Tokenize {
                 range: warning.range,
@@ -394,11 +401,13 @@ pub mod bms {
     impl From<FromTextWarning> for bmsrs_pipeline::Diagnostic {
         fn from(warning: FromTextWarning) -> Self {
             match warning {
-                FromTextWarning::Syntax { range, message } => {
-                    Self::new(bmsrs_pipeline::Severity::Warning, message)
-                        .with_span(text_span(range))
-                        .with_code(bmsrs_pipeline::DiagnosticCode::Syntax)
-                }
+                FromTextWarning::Syntax {
+                    range,
+                    message,
+                    code,
+                } => Self::new(bmsrs_pipeline::Severity::Warning, message)
+                    .with_span(text_span(range))
+                    .with_code(code),
                 FromTextWarning::Tokenize { range, error } => {
                     Self::new(bmsrs_pipeline::Severity::Warning, error.to_string())
                         .with_span(text_span(range))
@@ -643,8 +652,8 @@ pub mod prelude {
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };
-    pub use crate::pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
+    pub use crate::pipeline::{Diagnostic, DiagnosticCode, Outcome, Severity, SourceSpan};
     pub use crate::player::Player;
 }
 
-pub use bmsrs_pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
+pub use bmsrs_pipeline::{Diagnostic, DiagnosticCode, Outcome, Severity, SourceSpan};

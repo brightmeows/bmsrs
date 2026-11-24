@@ -140,6 +140,10 @@ pub enum DiagnosticCode {
     BmsProcess,
     /// BMSON processing warning.
     BmsonProcess,
+    /// `KaleidBeat` conditional-block structure warning.
+    Conditional,
+    /// `KaleidBeat` dialect extension kept outside the core chart.
+    Extension,
 }
 
 impl DiagnosticCode {
@@ -155,6 +159,8 @@ impl DiagnosticCode {
             Self::UndefinedReference => "undefined-reference",
             Self::BmsProcess => "bms-process",
             Self::BmsonProcess => "bmson-process",
+            Self::Conditional => "conditional",
+            Self::Extension => "extension",
         }
     }
 }

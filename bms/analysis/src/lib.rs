@@ -6,8 +6,8 @@
 //! - resource definition and reference indices (WAV, BMP, BGA, BPM, STOP,
 //!   SCROLL, SPEED, and so on)
 //! - duplicate-definition and missing-reference diagnostics
-//! - recognition of the `KaleidBeat` chart dialect (Information diagnostics with
-//!   the stable code `extension`; see [`Docs`] for the provenance
+//! - recognition of the `KaleidBeat` chart dialect (Information diagnostics
+//!   carrying [`DiagnosticCode::Extension`]; see [`Docs`] for the provenance
 //!   and the only written contract)
 //!
 //! This crate does not depend on LSP types; protocol adaptation belongs to the
@@ -19,6 +19,6 @@ mod docs;
 mod index;
 
 pub use analysis::Analysis;
-pub use diagnostic::{AnalysisDiagnostic, Severity};
+pub use diagnostic::{AnalysisDiagnostic, DiagnosticCode, Severity};
 pub use docs::{ChannelDoc, Docs, HeaderDoc};
 pub use index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};

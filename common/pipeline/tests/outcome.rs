@@ -44,6 +44,8 @@ fn diagnostic_code_strings_are_stable() {
         DiagnosticCode::UndefinedReference.as_str(),
         "undefined-reference"
     );
+    assert_eq!(DiagnosticCode::Conditional.as_str(), "conditional");
+    assert_eq!(DiagnosticCode::Extension.as_str(), "extension");
 }
 
 #[test]

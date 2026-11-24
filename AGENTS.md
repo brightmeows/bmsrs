@@ -116,6 +116,10 @@ set or belong to the same conversion process. This is a recommendation, not a
 requirement: pure helpers and simple stateless utilities may remain free
 functions.
 
+Diagnostic codes come from `bmsrs_pipeline::DiagnosticCode` only. A layer may
+wrap it in its own warning type, but no layer may invent a second string
+vocabulary; `DiagnosticCode::as_str` is the only place a code becomes a string.
+
 ### Interface shapes
 
 Pick the construction shape by what varies, not by habit:
@@ -156,7 +160,6 @@ Deferred interface work, with the trigger that reopens it:
 |------|---------|
 | Input sum type (`Text` / `Bytes` / `File` / recorded selection) replacing the eight `bms::parse*` entry points | a third consumer needs the entry points, or a new input axis arrives |
 | One `parse` spelling across `bms` and `bmson` | the input sum type lands; the prelude cannot export both names today, which is why `bmson::process_nkeys` is exported and `bmson::process` is not |
-| Unifying the diagnostic vocabulary across `bmsrs-pipeline` and `bmsrs-bms-syntax` | a third consumer needs to exchange diagnostics; each layer keeping its own warning type is deliberate until then |
 | `Viewport` options struct | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
 | A recoverable-warning channel for `bmson::parse_str` | BMSON parsing produces its first recoverable warning; today it is strict, so `bms::parse` returns `Outcome` and `bmson::parse_str` does not |
 | One return shape for range queries (`Player::events_in_range` yields a slice, `notes_in_range` an iterator) | a consumer ranges over both in the same loop and has to convert |
