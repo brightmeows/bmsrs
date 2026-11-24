@@ -165,12 +165,12 @@ mod tests {
     fn bpm_change_uses_time_axis() {
         let timing = TimingTrack::new(
             120.0,
+            240,
             vec![BpmChange {
                 tick: 240,
                 bpm: 240.0,
             }],
             vec![],
-            240,
         )
         .unwrap();
         let events = make_speed_events(&[(0, 1.0), (480, 2.0)]);

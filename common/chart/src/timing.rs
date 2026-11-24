@@ -175,9 +175,9 @@ impl TimingTrack {
     #[expect(clippy::cast_precision_loss, reason = "resolution fits in f64")]
     pub fn new(
         init_bpm: f64,
+        resolution: u64,
         mut bpm_changes: Vec<BpmChange>,
         mut stops: Vec<StopEvent>,
-        resolution: u64,
     ) -> Result<Self, TimingTrackError> {
         if resolution == 0 {
             return Err(TimingTrackError::ZeroResolution);
@@ -257,7 +257,7 @@ impl TimingTrack {
     /// Create a timing track with only the initial BPM, no changes, and no
     /// stops.
     ///
-    /// Equivalent to `TimingTrack::new(bpm, vec![], vec![], resolution)` without
+    /// Equivalent to `TimingTrack::new(bpm, resolution, vec![], vec![])` without
     /// manually passing empty vectors; more concise in tests and simple cases.
     ///
     /// # Errors
@@ -266,7 +266,7 @@ impl TimingTrack {
     /// (non-positive or non-finite), and [`TimingTrackError::ZeroResolution`]
     /// when `resolution == 0`.
     pub fn simple(init_bpm: f64, resolution: u64) -> Result<Self, TimingTrackError> {
-        Self::new(init_bpm, Vec::new(), Vec::new(), resolution)
+        Self::new(init_bpm, resolution, Vec::new(), Vec::new())
     }
 
     /// Build a timing track from a chart event stream.
@@ -305,7 +305,7 @@ impl TimingTrack {
                 _ => {}
             }
         }
-        Self::new(init_bpm, bpm_changes, stops, resolution)
+        Self::new(init_bpm, resolution, bpm_changes, stops)
     }
 
     /// Convert a tick position into wall-clock time [`Duration`].
@@ -439,7 +439,7 @@ impl Default for TimingTrack {
         reason = "120 BPM and resolution 240 are hardcoded constants that are always valid"
     )]
     fn default() -> Self {
-        Self::new(120.0, vec![], vec![], 240).expect("120 BPM at resolution 240 is always valid")
+        Self::new(120.0, 240, vec![], vec![]).expect("120 BPM at resolution 240 is always valid")
     }
 }
 
@@ -647,12 +647,12 @@ mod tests {
     fn bpm_change_segment_boundary() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![BpmChange {
                 tick: 240,
                 bpm: 60.0,
             }],
             vec![],
-            RES,
         )
         .unwrap();
         let result = timing.tick_to_duration(480);
@@ -663,12 +663,12 @@ mod tests {
     fn stop_strictly_before_target_adds_pause() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![],
             vec![StopEvent {
                 tick: 240,
                 duration: Duration::from_millis(500),
             }],
-            RES,
         )
         .unwrap();
         let result = timing.tick_to_duration(241);
@@ -680,12 +680,12 @@ mod tests {
     fn stop_at_target_excludes_pause() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![],
             vec![StopEvent {
                 tick: 240,
                 duration: Duration::from_millis(500),
             }],
-            RES,
         )
         .unwrap();
         let result = timing.tick_to_duration(240);
@@ -696,12 +696,12 @@ mod tests {
     fn bpm_at_tick_returns_correct_bpm() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![BpmChange {
                 tick: 480,
                 bpm: 200.0,
             }],
             vec![],
-            RES,
         )
         .unwrap();
 
@@ -714,6 +714,7 @@ mod tests {
     fn unsorted_bpm_changes_sorted_internally() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![
                 BpmChange {
                     tick: 480,
@@ -725,7 +726,6 @@ mod tests {
                 },
             ],
             vec![],
-            RES,
         )
         .unwrap();
 
@@ -736,12 +736,12 @@ mod tests {
     fn zero_bpm_change_skipped() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![BpmChange {
                 tick: 240,
                 bpm: 0.0,
             }],
             vec![],
-            RES,
         )
         .unwrap();
 
@@ -752,12 +752,12 @@ mod tests {
     fn nan_bpm_change_skipped() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![BpmChange {
                 tick: 240,
                 bpm: f64::NAN,
             }],
             vec![],
-            RES,
         )
         .unwrap();
 
@@ -768,12 +768,12 @@ mod tests {
     fn inf_bpm_change_skipped() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![BpmChange {
                 tick: 240,
                 bpm: f64::INFINITY,
             }],
             vec![],
-            RES,
         )
         .unwrap();
 
@@ -784,6 +784,7 @@ mod tests {
     fn valid_bpm_after_invalid_one_works() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![
                 BpmChange {
                     tick: 240,
@@ -795,7 +796,6 @@ mod tests {
                 },
             ],
             vec![],
-            RES,
         )
         .unwrap();
 
@@ -806,6 +806,7 @@ mod tests {
     fn multiple_stops_at_same_tick_keep_last() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![],
             vec![
                 StopEvent {
@@ -817,7 +818,6 @@ mod tests {
                     duration: Duration::from_millis(500),
                 },
             ],
-            RES,
         )
         .unwrap();
 
@@ -853,12 +853,12 @@ mod tests {
     fn extreme_stop_does_not_panic() {
         let timing = TimingTrack::new(
             0.1,
+            RES,
             vec![],
             vec![StopEvent {
                 tick: 0,
                 duration: Duration::MAX,
             }],
-            RES,
         )
         .unwrap();
 
@@ -869,25 +869,25 @@ mod tests {
 
     #[test]
     fn new_rejects_zero_init_bpm() {
-        let result = TimingTrack::new(0.0, vec![], vec![], RES);
+        let result = TimingTrack::new(0.0, RES, vec![], vec![]);
         assert_eq!(result, Err(TimingTrackError::InvalidBpm { bpm: 0.0 }));
     }
 
     #[test]
     fn new_rejects_negative_init_bpm() {
-        let result = TimingTrack::new(-120.0, vec![], vec![], RES);
+        let result = TimingTrack::new(-120.0, RES, vec![], vec![]);
         assert_eq!(result, Err(TimingTrackError::InvalidBpm { bpm: -120.0 }));
     }
 
     #[test]
     fn new_rejects_nan_init_bpm() {
-        let result = TimingTrack::new(f64::NAN, vec![], vec![], RES);
+        let result = TimingTrack::new(f64::NAN, RES, vec![], vec![]);
         assert!(result.is_err());
     }
 
     #[test]
     fn new_rejects_infinite_init_bpm() {
-        let result = TimingTrack::new(f64::INFINITY, vec![], vec![], RES);
+        let result = TimingTrack::new(f64::INFINITY, RES, vec![], vec![]);
         assert!(result.is_err());
     }
 
@@ -899,7 +899,7 @@ mod tests {
 
     #[test]
     fn new_rejects_zero_resolution() {
-        let result = TimingTrack::new(120.0, vec![], vec![], 0);
+        let result = TimingTrack::new(120.0, 0, vec![], vec![]);
         assert_eq!(result, Err(TimingTrackError::ZeroResolution));
     }
 
@@ -913,6 +913,7 @@ mod tests {
     fn regression_roundtrip_consistency() {
         let timing = TimingTrack::new(
             150.0,
+            RES,
             vec![
                 BpmChange {
                     tick: 480,
@@ -927,7 +928,6 @@ mod tests {
                 tick: 960,
                 duration: Duration::from_millis(1200),
             }],
-            RES,
         )
         .unwrap();
 

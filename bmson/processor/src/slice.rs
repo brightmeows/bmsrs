@@ -202,12 +202,12 @@ mod tests {
     fn stop_between_continuation_and_next_slice_excludes_pause() {
         let timing = TimingTrack::new(
             120.0,
+            RES,
             vec![],
             vec![StopEvent {
                 tick: 240,
                 duration: std::time::Duration::from_millis(500),
             }],
-            RES,
         )
         .unwrap();
         let channel = SoundChannel {

@@ -538,12 +538,12 @@ fn tick_to_duration_constant_bpm() {
 fn tick_to_duration_bpm_change() {
     let tt = TimingTrack::new(
         120.0,
+        240,
         vec![BpmChange {
             tick: 240,
             bpm: 240.0,
         }],
         vec![],
-        240,
     )
     .unwrap();
     // 0-240 ticks at 120 BPM = 0.5s, 240-480 ticks at 240 BPM = 0.25s
@@ -555,12 +555,12 @@ fn tick_to_duration_bpm_change() {
 fn tick_to_duration_with_stop() {
     let tt = TimingTrack::new(
         120.0,
+        240,
         vec![],
         vec![StopEvent {
             tick: 240,
             duration: Duration::from_millis(500),
         }],
-        240,
     )
     .unwrap();
     // 0-240 ticks = 0.5s. At tick 240, a stop of 240 ticks = 0.5s.
@@ -584,12 +584,12 @@ fn duration_to_tick_constant_bpm() {
 fn duration_to_tick_with_stop() {
     let tt = TimingTrack::new(
         120.0,
+        240,
         vec![],
         vec![StopEvent {
             tick: 240,
             duration: Duration::from_millis(500),
         }],
-        240,
     )
     .unwrap();
     // Within stop: 0.5s (to stop) + 0.25s (into stop) → should still be at tick 240
@@ -634,12 +634,12 @@ fn timing_track_partial_eq() {
 fn timing_track_negative_bpm_change_is_ignored() {
     let tt = TimingTrack::new(
         120.0,
+        240,
         vec![BpmChange {
             tick: 240,
             bpm: -60.0,
         }],
         vec![],
-        240,
     )
     .unwrap();
 
