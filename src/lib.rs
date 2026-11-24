@@ -33,6 +33,7 @@ pub mod bms {
     use crate::raw::{model, parser, processor, source, syntax, values, writer};
 
     pub use bmsrs_pipeline::ErrorStrategy;
+    pub use source::DocumentOptions;
     pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
 
     pub use crate::java_random::JavaRandom;

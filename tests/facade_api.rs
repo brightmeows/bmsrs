@@ -25,6 +25,21 @@ fn bms_parse_file_reads_chart_from_path() {
 }
 
 #[test]
+fn bms_parse_bytes_with_accepts_curated_option_types() {
+    // Both option types a caller needs must resolve through `bms::`, not only
+    // through the low-level `raw` path this facade is meant to hide.
+    let bytes = b"#TITLE A\n#BPM 120\n".to_vec();
+    let parsed = bmsrs::bms::parse_bytes_with(
+        bytes,
+        &bmsrs::bms::DocumentOptions::default(),
+        &bmsrs::bms::ParseOptions::default(),
+        |_| 1,
+    )
+    .expect("valid BMS bytes");
+    assert_eq!(parsed.value.metadata.title.as_deref(), Some("A"));
+}
+
+#[test]
 fn java_random_seed_reproduces_branch_layout_and_replays() {
     let text =
         "#RANDOM 5\n#IF 1\n#TITLE ONE\n#ENDIF\n#IF 5\n#TITLE FIVE\n#ENDIF\n#ENDRANDOM\n#BPM 120\n";
