@@ -17,7 +17,7 @@ semantic interpretation. Derived values belong to `bmsrs-bms-processor`.
 
 `Bms::from_flat_tokens` pre-scans `#BASE`, processes every token with the
 correct radix, and finishes the builder with `MessagesBuilder::finish(base)`;
-the builder's type-state lifecycle is documented on `MessagesBuilder`.
+the builder's consuming finalizer is documented on `MessagesBuilder`.
 `Messages` keeps the raw store private and exposes it through `raw()` for the
 writer. Control-flow headers are skipped here (handled by
 `bmsrs-bms-syntax`); every other group is stored `Option`-last-wins or
