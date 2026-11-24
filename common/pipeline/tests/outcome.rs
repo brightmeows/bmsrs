@@ -48,12 +48,9 @@ fn diagnostic_code_strings_are_stable() {
 
 #[test]
 fn diagnostic_keeps_fields() {
-    let diagnostic = Diagnostic::new(
-        Severity::Warning,
-        Some(SourceSpan::new(1, 3)),
-        "message",
-        Some(DiagnosticCode::DuplicateDefinition),
-    );
+    let diagnostic = Diagnostic::new(Severity::Warning, "message")
+        .with_span(SourceSpan::new(1, 3))
+        .with_code(DiagnosticCode::DuplicateDefinition);
     assert!(!diagnostic.is_error());
     assert_eq!(diagnostic.span, Some(SourceSpan::new(1, 3)));
     assert_eq!(diagnostic.message, "message");

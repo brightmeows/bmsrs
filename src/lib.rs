@@ -388,24 +388,21 @@ pub mod bms {
     impl From<FromTextWarning> for bmsrs_pipeline::Diagnostic {
         fn from(warning: FromTextWarning) -> Self {
             match warning {
-                FromTextWarning::Syntax { range, message } => Self::new(
-                    bmsrs_pipeline::Severity::Warning,
-                    Some(text_span(range)),
-                    message,
-                    Some(bmsrs_pipeline::DiagnosticCode::Syntax),
-                ),
-                FromTextWarning::Tokenize { range, error } => Self::new(
-                    bmsrs_pipeline::Severity::Warning,
-                    Some(text_span(range)),
-                    error.to_string(),
-                    Some(bmsrs_pipeline::DiagnosticCode::Tokenize),
-                ),
-                FromTextWarning::Decode { range, error } => Self::new(
-                    bmsrs_pipeline::Severity::Warning,
-                    Some(text_span(range)),
-                    error.to_string(),
-                    Some(bmsrs_pipeline::DiagnosticCode::Decode),
-                ),
+                FromTextWarning::Syntax { range, message } => {
+                    Self::new(bmsrs_pipeline::Severity::Warning, message)
+                        .with_span(text_span(range))
+                        .with_code(bmsrs_pipeline::DiagnosticCode::Syntax)
+                }
+                FromTextWarning::Tokenize { range, error } => {
+                    Self::new(bmsrs_pipeline::Severity::Warning, error.to_string())
+                        .with_span(text_span(range))
+                        .with_code(bmsrs_pipeline::DiagnosticCode::Tokenize)
+                }
+                FromTextWarning::Decode { range, error } => {
+                    Self::new(bmsrs_pipeline::Severity::Warning, error.to_string())
+                        .with_span(text_span(range))
+                        .with_code(bmsrs_pipeline::DiagnosticCode::Decode)
+                }
             }
         }
     }
