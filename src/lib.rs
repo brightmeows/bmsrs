@@ -33,8 +33,14 @@ pub mod bms {
     use crate::raw::{model, parser, processor, source, syntax, values, writer};
 
     pub use bmsrs_pipeline::ErrorStrategy;
+    pub use model::Bms;
+    pub use processor::layout::{Bme, BmsLayout};
+    pub use processor::{ProcessError, ProcessWarning, Processed};
     pub use source::DocumentOptions;
+    pub use source::TextDecodeError;
+    pub use syntax::TextRange;
     pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
+    pub use values::BmsTokenizeError;
 
     pub use crate::java_random::JavaRandom;
     pub use syntax::{ControlFlowCompat, ControlFlowRng, LR2_SEED_MAX, Lr2Mt19937};
@@ -434,6 +440,10 @@ pub mod bmson {
     use crate::raw::bmson_model as model;
     use crate::raw::bmson_processor as processor;
 
+    pub use model::Bmson;
+    pub use processor::layout::{Beat, BmsonLayout};
+    pub use processor::{BmsonProcessWarning, BmsonProcessed, ProcessError};
+
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
     ///
     /// # Errors
@@ -618,10 +628,13 @@ pub mod raw {
 /// families go through the full [`processor`](crate::raw::processor) paths.
 pub mod prelude {
     pub use crate::bms::process_with;
+    pub use crate::bms::{Bme, Bms, BmsLayout};
     pub use crate::bms::{
         FromTextError, FromTextWarning, parse, parse_bytes, parse_with, parse_with_rng, process,
         write,
     };
+    #[cfg(feature = "bmson")]
+    pub use crate::bmson::Bmson;
     #[cfg(feature = "bmson")]
     pub use crate::bmson::BmsonParseError;
     #[cfg(feature = "bmson")]
@@ -631,10 +644,6 @@ pub mod prelude {
     };
     pub use crate::pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
     pub use crate::player::Player;
-    #[cfg(feature = "bmson")]
-    pub use crate::raw::bmson_model::Bmson;
-    pub use crate::raw::model::Bms;
-    pub use crate::raw::processor::layout::{Bme, BmsLayout};
 }
 
 pub use bmsrs_pipeline::{Diagnostic, Outcome, Severity, SourceSpan};
