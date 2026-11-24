@@ -50,12 +50,12 @@ impl From<ChannelValueWarning> for ProcessWarning {
 
 impl From<ProcessWarning> for bmsrs_pipeline::Diagnostic {
     fn from(warning: ProcessWarning) -> Self {
-        Self::new(
-            bmsrs_pipeline::Severity::Warning,
-            warning.span,
-            warning.to_string(),
-            Some(bmsrs_pipeline::DiagnosticCode::BmsProcess),
-        )
+        let diagnostic = Self::new(bmsrs_pipeline::Severity::Warning, warning.to_string())
+            .with_code(bmsrs_pipeline::DiagnosticCode::BmsProcess);
+        match warning.span {
+            Some(span) => diagnostic.with_span(span),
+            None => diagnostic,
+        }
     }
 }
 

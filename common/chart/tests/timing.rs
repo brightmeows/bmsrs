@@ -30,12 +30,12 @@ fn constant_bpm_120_two_beats_is_one_second() {
 fn bpm_change_at_tick_240() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![BpmChange {
             tick: 240,
             bpm: 60.0,
         }],
         vec![],
-        RES,
     )
     .unwrap();
     let result = timing.tick_to_duration(480);
@@ -46,12 +46,12 @@ fn bpm_change_at_tick_240() {
 fn bpm_change_at_target_tick_uses_old_bpm() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![BpmChange {
             tick: 240,
             bpm: 60.0,
         }],
         vec![],
-        RES,
     )
     .unwrap();
     let result = timing.tick_to_duration(240);
@@ -62,12 +62,12 @@ fn bpm_change_at_target_tick_uses_old_bpm() {
 fn stop_before_target_adds_pause_time() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![],
         vec![StopEvent {
             tick: 240,
             duration: Duration::from_millis(500),
         }],
-        RES,
     )
     .unwrap();
     let result = timing.tick_to_duration(241);
@@ -79,12 +79,12 @@ fn stop_before_target_adds_pause_time() {
 fn musical_duration_excludes_stop_pause() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![],
         vec![StopEvent {
             tick: 240,
             duration: Duration::from_millis(500),
         }],
-        RES,
     )
     .unwrap();
 
@@ -97,12 +97,12 @@ fn musical_duration_excludes_stop_pause() {
 fn stop_at_target_tick_excludes_pause() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![],
         vec![StopEvent {
             tick: 240,
             duration: Duration::from_millis(500),
         }],
-        RES,
     )
     .unwrap();
     let result = timing.tick_to_duration(240);
@@ -113,6 +113,7 @@ fn stop_at_target_tick_excludes_pause() {
 fn multiple_stops_same_tick_keep_last() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![],
         vec![
             StopEvent {
@@ -124,7 +125,6 @@ fn multiple_stops_same_tick_keep_last() {
                 duration: Duration::from_secs(2),
             },
         ],
-        RES,
     )
     .unwrap();
     let result = timing.tick_to_duration(241);
@@ -136,6 +136,7 @@ fn multiple_stops_same_tick_keep_last() {
 fn bpm_before_stop_at_same_tick() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![BpmChange {
             tick: 240,
             bpm: 60.0,
@@ -144,7 +145,6 @@ fn bpm_before_stop_at_same_tick() {
             tick: 240,
             duration: Duration::from_secs(1),
         }],
-        RES,
     )
     .unwrap();
     let result = timing.tick_to_duration(241);
@@ -164,12 +164,12 @@ fn duration_to_tick_constant_bpm() {
 fn duration_to_tick_bpm_change() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![BpmChange {
             tick: 240,
             bpm: 60.0,
         }],
         vec![],
-        RES,
     )
     .unwrap();
     assert_eq!(timing.duration_to_tick(Duration::from_millis(1500)), 480);
@@ -179,12 +179,12 @@ fn duration_to_tick_bpm_change() {
 fn duration_to_tick_within_stop_returns_stop_tick() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![],
         vec![StopEvent {
             tick: 240,
             duration: Duration::from_millis(500),
         }],
-        RES,
     )
     .unwrap();
     assert_eq!(timing.duration_to_tick(Duration::from_millis(600)), 240);
@@ -194,6 +194,7 @@ fn duration_to_tick_within_stop_returns_stop_tick() {
 fn cache_duration_to_tick_matches_timing_track() {
     let timing = TimingTrack::new(
         150.0,
+        RES,
         vec![
             BpmChange {
                 tick: 480,
@@ -214,7 +215,6 @@ fn cache_duration_to_tick_matches_timing_track() {
                 duration: Duration::from_millis(2400),
             },
         ],
-        RES,
     )
     .unwrap();
     for ms in (0..4000u64).step_by(10) {
@@ -267,6 +267,7 @@ fn very_long_song_computes_duration() {
 fn alternating_bpm_extremes_no_panic() {
     let timing = TimingTrack::new(
         0.001,
+        RES,
         vec![
             BpmChange {
                 tick: 240,
@@ -278,7 +279,6 @@ fn alternating_bpm_extremes_no_panic() {
             },
         ],
         vec![],
-        RES,
     )
     .unwrap();
     let dur_240 = timing.tick_to_duration(240);
@@ -291,6 +291,7 @@ fn alternating_bpm_extremes_no_panic() {
 fn roundtrip_tick_to_duration_and_back() {
     let timing = TimingTrack::new(
         150.0,
+        RES,
         vec![
             BpmChange {
                 tick: 480,
@@ -305,7 +306,6 @@ fn roundtrip_tick_to_duration_and_back() {
             tick: 960,
             duration: Duration::from_millis(600),
         }],
-        RES,
     )
     .unwrap();
     for tick in [0u64, 100, 240, 479, 480, 960, 961, 1200, 2400] {
@@ -322,6 +322,7 @@ fn roundtrip_tick_to_duration_and_back() {
 fn invalid_bpm_changes_are_dropped() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![
             BpmChange {
                 tick: 0,
@@ -333,7 +334,6 @@ fn invalid_bpm_changes_are_dropped() {
             },
         ],
         vec![],
-        RES,
     )
     .unwrap();
     assert_eq!(timing.bpm_changes().len(), 1);
@@ -343,6 +343,7 @@ fn invalid_bpm_changes_are_dropped() {
 fn bpm_at_tick_skips_invalid_changes() {
     let timing = TimingTrack::new(
         120.0,
+        RES,
         vec![
             BpmChange { tick: 0, bpm: 0.0 },
             BpmChange {
@@ -351,7 +352,6 @@ fn bpm_at_tick_skips_invalid_changes() {
             },
         ],
         vec![],
-        RES,
     )
     .unwrap();
     assert!((timing.bpm_at_tick(0) - 120.0).abs() < 1e-9);

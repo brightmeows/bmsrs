@@ -58,11 +58,7 @@ pub enum BmsonProcessWarning {
 
 impl From<BmsonProcessWarning> for bmsrs_pipeline::Diagnostic {
     fn from(warning: BmsonProcessWarning) -> Self {
-        Self::new(
-            bmsrs_pipeline::Severity::Warning,
-            None,
-            warning.to_string(),
-            Some(bmsrs_pipeline::DiagnosticCode::BmsonProcess),
-        )
+        Self::new(bmsrs_pipeline::Severity::Warning, warning.to_string())
+            .with_code(bmsrs_pipeline::DiagnosticCode::BmsonProcess)
     }
 }

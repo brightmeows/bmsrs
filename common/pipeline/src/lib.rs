@@ -179,20 +179,33 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    /// Construct a diagnostic.
+    /// Construct a diagnostic with the two fields every diagnostic carries.
+    ///
+    /// Attach the optional location and code through [`with_span`](Self::with_span)
+    /// and [`with_code`](Self::with_code); keeping them out of the argument
+    /// list stops a caller from having to read past two positional `Option`s.
     #[must_use]
-    pub fn new(
-        severity: Severity,
-        span: Option<SourceSpan>,
-        message: impl Into<String>,
-        code: Option<DiagnosticCode>,
-    ) -> Self {
+    pub fn new(severity: Severity, message: impl Into<String>) -> Self {
         Self {
             severity,
-            span,
+            span: None,
             message: message.into(),
-            code,
+            code: None,
         }
+    }
+
+    /// Attach the source span this diagnostic points at.
+    #[must_use]
+    pub const fn with_span(mut self, span: SourceSpan) -> Self {
+        self.span = Some(span);
+        self
+    }
+
+    /// Attach the stable diagnostic code.
+    #[must_use]
+    pub const fn with_code(mut self, code: DiagnosticCode) -> Self {
+        self.code = Some(code);
+        self
     }
 
     /// Return whether this diagnostic is an error.

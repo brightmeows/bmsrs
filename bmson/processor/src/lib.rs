@@ -791,7 +791,7 @@ fn build_timing(
             }
         })
         .collect();
-    TimingTrack::new(data.init_bpm, bpm_changes, stops, resolution)
+    TimingTrack::new(data.init_bpm, resolution, bpm_changes, stops)
 }
 
 /// Build [`BmsonNoteExt`] from a BMSON [`NoteEvent`](bmsrs_bmson_model::NoteEvent).

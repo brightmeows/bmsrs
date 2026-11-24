@@ -116,6 +116,33 @@ set or belong to the same conversion process. This is a recommendation, not a
 requirement: pure helpers and simple stateless utilities may remain free
 functions.
 
+### Interface shapes
+
+Pick the construction shape by what varies, not by habit:
+
+| What varies | Shape | Example |
+|-------------|-------|---------|
+| Required inputs only | constructor | `Chart::new`, `TimingTrack::new` |
+| Optional overlays on a one-shot value | consuming `with_*` setter | `ChartData::new(..).with_ln_type_hint(..)`, `Diagnostic::new(..).with_span(..)` |
+| Configuration reused across calls | options struct with `Default` and public fields | `ParseOptions`, `DocumentOptions` |
+| A stage the caller must not skip | consuming finalizer | `MessagesBuilder::finish` |
+
+A builder type is not the default shape. The pipeline is a pure data
+transformation, so a separate builder adds a type, a fallible `build()`, and a
+second spelling of the same arguments without removing anything a constructor
+plus `with_*` already removes. Reassess only when construction gains staged
+requirements or mutually exclusive choices, which is where typestate pays for
+itself.
+
+Deferred interface work, with the trigger that reopens it:
+
+| Item | Trigger |
+|------|---------|
+| Input sum type (`Text` / `Bytes` / `File` / recorded selection) replacing the eight `bms::parse*` entry points | a third consumer needs the entry points, or a new input axis arrives |
+| One `parse` spelling across `bms` and `bmson` | the input sum type lands; the prelude cannot export both names today, which is why `bmson::process_nkeys` is exported and `bmson::process` is not |
+| Unifying the diagnostic vocabulary across `bmsrs-pipeline` and `bmsrs-bms-syntax` | a third consumer needs to exchange diagnostics; each layer keeping its own warning type is deliberate until then |
+| `Viewport` options struct | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
+
 ### Format sources
 
 The format documents are external; the repository does not vendor them. Cite
