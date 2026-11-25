@@ -21,8 +21,8 @@ treat `docs.rs` as the specification text.
 - Definitions and reference rules live in the rustdoc on `Analysis` and
   `SymbolIndex`; `docs.rs` stays a summary, not the specification.
 - Typed `KaleidBeat` declaration and channel lines are modeled by the values and
-  processor crates; `#BMD` remains the only `extension` Information diagnostic.
-  Conditional blocks are modeled structurally and get `conditional` warnings for
+  processor crates; `#BMD` remains the only `DiagnosticCode::Extension` Information diagnostic.
+  Conditional blocks are modeled structurally and get `DiagnosticCode::Conditional` warnings for
   ordering, duplicate/missing `#DEFAULT`, nesting, and unclosed blocks. The
   shipped manual is authoritative; bmz-player's `docs/kaleid.md` is a secondary
   contract.
@@ -35,7 +35,9 @@ treat `docs.rs` as the specification text.
 
 ## Diagnostic rules
 
-- CST syntax error gives Error; control-flow structure error gives Warning
+- CST diagnostics carry their own severity and code; the analysis layer copies
+  both instead of re-deriving them (`syntax` gives Error, `control-flow` gives
+  Warning)
 - Tokenizer value parse error gives Error
 - Multiple definitions of the same kind and ID produce one duplicate warning per
   definition

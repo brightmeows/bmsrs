@@ -1,6 +1,6 @@
 //! Analysis-layer tests.
 
-use bmsrs_bms_analysis::{Analysis, SymbolKind};
+use bmsrs_bms_analysis::{Analysis, DiagnosticCode, SymbolKind};
 
 #[test]
 fn wav_definition_and_reference_are_indexed() {
@@ -167,7 +167,7 @@ fn kaleid_bmd_trigger_reports_information_diagnostic() {
     let extensions: Vec<_> = analysis
         .diagnostics()
         .iter()
-        .filter(|d| d.code() == Some("extension"))
+        .filter(|d| d.code() == Some(DiagnosticCode::Extension))
         .collect();
     assert_eq!(extensions.len(), 1);
     assert!(
@@ -186,7 +186,7 @@ fn conditional_structure_reports_warnings() {
     let conditional: Vec<_> = analysis
         .diagnostics()
         .iter()
-        .filter(|d| d.code() == Some("conditional"))
+        .filter(|d| d.code() == Some(DiagnosticCode::Conditional))
         .collect();
     assert!(
         conditional
@@ -217,7 +217,7 @@ fn kaleid_extension_channels_report_and_skip_symbol_index() {
         analysis
             .diagnostics()
             .iter()
-            .filter(|d| d.code() == Some("extension"))
+            .filter(|d| d.code() == Some(DiagnosticCode::Extension))
             .count(),
         2
     );
@@ -239,7 +239,7 @@ fn ordinary_key_seven_channels_are_not_extension_channels() {
         analysis
             .diagnostics()
             .iter()
-            .all(|d| d.code() != Some("extension"))
+            .all(|d| d.code() != Some(DiagnosticCode::Extension))
     );
 }
 
@@ -272,7 +272,7 @@ fn holder_line_style_extension_channel_reports_like_a_message_line() {
         analysis
             .diagnostics()
             .iter()
-            .filter(|diagnostic| diagnostic.code() == Some("extension"))
+            .filter(|diagnostic| diagnostic.code() == Some(DiagnosticCode::Extension))
             .count(),
         1
     );
@@ -330,4 +330,16 @@ fn kaleid_extension_channels_have_hover_docs() {
     }
     // Standard channels keep their docs.
     assert!(bmsrs_bms_analysis::Docs::channel("17").is_some());
+}
+
+#[test]
+fn control_flow_diagnostics_carry_the_syntax_layer_code() {
+    let analysis = Analysis::from_text("#RANDOM 2\n#IF 1\n#TITLE A\n");
+    assert!(
+        analysis
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == Some(DiagnosticCode::ControlFlow)),
+        "an unclosed block is reported as a control-flow warning"
+    );
 }

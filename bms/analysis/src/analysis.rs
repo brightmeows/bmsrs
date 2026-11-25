@@ -9,6 +9,8 @@ use bmsrs_bms_values::{
     BmsChannel, BmsHeader, BmsHeaderConditional, BmsHeaderGameplay, BmsMessage, BodyCells,
 };
 
+use bmsrs_pipeline::DiagnosticCode;
+
 use crate::diagnostic::{AnalysisDiagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};
 
@@ -113,11 +115,12 @@ fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<AnalysisDiagnost
         .errors()
         .iter()
         .map(|error| {
-            let severity = match error.kind() {
-                bmsrs_bms_syntax::DiagnosticKind::Syntax => Severity::Error,
-                bmsrs_bms_syntax::DiagnosticKind::ControlFlow => Severity::Warning,
-            };
-            AnalysisDiagnostic::new(error.range(), severity, error.message(), None)
+            AnalysisDiagnostic::new(
+                error.range(),
+                error.severity(),
+                error.message(),
+                Some(error.code()),
+            )
         })
         .collect();
     let mut index = SymbolIndex::default();
@@ -166,7 +169,7 @@ fn check_conditional(
                     line.range(),
                     Severity::Warning,
                     "header inside a #CONDITIONAL branch; headers are global in KaleidBeat",
-                    Some("conditional"),
+                    Some(DiagnosticCode::Conditional),
                 ));
             }
             continue;
@@ -178,7 +181,7 @@ fn check_conditional(
                         line.range(),
                         Severity::Warning,
                         "nested #CONDITIONAL block; the outer block is not closed",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 }
                 depth = 1;
@@ -190,7 +193,7 @@ fn check_conditional(
                         line.range(),
                         Severity::Warning,
                         "conditional evaluation position is out of range",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 }
             }
@@ -200,14 +203,14 @@ fn check_conditional(
                         line.range(),
                         Severity::Warning,
                         "#WHEN outside a #CONDITIONAL block",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 } else if saw_default {
                     diagnostics.push(AnalysisDiagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#WHEN after #DEFAULT",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 } else {
                     branch_count += 1;
@@ -219,21 +222,21 @@ fn check_conditional(
                         line.range(),
                         Severity::Warning,
                         "#ELSEWHEN outside a #CONDITIONAL block",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 } else if branch_count == 0 {
                     diagnostics.push(AnalysisDiagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#ELSEWHEN without a preceding #WHEN",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 } else if saw_default {
                     diagnostics.push(AnalysisDiagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#ELSEWHEN after #DEFAULT",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 }
             }
@@ -243,21 +246,21 @@ fn check_conditional(
                         line.range(),
                         Severity::Warning,
                         "#DEFAULT outside a #CONDITIONAL block",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 } else if saw_default {
                     diagnostics.push(AnalysisDiagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "duplicate #DEFAULT in a #CONDITIONAL block",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 } else if branch_count == 0 {
                     diagnostics.push(AnalysisDiagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#DEFAULT without a preceding #WHEN",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 }
                 saw_default = true;
@@ -268,14 +271,14 @@ fn check_conditional(
                         line.range(),
                         Severity::Warning,
                         "#ENDCONDITIONAL without a matching #CONDITIONAL",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 } else if !saw_default {
                     diagnostics.push(AnalysisDiagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#CONDITIONAL block is missing #DEFAULT",
-                        Some("conditional"),
+                        Some(DiagnosticCode::Conditional),
                     ));
                 }
                 depth = 0;
@@ -291,7 +294,7 @@ fn check_conditional(
             range,
             Severity::Warning,
             "#CONDITIONAL block is not closed by #ENDCONDITIONAL",
-            Some("conditional"),
+            Some(DiagnosticCode::Conditional),
         ));
     }
 }
@@ -329,7 +332,7 @@ fn collect_line(
                     format!(
                         "`KaleidBeat` extension command `#{name}`: preserved verbatim, semantics not modeled"
                     ),
-                    Some("extension"),
+                    Some(DiagnosticCode::Extension),
                 ));
             }
             let content_text = line.content_text();
@@ -343,7 +346,7 @@ fn collect_line(
                         format!(
                             "`KaleidBeat` extension channel {code}: kept in the dialect sidecar"
                         ),
-                        Some("extension"),
+                        Some(DiagnosticCode::Extension),
                     ));
                     return;
                 }
@@ -428,7 +431,7 @@ fn collect_header(
             line.range(),
             Severity::Error,
             error.to_string(),
-            Some("tokenize"),
+            Some(DiagnosticCode::Tokenize),
         )),
     }
 }
@@ -451,7 +454,7 @@ fn collect_message(
                 line.range(),
                 Severity::Error,
                 error.to_string(),
-                Some("tokenize"),
+                Some(DiagnosticCode::Tokenize),
             ));
             return;
         }
@@ -461,7 +464,7 @@ fn collect_message(
             line.range(),
             Severity::Information,
             format!("`KaleidBeat` extension channel {code}: kept in the dialect sidecar"),
-            Some("extension"),
+            Some(DiagnosticCode::Extension),
         ));
         return;
     }
@@ -680,7 +683,7 @@ fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Analysis
                         range,
                         Severity::Warning,
                         format!("duplicate definition of {} {}", kind.label(), id),
-                        Some("duplicate-definition"),
+                        Some(DiagnosticCode::DuplicateDefinition),
                     ));
                 }
             }
@@ -702,7 +705,7 @@ fn add_missing_reference_diagnostics(
                 range,
                 Severity::Warning,
                 format!("undefined {} {}", reference.kind().label(), reference.id()),
-                Some("undefined-reference"),
+                Some(DiagnosticCode::UndefinedReference),
             ));
         }
     }
@@ -752,11 +755,12 @@ fn diagnostics_from(
         .errors()
         .iter()
         .map(|error| {
-            let severity = match error.kind() {
-                bmsrs_bms_syntax::DiagnosticKind::Syntax => Severity::Error,
-                bmsrs_bms_syntax::DiagnosticKind::ControlFlow => Severity::Warning,
-            };
-            AnalysisDiagnostic::new(error.range(), severity, error.message(), None)
+            AnalysisDiagnostic::new(
+                error.range(),
+                error.severity(),
+                error.message(),
+                Some(error.code()),
+            )
         })
         .collect();
     let mut scratch = SymbolIndex::default();

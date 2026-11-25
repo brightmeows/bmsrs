@@ -1,6 +1,7 @@
 //! Analysis diagnostics.
 
 use bmsrs_bms_syntax::TextRange;
+pub use bmsrs_pipeline::DiagnosticCode;
 
 /// Diagnostic severity.
 ///
@@ -17,8 +18,8 @@ pub struct AnalysisDiagnostic {
     severity: Severity,
     /// Message.
     message: String,
-    /// Stable error code.
-    code: Option<&'static str>,
+    /// Stable diagnostic code.
+    code: Option<DiagnosticCode>,
 }
 
 impl AnalysisDiagnostic {
@@ -27,7 +28,7 @@ impl AnalysisDiagnostic {
         range: TextRange,
         severity: Severity,
         message: impl Into<String>,
-        code: Option<&'static str>,
+        code: Option<DiagnosticCode>,
     ) -> Self {
         Self {
             range,
@@ -57,7 +58,7 @@ impl AnalysisDiagnostic {
 
     /// Return the error code.
     #[must_use]
-    pub const fn code(&self) -> Option<&'static str> {
+    pub const fn code(&self) -> Option<DiagnosticCode> {
         self.code
     }
 }

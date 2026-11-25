@@ -28,9 +28,10 @@ mod select;
 mod syntax_kind;
 
 pub use ast::{SourceFile, SyntaxLine};
+pub use bmsrs_pipeline::{DiagnosticCode, Severity};
 pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, SyntaxToken};
 pub use lexer::SyntaxLineKind;
-pub use parser::{Diagnostic, DiagnosticKind, IncrementalParser, SyntaxParse};
+pub use parser::{Diagnostic, IncrementalParser, SyntaxParse};
 pub use random::{ControlFlowRng, LR2_SEED_MAX, Lr2Mt19937};
 pub use rowan::{TextRange, TextSize};
 pub use select::{BlockDecision, BlockKind, BranchMismatch, BranchSelection, ControlFlowCompat};

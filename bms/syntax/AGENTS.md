@@ -37,6 +37,8 @@ SourceFile
   `Channel` / `Colon` / `BodyChunk`, plus `Whitespace` / `Comment` / `Newline`
 - Invalid content is wrapped in `ErrorLine` or `ErrorToken`, preserving the
   original text where possible
+- `Diagnostic` carries `Severity` and `DiagnosticCode` from `bmsrs-pipeline`,
+  so later layers copy them instead of translating a category enum
 
 ## API notes
 
