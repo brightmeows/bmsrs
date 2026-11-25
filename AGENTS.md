@@ -101,20 +101,19 @@ Git worktrees live under `.worktrees/`.
 
 ### API design
 
-Public operations are exposed as associated functions on types (structs or
-zero-sized `*Builder` types); free functions are **forbidden** as public API.
-Exceptions: the facade's whole-pipeline entry points (the `bms::parse` and
-`bms::process` families) and the `base36_digit_value` helper in
-`bmsrs-bms-values` (a char-to-value conversion with no domain type to attach
-to) may remain free functions. They have no domain type to attach to, and
-wrapping them in a builder only adds call-site cost.
-Use a `*Builder` only when the API has configurable parameters; use plain struct
-methods when there is no state.
-Private operations **should** follow the same pattern (attached to types rather
-than free functions), especially when several functions share the same parameter
-set or belong to the same conversion process. This is a recommendation, not a
-requirement: pure helpers and simple stateless utilities may remain free
-functions.
+Namespace a public operation on the type it belongs to: constructors, queries,
+conversions, and lifecycle stages are associated functions. An operation stays
+free in two cases: it has no domain type to hang on (`base36_digit_value`), or
+its natural owner cannot host it because of the dependency direction
+(`Bms::parse` would make the model crate depend on the parser).
+
+A zero-sized namespace type (`BmsProcessor`, `BmsonProcessor`, `BmsWriter`)
+groups operations that share a parameter set or a conversion process; it is not
+a builder. Builder means a type with a terminal method that consumes it, and
+`MessagesBuilder` is the only one in the workspace.
+
+Private operations follow the same criterion. The rule is about where the name
+lives, not about who may call it.
 
 Diagnostic codes come from `bmsrs_pipeline::DiagnosticCode` only. A layer may
 wrap it in its own warning type, but no layer may invent a second string
@@ -137,6 +136,12 @@ second spelling of the same arguments without removing anything a constructor
 plus `with_*` already removes. Reassess only when construction gains staged
 requirements or mutually exclusive choices, which is where typestate pays for
 itself.
+
+Optional overlays that repeat as a set get a preset constructor, not a builder:
+name the set with a `for_*` constructor and keep the `with_*` chain for callers
+that deviate. The BMSON processor sets all seven `ChartData` overlays in one
+place; a second call site setting the same seven is the trigger to add the
+preset.
 
 Every type named by a curated facade entry point must resolve from the same
 module. `tests/facade_api.rs` names them, so dropping a re-export fails to
