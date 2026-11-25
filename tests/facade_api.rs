@@ -138,3 +138,64 @@ fn bmd_parse_file_selects_the_dialect_format() {
         Some(bmsrs::raw::model::WavSource::Synth(_))
     ));
 }
+
+#[test]
+fn curated_modules_name_the_types_their_signatures_use() {
+    fn named<T>() -> &'static str {
+        std::any::type_name::<T>()
+    }
+    fn bms_layout<T: bmsrs::bms::BmsLayout>() {}
+
+    // Each path below appears in a curated entry point's signature, so a
+    // caller must be able to name it from the same module without reaching
+    // into `raw`.
+    let resolved = [
+        named::<bmsrs::bms::Bms>(),
+        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::FromTextWarning>>(),
+        named::<bmsrs::bms::Processed>(),
+        named::<bmsrs::bms::ProcessWarning>(),
+        named::<bmsrs::bms::ProcessError>(),
+        named::<bmsrs::bms::TextRange>(),
+        named::<bmsrs::bms::BmsTokenizeError>(),
+        named::<bmsrs::bms::TextDecodeError>(),
+        named::<bmsrs::bms::ParseOptions>(),
+        named::<bmsrs::bms::DocumentOptions>(),
+        named::<bmsrs::bms::BranchSelection>(),
+        named::<bmsrs::bms::BranchMismatch>(),
+        named::<bmsrs::bms::ControlFlowCompat>(),
+        named::<bmsrs::bms::FromTextError>(),
+        named::<bmsrs::bms::FromTextWarning>(),
+        named::<bmsrs::bms::ReplayParseError>(),
+    ];
+    assert_eq!(resolved.len(), 16);
+    // `type_name` reports the defining crate, not the re-export path, so the
+    // value only has to exist; resolving these paths is the assertion.
+    assert!(resolved.iter().all(|name| !name.is_empty()));
+
+    // The layout family is a bound, not a value, so name it through a call.
+    bms_layout::<bmsrs::bms::Bme>();
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn curated_bmson_module_names_the_types_its_signatures_use() {
+    fn named<T>() -> &'static str {
+        std::any::type_name::<T>()
+    }
+    fn bmson_layout<T: bmsrs::bmson::BmsonLayout>() {}
+
+    let resolved = [
+        named::<bmsrs::bmson::Bmson>(),
+        named::<
+            bmsrs::bmson::Outcome<bmsrs::bmson::BmsonProcessed, bmsrs::bmson::BmsonProcessWarning>,
+        >(),
+        named::<bmsrs::bmson::BmsonProcessed>(),
+        named::<bmsrs::bmson::BmsonProcessWarning>(),
+        named::<bmsrs::bmson::ProcessError>(),
+        named::<bmsrs::bmson::BmsonParseError>(),
+    ];
+    assert_eq!(resolved.len(), 6);
+    assert!(resolved.iter().all(|name| !name.is_empty()));
+
+    bmson_layout::<bmsrs::bmson::Beat>();
+}

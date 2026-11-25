@@ -6,7 +6,7 @@ A Rust workspace for parsing, converting, and simulating playback of BMS
 (Be-Music Script) and BMSON chart formats. It produces a unified `Chart<T>`
 intermediate representation for renderers and players.
 
-> **Release status**: `0.0.2` is released; the project is pre-1.0. All public
+> **Release status**: `0.0.3` is released; the project is pre-1.0. All public
 > interfaces may change at any time and semver compatibility does not apply.
 > Cross-crate architectural changes and breaking API changes only require
 > confirmation from the user.
@@ -134,6 +134,22 @@ plus `with_*` already removes. Reassess only when construction gains staged
 requirements or mutually exclusive choices, which is where typestate pays for
 itself.
 
+Every type named by a curated facade entry point must resolve from the same
+module. `tests/facade_api.rs` names them, so dropping a re-export fails to
+compile. `raw` is the escape hatch for everything else, which means `prelude`
+imports from the curated modules and never from `raw`.
+
+`pub` inside a private module is the house style: `clippy::redundant_pub_crate`
+is denied, and the private module already caps visibility. The compiler's
+`unreachable_pub` lint stays off because the two contradict each other; an
+over-wide `pub` in a private module is a review item, not a lint item.
+
+Enums mirroring a closed external vocabulary (BMS channels, syntax kinds,
+header commands) stay exhaustive, including `EventKind`: a new event kind means
+the format gained a construct, and every renderer should be forced to handle it
+rather than silently ignore it. `DiagnosticCode`, `SourceFormat`, and
+`SymbolKind` are the growth-prone ones, and they stay exhaustive until 1.0.
+
 Deferred interface work, with the trigger that reopens it:
 
 | Item | Trigger |
@@ -142,6 +158,8 @@ Deferred interface work, with the trigger that reopens it:
 | One `parse` spelling across `bms` and `bmson` | the input sum type lands; the prelude cannot export both names today, which is why `bmson::process_nkeys` is exported and `bmson::process` is not |
 | Unifying the diagnostic vocabulary across `bmsrs-pipeline` and `bmsrs-bms-syntax` | a third consumer needs to exchange diagnostics; each layer keeping its own warning type is deliberate until then |
 | `Viewport` options struct | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
+| A recoverable-warning channel for `bmson::parse_str` | BMSON parsing produces its first recoverable warning; today it is strict, so `bms::parse` returns `Outcome` and `bmson::parse_str` does not |
+| One return shape for range queries (`Player::events_in_range` yields a slice, `notes_in_range` an iterator) | a consumer ranges over both in the same loop and has to convert |
 
 ### Format sources
 

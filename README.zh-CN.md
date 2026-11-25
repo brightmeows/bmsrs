@@ -26,7 +26,7 @@ bmsrs 处理两种谱面格式：
 
 ```toml
 [dependencies]
-bmsrs = "0.0.2"
+bmsrs = "0.0.3"
 ```
 
 完整的管道说明、crate 职责表、BMS/BMSON 示例与开发命令见英文主版
