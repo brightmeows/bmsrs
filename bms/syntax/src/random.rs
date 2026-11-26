@@ -11,11 +11,10 @@
 //!   stream, the `GetRand` scaling, and the lane shuffle that LR2 applies to
 //!   RANDOM options.
 //!
-//! The facade crate's `JavaRandom` implements [`ControlFlowRng`] in place;
-//! both then share the draw interface accepted by
-//! [`SourceFile::select_lines_with_rng`](crate::SourceFile::select_lines_with_rng).
-//! Because the caller owns the generator, the remaining state stays available
-//! after branch selection; LR2 needs exactly that: `#RANDOM` values are drawn
+//! Both engines implement [`ControlFlowRng`], the draw interface accepted by
+//! [`SourceFile::select_lines`](crate::SourceFile::select_lines). Because the
+//! caller owns the generator, the remaining state stays available after
+//! branch selection; LR2 needs exactly that: `#RANDOM` values are drawn
 //! first, then the RANDOM lane option continues from the same stream.
 
 /// A source of control-flow values.

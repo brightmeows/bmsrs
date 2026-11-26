@@ -62,7 +62,7 @@ fn random_selects_first_matching_branch() {
     let file = file(
         "#RANDOM 2\n#IF 1\n#WAV01 kick.wav\n#ENDIF\n#IF 2\n#WAV02 snare.wav\n#ENDIF\n#ENDRANDOM\n",
     );
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (vec!["kick.wav".to_owned()], (1, 0))
@@ -74,7 +74,7 @@ fn random_elseif_first_match_wins() {
     let file = file(
         "#RANDOM 5\n#IF 1\n#WAV01 a.wav\n#ELSEIF 2\n#WAV01 b.wav\n#ELSEIF 3\n#WAV01 c.wav\n#ELSE\n#WAV01 d.wav\n#ENDIF\n#ENDRANDOM\n",
     );
-    let (lines, selection) = file.select_lines(|_| 2);
+    let (lines, selection) = file.select_lines(&mut |_| 2, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (vec!["b.wav".to_owned()], (2, 1))
@@ -86,7 +86,7 @@ fn random_elseif_no_match_falls_to_else() {
     let file = file(
         "#RANDOM 5\n#IF 1\n#WAV01 a.wav\n#ELSEIF 2\n#WAV01 b.wav\n#ELSEIF 3\n#WAV01 c.wav\n#ELSE\n#WAV01 d.wav\n#ENDIF\n#ENDRANDOM\n",
     );
-    let (lines, selection) = file.select_lines(|_| 4);
+    let (lines, selection) = file.select_lines(&mut |_| 4, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (vec!["d.wav".to_owned()], (4, 3))
@@ -96,7 +96,7 @@ fn random_elseif_no_match_falls_to_else() {
 #[test]
 fn switch_fall_through_continues_until_end() {
     let file = file("#SWITCH 2\n#CASE 1\n#WAV01 kick.wav\n#CASE 2\n#WAV02 snare.wav\n#ENDSW\n");
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (vec!["kick.wav".to_owned(), "snare.wav".to_owned()], (1, 0))
@@ -107,7 +107,7 @@ fn switch_fall_through_continues_until_end() {
 fn switch_stops_at_skip() {
     let file =
         file("#SWITCH 2\n#CASE 1\n#WAV01 kick.wav\n#SKIP\n#CASE 2\n#WAV02 snare.wav\n#ENDSW\n");
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (vec!["kick.wav".to_owned()], (1, 0))
@@ -118,10 +118,13 @@ fn switch_stops_at_skip() {
 fn set_switch_uses_fixed_value_without_rng() {
     let file = file("#SETSWITCH 2\n#CASE 1\n#WAV01 kick.wav\n#CASE 2\n#WAV02 snare.wav\n#ENDSW\n");
     let mut called = false;
-    let (lines, selection) = file.select_lines(|max| {
-        called = true;
-        max
-    });
+    let (lines, selection) = file.select_lines(
+        &mut |max| {
+            called = true;
+            max
+        },
+        ControlFlowCompat::Ideal,
+    );
     assert_eq!(
         (called, wavs(&lines), first_decision(&selection)),
         (false, vec!["snare.wav".to_owned()], (2, 1))
@@ -134,7 +137,7 @@ fn multiple_sequential_random_blocks_select_independently() {
         "#RANDOM 2\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#IF 2\n#WAV01 b.wav\n#ENDIF\n#ENDRANDOM\n#RANDOM 2\n#IF 1\n#WAV02 c.wav\n#ENDIF\n#IF 2\n#WAV02 d.wav\n#ENDIF\n#ENDRANDOM\n",
     );
     let mut rng = SequenceRng::new(&[2, 1]);
-    let (lines, selection) = file.select_lines(|max| rng.next(max));
+    let (lines, selection) = file.select_lines(&mut |max| rng.next(max), ControlFlowCompat::Ideal);
     assert_eq!(
         (
             wavs(&lines),
@@ -150,7 +153,7 @@ fn switch_def_fallback_selects_default() {
     let file = file(
         "#SWITCH 3\n#CASE 1\n#WAV01 a.wav\n#SKIP\n#CASE 2\n#WAV01 b.wav\n#SKIP\n#DEF\n#WAV01 c.wav\n#SKIP\n#ENDSW\n",
     );
-    let (lines, selection) = file.select_lines(|_| 3);
+    let (lines, selection) = file.select_lines(&mut |_| 3, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (vec!["c.wav".to_owned()], (3, 2))
@@ -160,7 +163,7 @@ fn switch_def_fallback_selects_default() {
 #[test]
 fn random_no_branch_matches_yields_nothing() {
     let file = file("#RANDOM 2\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#ENDRANDOM\n");
-    let (lines, selection) = file.select_lines(|_| 2);
+    let (lines, selection) = file.select_lines(&mut |_| 2, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (Vec::<String>::new(), (2, 1))
@@ -170,7 +173,7 @@ fn random_no_branch_matches_yields_nothing() {
 #[test]
 fn empty_random_block_yields_nothing() {
     let file = file("#RANDOM 2\n#ENDRANDOM\n");
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (Vec::<String>::new(), (1, 0))
@@ -183,7 +186,7 @@ fn nested_random_and_switch_selects_inner_branch() {
         "#RANDOM 2\n#IF 1\n#WAV01 outer_a.wav\n#ENDIF\n#IF 2\n#SWITCH 2\n#CASE 1\n#WAV02 inner_a.wav\n#CASE 2\n#WAV02 inner_b.wav\n#SKIP\n#ENDSW\n#ENDIF\n#ENDRANDOM\n",
     );
     let mut rng = SequenceRng::new(&[2, 1]);
-    let (lines, selection) = file.select_lines(|max| rng.next(max));
+    let (lines, selection) = file.select_lines(&mut |max| rng.next(max), ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), selection.decisions().len()),
         (vec!["inner_a.wav".to_owned(), "inner_b.wav".to_owned()], 2)
@@ -195,7 +198,7 @@ fn headers_around_control_flow_are_preserved() {
     let file = file(
         "#TITLE Demo\n#RANDOM 2\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#IF 2\n#WAV01 b.wav\n#ENDIF\n#ENDRANDOM\n#BPM 120\n",
     );
-    let (lines, _selection) = file.select_lines(|_| 1);
+    let (lines, _selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     let commands: Vec<_> = lines
         .iter()
         .filter_map(|line| line.command_name().map(|command| command.text().to_owned()))
@@ -209,14 +212,14 @@ fn headers_around_control_flow_are_preserved() {
 #[test]
 fn control_flow_directives_are_not_selected() {
     let file = file("#RANDOM 2\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#ENDRANDOM\n");
-    let (lines, _selection) = file.select_lines(|_| 1);
+    let (lines, _selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert!(lines.iter().all(|line| !line.is_directive()));
 }
 
 #[test]
 fn random_zero_yields_nothing_without_panic() {
     let file = file("#RANDOM 0\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#ENDRANDOM\n");
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (Vec::<String>::new(), (0, 1))
@@ -226,7 +229,7 @@ fn random_zero_yields_nothing_without_panic() {
 #[test]
 fn switch_zero_yields_nothing_without_panic() {
     let file = file("#SWITCH 0\n#CASE 1\n#WAV01 a.wav\n#ENDSW\n");
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (Vec::<String>::new(), (0, 1))
@@ -237,7 +240,7 @@ fn switch_zero_yields_nothing_without_panic() {
 fn multiple_chains_in_one_random_block_select_each_chain() {
     let file =
         file("#RANDOM 2\n#IF 1\n#WAV01 a.wav\n#ENDIF\n#IF 2\n#WAV02 b.wav\n#ENDIF\n#ENDRANDOM\n");
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), first_decision(&selection)),
         (vec!["a.wav".to_owned()], (1, 0))
@@ -255,7 +258,7 @@ fn deep_nested_random_10_levels_does_not_panic() {
         text.push_str("#ENDIF\n#ENDRANDOM\n");
     }
     let file = file(&text);
-    let (lines, selection) = file.select_lines(|_| 1);
+    let (lines, selection) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (wavs(&lines), selection.decisions().len()),
         (vec!["deep.wav".to_owned()], 10)
@@ -266,8 +269,8 @@ fn deep_nested_random_10_levels_does_not_panic() {
 fn jbms_mode_clamps_random_zero_and_draws_once() {
     let file = SourceFile::parse("#RANDOM 0\n#IF 1\n#00111:01\n#ENDIF\n").source_file();
     let mut draws = 0;
-    let (lines, selection) = file.select_lines_with_compat(
-        |max| {
+    let (lines, selection) = file.select_lines(
+        &mut |max| {
             draws += 1;
             assert_eq!(max, 1);
             1
@@ -287,10 +290,13 @@ fn jbms_mode_clamps_random_zero_and_draws_once() {
 fn ideal_mode_keeps_random_zero_from_drawing() {
     let file = SourceFile::parse("#RANDOM 0\n#IF 1\n#00111:01\n#ENDIF\n").source_file();
     let mut draws = 0;
-    let (_lines, selection) = file.select_lines(|_| {
-        draws += 1;
-        1
-    });
+    let (_lines, selection) = file.select_lines(
+        &mut |_| {
+            draws += 1;
+            1
+        },
+        ControlFlowCompat::Ideal,
+    );
     assert_eq!(draws, 0);
     assert_eq!(selection.decisions()[0].value(), 0);
 }
@@ -300,14 +306,14 @@ fn jbms_mode_keeps_else_body_under_the_matching_if() {
     let text = "#RANDOM 2\n#IF 1\n#00111:01\n#ELSE\n#00112:02\n#ENDIF\n";
     let file = SourceFile::parse(text).source_file();
 
-    let (lines, _) = file.select_lines_with_compat(|_| 1, ControlFlowCompat::Jbms);
+    let (lines, _) = file.select_lines(&mut |_| 1, ControlFlowCompat::Jbms);
     let kept: Vec<_> = lines
         .iter()
         .filter_map(|line| line.channel().map(|channel| channel.text().to_owned()))
         .collect();
     assert_eq!(kept, ["11", "12"]);
 
-    let (else_lines, _) = file.select_lines_with_compat(|_| 2, ControlFlowCompat::Jbms);
+    let (else_lines, _) = file.select_lines(&mut |_| 2, ControlFlowCompat::Jbms);
     assert!(else_lines.iter().all(|line| line.channel().is_none()));
 }
 
@@ -316,14 +322,14 @@ fn ideal_mode_treats_else_as_a_fallback() {
     let text = "#RANDOM 2\n#IF 1\n#00111:01\n#ELSE\n#00112:02\n#ENDIF\n";
     let file = SourceFile::parse(text).source_file();
 
-    let (if_lines, _) = file.select_lines_with_compat(|_| 1, ControlFlowCompat::Ideal);
+    let (if_lines, _) = file.select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     let kept: Vec<_> = if_lines
         .iter()
         .filter_map(|line| line.channel().map(|channel| channel.text().to_owned()))
         .collect();
     assert_eq!(kept, ["11"]);
 
-    let (fallback_lines, _) = file.select_lines_with_compat(|_| 2, ControlFlowCompat::Ideal);
+    let (fallback_lines, _) = file.select_lines(&mut |_| 2, ControlFlowCompat::Ideal);
     let fallback_kept: Vec<_> = fallback_lines
         .iter()
         .filter_map(|line| line.channel().map(|channel| channel.text().to_owned()))
@@ -335,7 +341,7 @@ fn ideal_mode_treats_else_as_a_fallback() {
 fn lr2_rng_state_continues_into_the_lane_shuffle() {
     let file = SourceFile::parse("#RANDOM 2\n#IF 1\n#00111:01\n#ENDIF\n").source_file();
     let mut rng = Lr2Mt19937::new(391);
-    let (_lines, _selection) = file.select_lines_with_rng(&mut rng, ControlFlowCompat::Jbms);
+    let (_lines, _selection) = file.select_lines(&mut rng, ControlFlowCompat::Jbms);
     // One `#RANDOM` draw happened; the shuffle continues from that state.
     let table = rng.shuffle_key_table(7);
     assert_eq!(table.len(), 8);

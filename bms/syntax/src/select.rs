@@ -1,7 +1,7 @@
 //! Control-flow branch selection queries.
 //!
 //! Branch decisions are driven either by an RNG ([`SourceFile::select_lines`])
-//! or by a recorded [`BranchSelection`] ([`SourceFile::select_lines_with`]).
+//! or by a recorded [`BranchSelection`] ([`SourceFile::replay_lines`]).
 //! A recorded replay is strict: when the file presents a different number of
 //! blocks, different block kinds, or different declared bounds than the
 //! recording, the replay fails with [`BranchMismatch`] naming the first
@@ -429,29 +429,29 @@ impl Walker<'_> {
 }
 
 impl SourceFile {
-    /// Select branches using the random values supplied by `next`, and return
+    /// Select branches drawing one value per block from `rng`, and return
     /// the selected lines together with the recorded decisions.
     ///
-    /// `next(max)` should return a value in `[1, max]`; `#SETRANDOM` /
-    /// `#SETSWITCH` do not call it.
-    #[must_use]
-    pub fn select_lines(&self, next: impl FnMut(u64) -> u64) -> (Vec<SyntaxLine>, BranchSelection) {
-        self.select_lines_with_compat(next, ControlFlowCompat::Ideal)
-    }
-
-    /// Select branches with an explicit compatibility mode.
+    /// `rng.draw(max)` supplies the value of each `#RANDOM` / `#SWITCH`
+    /// block; `#SETRANDOM` / `#SETSWITCH` do not draw. The generator stays
+    /// with the caller, so its remaining stream is available afterwards;
+    /// LR2 needs exactly that: the `#RANDOM` values are drawn first and the
+    /// RANDOM lane option continues from the same stream. Every
+    /// `FnMut(u64) -> u64` closure implements
+    /// [`ControlFlowRng`](crate::ControlFlowRng), so `&mut |_| 1` and
+    /// `&mut FirstBranch` are both valid generators.
     ///
     /// [`ControlFlowCompat::Jbms`] reproduces jbms-parser / beatoraja
     /// semantics for `#RANDOM 0` and `#ELSE` / `#ELSEIF`; see
     /// [`ControlFlowCompat`].
     #[must_use]
-    pub fn select_lines_with_compat(
+    pub fn select_lines<R: crate::random::ControlFlowRng + ?Sized>(
         &self,
-        next: impl FnMut(u64) -> u64,
+        rng: &mut R,
         compat: ControlFlowCompat,
     ) -> (Vec<SyntaxLine>, BranchSelection) {
         let mut walker = Walker {
-            source: Source::Rng(Box::new(next)),
+            source: Source::Rng(Box::new(|max| rng.draw(max))),
             block_index: 0,
             error: None,
             selection: BranchSelection::default(),
@@ -462,35 +462,22 @@ impl SourceFile {
         (lines, walker.selection)
     }
 
-    /// Select branches drawing values from a [`ControlFlowRng`](crate::ControlFlowRng).
-    ///
-    /// Unlike [`SourceFile::select_lines`], the generator stays with the
-    /// caller, so its remaining stream is available afterwards. LR2 needs
-    /// exactly that: `#RANDOM` values are drawn first, and the RANDOM lane
-    /// option continues from the same stream.
-    #[must_use]
-    pub fn select_lines_with_rng<R: crate::random::ControlFlowRng + ?Sized>(
-        &self,
-        rng: &mut R,
-        compat: ControlFlowCompat,
-    ) -> (Vec<SyntaxLine>, BranchSelection) {
-        self.select_lines_with_compat(|max| rng.draw(max), compat)
-    }
-
-    /// Select branches using the recorded decisions, and return the selected
-    /// lines together with the replayed decisions.
+    /// Replay a recorded selection and return the selected lines together
+    /// with the replayed decisions.
     ///
     /// The replay is strict: the file must present the same number of blocks
     /// with the same kinds and declared bounds as the recording, otherwise
     /// [`BranchMismatch`] names the first divergent block. `#SETRANDOM` /
     /// `#SETSWITCH` values are taken from the current file, not from the
-    /// recording, so directive-value edits stay visible.
+    /// recording, so directive-value edits stay visible. The compatibility
+    /// mode is the one the recording was taken under
+    /// ([`BranchSelection::compat`]).
     ///
     /// # Errors
     ///
     /// Returns [`BranchMismatch`] naming the first divergent block when the
     /// recording does not match the file's control-flow structure.
-    pub fn select_lines_with(
+    pub fn replay_lines(
         &self,
         selection: &BranchSelection,
     ) -> Result<(Vec<SyntaxLine>, BranchSelection), BranchMismatch> {
