@@ -64,7 +64,6 @@ use thiserror::Error;
 pub use crate::audio::BmsAudio;
 pub use crate::error::{ProcessWarning, ProcessWarningKind};
 pub use crate::kaleid::{BmsKaleid, KaleidObject, KaleidObjectKind};
-pub use crate::long_note::LnMarker;
 pub use crate::note_ext::BmsNoteExt;
 
 use crate::bga::BmpEntry;
