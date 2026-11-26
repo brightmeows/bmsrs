@@ -266,25 +266,4 @@ impl VideoAsset {
             delay_frames: None,
         }
     }
-
-    /// Set the frame-rate override (`#VIDEOf/s`).
-    #[must_use]
-    pub const fn with_fps(mut self, fps: f64) -> Self {
-        self.fps = Some(fps);
-        self
-    }
-
-    /// Set the palette depth in bits (`#VIDEOCOLORS`).
-    #[must_use]
-    pub const fn with_colors(mut self, colors: u32) -> Self {
-        self.colors = Some(colors);
-        self
-    }
-
-    /// Set the starting frame delay (`#VIDEODLY`).
-    #[must_use]
-    pub const fn with_delay_frames(mut self, delay_frames: u32) -> Self {
-        self.delay_frames = Some(delay_frames);
-        self
-    }
 }

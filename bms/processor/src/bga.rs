@@ -305,17 +305,15 @@ impl BmsConverter<'_> {
         } else {
             (visual.movie.clone()?, false)
         };
-        let mut asset = VideoAsset::new(PathBuf::from(path), loop_playback);
-        if let Some(fps) = visual.video_fps {
-            asset = asset.with_fps(fps);
-        }
-        if let Some(colors) = visual.video_colors {
-            asset = asset.with_colors(colors.max(0.0).round() as u32);
-        }
-        if let Some(delay) = visual.video_dly {
-            asset = asset.with_delay_frames(delay.max(0.0).round() as u32);
-        }
-        Some(asset)
+        Some(VideoAsset {
+            path: PathBuf::from(path),
+            loop_playback,
+            fps: visual.video_fps,
+            colors: visual
+                .video_colors
+                .map(|colors| colors.max(0.0).round() as u32),
+            delay_frames: visual.video_dly.map(|delay| delay.max(0.0).round() as u32),
+        })
     }
 }
 

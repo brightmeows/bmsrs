@@ -340,12 +340,6 @@ pub struct Note<T = ()> {
 }
 
 impl<T> Note<T> {
-    /// Replace the extension data.
-    #[must_use]
-    pub fn with_ext(self, ext: T) -> Self {
-        Self { ext, ..self }
-    }
-
     /// Map the extension data.
     #[must_use]
     pub fn map_ext<U>(self, f: impl FnOnce(T) -> U) -> Note<U> {
