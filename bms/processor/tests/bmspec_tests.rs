@@ -34,7 +34,7 @@ fn timing(chart: &BmsChart) -> TimingTrack {
 /// Pipeline helper: BMS text to `Chart<(), BmsCustomEvent>`.
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn process(bms_text: &str) -> BmsChart {
-    BmsProcessor::process::<Bme>(&parse_bms(bms_text))
+    BmsProcessor::process_with(&parse_bms(bms_text), Bme)
         .expect("process should succeed")
         .value
         .chart
@@ -609,7 +609,7 @@ fn process_with_cf(bms_text: &str) -> BmsChart {
     let source = SourceFile::parse(bms_text);
     let bms = BmsParser::parse(&source.source_file(), &mut |_| 0).bms;
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
-    BmsProcessor::process::<Bme>(&bms)
+    BmsProcessor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value
         .chart

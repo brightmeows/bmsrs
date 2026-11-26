@@ -33,7 +33,13 @@ pub mod bms {
     pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
     pub use processor::layout::{Bme, BmsLayout};
-    pub use processor::{ProcessError, ProcessWarning, Processed};
+    pub use processor::{AssetLookup, ProcessError, ProcessWarning, Processed};
+
+    /// Every BMS mode family: the [`BmsLayout`] trait
+    /// and its standard implementations.
+    pub mod layout {
+        pub use crate::raw::processor::layout::*;
+    }
     pub use source::DocumentOptions;
     pub use source::TextDecodeError;
     pub use syntax::TextRange;
@@ -310,13 +316,30 @@ pub mod bms {
     /// # Errors
     ///
     /// Returns [`processor::ProcessError`] when conversion fails.
-    pub fn process_with<L: processor::layout::BmsLayout>(
+    pub fn process_with(
         bms: &model::Bms,
+        layout: impl processor::layout::BmsLayout,
     ) -> Result<
         bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        processor::BmsProcessor::process::<L>(bms)
+        processor::BmsProcessor::process_with(bms, layout)
+    }
+
+    /// Convert `Bms` to a chart with an explicit layout and asset policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`processor::ProcessError`] when conversion fails.
+    pub fn process_with_assets(
+        bms: &model::Bms,
+        layout: impl processor::layout::BmsLayout,
+        assets: processor::AssetLookup<'_>,
+    ) -> Result<
+        bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
+        processor::ProcessError,
+    > {
+        processor::BmsProcessor::process_with_assets(bms, layout, assets)
     }
 
     /// Write the full `Bms` model as canonical BMS text.
@@ -438,6 +461,13 @@ pub mod bmson {
     pub use processor::layout::{Beat, BmsonLayout};
     pub use processor::{BmsonProcessWarning, BmsonProcessed, ProcessError};
 
+    /// Every BMSON mode family: the [`BmsonLayout`] trait and its standard
+    /// implementations, including
+    /// [`GenericLayout`](layout::GenericLayout).
+    pub mod layout {
+        pub use crate::raw::bmson_processor::layout::*;
+    }
+
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
     ///
     /// # Errors
@@ -503,28 +533,14 @@ pub mod bmson {
     /// # Errors
     ///
     /// Returns [`processor::ProcessError`] when conversion fails.
-    pub fn process_with<L: processor::layout::BmsonLayout>(
+    pub fn process_with(
         bmson: &model::Bmson,
+        layout: impl processor::layout::BmsonLayout,
     ) -> Result<
         bmsrs_pipeline::Outcome<processor::BmsonProcessed, processor::BmsonProcessWarning>,
         processor::ProcessError,
     > {
-        processor::BmsonProcessor::process::<L>(bmson)
-    }
-
-    /// Convert `Bmson` with an explicit generic key count.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`processor::ProcessError`] when conversion fails.
-    pub fn process_nkeys(
-        bmson: &model::Bmson,
-        keys: u8,
-    ) -> Result<
-        bmsrs_pipeline::Outcome<processor::BmsonProcessed, processor::BmsonProcessWarning>,
-        processor::ProcessError,
-    > {
-        processor::BmsonProcessor::process_nkeys(bmson, keys)
+        processor::BmsonProcessor::process_with(bmson, layout)
     }
 
     /// BMSON parse error.
@@ -630,8 +646,6 @@ pub mod prelude {
     pub use crate::bmson::Bmson;
     #[cfg(feature = "bmson")]
     pub use crate::bmson::BmsonParseError;
-    #[cfg(feature = "bmson")]
-    pub use crate::bmson::process_nkeys;
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };

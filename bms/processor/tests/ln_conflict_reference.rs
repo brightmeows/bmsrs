@@ -52,7 +52,7 @@ fn lntype1_consecutive_events_pair_in_order() {
         });
     }
 
-    let outcome = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let outcome = BmsProcessor::process_with(&bms, Bme).unwrap();
     assert_eq!(long_notes(&outcome.value.chart), [(0, 240), (480, 240)]);
     assert!(!outcome.warnings.iter().any(|warning| matches!(
         warning.kind,
@@ -73,7 +73,7 @@ fn unpaired_ln_start_emits_no_note_and_warns() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let outcome = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let outcome = BmsProcessor::process_with(&bms, Bme).unwrap();
     let note_count = outcome
         .value
         .chart
@@ -118,7 +118,7 @@ fn covered_note_keysound_moves_to_bgm_and_warns() {
         wav_id: "CC".parse().unwrap(),
     });
 
-    let outcome = BmsProcessor::process::<Bme>(&bms).unwrap();
+    let outcome = BmsProcessor::process_with(&bms, Bme).unwrap();
     let chart = &outcome.value.chart;
     let bgm_paths: Vec<&str> = chart
         .data()

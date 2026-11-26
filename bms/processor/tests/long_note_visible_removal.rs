@@ -60,7 +60,7 @@ fn visible_note_inside_lntype1_range_removed() {
         wav_id: "AA".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let normal_ticks: Vec<u64> = chart
         .data()
@@ -128,7 +128,7 @@ fn visible_note_at_ln_start_tick_suppressed() {
         wav_id: "AA".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let has_normal = chart.data().events().iter().any(|e| {
         matches!(
@@ -182,7 +182,7 @@ fn visible_note_at_ln_end_tick_suppressed() {
         wav_id: "AA".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let has_normal = chart.data().events().iter().any(|e| {
         matches!(
@@ -241,7 +241,7 @@ fn visible_note_on_different_lane_preserved() {
         wav_id: "CC".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let normal_ticks: Vec<u64> = chart
         .data()
@@ -303,7 +303,7 @@ fn visible_note_at_unpaired_ln_start_suppressed() {
         wav_id: "AA".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let has_normal = chart.data().events().iter().any(|e| {
         matches!(
@@ -383,7 +383,7 @@ fn visible_note_in_gap_between_lns_preserved() {
         wav_id: "CC".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let normal_ticks: Vec<u64> = chart
         .data()
@@ -462,7 +462,7 @@ fn lnobj_visible_note_inside_range_removed() {
         wav_id: "CC".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let normal_ticks: Vec<u64> = chart
         .data()
@@ -545,7 +545,7 @@ fn lntype2_visible_note_inside_range_removed() {
         wav_id: "BB".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process::<Bme>(&bms).unwrap().value.chart;
+    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
 
     let has_normal = chart.data().events().iter().any(|e| {
         matches!(

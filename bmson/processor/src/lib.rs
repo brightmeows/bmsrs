@@ -122,43 +122,31 @@ pub struct BmsonProcessed {
 /// Zero-sized processor that converts [`bmsrs_bmson_model::Bmson`] into
 /// [`Chart<BmsonNoteExt>`].
 ///
-/// Call [`process`](Self::process) with a mode-family layout, or
+/// Call [`process_with`](Self::process_with) with a mode-family layout, or
 /// [`process_default`](Self::process_default) to choose automatically from
 /// `mode_hint`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BmsonProcessor;
 
 impl BmsonProcessor {
-    /// Process a BMSON chart with a stateless mode-family layout.
+    /// Process a BMSON chart with an explicit mode-family layout.
+    ///
+    /// Zero-sized families and the stateful [`GenericLayout`] both go here, by
+    /// value: `process_with(bmson, Beat)` or
+    /// `process_with(bmson, GenericLayout::new(7).ok_or(...)?)`.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (invalid initial BPM or zero resolution).
-    pub fn process<L>(
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "by value lets a zero-sized family be written bare: process_with(bmson, Beat)"
+    )]
+    pub fn process_with(
         bmson: &bmsrs_bmson_model::Bmson,
-    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError>
-    where
-        L: BmsonLayout,
-    {
-        Self::process_body(bmson, &|x| L::map_x(x))
-    }
-
-    /// Process a BMSON chart with the generic-nkeys layout.
-    ///
-    /// This is the only stateful layout family; when the mode hint is
-    /// `generic-nkeys`, call this method directly instead of
-    /// [`process`](Self::process).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ProcessError::Timing`] when timing track construction fails
-    /// (invalid initial BPM or zero resolution).
-    pub fn process_nkeys(
-        bmson: &bmsrs_bmson_model::Bmson,
-        keys: u8,
+        layout: impl BmsonLayout,
     ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
-        let layout = GenericLayout { keys };
         Self::process_body(bmson, &|x| layout.map_x(x))
     }
 
@@ -184,23 +172,21 @@ impl BmsonProcessor {
     ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
         match &bmson.chart_data.mode_hint {
             bmsrs_bmson_model::ModeHint::Popn5k | bmsrs_bmson_model::ModeHint::Popn9k => {
-                Self::process::<Pms>(bmson)
+                Self::process_with(bmson, Pms)
             }
             bmsrs_bmson_model::ModeHint::Generic(n) => {
                 let keys = u8::try_from(*n).map_err(|_e| ProcessError::InvalidKeyCount(*n))?;
-                if keys == 0 {
-                    return Err(ProcessError::InvalidKeyCount(*n));
-                }
-                Self::process_nkeys(bmson, keys)
+                let layout = GenericLayout::new(keys).ok_or(ProcessError::InvalidKeyCount(*n))?;
+                Self::process_with(bmson, layout)
             }
             bmsrs_bmson_model::ModeHint::Other(hint) => {
-                let mut processed = Self::process::<Beat>(bmson)?;
+                let mut processed = Self::process_with(bmson, Beat)?;
                 processed
                     .warnings
                     .push(BmsonProcessWarning::UnknownModeHint { hint: hint.clone() });
                 Ok(processed)
             }
-            _ => Self::process::<Beat>(bmson),
+            _ => Self::process_with(bmson, Beat),
         }
     }
 

@@ -129,7 +129,7 @@ Deferred interface work, with the trigger that reopens it:
 | Item | What deferring costs today | Trigger |
 |------|---------------------------|---------|
 | Input sum type (`Text` / `Bytes` / `File` / recorded selection) replacing the eight `bms::parse*` entry points | `parse_bytes` assumes `SourceFormat::Bms`, so `.bmd` bytes miss the `;` comment rule, Base62 normalization, and synth `#WAV` that `parse_file` applies | a third consumer needs the entry points, or a new input axis arrives |
-| One `parse` spelling across `bms` and `bmson` | the prelude exports the BMS `parse` only; BMSON callers spell the full path, which is why `bmson::process_nkeys` is in the prelude and `bmson::process` is not | the input sum type lands |
+| One `parse` spelling across `bms` and `bmson` | the prelude exports the BMS `parse` only; BMSON callers spell the full path (`bmsrs::bmson::parse_str`, `bmsrs::bmson::process`) | the input sum type lands |
 | `Viewport` options struct | `Viewport::new` takes two `f64`, so a swapped pair compiles | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
 | A recoverable-warning channel for `bmson::parse_str` | a tool handling both formats branches on the return shape, since `bms::parse` returns `Outcome` and `bmson::parse_str` does not | BMSON parsing produces its first recoverable warning |
 | One return shape for range queries (`Player::events_in_range` yields a slice, `notes_in_range` an iterator) | one loop must call `.iter()` on one query and not the other | a consumer ranges over both in the same loop and has to convert |

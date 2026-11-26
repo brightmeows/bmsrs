@@ -7,15 +7,15 @@
 
 Processor that converts `bmsrs_bmson_model::Bmson` (v2 root schema) into `Chart`. The
 entry point is `BmsonProcessor` (a zero-sized type); all functionality is
-exposed through `BmsonProcessor::process_default` / `process_nkeys`. Key mapping
+exposed through `BmsonProcessor::process_with` / `process_default`. Key mapping
 is decoupled through the `BmsonLayout` mode family.
 
 ## Mode families
 
 | Type | Implements | Use |
 |------|------------|-----|
-| Stateless ZST | `impl BmsonLayout` | simple modes, `BmsonProcessor::process::<L>(bmson)` |
-| Stateful decoder | does not implement `BmsonLayout` | runtime configuration (key count), `BmsonProcessor::process_nkeys(bmson, keys)` |
+| Stateless ZST | `impl BmsonLayout` | fixed modes, `BmsonProcessor::process_with(bmson, Beat)` |
+| Stateful `GenericLayout` | `impl BmsonLayout` through the same `&self` receiver | `generic-nkeys`, `process_with(bmson, GenericLayout::new(keys)?)`; `keys` is a `NonZeroU8`, so zero keys is not representable |
 
 `process_default` dispatches by `mode_hint`:
 

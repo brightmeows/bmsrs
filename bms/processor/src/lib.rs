@@ -10,7 +10,7 @@
 //! # Pipeline
 //!
 //! ```text
-//! bmsrs_bms_model::Bms -> BmsProcessor::process::<L>(bms) -> Chart<(), NoCustomEvent>
+//! bmsrs_bms_model::Bms -> BmsProcessor::process_with(bms, layout) -> Chart<(), NoCustomEvent>
 //! ```
 //!
 //! # Mode families
@@ -68,7 +68,7 @@ pub use crate::note_ext::BmsNoteExt;
 
 use crate::bga::BmpEntry;
 use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsLayout, DscOctFp, Pms, PmsBme, PmsLayout};
+use crate::layout::{Bme, BmsLayout, DscOctFp};
 use crate::position::MeasureTable;
 use crate::timing::build_bar_events;
 
@@ -181,19 +181,21 @@ impl std::fmt::Debug for AssetLookup<'_> {
 impl BmsProcessor {
     /// Process a BMS chart with an explicit mode-family layout.
     ///
-    /// The layout type determines how each BMS `(player, lane)` channel byte
-    /// decodes to a note position. Available families are listed in the
-    /// `layout` module.
+    /// The layout decides how each BMS `(player, lane)` channel byte decodes
+    /// to a note position; the families are listed in the `layout` module, and
+    /// [`PmsLayout::detect`](crate::layout::PmsLayout::detect) picks the PMS
+    /// variant from the chart: `process_with(bms, Bme)` or
+    /// `process_with(bms, PmsLayout::detect(bms))`.
     ///
     /// # Errors
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (initial BPM missing, zero, or non-finite).
-    pub fn process<L>(bms: &Bms) -> Result<Outcome<Processed, ProcessWarning>, ProcessError>
-    where
-        L: BmsLayout,
-    {
-        Self::process_with_assets::<L>(bms, AssetLookup::Declared)
+    pub fn process_with(
+        bms: &Bms,
+        layout: impl BmsLayout,
+    ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
+        Self::process_with_assets(bms, layout, AssetLookup::Declared)
     }
 
     /// Process a BMS chart with an explicit layout and asset policy.
@@ -205,13 +207,15 @@ impl BmsProcessor {
     ///
     /// Returns [`ProcessError::Timing`] when timing track construction fails
     /// (initial BPM missing, zero, or non-finite).
-    pub fn process_with_assets<L>(
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "by value matches process_with, so one layout expression serves both entry points"
+    )]
+    pub fn process_with_assets(
         bms: &Bms,
+        layout: impl BmsLayout,
         assets: AssetLookup<'_>,
-    ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError>
-    where
-        L: BmsLayout,
-    {
+    ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
         if init_bpm == 0.0 {
             return Err(ProcessError::ZeroBpm);
@@ -255,7 +259,7 @@ impl BmsProcessor {
         conv.events.extend(build_bar_events(&table));
 
         // Notes (priority 1).
-        conv.collect_notes::<L>(&wav_map, &paired_lns, &consumed, &unpaired_starts);
+        conv.collect_notes(&layout, &wav_map, &paired_lns, &consumed, &unpaired_starts);
 
         // BGM (priority 1).
         conv.collect_bgm(&wav_map);
@@ -350,22 +354,6 @@ impl BmsProcessor {
         ))
     }
 
-    /// Process a BMS chart with an automatically detected PMS variant layout.
-    ///
-    /// Automatically selects [`Pms`] (Standard) or [`PmsBme`] (BME-type) based
-    /// on the channels used in the chart.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ProcessError::Timing`] when timing track construction fails
-    /// (initial BPM missing, zero, or non-finite).
-    pub fn process_pms(bms: &Bms) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
-        match PmsLayout::detect(bms) {
-            PmsLayout::Standard => Self::process::<Pms>(bms),
-            PmsLayout::BmeType => Self::process::<PmsBme>(bms),
-        }
-    }
-
     /// Process a BMS chart with the default layout.
     ///
     /// Uses [`DscOctFp`] when the chart declares `#OCT/FP`; otherwise uses
@@ -375,7 +363,8 @@ impl BmsProcessor {
     /// the mapping (matching modern engines, which ignore it).
     ///
     /// For PMS, nanasi, or other families, call
-    /// [`process::<Nanasi>`](Self::process) with the appropriate layout type.
+    /// [`process_with`](Self::process_with) with the appropriate layout, for
+    /// example `process_with(bms, PmsLayout::detect(bms))`.
     ///
     /// # Errors
     ///
@@ -383,9 +372,9 @@ impl BmsProcessor {
     /// (initial BPM missing, zero, or non-finite).
     pub fn process_default(bms: &Bms) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         if bms.gameplay.oct_fp == Some(true) {
-            Self::process::<DscOctFp>(bms)
+            Self::process_with(bms, DscOctFp)
         } else {
-            Self::process::<Bme>(bms)
+            Self::process_with(bms, Bme)
         }
     }
 }

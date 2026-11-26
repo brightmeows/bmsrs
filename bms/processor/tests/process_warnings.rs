@@ -24,7 +24,7 @@ fn missing_wav_key_produces_warning() {
         wav_id: "ZZ".parse().unwrap(),
     });
 
-    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
+    let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
     assert!(
         warnings
             .iter()
@@ -45,7 +45,7 @@ fn base16_missing_wav_key_uses_hex_numeric_value() {
         wav_id: "FF".parse().unwrap(),
     });
 
-    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
+    let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
     assert!(warnings.iter().any(|warning| matches!(
         warning.kind,
         ProcessWarningKind::MissingWavDefinition { key: 255, .. }
@@ -68,7 +68,7 @@ fn untermined_long_note_produces_warning() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
+    let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
     assert!(
         warnings
             .iter()
@@ -93,7 +93,7 @@ fn normal_chart_produces_no_warnings() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
+    let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
     assert_eq!(warnings, [] as [bmsrs_bms_processor::ProcessWarning; 0]);
 }
 
@@ -108,7 +108,7 @@ fn missing_bpm_definition_produces_warning() {
         value: BpmValue::Reference(bpm_id),
     });
 
-    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
+    let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
     let count = warnings
         .iter()
         .filter(|w| matches!(&w.kind, ProcessWarningKind::MissingBpmDefinition { .. }))
@@ -132,7 +132,7 @@ fn process_still_returns_ok_with_warnings() {
         wav_id: "ZZ".parse().unwrap(),
     });
 
-    let result = BmsProcessor::process::<Bme>(&bms);
+    let result = BmsProcessor::process_with(&bms, Bme);
     assert!(result.is_ok());
 }
 
@@ -146,7 +146,7 @@ fn unparsable_bpm_value_produces_warning() {
 ";
     let source = SourceFile::parse(text);
     let bms = BmsParser::parse(&source.source_file(), &mut |_| 1).bms;
-    let warnings = BmsProcessor::process::<Bme>(&bms).unwrap().warnings;
+    let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
 
     assert!(warnings.iter().any(|w| matches!(
         w.kind,

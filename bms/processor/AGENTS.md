@@ -30,12 +30,16 @@ same-position entries accumulate per the specification.
 
 ## Mode families
 
-Mode families are zero-sized types implementing the `BmsLayout` trait. Each
-family is a mapping table from `(player, lane)` to `Option<NoteData>`.
+Mode families implement the `BmsLayout` trait through a `&self` receiver, so a
+zero-sized family and a runtime-selected value take the same parameter:
+`BmsProcessor::process_with(bms, layout)`. Each family is a mapping table from
+`(player, lane)` to `Option<(NoteSide, Lane)>`.
 
 Standard families are in the public `layout` module. `Bme` covers
 5K/7K/10K/14K; `#PLAYER` does not affect the mapping (consistent with mainstream
 engines), so automatic family selection by `#PLAYER` is not implemented.
+`PmsLayout::detect(bms)` picks the PMS variant from the chart's channels and
+implements the trait by delegating to `Pms` or `PmsBme`.
 
 ## Public modules
 
@@ -60,7 +64,7 @@ engines), so automatic family selection by `#PLAYER` is not implemented.
 | nanasi miss text | `#TEXT00` maps to `ChartInfo.miss_text` and never becomes a channel event |
 | Video SEEK resolution | `#SEEK` resolves milliseconds (not the raw Base36 value); undefined ids are skipped |
 | Negative `#STOP` values | clamped to `0` and skipped with a warning; beatoraja (jbms-parser) takes the absolute value instead, deliberately not followed |
-| `process_default` layout | Uses `DscOctFp` when `#OCT/FP` is true, otherwise `Bme`; `#PLAYER` is still ignored, and modes such as PMS must be specified explicitly |
+| `process_default` layout | Uses `DscOctFp` when `#OCT/FP` is true, otherwise `Bme`; `#PLAYER` is still ignored, and modes such as PMS go through `process_with(bms, PmsLayout::detect(bms))` |
 | `key_count` | Sum of the maximum `Lane::Key` number per side across the event stream; `None` when there are no key notes |
 | Judge/life multipliers | BMS `#RANK`/`#TOTAL` are not converted into the multiplier fields; they enter `ChartInfo.judge_rank`/`ChartInfo.total` as raw values instead, and both multiplier fields stay `None` for BMS |
 | Undefined reference warnings | Undefined BMP/TEXT/SWBGA/EXRANK references emit `MissingBmpDefinition`/`MissingTextDefinition`/`MissingSwBgaDefinition`/`MissingExRankDefinition` with the resolved key and tick; the corresponding event is dropped or carries a clear/blank semantics |

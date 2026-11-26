@@ -1,9 +1,9 @@
 //! BMSON mode-family layouts: map `x` values to lanes through [`BmsonLayout`].
 //!
-//! Each mode family is a zero-sized newtype that maps a sound channel's `x`
-//! value to a `(NoteSide, Lane)` pair. Stateful decoders (such as
-//! [`GenericLayout`] for `generic-nkeys`) are separate structs with an inherent
-//! `map_x` method.
+//! Each mode family maps a sound channel's `x` value to a `(NoteSide, Lane)`
+//! pair. Most are zero-sized newtypes; [`GenericLayout`] for `generic-nkeys`
+//! carries its key count. The trait takes `&self`, so both kinds implement it
+//! and `BmsonProcessor::process_with` accepts either by value.
 
 use std::num::NonZeroU8;
 
@@ -12,14 +12,12 @@ use bmsrs_chart::mode::{Lane, NoteSide};
 /// BMSON side mapping: decode a sound channel's `x` value into a
 /// `(NoteSide, Lane)` pair.
 ///
-/// Returning `None` drops the note. Only stateless mode families implement this
-/// trait; stateful decoders (such as [`GenericLayout`]) have their own `map_x`
-/// method and are used through
-/// [`crate::BmsonProcessor::process_nkeys`].
+/// Returning `None` drops the note. The `&self` receiver lets a zero-sized
+/// family and a stateful decoder such as [`GenericLayout`] share the trait.
 pub trait BmsonLayout {
     /// Map a BMSON player channel's `x` to a note position.
     #[must_use]
-    fn map_x(x: u64) -> Option<(NoteSide, Lane)>;
+    fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)>;
 }
 
 /// Construct a `NonZeroU8` from a value known at the call site to be at least 1.
@@ -58,7 +56,7 @@ impl Beat {
 }
 
 impl BmsonLayout for Beat {
-    fn map_x(x: u64) -> Option<(NoteSide, Lane)> {
+    fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         Self::from_bmson(x)
     }
 }
@@ -85,7 +83,7 @@ impl Pms {
 }
 
 impl BmsonLayout for Pms {
-    fn map_x(x: u64) -> Option<(NoteSide, Lane)> {
+    fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         Self::from_bmson(x)
     }
 }
@@ -93,24 +91,28 @@ impl BmsonLayout for Pms {
 /// Generic n-keys mode family for BMSON `generic-nkeys`. `keys` is the number of
 /// channels; channels `1..=keys` map to `Lane::Key(1..=keys)` from left to right.
 ///
-/// This family carries runtime state (the key count), so it does **not**
-/// implement the stateless [`BmsonLayout`]. Use it through
-/// [`crate::BmsonProcessor::process_nkeys`].
-///
-/// `keys` is a `u8`: [`Lane::Key`] is bounded by `NonZeroU8`, so key counts
-/// above 255 cannot be mapped correctly and are rejected by the type.
+/// Build it through [`GenericLayout::new`]. `keys` is a `NonZeroU8` because
+/// [`Lane::Key`] is bounded by `NonZeroU8`: a zero key count cannot be
+/// represented, and counts above 255 are rejected by the constructor's `u8`
+/// argument.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GenericLayout {
     /// Number of keys (all on player 1, at least 1).
-    pub keys: u8,
+    keys: NonZeroU8,
 }
 
 impl GenericLayout {
-    /// Map a BMSON `x` value to a note position for the current key count.
+    /// Build the layout for `keys` channels; `None` when `keys` is zero.
     #[must_use]
-    pub fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
+    pub fn new(count: u8) -> Option<Self> {
+        NonZeroU8::new(count).map(|keys| Self { keys })
+    }
+}
+
+impl BmsonLayout for GenericLayout {
+    fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         let n = u8::try_from(x).ok()?;
-        if n == 0 || n > self.keys {
+        if n == 0 || n > self.keys.get() {
             return None;
         }
         Some((NoteSide::P1, Lane::Key(nz(n)?)))
