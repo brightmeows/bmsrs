@@ -125,6 +125,7 @@ pub struct BmsonProcessed {
 /// Call [`process`](Self::process) with a mode-family layout, or
 /// [`process_default`](Self::process_default) to choose automatically from
 /// `mode_hint`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BmsonProcessor;
 
 impl BmsonProcessor {
