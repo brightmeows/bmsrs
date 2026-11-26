@@ -15,13 +15,13 @@ use bmsrs_bms_values::{
 /// Helper: parse a BMS string into `Bms` (default C = &str).
 fn parse(input: &str) -> Bms {
     let source = bmsrs_bms_syntax::SourceFile::parse(input);
-    BmsParser::parse(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), &mut |_| 1).bms
 }
 
 /// Helper: parse with `C = String` to verify the owned-string pipeline works.
 fn parse_string(input: &str) -> Bms {
     let source = bmsrs_bms_syntax::SourceFile::parse(input);
-    BmsParser::parse(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), &mut |_| 1).bms
 }
 
 // Re-export accessibility
@@ -1337,7 +1337,8 @@ fn bmd_forces_base62_and_strips_inline_semicolons() {
     };
     let text = "#WAV01 P0 N60 V100 G48\n#00111:01 ; inline comment\n#00211:0a\n#00211:0b\n";
     let parsed = bmsrs_bms_syntax::SourceFile::parse_with(text, &options);
-    let bms = bmsrs_bms_parser::BmsParser::parse_with(&parsed.source_file(), &options, |_| 1).bms;
+    let bms =
+        bmsrs_bms_parser::BmsParser::parse_with(&parsed.source_file(), &options, &mut |_| 1).bms;
 
     assert_eq!(bms.format, SourceFormat::Bmd);
     assert_eq!(bms.audio.wav_sources.len(), 1);

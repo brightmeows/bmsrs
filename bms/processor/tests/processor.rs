@@ -1486,7 +1486,7 @@ fn dedup_adjacent_same_bpm() {
 
 fn parse_text(text: &str) -> bmsrs_bms_model::Bms {
     let source = bmsrs_bms_syntax::SourceFile::parse(text);
-    bmsrs_bms_parser::BmsParser::parse(&source.source_file(), |_| 1).bms
+    bmsrs_bms_parser::BmsParser::parse(&source.source_file(), &mut |_| 1).bms
 }
 
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]

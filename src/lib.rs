@@ -40,7 +40,9 @@ pub mod bms {
     pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
     pub use values::BmsTokenizeError;
 
-    pub use syntax::{ControlFlowCompat, ControlFlowRng, JavaRandom, LR2_SEED_MAX, Lr2Mt19937};
+    pub use syntax::{
+        ControlFlowCompat, ControlFlowRng, FirstBranch, JavaRandom, LR2_SEED_MAX, Lr2Mt19937,
+    };
 
     /// Error type for the whole-pipeline entry points.
     #[derive(Debug, thiserror::Error)]
@@ -120,11 +122,18 @@ pub mod bms {
         parse_with(
             text,
             &syntax::ParseOptions::default(),
-            syntax::ParseOptions::first_branch,
+            &mut syntax::FirstBranch,
         )
     }
 
-    /// Parse BMS text with explicit options.
+    /// Parse BMS text with explicit options and a control-flow generator.
+    ///
+    /// The generator stays with the caller, so its remaining stream is
+    /// available afterwards; LR2's `#RANDOM` lane option continues from the
+    /// same stream. `rng.draw(max)` supplies one value per block in `[1, max]`;
+    /// every `FnMut(u64) -> u64` closure implements
+    /// [`ControlFlowRng`], so `&mut |_| 1` and
+    /// `&mut JavaRandom::new(seed)` are both valid.
     ///
     /// # Errors
     ///
@@ -132,29 +141,11 @@ pub mod bms {
     pub fn parse_with(
         text: &str,
         options: &syntax::ParseOptions,
-        rng: impl FnMut(u64) -> u64,
+        rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
         let document = source::Document::from_text(text);
         from_document(&document, options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
-    }
-
-    /// Parse BMS text with explicit options and a stateful control-flow RNG.
-    ///
-    /// Unlike [`parse_with`], the generator stays with the caller, so its
-    /// remaining stream is available afterwards; LR2's `#RANDOM` lane option
-    /// continues from the same stream. The rng draws one value per block in
-    /// `[1, max]` through [`ControlFlowRng::draw`].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`FromTextError`] when `FailFast` encounters an error.
-    pub fn parse_with_rng(
-        text: &str,
-        options: &syntax::ParseOptions,
-        rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
-        parse_with(text, options, |max| rng.draw(max))
     }
 
     /// Error type for recorded-selection replay entry points.
@@ -220,7 +211,7 @@ pub mod bms {
     pub fn parse_with_recording(
         text: &str,
         options: &syntax::ParseOptions,
-        rng: impl FnMut(u64) -> u64,
+        rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<
         (
             bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>,
@@ -254,7 +245,7 @@ pub mod bms {
             bytes,
             &source::DocumentOptions::default(),
             &syntax::ParseOptions::default(),
-            syntax::ParseOptions::first_branch,
+            &mut syntax::FirstBranch,
         )
     }
 
@@ -267,7 +258,7 @@ pub mod bms {
         bytes: Vec<u8>,
         doc_options: &source::DocumentOptions,
         parse_options: &syntax::ParseOptions,
-        rng: impl FnMut(u64) -> u64,
+        rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
         let document = source::Document::from_bytes_with(bytes, doc_options);
         from_document(&document, parse_options, rng)
@@ -296,7 +287,7 @@ pub mod bms {
             bytes,
             &source::DocumentOptions::default(),
             &options,
-            syntax::ParseOptions::first_branch,
+            &mut syntax::FirstBranch,
         )
     }
 
@@ -338,7 +329,7 @@ pub mod bms {
     fn from_document(
         document: &source::Document,
         options: &syntax::ParseOptions,
-        rng: impl FnMut(u64) -> u64,
+        rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
         let parsed = parser::BmsParser::parse_document_with(document, options, rng)
             .map_err(from_parse_error)?;
@@ -633,8 +624,7 @@ pub mod prelude {
     pub use crate::bms::process_with;
     pub use crate::bms::{Bme, Bms, BmsLayout};
     pub use crate::bms::{
-        FromTextError, FromTextWarning, parse, parse_bytes, parse_with, parse_with_rng, process,
-        write,
+        FromTextError, FromTextWarning, parse, parse_bytes, parse_with, process, write,
     };
     #[cfg(feature = "bmson")]
     pub use crate::bmson::Bmson;

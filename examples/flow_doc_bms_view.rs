@@ -43,7 +43,7 @@ fn main() {
 
     for value in 1..=2 {
         let (lines, selection) = file.select_lines(&mut |_| value, ControlFlowCompat::Ideal);
-        let parsed = BmsParser::parse(&file, |_| value);
+        let parsed = BmsParser::parse(&file, &mut |_| value);
         println!(
             "value {value}: {} selected lines, {} decisions, title {:?}",
             lines.len(),

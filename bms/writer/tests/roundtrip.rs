@@ -15,7 +15,7 @@ use bmsrs_bms_writer::BmsWriter;
 /// Parse BMS text into `Bms`, ignoring tokenizer warnings.
 fn parse(text: &str) -> Bms {
     let source = SourceFile::parse(text);
-    BmsParser::parse(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), &mut |_| 1).bms
 }
 
 #[test]

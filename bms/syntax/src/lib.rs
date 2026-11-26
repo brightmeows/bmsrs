@@ -56,15 +56,6 @@ pub struct ParseOptions {
     pub error_strategy: bmsrs_pipeline::ErrorStrategy,
 }
 
-impl ParseOptions {
-    /// Default control-flow branch selector: always selects the first branch,
-    /// regardless of the drawn upper bound.
-    #[must_use]
-    pub const fn first_branch(_max: u64) -> u64 {
-        1
-    }
-}
-
 impl Default for ParseOptions {
     fn default() -> Self {
         Self {
