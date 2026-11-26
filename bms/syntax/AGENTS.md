@@ -45,7 +45,7 @@ SourceFile
 - `IncrementalParser` reuses the green tree for single-line content edits,
   re-lexes only the changed line, and falls back to a full parse for
   control-flow or structural edits
-- `select_lines_with` replay is strict: drift in block count, kind, or declared
+- `replay_lines` is strict: drift in block count, kind, or declared
   bound fails with `BranchMismatch`; `#SETRANDOM` / `#SETSWITCH` values are
   taken from the current file, not the recording
 - `ParseOptions.header_prefixes` defaults to `['#', '%']`
