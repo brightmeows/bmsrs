@@ -104,6 +104,7 @@ pub enum ProcessError {
 type BmsEvent = Event<crate::note_ext::BmsNoteExt, BmsCustomEvent>;
 
 /// Zero-sized processor that converts [`Bms`] into [`Chart`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BmsProcessor;
 
 /// BMS processing result.
