@@ -112,14 +112,6 @@ pub mod bms {
         },
     }
 
-    /// Default control-flow branch selector for [`parse_with`] and
-    /// [`parse_bytes_with`]: always selects the first branch, regardless of
-    /// the drawn upper bound.
-    #[must_use]
-    pub const fn first_branch(_max: u64) -> u64 {
-        1
-    }
-
     /// Parse BMS text with defaults: first branch and `CollectAll`.
     ///
     /// # Errors
@@ -128,7 +120,11 @@ pub mod bms {
     pub fn parse(
         text: &str,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
-        parse_with(text, &syntax::ParseOptions::default(), first_branch)
+        parse_with(
+            text,
+            &syntax::ParseOptions::default(),
+            syntax::ParseOptions::first_branch,
+        )
     }
 
     /// Parse BMS text with explicit options.
@@ -261,7 +257,7 @@ pub mod bms {
             bytes,
             &source::DocumentOptions::default(),
             &syntax::ParseOptions::default(),
-            first_branch,
+            syntax::ParseOptions::first_branch,
         )
     }
 
@@ -303,7 +299,7 @@ pub mod bms {
             bytes,
             &source::DocumentOptions::default(),
             &options,
-            first_branch,
+            syntax::ParseOptions::first_branch,
         )
     }
 

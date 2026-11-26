@@ -103,9 +103,21 @@ Git worktrees live under `.worktrees/`.
 
 Namespace a public operation on the type it belongs to: constructors, queries,
 conversions, and lifecycle stages are associated functions. An operation stays
-free in two cases: it has no domain type to hang on (`base36_digit_value`), or
+free in three cases: it has no domain type to hang on (`base36_digit_value`),
 its natural owner cannot host it because of the dependency direction
-(`Bms::parse` would make the model crate depend on the parser).
+(`Bms::parse` would make the model crate depend on the parser), or the language
+requires it, as with a `#[proc_macro_derive]` entry point.
+
+The rule buys discoverability: every operation appears in its type's rustdoc,
+and a call site names what it acts on. It costs a divergence from Rust's
+free-function idiom; rust-analyzer's guide takes the opposite default for
+single-action APIs, so read this as this workspace's convention, not as a
+correctness rule.
+
+The facade may flatten an associated function into a free entry point when the
+body is a single delegation to it and the receiver would be the only argument
+(`bms::write` is `BmsWriter::write`). The condition is that no second
+implementation exists to keep in sync.
 
 A zero-sized namespace type (`BmsProcessor`, `BmsonProcessor`, `BmsWriter`)
 groups operations that share a parameter set or a conversion process; it is not
@@ -127,8 +139,13 @@ Pick the construction shape by what varies, not by habit:
 |-------------|-------|---------|
 | Required inputs only | constructor | `Chart::new`, `TimingTrack::new` |
 | Optional overlays on a one-shot value | consuming `with_*` setter | `ChartData::new(..).with_ln_type_hint(..)`, `Diagnostic::new(..).with_span(..)` |
-| Configuration reused across calls | options struct with `Default` and public fields | `ParseOptions`, `DocumentOptions` |
+| Configuration reused across calls | options struct with public fields | `ParseOptions`, `DocumentOptions` |
 | A stage the caller must not skip | consuming finalizer | `MessagesBuilder::finish` |
+| Optional overlays that repeat as a set | preset `for_*` constructor | none yet; the trigger is a second call site setting the same seven `ChartData` overlays |
+
+An options struct implements `Default` only when the default is specified
+behavior (first branch, `CollectAll`), not an arbitrary guess; a caller with a
+better default should have to say so.
 
 A builder type is not the default shape. The pipeline is a pure data
 transformation, so a separate builder adds a type, a fallible `build()`, and a
@@ -137,12 +154,6 @@ plus `with_*` already removes. Reassess only when construction gains staged
 requirements or mutually exclusive choices, which is where typestate pays for
 itself.
 
-Optional overlays that repeat as a set get a preset constructor, not a builder:
-name the set with a `for_*` constructor and keep the `with_*` chain for callers
-that deviate. The BMSON processor sets all seven `ChartData` overlays in one
-place; a second call site setting the same seven is the trigger to add the
-preset.
-
 Every type named by a curated facade entry point must resolve from the same
 module. `tests/facade_api.rs` names them, so dropping a re-export fails to
 compile. `raw` is the escape hatch for everything else, which means `prelude`
@@ -150,24 +161,25 @@ imports from the curated modules and never from `raw`.
 
 `pub` inside a private module is the house style: `clippy::redundant_pub_crate`
 is denied, and the private module already caps visibility. The compiler's
-`unreachable_pub` lint stays off because the two contradict each other; an
-over-wide `pub` in a private module is a review item, not a lint item.
+`unreachable_pub` lint stays off because the two contradict each other. The
+over-wide items already in the tree are not chased; the lint conflict is the
+reason, and `pub(crate)` would fail the build.
 
 Enums mirroring a closed external vocabulary (BMS channels, syntax kinds,
 header commands) stay exhaustive, including `EventKind`: a new event kind means
 the format gained a construct, and every renderer should be forced to handle it
-rather than silently ignore it. `DiagnosticCode`, `SourceFormat`, and
-`SymbolKind` are the growth-prone ones, and they stay exhaustive until 1.0.
+rather than silently ignore it.
 
 Deferred interface work, with the trigger that reopens it:
 
-| Item | Trigger |
-|------|---------|
-| Input sum type (`Text` / `Bytes` / `File` / recorded selection) replacing the eight `bms::parse*` entry points | a third consumer needs the entry points, or a new input axis arrives |
-| One `parse` spelling across `bms` and `bmson` | the input sum type lands; the prelude cannot export both names today, which is why `bmson::process_nkeys` is exported and `bmson::process` is not |
-| `Viewport` options struct | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
-| A recoverable-warning channel for `bmson::parse_str` | BMSON parsing produces its first recoverable warning; today it is strict, so `bms::parse` returns `Outcome` and `bmson::parse_str` does not |
-| One return shape for range queries (`Player::events_in_range` yields a slice, `notes_in_range` an iterator) | a consumer ranges over both in the same loop and has to convert |
+| Item | What deferring costs today | Trigger |
+|------|---------------------------|---------|
+| Input sum type (`Text` / `Bytes` / `File` / recorded selection) replacing the eight `bms::parse*` entry points | `parse_bytes` assumes `SourceFormat::Bms`, so `.bmd` bytes miss the `;` comment rule, Base62 normalization, and synth `#WAV` that `parse_file` applies | a third consumer needs the entry points, or a new input axis arrives |
+| One `parse` spelling across `bms` and `bmson` | the prelude exports the BMS `parse` only; BMSON callers spell the full path, which is why `bmson::process_nkeys` is in the prelude and `bmson::process` is not | the input sum type lands |
+| `Viewport` options struct | `Viewport::new` takes two `f64`, so a swapped pair compiles | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
+| A recoverable-warning channel for `bmson::parse_str` | a tool handling both formats branches on the return shape, since `bms::parse` returns `Outcome` and `bmson::parse_str` does not | BMSON parsing produces its first recoverable warning |
+| One return shape for range queries (`Player::events_in_range` yields a slice, `notes_in_range` an iterator) | one loop must call `.iter()` on one query and not the other | a consumer ranges over both in the same loop and has to convert |
+| `#[non_exhaustive]` on `DiagnosticCode`, `SourceFormat`, and `SymbolKind` | every added variant breaks a downstream exhaustive match; free before 1.0 | 1.0, where semver starts to matter |
 
 ### Format sources
 
