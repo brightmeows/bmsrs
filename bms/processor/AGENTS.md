@@ -35,7 +35,7 @@ family is a mapping table from `(player, lane)` to `Option<NoteData>`.
 
 Standard families are in the public `layout` module. `Bme` covers
 5K/7K/10K/14K; `#PLAYER` does not affect the mapping (consistent with mainstream
-engines).
+engines), so automatic family selection by `#PLAYER` is not implemented.
 
 ## Public modules
 
@@ -85,6 +85,30 @@ sidecars, and the corresponding `Chart` slots stay `None`.
 |-------|--------|--------------|
 | `gameplay.ex_rank_defs` | `#EXRANKxx` | The A0 channel resolves its references into `Event::JudgeRank` percentages; the raw table stays in the sidecar for the judgment system's `#DEFEXRANK` multiplication design |
 | `audio.ex_wav_params` / `wav_cmd` / `cdda` / `midifile` | audio definitions | The core `AudioAsset` carries only paths and slices; the remaining parameters go to the `Processed.audio` sidecar |
+
+## Known limitations
+
+These are boundaries intentionally left open. Check them before assuming a
+feature is missing by accident.
+
+| Item | Status | Reassess when |
+|------|--------|---------------|
+| `#CDDA` / `#MIDIFILE` | only stored in the `audio` sidecar; no playback abstraction | a player needs CD or MIDI sources |
+| KaleidBeat `free_zone_channels` | typed into the sidecar; free-zone judgment semantics stay in the player | a player needs a shared free-zone evaluation model |
+| KaleidBeat conditional branches | structure, conditions, and branch rows are preserved; condition evaluation, DEFAULT-based scoring, and branch replay stay in the player | a player needs the shared evaluation model |
+| BMD synthesis audio | synthetic `AudioAsset.path` values (`bmd:<wav-id>`) and `BmsKaleid.synth`; a player without the sidecar sees them as missing files, and the processor never probes those paths | a generic player needs a first-class synth source |
+| BGM layering | BGM events stay separate; only judgeable notes merge `NoteAudio`; beatoraja (`bgnotes`) and bmz-player (`bgm_events`) keep them separate as well | a real chart needs BGM layers merged |
+| Warning precision | line-level `SourceSpan`; the exact note or cell is not stored; jbms-parser logs are line-based and bmz-player warnings carry keys but no cells | an editor needs cell-level warning highlighting |
+
+## Cross-engine divergences
+
+Where engines disagree, the default follows the specification and an opt-in
+switch or a documented refusal covers the compatibility case. Do not "fix" one
+side silently.
+
+| Case | bmsrs default | Other engine | Where |
+|------|---------------|--------------|-------|
+| `#LNTYPE 2` | MGQ-style pairing on channels 51-69, per the BMS specification | KaleidBeat's manual defines it as LNOBJ-terminated long notes | documented only; the standard reading stays |
 
 ## Always / Ask / Never
 
