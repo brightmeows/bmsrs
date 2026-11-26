@@ -701,3 +701,13 @@ fn timing_track_rejects_invalid_bpm() {
     assert!(result.is_err());
     assert_eq!(result, Err(TimingTrackError::InvalidBpm { bpm: 0.0 }));
 }
+
+#[test]
+fn player_debug_reports_time_and_counts() {
+    let player = Player::new(make_test_chart());
+    let rendered = format!("{player:?}");
+    assert!(rendered.starts_with("Player {"));
+    assert!(rendered.contains("current_time: 0ns"));
+    assert!(rendered.contains("notes: "));
+    assert!(rendered.contains("events: "));
+}

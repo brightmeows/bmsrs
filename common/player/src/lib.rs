@@ -60,6 +60,7 @@ pub mod viewport;
 mod scroll_cache;
 mod speed_cache;
 
+use std::fmt;
 use std::ops::{Bound, Range, RangeBounds};
 use std::time::Duration;
 
@@ -91,6 +92,17 @@ pub struct Player<T: NoteExt = (), C: CustomEvent = NoCustomEvent> {
     note_table: NoteTable,
     /// Current playback time (the only mutable state).
     current_time: Duration,
+}
+
+impl<T: NoteExt, C: CustomEvent> fmt::Debug for Player<T, C> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("Player")
+            .field("current_time", &self.current_time)
+            .field("events", &self.chart.data().events().len())
+            .field("notes", &self.note_table.notes().len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<T: NoteExt, C: CustomEvent> Player<T, C> {
