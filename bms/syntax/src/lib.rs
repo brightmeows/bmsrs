@@ -32,7 +32,7 @@ pub use bmsrs_pipeline::{DiagnosticCode, Severity};
 pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, SyntaxToken};
 pub use lexer::SyntaxLineKind;
 pub use parser::{Diagnostic, IncrementalParser, SyntaxParse};
-pub use random::{ControlFlowRng, LR2_SEED_MAX, Lr2Mt19937};
+pub use random::{ControlFlowRng, FirstBranch, LR2_SEED_MAX, Lr2Mt19937};
 pub use rowan::{TextRange, TextSize};
 pub use select::{BlockDecision, BlockKind, BranchMismatch, BranchSelection, ControlFlowCompat};
 pub use syntax_kind::SyntaxKind;

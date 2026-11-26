@@ -24,6 +24,28 @@ pub trait ControlFlowRng {
     fn draw(&mut self, max: u64) -> u64;
 }
 
+impl<F> ControlFlowRng for F
+where
+    F: FnMut(u64) -> u64,
+{
+    fn draw(&mut self, max: u64) -> u64 {
+        self(max)
+    }
+}
+
+/// The default selector: always the first branch, whatever the bound.
+///
+/// It fills the generator slot where a stateful engine would otherwise go,
+/// so `&mut FirstBranch` is the explicit spelling of "take the first branch".
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct FirstBranch;
+
+impl ControlFlowRng for FirstBranch {
+    fn draw(&mut self, _max: u64) -> u64 {
+        1
+    }
+}
+
 /// Number of `u32` words in the MT19937 state.
 const N: usize = 624;
 /// Middle word offset of the twist.
