@@ -55,6 +55,7 @@ feature is missing by accident.
 
 | Item | Status | Reassess when |
 |------|--------|---------------|
+| KaleidBeat free zones | `free_zone_channels` is typed into `BmsonKaleid` and exposed through `BmsonProcessed`; free-zone judgment semantics stay in the player | a player needs a shared free-zone evaluation model |
 | BMSON MSS | `Long + Release` is exposed as a descriptive note point; there is no dedicated MSS judgment state | a player implements MSS scoring or input |
 | Layer-event `condition` / `interval` / `id_set` | clip selection conditions are not modeled; `bga_sequence` clips and clip references (poor/layer) are modeled, so poor animations still play the referenced clip | an imported chart needs condition-driven clip selection |
 

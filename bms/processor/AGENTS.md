@@ -94,7 +94,7 @@ feature is missing by accident.
 | Item | Status | Reassess when |
 |------|--------|---------------|
 | `#CDDA` / `#MIDIFILE` | only stored in the `audio` sidecar; no playback abstraction | a player needs CD or MIDI sources |
-| KaleidBeat `free_zone_channels` | typed into the sidecar; free-zone judgment semantics stay in the player | a player needs a shared free-zone evaluation model |
+| KaleidBeat free zones | BMS text carries them as `BmsChannel::Extension`; `BmsKaleid.objects` holds them as `KaleidObjectKind::FreeZone`, and free-zone judgment semantics stay in the player | a player needs a shared free-zone evaluation model |
 | KaleidBeat conditional branches | structure, conditions, and branch rows are preserved; condition evaluation, DEFAULT-based scoring, and branch replay stay in the player | a player needs the shared evaluation model |
 | BMD synthesis audio | synthetic `AudioAsset.path` values (`bmd:<wav-id>`) and `BmsKaleid.synth`; a player without the sidecar sees them as missing files, and the processor never probes those paths | a generic player needs a first-class synth source |
 | BGM layering | BGM events stay separate; only judgeable notes merge `NoteAudio`; beatoraja (`bgnotes`) and bmz-player (`bgm_events`) keep them separate as well | a real chart needs BGM layers merged |

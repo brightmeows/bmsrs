@@ -180,4 +180,4 @@ Versions, `CHANGELOG.md`, and git tags belong to release-plz.
 
 A PR opens once its checks pass and merges only after the user approves. One
 logical change per commit. Ask before adding an external dependency or touching
-CI. Never force-push `main`.
+CI, or changing `.pre-commit-config.yaml`. Never force-push `main`.
