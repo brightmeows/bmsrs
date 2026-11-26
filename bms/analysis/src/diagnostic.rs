@@ -1,6 +1,7 @@
 //! Analysis diagnostics.
 
 use bmsrs_bms_syntax::TextRange;
+pub use bmsrs_pipeline::Diagnostic;
 pub use bmsrs_pipeline::DiagnosticCode;
 
 /// Diagnostic severity.
@@ -60,5 +61,26 @@ impl AnalysisDiagnostic {
     #[must_use]
     pub const fn code(&self) -> Option<DiagnosticCode> {
         self.code
+    }
+}
+
+impl From<&AnalysisDiagnostic> for Diagnostic {
+    fn from(diagnostic: &AnalysisDiagnostic) -> Self {
+        let converted = Self::new(diagnostic.severity, diagnostic.message.clone()).with_span(
+            bmsrs_pipeline::SourceSpan::new(
+                diagnostic.range.start().into(),
+                diagnostic.range.end().into(),
+            ),
+        );
+        match diagnostic.code {
+            Some(code) => converted.with_code(code),
+            None => converted,
+        }
+    }
+}
+
+impl From<AnalysisDiagnostic> for Diagnostic {
+    fn from(diagnostic: AnalysisDiagnostic) -> Self {
+        Self::from(&diagnostic)
     }
 }

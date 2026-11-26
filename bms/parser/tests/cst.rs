@@ -51,7 +51,7 @@ fn from_document_collects_unselected_branch_warning() {
     let result = BmsParser::parse_document(&document, &mut |_| 1).unwrap();
     assert!(matches!(
         result.warnings.as_slice(),
-        [bmsrs_bms_parser::BmsParseWarning { line, kind: bmsrs_bms_parser::BmsParseWarningKind::Tokenize(_), .. }]
+        [bmsrs_bms_parser::BmsDiagnostic { line, kind: bmsrs_bms_parser::BmsDiagnosticKind::Tokenize(_), .. }]
             if line.get() == 6
     ));
 }
@@ -68,7 +68,7 @@ fn from_document_fail_fast_returns_unselected_branch_warning() {
     let result = BmsParser::parse_document_with(&document, &options, &mut |_| 1);
     assert!(matches!(
         result,
-        Err(bmsrs_bms_parser::BmsParseWarning { line, .. }) if line.get() == 6
+        Err(bmsrs_bms_parser::BmsDiagnostic { line, .. }) if line.get() == 6
     ));
 }
 

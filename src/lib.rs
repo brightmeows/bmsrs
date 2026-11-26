@@ -32,6 +32,7 @@ pub mod bms {
 
     pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
+    pub use parser::{BmsDiagnostic, BmsDiagnosticKind};
     pub use processor::layout::{Bme, BmsLayout};
     pub use processor::{AssetLookup, ProcessError, ProcessWarning, Processed};
 
@@ -51,80 +52,32 @@ pub mod bms {
     };
 
     /// Error type for the whole-pipeline entry points.
+    ///
+    /// The diagnostic variant is the error that stopped a `FailFast` parse or
+    /// a document that failed to decode; the other two have no position in the
+    /// text.
     #[derive(Debug, thiserror::Error)]
     #[non_exhaustive]
-    pub enum FromTextError {
-        /// CST syntax or control-flow structure error.
-        #[error("syntax error at {range:?}: {message}")]
-        Syntax {
-            /// Text range.
-            range: syntax::TextRange,
-            /// Error message.
-            message: String,
-            /// Stable code assigned by the syntax layer.
-            code: bmsrs_pipeline::DiagnosticCode,
-        },
-        /// Single-line value parse error.
-        #[error("tokenization error at {range:?}: {error}")]
-        Tokenize {
-            /// Text range.
-            range: syntax::TextRange,
-            /// Tokenizer error.
-            error: values::BmsTokenizeError,
-        },
-        /// Document decode error.
-        #[error("decode error at {range:?}: {error}")]
-        Decode {
-            /// Text range.
-            range: syntax::TextRange,
-            /// Decode error.
-            error: source::TextDecodeError,
-        },
+    pub enum ParseError {
+        /// A decode, tokenization, or CST diagnostic of error severity.
+        #[error(transparent)]
+        Diagnostic(#[from] parser::BmsDiagnostic),
+        /// The file's control-flow blocks diverged from the recording.
+        #[error(transparent)]
+        Branch(#[from] syntax::BranchMismatch),
         /// File read error.
         #[error("failed to read file: {0}")]
         Io(#[from] std::io::Error),
-    }
-
-    /// Non-fatal warnings from the whole-pipeline entry points.
-    #[derive(Debug, Clone, PartialEq, thiserror::Error)]
-    #[non_exhaustive]
-    pub enum FromTextWarning {
-        /// CST syntax or control-flow structure warning.
-        #[error("syntax warning at {range:?}: {message}")]
-        Syntax {
-            /// Text range.
-            range: syntax::TextRange,
-            /// Warning message.
-            message: String,
-            /// Stable code assigned by the syntax layer.
-            code: bmsrs_pipeline::DiagnosticCode,
-        },
-        /// Single-line value parsing failed and the line was skipped.
-        #[error("tokenization warning at {range:?}: {error}")]
-        Tokenize {
-            /// Text range.
-            range: syntax::TextRange,
-            /// Tokenizer error.
-            error: values::BmsTokenizeError,
-        },
-        /// Document decoding failed.
-        #[error("decode warning at {range:?}: {error}")]
-        Decode {
-            /// Text range.
-            range: syntax::TextRange,
-            /// Decode error.
-            error: source::TextDecodeError,
-        },
     }
 
     /// Parse BMS text with defaults: first branch and `CollectAll`.
     ///
     /// # Errors
     ///
-    /// Returns [`FromTextError`] when parsing fails.
+    /// Returns [`ParseError`] when parsing fails.
     pub fn parse(
         text: &str,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         parse_with(
             text,
             &syntax::ParseOptions::default(),
@@ -143,34 +96,23 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`FromTextError`] when `FailFast` encounters an error.
+    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
+    /// diagnostic of error severity.
     pub fn parse_with(
         text: &str,
         options: &syntax::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         let document = source::Document::from_text(text);
         from_document(&document, options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
-    }
-
-    /// Error type for recorded-selection replay entry points.
-    #[derive(Debug, thiserror::Error)]
-    #[non_exhaustive]
-    pub enum ReplayParseError {
-        /// Source text decoding failed.
-        #[error(transparent)]
-        Decode(#[from] source::TextDecodeError),
-        /// The file's control-flow blocks diverged from the recording.
-        #[error(transparent)]
-        Branch(#[from] syntax::BranchMismatch),
     }
 
     /// Parse BMS text by replaying a recorded [`BranchSelection`].
     ///
     /// The replay is strict: when the file's control-flow blocks diverge from
     /// the recording (count, kind, or declared bound), the call fails with
-    /// [`ReplayParseError::Branch`] naming the first divergent block.
+    /// [`ParseError::Branch`] naming the first divergent block.
     /// `#SETRANDOM` / `#SETSWITCH` values are taken from the current file.
     ///
     /// Build the recording with `parse` /
@@ -181,27 +123,37 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`ReplayParseError`] when decoding fails or the recording
-    /// diverges from the file.
+    /// Returns [`ParseError`] when decoding fails or the recording diverges
+    /// from the file.
     pub fn parse_from_selection(
         text: &str,
         selection: &syntax::BranchSelection,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, ReplayParseError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         let document = source::Document::from_text(text);
-        let src = document.try_to_text().map_err(ReplayParseError::Decode)?;
+        let src = document
+            .try_to_text()
+            .map_err(BmsDiagnostic::decode)
+            .map_err(ParseError::from)?;
         let parse = syntax::SourceFile::parse_with(&src, &syntax::ParseOptions::default());
-        let mut warnings: Vec<FromTextWarning> = parse
+        let file = parse.source_file();
+        let mut warnings: Vec<BmsDiagnostic> = parse
             .errors()
             .iter()
-            .map(|error| FromTextWarning::Syntax {
+            .map(|error| BmsDiagnostic {
+                line: file
+                    .line_number_at(error.range().start())
+                    .unwrap_or(std::num::NonZeroUsize::MIN),
                 range: error.range(),
-                message: error.message().to_owned(),
-                code: error.code(),
+                severity: error.severity(),
+                kind: BmsDiagnosticKind::Cst {
+                    message: error.message().to_owned(),
+                    code: error.code(),
+                },
             })
             .collect();
-        let parsed = parser::BmsParser::parse_from_selection(&parse.source_file(), selection)
-            .map_err(ReplayParseError::Branch)?;
-        warnings.extend(parsed.warnings.into_iter().map(from_parse_warning));
+        let parsed =
+            parser::BmsParser::parse_from_selection(&file, selection).map_err(ParseError::from)?;
+        warnings.extend(parsed.warnings);
         Ok(bmsrs_pipeline::Outcome::new(parsed.bms, warnings))
     }
 
@@ -213,28 +165,24 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`FromTextError`] when `FailFast` encounters an error.
+    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
+    /// diagnostic of error severity.
     pub fn parse_with_recording(
         text: &str,
         options: &syntax::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<
         (
-            bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>,
+            bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>,
             syntax::BranchSelection,
         ),
-        FromTextError,
+        ParseError,
     > {
         let document = source::Document::from_text(text);
         let parsed = parser::BmsParser::parse_document_with(&document, options, rng)
-            .map_err(from_parse_error)?;
-        let warnings = parsed
-            .warnings
-            .into_iter()
-            .map(from_parse_warning)
-            .collect();
+            .map_err(ParseError::from)?;
         Ok((
-            bmsrs_pipeline::Outcome::new(parsed.bms, warnings),
+            bmsrs_pipeline::Outcome::new(parsed.bms, parsed.warnings),
             parsed.selection,
         ))
     }
@@ -243,10 +191,10 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`FromTextError`] when parsing or decoding fails.
+    /// Returns [`ParseError`] when parsing or decoding fails.
     pub fn parse_bytes(
         bytes: Vec<u8>,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         parse_bytes_with(
             bytes,
             &source::DocumentOptions::default(),
@@ -259,13 +207,14 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`FromTextError`] when `FailFast` encounters an error.
+    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
+    /// diagnostic of error severity.
     pub fn parse_bytes_with(
         bytes: Vec<u8>,
         doc_options: &source::DocumentOptions,
         parse_options: &syntax::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         let document = source::Document::from_bytes_with(bytes, doc_options);
         from_document(&document, parse_options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
@@ -278,11 +227,11 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`FromTextError`] when reading fails or when parsing or
+    /// Returns [`ParseError`] when reading fails or when parsing or
     /// decoding fails.
     pub fn parse_file(
         path: impl AsRef<std::path::Path>,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, FromTextWarning>, FromTextError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         let file_path = path.as_ref();
         let options = syntax::ParseOptions {
             format: bmsrs_pipeline::SourceFormat::from_path(file_path),
@@ -353,85 +302,10 @@ pub mod bms {
         document: &source::Document,
         options: &syntax::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<(model::Bms, Vec<FromTextWarning>), FromTextError> {
+    ) -> Result<(model::Bms, Vec<BmsDiagnostic>), ParseError> {
         let parsed = parser::BmsParser::parse_document_with(document, options, rng)
-            .map_err(from_parse_error)?;
-        Ok((
-            parsed.bms,
-            parsed
-                .warnings
-                .into_iter()
-                .map(from_parse_warning)
-                .collect(),
-        ))
-    }
-
-    /// Convert a parser-layer warning into a facade warning.
-    fn from_parse_warning(warning: parser::BmsParseWarning) -> FromTextWarning {
-        match warning.kind {
-            parser::BmsParseWarningKind::Syntax { message, code } => FromTextWarning::Syntax {
-                range: warning.range,
-                message,
-                code,
-            },
-            parser::BmsParseWarningKind::Tokenize(error) => FromTextWarning::Tokenize {
-                range: warning.range,
-                error,
-            },
-            parser::BmsParseWarningKind::Decode(error) => FromTextWarning::Decode {
-                range: warning.range,
-                error,
-            },
-        }
-    }
-
-    /// Convert a parser-layer warning into a facade error.
-    fn from_parse_error(warning: parser::BmsParseWarning) -> FromTextError {
-        match warning.kind {
-            parser::BmsParseWarningKind::Syntax { message, code } => FromTextError::Syntax {
-                range: warning.range,
-                message,
-                code,
-            },
-            parser::BmsParseWarningKind::Tokenize(error) => FromTextError::Tokenize {
-                range: warning.range,
-                error,
-            },
-            parser::BmsParseWarningKind::Decode(error) => FromTextError::Decode {
-                range: warning.range,
-                error,
-            },
-        }
-    }
-    // The unified diagnostic exit lives in `bmsrs-pipeline`; each layer keeps
-    // its own warning type and converts at this boundary.
-    impl From<FromTextWarning> for bmsrs_pipeline::Diagnostic {
-        fn from(warning: FromTextWarning) -> Self {
-            match warning {
-                FromTextWarning::Syntax {
-                    range,
-                    message,
-                    code,
-                } => Self::new(bmsrs_pipeline::Severity::Warning, message)
-                    .with_span(text_span(range))
-                    .with_code(code),
-                FromTextWarning::Tokenize { range, error } => {
-                    Self::new(bmsrs_pipeline::Severity::Warning, error.to_string())
-                        .with_span(text_span(range))
-                        .with_code(bmsrs_pipeline::DiagnosticCode::Tokenize)
-                }
-                FromTextWarning::Decode { range, error } => {
-                    Self::new(bmsrs_pipeline::Severity::Warning, error.to_string())
-                        .with_span(text_span(range))
-                        .with_code(bmsrs_pipeline::DiagnosticCode::Decode)
-                }
-            }
-        }
-    }
-
-    /// Convert a rowan text range into a format-neutral source span.
-    fn text_span(range: syntax::TextRange) -> bmsrs_pipeline::SourceSpan {
-        bmsrs_pipeline::SourceSpan::new(range.start().into(), range.end().into())
+            .map_err(ParseError::from)?;
+        Ok((parsed.bms, parsed.warnings))
     }
 }
 
@@ -640,7 +514,7 @@ pub mod prelude {
     pub use crate::bms::process_with;
     pub use crate::bms::{Bme, Bms, BmsLayout};
     pub use crate::bms::{
-        FromTextError, FromTextWarning, parse, parse_bytes, parse_with, process, write,
+        BmsDiagnostic, ParseError, parse, parse_bytes, parse_with, process, write,
     };
     #[cfg(feature = "bmson")]
     pub use crate::bmson::Bmson;

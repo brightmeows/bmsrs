@@ -22,7 +22,11 @@ fn parse_with_collect_all_reports_tokenize_warnings() {
         .unwrap_or_else(|error| panic!("{error}"));
     assert!(matches!(
         outcome.warnings.as_slice(),
-        [bmsrs::bms::FromTextWarning::Tokenize { range, .. }] if !range.is_empty()
+        [bmsrs::bms::BmsDiagnostic {
+            kind: bmsrs::bms::BmsDiagnosticKind::Tokenize(_),
+            range,
+            ..
+        }] if !range.is_empty()
     ));
 }
 
@@ -92,7 +96,11 @@ fn parse_with_fail_fast_returns_tokenize_error() {
     let result = bmsrs::bms::parse_with(text, &options, &mut |_| 1);
     assert!(matches!(
         result,
-        Err(bmsrs::bms::FromTextError::Tokenize { range, .. }) if !range.is_empty()
+        Err(bmsrs::bms::ParseError::Diagnostic(bmsrs::bms::BmsDiagnostic {
+            kind: bmsrs::bms::BmsDiagnosticKind::Tokenize(_),
+            range,
+            ..
+        })) if !range.is_empty()
     ));
 }
 
@@ -103,7 +111,10 @@ fn parse_with_collect_all_reports_unselected_branch_error() {
         .unwrap_or_else(|error| panic!("{error}"));
     assert!(matches!(
         outcome.warnings.as_slice(),
-        [bmsrs::bms::FromTextWarning::Tokenize { .. }]
+        [bmsrs::bms::BmsDiagnostic {
+            kind: bmsrs::bms::BmsDiagnosticKind::Tokenize(_),
+            ..
+        }]
     ));
 }
 

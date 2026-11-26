@@ -8,10 +8,13 @@ warnings, and the `BmsParser` entry points.
 
 ## Entry points
 
-`BmsParser` and its warning semantics are documented on the type. Key
-distinction: `parse`/`parse_with` report warnings from selected branches only;
-`parse_document` collects warnings from every line; `parse_from_selection`
-replays a recorded `BranchSelection` strictly.
+`BmsParser` and its warning semantics are documented on the type. Every entry
+returns `BmsDiagnostic`, which carries the severity the syntax layer assigned;
+`FailFast` returns the first error-severity diagnostic as `Err` and leaves
+warning-severity ones in the list. Key distinction: `parse`/`parse_with` report
+diagnostics from selected branches only; `parse_document` collects them from
+every line; `parse_from_selection` replays a recorded `BranchSelection`
+strictly.
 
 ## Tests
 
@@ -23,7 +26,7 @@ Completion: `cargo test -p bmsrs-bms-parser` green.
 
 - Keep `BmsParser` as a zero-sized type; operations are associated functions
 - Route model construction through `Bms::from_flat_tokens`
-- Keep line numbers 1-based in `LineToken` and `BmsParseWarning`
+- Keep line numbers 1-based in `LineToken` and `BmsDiagnostic`
 
 ### Ask
 

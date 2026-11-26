@@ -58,10 +58,7 @@ fn java_random_seed_reproduces_branch_layout_and_replays() {
 
     let drifted = text.replace("#RANDOM 5", "#RANDOM 4");
     let error = bmsrs::bms::parse_from_selection(&drifted, &selection);
-    assert!(matches!(
-        error,
-        Err(bmsrs::bms::ReplayParseError::Branch(_))
-    ));
+    assert!(matches!(error, Err(bmsrs::bms::ParseError::Branch(_))));
 }
 
 #[cfg(feature = "bmson")]
@@ -149,7 +146,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
     // into `raw`.
     let resolved = [
         named::<bmsrs::bms::Bms>(),
-        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::FromTextWarning>>(),
+        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::BmsDiagnostic>>(),
         named::<bmsrs::bms::Processed>(),
         named::<bmsrs::bms::ProcessWarning>(),
         named::<bmsrs::bms::ProcessError>(),
@@ -167,9 +164,9 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::BranchSelection>(),
         named::<bmsrs::bms::BranchMismatch>(),
         named::<bmsrs::bms::ControlFlowCompat>(),
-        named::<bmsrs::bms::FromTextError>(),
-        named::<bmsrs::bms::FromTextWarning>(),
-        named::<bmsrs::bms::ReplayParseError>(),
+        named::<bmsrs::bms::ParseError>(),
+        named::<bmsrs::bms::BmsDiagnostic>(),
+        named::<bmsrs::bms::BmsDiagnosticKind>(),
     ];
     assert_eq!(resolved.len(), 22);
     // `type_name` reports the defining crate, not the re-export path, so the
@@ -232,4 +229,58 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
         .collect();
     assert!(invalid_codes.contains(&DiagnosticCode::Syntax));
     assert!(!invalid_codes.contains(&DiagnosticCode::ControlFlow));
+}
+
+#[test]
+fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
+    use bmsrs::bms::{BmsDiagnosticKind, ParseOptions};
+    use bmsrs::pipeline::{DiagnosticCode, ErrorStrategy, Severity};
+
+    // An unclosed `#RANDOM` is warning-grade in the syntax layer, so FailFast
+    // keeps parsing and reports it in the list instead of failing.
+    let parsed = bmsrs::bms::parse_with(
+        "#RANDOM 2\n#IF 1\n#TITLE A\n",
+        &ParseOptions {
+            error_strategy: ErrorStrategy::FailFast,
+            ..ParseOptions::default()
+        },
+        &mut |_| 1,
+    )
+    .expect("a control-flow warning is not fatal");
+    assert_eq!(parsed.value.metadata.title.as_deref(), Some("A"));
+
+    let unclosed = parsed
+        .warnings
+        .iter()
+        .find(|warning| {
+            matches!(
+                warning.kind,
+                BmsDiagnosticKind::Cst {
+                    code: DiagnosticCode::ControlFlow,
+                    ..
+                }
+            )
+        })
+        .expect("the unclosed block is reported");
+    assert_eq!(unclosed.severity, Severity::Warning);
+    assert!(!unclosed.is_error());
+}
+
+#[test]
+fn syntax_error_keeps_error_severity_at_the_pipeline_exit() {
+    let parsed = bmsrs::bms::parse("# BAD\n").expect("collect-all parses");
+    let diagnostic = parsed
+        .warnings
+        .iter()
+        .find(|warning| matches!(warning.kind, bmsrs::bms::BmsDiagnosticKind::Cst { .. }))
+        .cloned()
+        .map(bmsrs::pipeline::Diagnostic::from)
+        .expect("one CST diagnostic");
+
+    assert_eq!(diagnostic.severity, bmsrs::pipeline::Severity::Error);
+    assert_eq!(
+        diagnostic.code,
+        Some(bmsrs::pipeline::DiagnosticCode::Syntax)
+    );
+    assert!(diagnostic.span.is_some_and(|span| !span.is_empty()));
 }
