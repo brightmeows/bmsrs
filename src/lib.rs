@@ -24,8 +24,6 @@
 //! assert_eq!(player.current_tick(), 480);
 //! ```
 //!
-mod java_random;
-
 /// Parsing and processing for the BMS format.
 pub mod bms {
     // Layer crates live under `raw`; the curated path keeps only the entry
@@ -42,8 +40,7 @@ pub mod bms {
     pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
     pub use values::BmsTokenizeError;
 
-    pub use crate::java_random::JavaRandom;
-    pub use syntax::{ControlFlowCompat, ControlFlowRng, LR2_SEED_MAX, Lr2Mt19937};
+    pub use syntax::{ControlFlowCompat, ControlFlowRng, JavaRandom, LR2_SEED_MAX, Lr2Mt19937};
 
     /// Error type for the whole-pipeline entry points.
     #[derive(Debug, thiserror::Error)]

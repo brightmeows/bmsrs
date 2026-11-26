@@ -3,8 +3,8 @@
 //! Two players define the de-facto layouts:
 //!
 //! - **beatoraja** draws each `#RANDOM` / `#SWITCH` value from
-//!   `java.util.Random` seeded with the requested seed; the facade crate's
-//!   `JavaRandom` reproduces its bit stream exactly.
+//!   `java.util.Random` seeded with the requested seed; [`JavaRandom`]
+//!   reproduces its bit stream exactly.
 //! - **LR2** draws from `DxLib`'s MT19937, whose seeding differs from the
 //!   standard `init_genrand`: `srandMT` fills the state through a 69069 LCG
 //!   taking the high 16 bits of each step. [`Lr2Mt19937`] reproduces the

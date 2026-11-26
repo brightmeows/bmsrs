@@ -20,6 +20,7 @@
 //! `bmsrs-bms-parser`.
 
 mod ast;
+mod java_random;
 mod language;
 mod lexer;
 mod parser;
@@ -29,6 +30,7 @@ mod syntax_kind;
 
 pub use ast::{SourceFile, SyntaxLine};
 pub use bmsrs_pipeline::{DiagnosticCode, Severity};
+pub use java_random::JavaRandom;
 pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, SyntaxToken};
 pub use lexer::SyntaxLineKind;
 pub use parser::{Diagnostic, IncrementalParser, SyntaxParse};

@@ -41,12 +41,14 @@ fn bms_parse_bytes_with_accepts_curated_option_types() {
 
 #[test]
 fn java_random_seed_reproduces_branch_layout_and_replays() {
+    use bmsrs::bms::ControlFlowRng as _;
+
     let text =
         "#RANDOM 5\n#IF 1\n#TITLE ONE\n#ENDIF\n#IF 5\n#TITLE FIVE\n#ENDIF\n#ENDRANDOM\n#BPM 120\n";
     let mut rng = bmsrs::bms::JavaRandom::new(123_456_789);
     let (recorded, selection) =
         bmsrs::bms::parse_with_recording(text, &bmsrs::bms::ParseOptions::default(), |max| {
-            rng.choice(max)
+            rng.draw(max)
         })
         .expect("valid BMS");
     let title_from_seed = recorded.value.metadata.title;
