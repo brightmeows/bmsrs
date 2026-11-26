@@ -47,3 +47,20 @@ See the internal `slice` module.
 | Resource paths | `SoundChannel`/`mine_channels`/`key_channels`/BGA/image paths all go through `normalize_path`: absolute paths, drive prefixes, `..`, NUL, and empty paths are rejected; backslashes become forward slashes |
 | Metadata | `subartists`, `title_image`, and `judge_rank` (as `JudgeRankSpec` with the `BmsonJudgeRank` kind) map to `ChartInfo`; `ln_mode` was removed, beatoraja `t` overrides `ln_type_hint`, and the chart-level hint carries `None` through when the source omits the field |
 | Resolution fallback | `resolution: 0` falls back to 240 with `ZeroResolutionFallback`; negative JSON values take their absolute value at deserialization |
+
+## Known limitations
+
+These are boundaries intentionally left open. Check them before assuming a
+feature is missing by accident.
+
+| Item | Status | Reassess when |
+|------|--------|---------------|
+| KaleidBeat free zones | `free_zone_channels` is typed into `BmsonKaleid` and exposed through `BmsonProcessed`; free-zone judgment semantics stay in the player | a player needs a shared free-zone evaluation model |
+| BMSON MSS | `Long + Release` is exposed as a descriptive note point; there is no dedicated MSS judgment state | a player implements MSS scoring or input |
+| Layer-event `condition` / `interval` / `id_set` | clip selection conditions are not modeled; `bga_sequence` clips and clip references (poor/layer) are modeled, so poor animations still play the referenced clip | an imported chart needs condition-driven clip selection |
+
+## Cross-engine divergences
+
+| Case | bmsrs default | Other engine | Where |
+|------|---------------|--------------|-------|
+| `info.total` | `ChartInfo.total_percent` keeps the raw percentage and `ChartInfo.total` stays `None` | bmz-player converts it to a concrete gauge total against beatoraja's note-count formula | `total_percent` |

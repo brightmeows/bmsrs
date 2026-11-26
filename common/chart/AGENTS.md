@@ -82,7 +82,7 @@ queries.
 | `Chart::new(song, chart, data)` | validates BGA resource references; the embedded `ChartData` is already valid |
 | `Player::new` | infallible; consumes an already validated `Chart` |
 | BPM/Stop single source | `EventKind::Bpm`/`EventKind::Stop` are authoritative; `TimingTrack::from_events` derives the timing cache |
-| Negative BPM | changes are dropped with a processor warning; a negative initial BPM is rejected. Negative SCROLL rates, which reverse only the visual scrolling, are supported. bmz-player clamps invalid BPM changes to `1.0` instead; deliberately not followed (beatoraja drops them) |
+| Negative BPM | changes are dropped with a processor warning and a negative initial BPM is rejected; time flowing backwards (a negative BPM segment) is not modeled. Negative SCROLL rates, which reverse only the visual scrolling, are supported. bmz-player clamps invalid changes to `1.0` and reflects the judgment clock around the latest negative event (`reflect_time` over `TimeUs(i64)`), which needs a signed time domain; both deliberately not followed (beatoraja drops the changes) |
 | Same-tick STOP | BMS keeps the last stop (matching beatoraja); BMSON sums durations per the bmson specification; `TimingTrack::new` applies last-wins defensively. jbms-parser keeps the last bmson stop instead; the specification (and bmz-player) sum, and bmsrs follows the specification |
 | Stop durations are time, not ticks | `EventKind::Stop`/`StopEvent` hold `Duration`; processors convert `#STOP` through the tick's BPM and `#STP`/BMSON pulses directly, so no tick quantization remains |
 | `ChartInfo.judge_rank` / `total` / `volwav_percent` | raw source values (`JudgeRankSpec` carries the `BmsRank`/`DefExRank`/`BmsonJudgeRank` kind); the percentage-to-window mapping is engine policy and stays with the caller |
@@ -106,6 +106,8 @@ queries.
 
 ## Known limitations (not in the IR)
 
-| Item | Reason |
-|------|--------|
-| BMS `#EXBMP` per-image transparent color / `#ARGB` per-layer tinting (as resource attributes) | already carried as events through `BmsCustomEvent::BgaArgb` (channels A1-A4); not modeled again as resource attributes |
+| Item | Status | Reassess when |
+|------|--------|---------------|
+| Display fields such as `#CHARFILE` | not included in `Chart` | a renderer needs character images |
+| BMS `#EXBMP` per-image transparent color | stored in `Visual` as `OwnedExBmpParams` but not converted; no `Chart` field or event carries the per-image transparency | a renderer needs the transparent color |
+| BMS `#ARGB` per-layer tinting (as a resource attribute) | already carried as events through `BmsCustomEvent::BgaArgb` (channels A1-A4), so the raw definition is not modeled again | a consumer wants it as a resource attribute instead of an event |
