@@ -130,7 +130,7 @@ fn bmd_parse_file_selects_the_dialect_format() {
     assert_eq!(parsed.value.audio.wav_sources.len(), 1);
     assert!(matches!(
         parsed.value.audio.wav_sources.values().next(),
-        Some(bmsrs::raw::model::WavSource::Synth(_))
+        Some(bmsrs::raw::bms::model::WavSource::Synth(_))
     ));
 }
 

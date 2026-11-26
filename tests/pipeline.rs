@@ -5,7 +5,7 @@
 //! as external consumers expect.
 
 use bmsrs::bms::ErrorStrategy;
-use bmsrs::raw::syntax::ParseOptions;
+use bmsrs::raw::bms::syntax::ParseOptions;
 
 #[test]
 fn parse_with_collect_all_keeps_tokens_after_error() {

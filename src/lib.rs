@@ -28,7 +28,7 @@
 pub mod bms {
     // Layer crates live under `raw`; the curated path keeps only the entry
     // points and facade-owned types.
-    use crate::raw::{model, parser, processor, source, syntax, values, writer};
+    use crate::raw::bms::{model, parser, processor, source, syntax, values, writer};
 
     pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
@@ -39,7 +39,7 @@ pub mod bms {
     /// Every BMS mode family: the [`BmsLayout`] trait
     /// and its standard implementations.
     pub mod layout {
-        pub use crate::raw::processor::layout::*;
+        pub use crate::raw::bms::processor::layout::*;
     }
     pub use source::DocumentOptions;
     pub use source::TextDecodeError;
@@ -327,8 +327,7 @@ pub mod bms {
 pub mod bmson {
     // Bmson layer types resolve through `raw`; the curated path keeps only the
     // entry points and facade-owned types.
-    use crate::raw::bmson_model as model;
-    use crate::raw::bmson_processor as processor;
+    use crate::raw::bmson::{model, processor};
 
     pub use bmsrs_pipeline::Outcome;
     pub use model::Bmson;
@@ -339,7 +338,7 @@ pub mod bmson {
     /// implementations, including
     /// [`GenericLayout`](layout::GenericLayout).
     pub mod layout {
-        pub use crate::raw::bmson_processor::layout::*;
+        pub use crate::raw::bmson::processor::layout::*;
     }
 
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
@@ -451,57 +450,65 @@ pub mod player {
 }
 
 /// Low-level crates for advanced and editor integrations.
+///
+/// The modules mirror the workspace directory tree: `raw::bms::*` maps to
+/// `bms/` and `raw::bmson::*` to `bmson/`.
 pub mod raw {
-    /// BMS source-text layer.
-    pub mod source {
-        pub use bmsrs_bms_source::*;
+    /// The BMS pipeline crates, one module per crate under `bms/`.
+    pub mod bms {
+        /// BMS source-text layer.
+        pub mod source {
+            pub use bmsrs_bms_source::*;
+        }
+
+        /// BMS syntax layer.
+        pub mod syntax {
+            pub use bmsrs_bms_syntax::*;
+        }
+
+        /// BMS single-line values.
+        pub mod values {
+            pub use bmsrs_bms_values::*;
+        }
+
+        /// BMS whole-file model.
+        pub mod model {
+            pub use bmsrs_bms_model::*;
+        }
+
+        /// BMS semantic parser.
+        pub mod parser {
+            pub use bmsrs_bms_parser::*;
+        }
+
+        /// BMS analysis layer: diagnostics, symbol index, and editor data.
+        pub mod analysis {
+            pub use bmsrs_bms_analysis::*;
+        }
+
+        /// BMS processor.
+        pub mod processor {
+            pub use bmsrs_bms_processor::*;
+        }
+
+        /// BMS writer.
+        pub mod writer {
+            pub use bmsrs_bms_writer::*;
+        }
     }
 
-    /// BMS syntax layer.
-    pub mod syntax {
-        pub use bmsrs_bms_syntax::*;
-    }
-
-    /// BMS single-line values.
-    pub mod values {
-        pub use bmsrs_bms_values::*;
-    }
-
-    /// BMS whole-file model.
-    pub mod model {
-        pub use bmsrs_bms_model::*;
-    }
-
-    /// BMS semantic parser.
-    pub mod parser {
-        pub use bmsrs_bms_parser::*;
-    }
-
-    /// BMS analysis layer: diagnostics, symbol index, and editor data.
-    pub mod analysis {
-        pub use bmsrs_bms_analysis::*;
-    }
-
-    /// BMS processor.
-    pub mod processor {
-        pub use bmsrs_bms_processor::*;
-    }
-
-    /// BMS writer.
-    pub mod writer {
-        pub use bmsrs_bms_writer::*;
-    }
-
-    /// BMSON model.
+    /// The BMSON pipeline crates, one module per crate under `bmson/`.
     #[cfg(feature = "bmson")]
-    pub mod bmson_model {
-        pub use bmsrs_bmson_model::*;
-    }
+    pub mod bmson {
+        /// BMSON model.
+        pub mod model {
+            pub use bmsrs_bmson_model::*;
+        }
 
-    /// BMSON processor.
-    #[cfg(feature = "bmson")]
-    pub mod bmson_processor {
-        pub use bmsrs_bmson_processor::*;
+        /// BMSON processor.
+        pub mod processor {
+            pub use bmsrs_bmson_processor::*;
+        }
     }
 }
 
@@ -509,7 +516,7 @@ pub mod raw {
 ///
 /// Covers the default-layout surface end to end: parsing, processing through
 /// the default family, simulation, and the core chart types. Non-default mode
-/// families go through the full [`processor`](crate::raw::processor) paths.
+/// families go through the full [`processor`](crate::raw::bms::processor) paths.
 pub mod prelude {
     pub use crate::bms::process_with;
     pub use crate::bms::{Bme, Bms, BmsLayout};
