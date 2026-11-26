@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(1)
         .ok_or("usage: quick_start <chart.bms>")?;
 
-    let parsed = bmsrs::bms::parse_file(path)?;
+    let parsed = bmsrs::bms::parse(std::path::Path::new(&path))?;
     println!("parse warnings: {}", parsed.warnings.len());
 
     let processed = bmsrs::bms::process(&parsed.value)?;

@@ -94,6 +94,7 @@ Pick the construction shape by what varies, not by habit:
 | Required inputs only | constructor | `Chart::new`, `TimingTrack::new` |
 | Optional overlays on a one-shot value | consuming `with_*` setter | `ChartData::new(..).with_ln_type_hint(..)`, `Diagnostic::new(..).with_span(..)` |
 | Configuration reused across calls | options struct with public fields | `ParseOptions`, `DocumentOptions` |
+| Mutually exclusive input kinds | closed sum type with constructors | `Input::text` / `Input::bytes` / `Input::file` |
 | A stage the caller must not skip | consuming finalizer | `MessagesBuilder::finish` |
 | Optional overlays that repeat as a set | preset `for_*` constructor | none yet; the trigger is a second call site setting the same seven `ChartData` overlays |
 
@@ -106,12 +107,14 @@ transformation, so a separate builder adds a type, a fallible `build()`, and a
 second spelling of the same arguments without removing anything a constructor
 plus `with_*` already removes. Reassess only when construction gains staged
 requirements or mutually exclusive choices, which is where typestate pays for
-itself.
+itself. `Input` is that reassessment: three mutually exclusive sources behind
+one type with constructors, and still no terminal `build()`.
 
 Every type named by a curated facade entry point must resolve from the same
 module. `tests/facade_api.rs` names them, so dropping a re-export fails to
 compile. `raw` is the escape hatch for everything else, which means `prelude`
-imports from the curated modules and never from `raw`.
+imports from the curated modules and never from `raw`; it exports types and
+traits only, so functions stay behind `bms::` and `bmson::`.
 
 `pub` inside a private module is the house style: `clippy::redundant_pub_crate`
 is denied, and the private module already caps visibility. The compiler's
@@ -128,8 +131,6 @@ Deferred interface work, with the trigger that reopens it:
 
 | Item | What deferring costs today | Trigger |
 |------|---------------------------|---------|
-| Input sum type (`Text` / `Bytes` / `File` / recorded selection) replacing the eight `bms::parse*` entry points | `parse_bytes` assumes `SourceFormat::Bms`, so `.bmd` bytes miss the `;` comment rule, Base62 normalization, and synth `#WAV` that `parse_file` applies | a third consumer needs the entry points, or a new input axis arrives |
-| One `parse` spelling across `bms` and `bmson` | the prelude exports the BMS `parse` only; BMSON callers spell the full path (`bmsrs::bmson::parse_str`, `bmsrs::bmson::process`) | the input sum type lands |
 | `Viewport` options struct | `Viewport::new` takes two `f64`, so a swapped pair compiles | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
 | A recoverable-warning channel for `bmson::parse_str` | a tool handling both formats branches on the return shape, since `bms::parse` returns `Outcome` and `bmson::parse_str` does not | BMSON parsing produces its first recoverable warning |
 | One return shape for range queries (`Player::events_in_range` yields a slice, `notes_in_range` an iterator) | one loop must call `.iter()` on one query and not the other | a consumer ranges over both in the same loop and has to convert |
