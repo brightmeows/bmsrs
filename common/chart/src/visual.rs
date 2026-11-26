@@ -169,7 +169,7 @@ pub enum BgaResourceKind {
 /// The dedicated newtype prevents SWBGA definition indices from being assigned
 /// to BGA resource indices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SwBgaResourceId(pub u32);
+pub struct SwBgaResourceId(u32);
 
 impl SwBgaResourceId {
     /// Create an SWBGA definition index from a raw index.
