@@ -73,10 +73,10 @@ correctness rule.
 
 The facade may flatten an associated function into a free entry point when the
 body is a single delegation to it and the receiver would be the only argument
-(`bms::write` is `BmsWriter::write`). The condition is that no second
+(`bms::write` is `Writer::write`). The condition is that no second
 implementation exists to keep in sync.
 
-A zero-sized namespace type (`BmsProcessor`, `BmsonProcessor`, `BmsWriter`)
+A zero-sized namespace type (`Processor` in each processor crate, `Writer`)
 groups operations that share a parameter set or a conversion process; it is not
 a builder. Builder means a type with a terminal method that consumes it, and
 `MessagesBuilder` is the only one in the workspace.

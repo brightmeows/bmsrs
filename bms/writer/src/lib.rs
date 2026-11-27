@@ -1,6 +1,6 @@
 //! Full-rewrite generator from the `Bms` model to BMS text.
 //!
-//! [`BmsWriter`] regenerates BMS text from the structured [`Bms`] model. The
+//! [`Writer`] regenerates BMS text from the structured [`Bms`] model. The
 //! output is **canonical**: headers are emitted grouped by domain, and channel
 //! lines are sorted and merged by (measure, channel); comments, original line
 //! formatting, and blank lines are not preserved. For byte-faithful line-level
@@ -10,7 +10,7 @@
 //! # Pipeline
 //!
 //! ```text
-//! bmsrs_bms_model::Bms -> BmsWriter::write -> String (BMS text)
+//! bmsrs_bms_model::Bms -> Writer::write -> String (BMS text)
 //! ```
 
 mod conditional;
@@ -22,11 +22,11 @@ use bmsrs_bms_model::Bms;
 /// BMS text generator.
 ///
 /// Zero-sized type; all functionality is exposed through the associated
-/// function [`BmsWriter::write`].
+/// function [`Writer::write`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct BmsWriter;
+pub struct Writer;
 
-impl BmsWriter {
+impl Writer {
     /// Generate BMS text from the [`Bms`] model.
     ///
     /// Output layout:

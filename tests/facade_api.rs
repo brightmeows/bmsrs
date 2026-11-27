@@ -156,7 +156,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
     fn named<T>() -> &'static str {
         std::any::type_name::<T>()
     }
-    fn bms_layout<T: bmsrs::bms::BmsLayout>() {}
+    fn bms_layout<T: bmsrs::bms::Layout>() {}
 
     // Each path below appears in a curated entry point's signature, so a
     // caller must be able to name it from the same module without reaching
@@ -202,18 +202,16 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
     fn named<T>() -> &'static str {
         std::any::type_name::<T>()
     }
-    fn bmson_layout<T: bmsrs::bmson::BmsonLayout>() {}
+    fn bmson_layout<T: bmsrs::bmson::Layout>() {}
 
     let resolved = [
         named::<bmsrs::bmson::Bmson>(),
         named::<bmsrs::bmson::layout::GenericLayout>(),
-        named::<
-            bmsrs::bmson::Outcome<bmsrs::bmson::BmsonProcessed, bmsrs::bmson::BmsonProcessWarning>,
-        >(),
-        named::<bmsrs::bmson::BmsonProcessed>(),
-        named::<bmsrs::bmson::BmsonProcessWarning>(),
+        named::<bmsrs::bmson::Outcome<bmsrs::bmson::Processed, bmsrs::bmson::ProcessWarning>>(),
+        named::<bmsrs::bmson::Processed>(),
+        named::<bmsrs::bmson::ProcessWarning>(),
         named::<bmsrs::bmson::ProcessError>(),
-        named::<bmsrs::bmson::BmsonParseError>(),
+        named::<bmsrs::bmson::ParseError>(),
     ];
     assert_eq!(resolved.len(), 7);
     assert!(resolved.iter().all(|name| !name.is_empty()));
@@ -376,16 +374,17 @@ fn prelude_exports_every_type_and_no_functions() {
     use bmsrs::prelude::*;
 
     // Traits are named through a bound, not a type argument.
-    fn bounded_by<T: BmsLayout>() {}
+    fn bounded_by<T: Layout>() {}
     fn drawn_by<T: ControlFlowRng>() {}
-    fn bmson_bounded_by<T: BmsonLayout>() {}
 
     fn named<T>() -> &'static str {
         std::any::type_name::<T>()
     }
 
     // The prelude is types and traits only; every item is named here so a
-    // dropped re-export fails to compile.
+    // dropped re-export fails to compile. The bmson Processed, ProcessWarning,
+    // ParseError, and Layout share their names with bms and stay behind
+    // `bmsrs::bmson::`.
     let resolved = [
         named::<AssetLookup>(),
         named::<Bms>(),
@@ -413,9 +412,6 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<Beat>(),
         named::<GenericLayout>(),
         named::<Bmson>(),
-        named::<BmsonParseError>(),
-        named::<BmsonProcessed>(),
-        named::<BmsonProcessWarning>(),
         named::<Chart>(),
         named::<ChartData>(),
         named::<Event>(),
@@ -430,11 +426,10 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<SourceSpan>(),
         named::<Player>(),
     ];
-    assert_eq!(resolved.len(), 42);
+    assert_eq!(resolved.len(), 39);
     assert!(resolved.iter().all(|name| !name.is_empty()));
     bounded_by::<Bme>();
     drawn_by::<JavaRandom>();
-    bmson_bounded_by::<Beat>();
 }
 
 #[test]
@@ -522,7 +517,7 @@ fn bmson_v1_zero_init_bpm_fails_at_parse_like_v0() {
     let error = bmsrs::bmson::parse_str(&v1).expect_err("v1 init_bpm 0 is rejected");
     assert!(matches!(
         error,
-        bmsrs::bmson::BmsonParseError::Version(BmsonError::Upgrade(UpgradeError::InvalidInitBpm {
+        bmsrs::bmson::ParseError::Version(BmsonError::Upgrade(UpgradeError::InvalidInitBpm {
             bpm: 0.0
         }))
     ));

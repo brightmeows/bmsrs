@@ -9,8 +9,8 @@ use bmsrs_bms_model::{
     NonEventData, NoteEvent, Position, StpEvent,
 };
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
-use bmsrs_bms_processor::layout::{Bme, BmsLayout as _, ChannelPos, DscOctFp, Nanasi, Pms, PmsBme};
-use bmsrs_bms_processor::{BmsProcessor, ProcessError, ProcessWarningKind};
+use bmsrs_bms_processor::layout::{Bme, ChannelPos, DscOctFp, Layout as _, Nanasi, Pms, PmsBme};
+use bmsrs_bms_processor::{ProcessError, ProcessWarningKind, Processor};
 use bmsrs_bms_values::{BmsChannel, BpmIndex, LnObjIndex, Rank};
 use bmsrs_chart::mode::{Lane, NoteSide};
 use bmsrs_chart::{BgaLayer, CustomEvent, EventKind, Note, NoteExt, NoteKind, TimingTrack};
@@ -98,7 +98,7 @@ fn process_basic_note() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let notes: Vec<_> = chart
         .data()
@@ -138,7 +138,7 @@ fn process_key_count_uses_used_lanes() {
         });
     }
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     assert_eq!(chart.chart_info().key_count, Some(7));
 }
@@ -148,7 +148,7 @@ fn process_rejects_zero_bpm() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(0.0);
 
-    let result = BmsProcessor::process_with(&bms, Bme);
+    let result = Processor::process_with(&bms, Bme);
 
     assert!(matches!(result, Err(ProcessError::ZeroBpm)));
 }
@@ -167,7 +167,7 @@ fn undefined_bmp_reference_clears_layer_with_warning() {
         bmp_id: "FF".parse().unwrap(),
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     let bga: Vec<_> = processed
         .value
         .chart
@@ -202,7 +202,7 @@ fn text00_definition_becomes_miss_text_without_channel_event() {
         .text_defs
         .insert("00".parse().unwrap(), "miss text".to_owned());
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(
         processed.value.chart.chart_info().miss_text.as_deref(),
         Some("miss text")
@@ -231,7 +231,7 @@ fn undefined_text_reference_warns_and_is_skipped() {
         values: vec!["02".parse().unwrap()],
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     assert!(
         processed.warnings.iter().any(|warning| {
             matches!(
@@ -266,7 +266,7 @@ fn undefined_swbga_reference_warns_and_is_skipped() {
         values: vec!["02".parse().unwrap()],
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     assert!(
         processed.warnings.iter().any(|warning| {
             matches!(
@@ -301,7 +301,7 @@ fn undefined_exrank_reference_warns_and_is_skipped() {
         values: vec!["02".parse().unwrap()],
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     assert!(
         processed.warnings.iter().any(|warning| {
             matches!(
@@ -331,7 +331,7 @@ fn gameplay_headers_enter_chart_info() {
     bms.gameplay.total = Some(200.0);
     bms.gameplay.vol_wav = Some(120.0);
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
     let info = chart.chart_info();
     assert_eq!(
         info.judge_rank,
@@ -354,7 +354,7 @@ fn bga_resource_kind_infers_video_extension() {
         .bmp_files
         .insert("02".parse().unwrap(), "img.png".to_owned());
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
     let resources = chart.chart_info().bga_resources.as_slice();
     assert_eq!(resources.len(), 2);
     assert_eq!(
@@ -374,7 +374,7 @@ fn rank_header_maps_to_bms_rank_kind() {
     let mut bms = Bms::default();
     bms.gameplay.rank = Some(Rank::Hard);
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
     assert_eq!(
         chart.chart_info().judge_rank,
         Some(bmsrs_chart::JudgeRankSpec {
@@ -398,7 +398,7 @@ fn stp_entries_at_same_position_accumulate() {
         duration_ms: 4000.0,
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let stops: Vec<_> = chart
         .data()
@@ -434,7 +434,7 @@ fn negative_stp_entry_warns_and_is_skipped() {
         duration_ms: 1000.0,
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     let stops: Vec<_> = processed
         .value
         .chart
@@ -471,7 +471,7 @@ fn process_applies_path_wav_to_audio_asset() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     assert_eq!(
         chart.data().audio_assets()[0].path.as_ref(),
@@ -486,7 +486,7 @@ fn process_preserves_bms_audio_sidecar() {
     bms.audio.cdda = Some("5".to_owned());
     bms.audio.path_wav = Some("snd".to_owned());
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap().value;
+    let processed = Processor::process_with(&bms, Bme).unwrap().value;
 
     assert_eq!(processed.audio.cdda.as_deref(), Some("5"));
     assert_eq!(processed.audio.path_wav.as_deref(), Some("snd"));
@@ -498,7 +498,7 @@ fn process_preserves_bms_gameplay_sidecar() {
     bms.timing.bpm = Some(120.0);
     bms.gameplay.option = vec!["774:HI-SPEED_x1.00".parse().unwrap()];
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap().value;
+    let processed = Processor::process_with(&bms, Bme).unwrap().value;
 
     assert_eq!(processed.gameplay.option.len(), 1);
     assert_eq!(processed.gameplay.option[0].raw(), "774:HI-SPEED_x1.00");
@@ -521,7 +521,7 @@ fn process_default_detects_oct_fp_layout() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_default(&bms).unwrap().value.chart;
+    let chart = Processor::process_default(&bms).unwrap().value.chart;
     let lane = chart.data().events().iter().find_map(|event| {
         if let EventKind::Note(Note { lane, .. }) = &event.kind {
             Some(*lane)
@@ -550,7 +550,7 @@ fn process_key7_note_lands_on_key_seven() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let notes: Vec<_> = chart
         .data()
@@ -571,7 +571,7 @@ fn process_key7_note_lands_on_key_seven() {
 fn process_zero_bpm_returns_error() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(0.0);
-    let result = BmsProcessor::process_with(&bms, Bme);
+    let result = Processor::process_with(&bms, Bme);
     assert!(result.is_err());
 }
 
@@ -579,7 +579,7 @@ fn process_zero_bpm_returns_error() {
 fn process_negative_bpm_is_rejected() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(-120.0);
-    let result = BmsProcessor::process_with(&bms, Bme);
+    let result = Processor::process_with(&bms, Bme);
     assert!(result.is_err());
 }
 
@@ -595,7 +595,7 @@ fn process_nan_bpm_change_never_enters_event_stream() {
         value: BpmValue::Absolute(f64::NAN),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
     let has_bpm_event = chart
         .data()
         .events()
@@ -614,7 +614,7 @@ fn process_nan_bpm_change_produces_warning() {
         value: BpmValue::Absolute(f64::NAN),
     });
 
-    let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
     // NaN cannot be compared with assert_eq; use matches! to check the variant
     // and value.
     assert_eq!(warnings.len(), 1);
@@ -637,7 +637,7 @@ fn process_bgm_events_mapped() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let bgm: Vec<_> = chart
         .data()
@@ -663,7 +663,7 @@ fn process_metadata_from_headers() {
     bms.metadata.artist = Some("Test Artist".to_owned());
     bms.metadata.genre = Some("Test Genre".to_owned());
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     assert_eq!(chart.song().title, "Test Song");
     assert_eq!(chart.song().artist, "Test Artist");
@@ -695,7 +695,7 @@ fn process_default_uses_bme_and_maps_both_sides() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_default(&bms).unwrap().value.chart;
+    let chart = Processor::process_default(&bms).unwrap().value.chart;
 
     let positions: Vec<(NoteSide, Lane)> = chart
         .data()
@@ -742,7 +742,7 @@ fn process_lnobj_produces_long_note() {
         wav_id: "02".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let lns: Vec<_> = chart
         .data()
@@ -787,7 +787,7 @@ fn lnobj_preserves_long_note_channel_events_as_normal() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let normals: Vec<_> = chart
         .data()
@@ -823,7 +823,7 @@ fn process_bpm_change_reference_resolved() {
         value: BpmValue::Reference(bpm_id),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     assert_eq!(timing(&chart).bpm_changes().len(), 1);
     assert!((timing(&chart).bpm_changes()[0].bpm - 200.0).abs() < 1e-9);
@@ -854,7 +854,7 @@ fn process_bpm_changes_dedup_preserves_mid_change() {
         value: BpmValue::Reference(bpm_id),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     // At 3/4 of measure 0 (tick 720), BPM should be back to 120.
     assert!((timing(&chart).bpm_at_tick(720) - 120.0).abs() < 1e-9);
@@ -865,7 +865,7 @@ fn process_bar_lines_generated() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let bar_lines: Vec<_> = chart
         .data()
@@ -894,7 +894,7 @@ fn process_invisible_note_mapped() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let notes: Vec<_> = chart
         .data()
@@ -1007,7 +1007,7 @@ fn lnobj_end_marker_emits_no_bgm() {
         wav_id: "FF".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     // Collect BGM events from the chart.
     let bgm_ticks: Vec<_> = chart
@@ -1049,7 +1049,7 @@ fn orphan_lnobj_marker_emits_no_bgm() {
         wav_id: "FF".parse().unwrap(),
     });
 
-    let chart = BmsProcessor::process_with(&bms, Bme).unwrap().value.chart;
+    let chart = Processor::process_with(&bms, Bme).unwrap().value.chart;
 
     let bgm_count = chart
         .data()
@@ -1084,7 +1084,7 @@ fn duplicate_same_position_note_keeps_last_definition() {
         });
     }
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     let notes: Vec<_> = processed
         .value
         .chart
@@ -1135,7 +1135,7 @@ fn mine_on_occupied_note_position_is_dropped() {
         raw_value: None,
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     let mines = count_mines(&processed.value.chart);
     assert_eq!(mines, 0);
     assert!(processed.warnings.iter().any(|warning| {
@@ -1174,7 +1174,7 @@ fn note_on_mine_position_replaces_mine() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(count_mines(&processed.value.chart), 0);
     let has_note = processed
         .value
@@ -1221,7 +1221,7 @@ fn mine_inside_long_note_range_is_dropped() {
         raw_value: None,
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(count_mines(&processed.value.chart), 0);
     assert!(processed.warnings.iter().any(|warning| {
         matches!(
@@ -1255,7 +1255,7 @@ fn mine_on_unterminated_long_note_start_is_dropped() {
         raw_value: None,
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(count_mines(&processed.value.chart), 0);
     assert!(processed.warnings.iter().any(|warning| {
         matches!(
@@ -1301,7 +1301,7 @@ fn note_on_long_note_start_with_other_wav_moves_to_bgm() {
         wav_id: "02".parse().unwrap(),
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     let chart = processed.value.chart;
     let bgm_ticks: Vec<_> = chart
         .data()
@@ -1352,7 +1352,7 @@ fn note_on_long_note_start_with_same_wav_is_dropped() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     let bgm_count = processed
         .value
         .chart
@@ -1415,7 +1415,7 @@ fn lnobj_end_position_note_moves_to_bgm() {
         wav_id: "02".parse().unwrap(),
     });
 
-    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    let processed = Processor::process_with(&bms, Bme).unwrap();
     let chart = processed.value.chart;
     // The long note (start tick 0) survives; the co-positioned note (WAV 02)
     // moved to BGM at tick 960, and the marker emits nothing.
@@ -1474,7 +1474,7 @@ fn dedup_adjacent_same_bpm() {
         value: BpmValue::Absolute(140.0),
     });
 
-    let chart = BmsProcessor::process_default(&bms).unwrap().value.chart;
+    let chart = Processor::process_default(&bms).unwrap().value.chart;
     let bpm_events: Vec<_> = timing(&chart).bpm_changes().to_vec();
     assert_eq!(bpm_events.len(), 2);
     assert!((bpm_events[0].bpm - 120.0).abs() < f64::EPSILON);
@@ -1488,7 +1488,7 @@ fn parse_text(text: &str) -> bmsrs_bms_model::Bms {
 
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn long_note_exts(bms: &bmsrs_bms_model::Bms) -> Vec<Option<bmsrs_chart::LnTypeHint>> {
-    let processed = BmsProcessor::process_with(bms, Bme).expect("process should succeed");
+    let processed = Processor::process_with(bms, Bme).expect("process should succeed");
     processed
         .value
         .chart
@@ -1525,8 +1525,8 @@ fn cnobj_and_lnobj_on_the_same_wav_keep_the_typed_marker() {
 #[test]
 fn lnmode_four_maps_to_the_hln_hint() {
     let bms = parse_text("#LNMODE 4\n#WAV01 a.wav\n#LNTYPE 1\n#00151:01\n#00151:02\n");
-    let processed = BmsProcessor::process_with(&bms, Bme)
-        .expect("process should succeed for a well-formed chart");
+    let processed =
+        Processor::process_with(&bms, Bme).expect("process should succeed for a well-formed chart");
     assert_eq!(
         processed.value.chart.data().ln_type_hint(),
         Some(bmsrs_chart::LnTypeHint::Hln)
@@ -1541,7 +1541,7 @@ fn asset_probe_reports_missing_sound_and_image_files() {
         "#WAV01 present.wav\n#WAV02 missing.wav\n#BMP01 missing.bmp\n#00111:01\n#00211:02\n#00104:01\n",
     );
     let probe = |path: &std::path::Path| path.to_string_lossy().starts_with("present");
-    let processed = BmsProcessor::process_with_assets(&bms, Bme, AssetLookup::Probe(&probe))
+    let processed = Processor::process_with_assets(&bms, Bme, AssetLookup::Probe(&probe))
         .expect("process should succeed");
 
     let missing: Vec<_> = processed
@@ -1562,7 +1562,7 @@ fn declared_asset_lookup_never_touches_the_probe() {
     use bmsrs_bms_processor::AssetLookup;
 
     let bms = parse_text("#WAV01 a.wav\n#00111:01\n");
-    let processed = BmsProcessor::process_with_assets(&bms, Bme, AssetLookup::Declared)
+    let processed = Processor::process_with_assets(&bms, Bme, AssetLookup::Declared)
         .expect("process should succeed");
     assert!(
         processed
@@ -1580,7 +1580,7 @@ fn kaleid_sidecar_collects_declarations_and_objects() {
     let bms = parse_text(
         "#WAV01 a.wav\n#LOADINGFILE load.png\n#BGAOVERFLOW Y\n#001F1:0A\n#001H1:01\n#001ST:01\n#001SG:01\n#001SI:01\n",
     );
-    let processed = BmsProcessor::process_with(&bms, Bme)
+    let processed = Processor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value;
     let kaleid = processed
@@ -1622,7 +1622,7 @@ fn kaleid_potion_recovery_stays_base36_under_base62() {
     use bmsrs_bms_processor::KaleidObjectKind;
 
     let bms = parse_text("#BASE 62\n#001F1:0a\n");
-    let processed = BmsProcessor::process_with(&bms, Bme)
+    let processed = Processor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value;
     let kaleid = processed
@@ -1638,7 +1638,7 @@ fn kaleid_potion_recovery_stays_base36_under_base62() {
 #[test]
 fn ordinary_chart_has_no_kaleid_sidecar() {
     let bms = parse_text("#WAV01 a.wav\n#00111:01\n");
-    let processed = BmsProcessor::process_with(&bms, Bme)
+    let processed = Processor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value;
     assert!(processed.kaleid.is_none());
@@ -1646,10 +1646,10 @@ fn ordinary_chart_has_no_kaleid_sidecar() {
 
 #[test]
 fn kaleid_declarations_and_objects_survive_writer_roundtrip() {
-    use bmsrs_bms_writer::BmsWriter;
+    use bmsrs_bms_writer::Writer;
 
     let bms = parse_text("#WAV01 a.wav\n#LOADINGFILE load.png\n#001F1:0A\n#001ST:01\n");
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     let reparsed = parse_text(&written);
 
     assert_eq!(reparsed.kaleid, bms.kaleid);
@@ -1668,7 +1668,7 @@ fn kaleid_option_words_create_a_sidecar() {
     use bmsrs_bms_values::BmsOptionWord;
 
     let bms = parse_text("#OPTION CONSTANT FORECAST\n");
-    let processed = BmsProcessor::process_with(&bms, Bme)
+    let processed = Processor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value;
     assert!(processed.kaleid.is_none());
@@ -1680,7 +1680,7 @@ fn kaleid_option_words_create_a_sidecar() {
 
 #[test]
 fn kaleid_conditional_branches_stay_out_of_the_chart() {
-    use bmsrs_bms_writer::BmsWriter;
+    use bmsrs_bms_writer::Writer;
 
     let text = "#WAV01 a.wav\n#WAV02 b.wav\n#WAV03 c.wav\n#WAV04 d.wav\n#00111:01\n#CONDITIONAL 65.5\n#WHEN MISS>=100\n#00211:02\n#ELSEWHEN GAUGE<30\n#00311:03\n#DEFAULT\n#00411:04\n#ENDCONDITIONAL\n#00511:05\n";
     let bms = parse_text(text);
@@ -1694,7 +1694,7 @@ fn kaleid_conditional_branches_stay_out_of_the_chart() {
     assert!(bms.messages.raw().get(&1).is_some());
     assert!(bms.messages.raw().get(&5).is_some());
 
-    let processed = BmsProcessor::process_with(&bms, Bme)
+    let processed = Processor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value;
     let kaleid = processed
@@ -1703,7 +1703,7 @@ fn kaleid_conditional_branches_stay_out_of_the_chart() {
     assert_eq!(kaleid.conditional.len(), 1);
     assert_eq!(kaleid.conditional[0].branches.len(), 3);
 
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     let reparsed = parse_text(&written);
     assert_eq!(reparsed.conditional.len(), bms.conditional.len());
     for (reparsed_block, block) in reparsed.conditional.iter().zip(&bms.conditional) {
@@ -1744,7 +1744,7 @@ fn bmd_synth_uses_a_reserved_uri_and_reaches_the_sidecar() {
         ),
     );
 
-    let processed = BmsProcessor::process_with(&bms, Bme)
+    let processed = Processor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value;
     let kaleid = processed.kaleid.expect("BMD chart should have a sidecar");
@@ -1760,6 +1760,6 @@ fn bmd_synth_uses_a_reserved_uri_and_reaches_the_sidecar() {
             .to_string_lossy(),
         "bmd:01"
     );
-    let written = bmsrs_bms_writer::BmsWriter::write(&bms);
+    let written = bmsrs_bms_writer::Writer::write(&bms);
     assert!(written.contains("#WAV01 P0 N60 V100 G48"), "{written}");
 }

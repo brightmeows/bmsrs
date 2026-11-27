@@ -1,4 +1,4 @@
-//! Roundtrip integration tests for `BmsWriter`.
+//! Roundtrip integration tests for `Writer`.
 //!
 //! Text written by the generator must be semantically equivalent to the
 //! original `Bms` model when parsed again; this is the verification baseline for
@@ -10,7 +10,7 @@ use bmsrs_bms_syntax::SourceFile;
 use bmsrs_bms_values::BmsMessage;
 use proptest::prelude::*;
 
-use bmsrs_bms_writer::BmsWriter;
+use bmsrs_bms_writer::Writer;
 
 /// Parse BMS text into `Bms`, ignoring tokenizer warnings.
 fn parse(text: &str) -> Bms {
@@ -35,7 +35,7 @@ fn written_text_reparses_to_equal_model() {
         "#00255:96\n",
     );
     let bms = parse(text);
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     let reparsed = parse(&written);
     assert_eq!(bms, reparsed);
 }
@@ -46,7 +46,7 @@ fn merged_channel_positions_preserve_nonzero_overwrite_semantics() {
     // is non-00 and overrides the first line.
     let text = "#00111:1100\n#00111:0022\n";
     let bms = parse(text);
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     let line = written
         .lines()
         .find(|l| l.starts_with("#00111:"))
@@ -58,7 +58,7 @@ fn merged_channel_positions_preserve_nonzero_overwrite_semantics() {
 fn unequal_length_lines_merge_by_fractional_position() {
     let text = "#00113:11111111\n#00113:0022332255224400\n#00113:0066\n";
     let bms = parse(text);
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     let line = written
         .lines()
         .find(|l| l.starts_with("#00113:"))
@@ -81,9 +81,9 @@ proptest! {
             text.push('\n');
         }
         let before = parse(&text);
-        let written = BmsWriter::write(&before);
+        let written = Writer::write(&before);
         let after = parse(&written);
-        prop_assert_eq!(BmsWriter::write(&after), written);
+        prop_assert_eq!(Writer::write(&after), written);
     }
 }
 
@@ -92,7 +92,7 @@ fn bgm_lines_stay_independent() {
     // BGM (ch 01) lines are not merged; this is polyphony semantics.
     let text = "#00101:1111\n#00101:2222\n";
     let bms = parse(text);
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     let count = written.lines().filter(|l| l.starts_with("#00101:")).count();
     assert_eq!(count, 2);
 }
@@ -101,7 +101,7 @@ fn bgm_lines_stay_independent() {
 fn fallback_headers_are_preserved_in_order() {
     let text = "#TITLE X\n#XYZZY hello world\n#WAV01 a.wav\n#FOO bar\n";
     let bms = parse(text);
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     assert!(written.contains("#XYZZY hello world"));
     assert!(written.contains("#FOO bar"));
 }
@@ -110,7 +110,7 @@ fn fallback_headers_are_preserved_in_order() {
 fn stp_events_are_written_with_position() {
     let text = "#TITLE S\n#STP 001.250 500\n";
     let bms = parse(text);
-    let written = BmsWriter::write(&bms);
+    let written = Writer::write(&bms);
     assert!(written.contains("#STP 001.250 500"));
 }
 

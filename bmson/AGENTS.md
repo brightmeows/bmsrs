@@ -31,7 +31,7 @@ processor can handle them.
 | Principle | Meaning |
 |-----------|---------|
 | Type definition and parsing combined | `bmsrs-bmson-model` supports JSON deserialization directly through `serde`, with no separate parsing layer |
-| Mode families decoupled | `BmsonLayout` zero-sized types decouple key mapping; `mode_hint` decides dispatch |
+| Mode families decoupled | `Layout` zero-sized types decouple key mapping; `mode_hint` decides dispatch |
 | Audio pre-slicing | `SoundChannel` is pre-sliced at startup into an array of `AudioAsset`s, looked up by index at runtime |
 
 ## Tests

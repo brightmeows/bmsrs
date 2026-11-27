@@ -1,16 +1,16 @@
 //! BMS to `Chart` conversion processor.
 //!
-//! [`BmsProcessor`] converts `bmsrs_bms_model::Bms` into a format-agnostic `Chart`
-//! by applying a [`BmsLayout`] mode family (such as [`Bme`], `Pms`, or
+//! [`Processor`] converts `bmsrs_bms_model::Bms` into a format-agnostic `Chart`
+//! by applying a [`Layout`] mode family (such as [`Bme`], `Pms`, or
 //! `Nanasi`).
 //!
-//! Mode families and the [`BmsLayout`] trait live in this crate's `layout`
+//! Mode families and the [`Layout`] trait live in this crate's `layout`
 //! module.
 //!
 //! # Pipeline
 //!
 //! ```text
-//! bmsrs_bms_model::Bms -> BmsProcessor::process_with(bms, layout) -> Chart<BmsNoteExt, BmsCustomEvent>
+//! bmsrs_bms_model::Bms -> Processor::process_with(bms, layout) -> Chart<BmsNoteExt, BmsCustomEvent>
 //! ```
 //!
 //! # Mode families
@@ -19,7 +19,7 @@
 //! note positions. [`Bme`] covers beat-5k/7k/10k/14k uniformly (a chart's key
 //! count is determined by the lanes its notes actually use). Other families
 //! (`Pms`, `PmsBme`, `Nanasi`, `DscOctFp`) cover their namesake modes.
-//! [`BmsProcessor::process_default`] uses [`Bme`].
+//! [`Processor::process_default`] uses [`Bme`].
 //!
 //! # Long-note modes
 //!
@@ -68,7 +68,7 @@ pub use crate::note_ext::BmsNoteExt;
 
 use crate::bga::BmpEntry;
 use crate::custom_event::BmsCustomEvent;
-use crate::layout::{Bme, BmsLayout, DscOctFp};
+use crate::layout::{Bme, DscOctFp, Layout};
 use crate::position::MeasureTable;
 use crate::timing::build_bar_events;
 
@@ -104,7 +104,7 @@ type BmsEvent = Event<crate::note_ext::BmsNoteExt, BmsCustomEvent>;
 
 /// Zero-sized processor that converts [`Bms`] into [`Chart`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct BmsProcessor;
+pub struct Processor;
 
 /// BMS processing result.
 #[derive(Debug)]
@@ -178,7 +178,7 @@ impl std::fmt::Debug for AssetLookup<'_> {
     }
 }
 
-impl BmsProcessor {
+impl Processor {
     /// Process a BMS chart with an explicit mode-family layout.
     ///
     /// The layout decides how each BMS `(player, lane)` channel byte decodes
@@ -193,7 +193,7 @@ impl BmsProcessor {
     /// (initial BPM missing, zero, or non-finite).
     pub fn process_with(
         bms: &Bms,
-        layout: impl BmsLayout,
+        layout: impl Layout,
     ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         Self::process_with_assets(bms, layout, AssetLookup::Declared)
     }
@@ -213,7 +213,7 @@ impl BmsProcessor {
     )]
     pub fn process_with_assets(
         bms: &Bms,
-        layout: impl BmsLayout,
+        layout: impl Layout,
         assets: AssetLookup<'_>,
     ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         let init_bpm = bms.timing.bpm.unwrap_or(130.0);
@@ -384,7 +384,7 @@ impl BmsProcessor {
 /// Holds the source document [`Bms`], the measure tick table [`MeasureTable`],
 /// and the event buffer being built, so each `collect_*` step writes directly to
 /// the internal `events` without the caller passing `&mut Vec`. Used only inside
-/// [`BmsProcessor::process_with_assets`].
+/// [`Processor::process_with_assets`].
 ///
 /// The conversion methods live in domain modules: [`timing`] (BPM, STOP,
 /// SCROLL, SPEED, bar lines), [`notes`] (playable notes, BGM, long notes),
@@ -397,7 +397,7 @@ struct BmsConverter<'a> {
     /// Measure to cumulative tick lookup table.
     table: &'a MeasureTable,
     /// Event vector being built, eventually taken by
-    /// [`BmsProcessor::process_with_assets`].
+    /// [`Processor::process_with_assets`].
     events: Vec<BmsEvent>,
     /// Recoverable warnings collected during processing.
     warnings: Vec<ProcessWarning>,

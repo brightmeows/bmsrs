@@ -1,21 +1,21 @@
 ## `KaleidBeat` sidecar
 
-`BmsonProcessed` carries the chart plus `Option<BmsonKaleid>`. The sidecar holds the extension metadata, notes, conditional blocks, and filter objects; `speed_events` also map to core Speed events. Ordinary files leave the sidecar as `None`.
+`Processed` carries the chart plus `Option<BmsonKaleid>`. The sidecar holds the extension metadata, notes, conditional blocks, and filter objects; `speed_events` also map to core Speed events. Ordinary files leave the sidecar as `None`.
 # bmsrs-bmson-processor
 
 ## Role
 
 Processor that converts `bmsrs_bmson_model::Bmson` (v2 root schema) into `Chart`. The
-entry point is `BmsonProcessor` (a zero-sized type); all functionality is
-exposed through `BmsonProcessor::process_with` / `process_default`. Key mapping
-is decoupled through the `BmsonLayout` mode family.
+entry point is `Processor` (a zero-sized type); all functionality is
+exposed through `Processor::process_with` / `process_default`. Key mapping
+is decoupled through the `Layout` mode family.
 
 ## Mode families
 
 | Type | Implements | Use |
 |------|------------|-----|
-| Stateless ZST | `impl BmsonLayout` | fixed modes, `BmsonProcessor::process_with(bmson, Beat)` |
-| Stateful `GenericLayout` | `impl BmsonLayout` through the same `&self` receiver | `generic-nkeys`, `process_with(bmson, GenericLayout::new(keys)?)`; `keys` is a `NonZeroU8`, so zero keys is not representable |
+| Stateless ZST | `impl Layout` | fixed modes, `Processor::process_with(bmson, Beat)` |
+| Stateful `GenericLayout` | `impl Layout` through the same `&self` receiver | `generic-nkeys`, `process_with(bmson, GenericLayout::new(keys)?)`; `keys` is a `NonZeroU8`, so zero keys is not representable |
 
 `process_default` dispatches by `mode_hint`:
 
@@ -55,7 +55,7 @@ feature is missing by accident.
 
 | Item | Status | Reassess when |
 |------|--------|---------------|
-| KaleidBeat free zones | `free_zone_channels` is typed into `BmsonKaleid` and exposed through `BmsonProcessed`; free-zone judgment semantics stay in the player | a player needs a shared free-zone evaluation model |
+| KaleidBeat free zones | `free_zone_channels` is typed into `BmsonKaleid` and exposed through `Processed`; free-zone judgment semantics stay in the player | a player needs a shared free-zone evaluation model |
 | BMSON MSS | `Long + Release` is exposed as a descriptive note point; there is no dedicated MSS judgment state | a player implements MSS scoring or input |
 | Layer-event `condition` / `interval` / `id_set` | clip selection conditions are not modeled; `bga_sequence` clips and clip references (poor/layer) are modeled, so poor animations still play the referenced clip | an imported chart needs condition-driven clip selection |
 

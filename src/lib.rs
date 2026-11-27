@@ -35,10 +35,10 @@ pub mod bms {
     pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
     pub use parser::{Diagnostic, DiagnosticKind};
-    pub use processor::layout::{Bme, BmsLayout};
+    pub use processor::layout::{Bme, Layout};
     pub use processor::{AssetLookup, ProcessError, ProcessWarning, Processed};
 
-    /// Every BMS mode family: the [`BmsLayout`] trait
+    /// Every BMS mode family: the [`Layout`] trait
     /// and its standard implementations.
     pub mod layout {
         pub use crate::raw::bms::processor::layout::*;
@@ -232,7 +232,7 @@ pub mod bms {
         bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        processor::BmsProcessor::process_default(bms)
+        processor::Processor::process_default(bms)
     }
 
     /// Convert `Bms` to a chart with an explicit layout family.
@@ -242,12 +242,12 @@ pub mod bms {
     /// Returns [`processor::ProcessError`] when conversion fails.
     pub fn process_with(
         bms: &model::Bms,
-        layout: impl processor::layout::BmsLayout,
+        layout: impl processor::layout::Layout,
     ) -> Result<
         bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        processor::BmsProcessor::process_with(bms, layout)
+        processor::Processor::process_with(bms, layout)
     }
 
     /// Convert `Bms` to a chart with an explicit layout and asset policy.
@@ -257,19 +257,19 @@ pub mod bms {
     /// Returns [`processor::ProcessError`] when conversion fails.
     pub fn process_with_assets(
         bms: &model::Bms,
-        layout: impl processor::layout::BmsLayout,
+        layout: impl processor::layout::Layout,
         assets: processor::AssetLookup<'_>,
     ) -> Result<
         bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        processor::BmsProcessor::process_with_assets(bms, layout, assets)
+        processor::Processor::process_with_assets(bms, layout, assets)
     }
 
     /// Write the full `Bms` model as canonical BMS text.
     #[must_use]
     pub fn write(bms: &model::Bms) -> String {
-        writer::BmsWriter::write(bms)
+        writer::Writer::write(bms)
     }
 
     /// Run the full semantic pipeline from an already-built document.
@@ -325,10 +325,10 @@ pub mod bmson {
 
     pub use bmsrs_pipeline::Outcome;
     pub use model::Bmson;
-    pub use processor::layout::{Beat, BmsonLayout, GenericLayout};
-    pub use processor::{BmsonProcessWarning, BmsonProcessed, ProcessError};
+    pub use processor::layout::{Beat, GenericLayout, Layout};
+    pub use processor::{ProcessError, ProcessWarning, Processed};
 
-    /// Every BMSON mode family: the [`BmsonLayout`] trait and its standard
+    /// Every BMSON mode family: the [`Layout`] trait and its standard
     /// implementations, including
     /// [`GenericLayout`].
     pub mod layout {
@@ -339,20 +339,20 @@ pub mod bmson {
     ///
     /// # Errors
     ///
-    /// Returns [`BmsonParseError`] when the JSON or version is invalid.
-    pub fn parse_str(json: &str) -> Result<model::Bmson, BmsonParseError> {
+    /// Returns [`ParseError`] when the JSON or version is invalid.
+    pub fn parse_str(json: &str) -> Result<model::Bmson, ParseError> {
         match model::DetectedVersion::detect(json)? {
             model::DetectedVersion::V2 => Ok(serde_json::from_str(json)?),
             model::DetectedVersion::V1 => {
                 let v1: model::v1::Bmson = serde_json::from_str(json)?;
                 v1.try_into().map_err(|error: model::UpgradeError| {
-                    BmsonParseError::Version(model::BmsonError::Upgrade(error))
+                    ParseError::Version(model::BmsonError::Upgrade(error))
                 })
             }
             model::DetectedVersion::V0 => {
                 let v0: model::v0::Bmson = serde_json::from_str(json)?;
                 v0.try_into().map_err(|error: model::UpgradeError| {
-                    BmsonParseError::Version(model::BmsonError::Upgrade(error))
+                    ParseError::Version(model::BmsonError::Upgrade(error))
                 })
             }
         }
@@ -362,8 +362,8 @@ pub mod bmson {
     ///
     /// # Errors
     ///
-    /// Returns [`BmsonParseError`] when the JSON, UTF-8, or version is invalid.
-    pub fn parse_slice(bytes: &[u8]) -> Result<model::Bmson, BmsonParseError> {
+    /// Returns [`ParseError`] when the JSON, UTF-8, or version is invalid.
+    pub fn parse_slice(bytes: &[u8]) -> Result<model::Bmson, ParseError> {
         let json = std::str::from_utf8(bytes)?;
         parse_str(json)
     }
@@ -376,9 +376,9 @@ pub mod bmson {
     ///
     /// # Errors
     ///
-    /// Returns [`BmsonParseError`] when reading fails or when the JSON,
+    /// Returns [`ParseError`] when reading fails or when the JSON,
     /// UTF-8, or version is invalid.
-    pub fn parse_file(path: impl AsRef<std::path::Path>) -> Result<model::Bmson, BmsonParseError> {
+    pub fn parse_file(path: impl AsRef<std::path::Path>) -> Result<model::Bmson, ParseError> {
         let bytes = std::fs::read(path)?;
         parse_slice(&bytes)
     }
@@ -391,10 +391,10 @@ pub mod bmson {
     pub fn process(
         bmson: &model::Bmson,
     ) -> Result<
-        bmsrs_pipeline::Outcome<processor::BmsonProcessed, processor::BmsonProcessWarning>,
+        bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        processor::BmsonProcessor::process_default(bmson)
+        processor::Processor::process_default(bmson)
     }
 
     /// Convert `Bmson` with an explicit layout family.
@@ -404,17 +404,17 @@ pub mod bmson {
     /// Returns [`processor::ProcessError`] when conversion fails.
     pub fn process_with(
         bmson: &model::Bmson,
-        layout: impl processor::layout::BmsonLayout,
+        layout: impl processor::layout::Layout,
     ) -> Result<
-        bmsrs_pipeline::Outcome<processor::BmsonProcessed, processor::BmsonProcessWarning>,
+        bmsrs_pipeline::Outcome<processor::Processed, processor::ProcessWarning>,
         processor::ProcessError,
     > {
-        processor::BmsonProcessor::process_with(bmson, layout)
+        processor::Processor::process_with(bmson, layout)
     }
 
     /// BMSON parse error.
     #[derive(Debug, thiserror::Error)]
-    pub enum BmsonParseError {
+    pub enum ParseError {
         /// JSON parse error.
         #[error("JSON parse error: {0}")]
         Json(#[from] serde_json::Error),
@@ -516,24 +516,22 @@ pub mod raw {
 /// (`bmsrs::bms::parse`, `bmsrs::bmson::parse_str`), so a glob import never
 /// puts a bare `parse` or `write` in scope. `tests/facade_api.rs` names every
 /// item, so dropping one fails to compile. When two modules export the same
-/// name, the prelude keeps the one a curated entry point names: `Diagnostic`
-/// is the parser wrapper returned by [`bms::parse`], and
-/// the shared [`pipeline::Diagnostic`] stays
-/// behind `pipeline::`.
+/// name, the prelude keeps the `bms` one: `Diagnostic` is the parser wrapper
+/// returned by [`bms::parse`], and the shared [`pipeline::Diagnostic`] stays
+/// behind `pipeline::`; the bmson `Processed`, `ProcessWarning`, `ParseError`,
+/// and `Layout` stay behind [`bmson`].
 pub mod prelude {
     pub use crate::bms::layout::Bme;
     pub use crate::bms::{
-        AssetLookup, Bms, BmsLayout, BmsTokenizeError, BranchMismatch, BranchSelection,
-        ControlFlowCompat, ControlFlowRng, Diagnostic, DiagnosticKind, ErrorStrategy, FirstBranch,
-        Input, JavaRandom, Lr2Mt19937, Outcome, ParseError, ParseOptions, ProcessError,
-        ProcessWarning, Processed, SourceFormat, TextDecodeError, TextRange,
+        AssetLookup, Bms, BmsTokenizeError, BranchMismatch, BranchSelection, ControlFlowCompat,
+        ControlFlowRng, Diagnostic, DiagnosticKind, ErrorStrategy, FirstBranch, Input, JavaRandom,
+        Layout, Lr2Mt19937, Outcome, ParseError, ParseOptions, ProcessError, ProcessWarning,
+        Processed, SourceFormat, TextDecodeError, TextRange,
     };
     #[cfg(feature = "bmson")]
     pub use crate::bmson::layout::Beat;
     #[cfg(feature = "bmson")]
-    pub use crate::bmson::{
-        Bmson, BmsonLayout, BmsonParseError, BmsonProcessWarning, BmsonProcessed, GenericLayout,
-    };
+    pub use crate::bmson::{Bmson, GenericLayout};
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };

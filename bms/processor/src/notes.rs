@@ -10,7 +10,7 @@ use bmsrs_chart::{
 
 use crate::note_ext::BmsNoteExt;
 
-use crate::layout::{BmsLayout, ChannelPos};
+use crate::layout::{ChannelPos, Layout};
 use crate::long_note::{
     LnMarker, LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2,
 };
@@ -127,7 +127,7 @@ impl BmsConverter<'_> {
     )]
     pub fn collect_notes(
         &mut self,
-        layout: &impl BmsLayout,
+        layout: &impl Layout,
         wav_map: &BTreeMap<WavIndex, AudioIndex>,
         paired_lns: &[PairedLn],
         consumed: &HashSet<usize>,

@@ -1,9 +1,9 @@
-//! BMSON mode-family layouts: map `x` values to lanes through [`BmsonLayout`].
+//! BMSON mode-family layouts: map `x` values to lanes through [`Layout`].
 //!
 //! Each mode family maps a sound channel's `x` value to a `(NoteSide, Lane)`
 //! pair. Most are zero-sized newtypes; [`GenericLayout`] for `generic-nkeys`
 //! carries its key count. The trait takes `&self`, so both kinds implement it
-//! and `BmsonProcessor::process_with` accepts either by value.
+//! and `Processor::process_with` accepts either by value.
 
 use std::num::NonZeroU8;
 
@@ -14,7 +14,7 @@ use bmsrs_chart::mode::{Lane, NoteSide};
 ///
 /// Returning `None` drops the note. The `&self` receiver lets a zero-sized
 /// family and a stateful decoder such as [`GenericLayout`] share the trait.
-pub trait BmsonLayout {
+pub trait Layout {
     /// Map a BMSON player channel's `x` to a note position.
     #[must_use]
     fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)>;
@@ -55,7 +55,7 @@ impl Beat {
     }
 }
 
-impl BmsonLayout for Beat {
+impl Layout for Beat {
     fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         Self::from_bmson(x)
     }
@@ -82,7 +82,7 @@ impl Pms {
     }
 }
 
-impl BmsonLayout for Pms {
+impl Layout for Pms {
     fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         Self::from_bmson(x)
     }
@@ -109,7 +109,7 @@ impl GenericLayout {
     }
 }
 
-impl BmsonLayout for GenericLayout {
+impl Layout for GenericLayout {
     fn map_x(&self, x: u64) -> Option<(NoteSide, Lane)> {
         let n = u8::try_from(x).ok()?;
         if n == 0 || n > self.keys.get() {
