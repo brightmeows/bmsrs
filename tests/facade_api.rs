@@ -437,3 +437,33 @@ fn prelude_exports_every_type_and_no_functions() {
     drawn_by::<JavaRandom>();
     bmson_bounded_by::<Beat>();
 }
+
+#[test]
+fn bms_parse_rejects_a_bmson_path() {
+    // A `.bmson` path used to decode as an empty BMS chart with zero
+    // warnings; the BMS entry points refuse the format before reading.
+    let name = [
+        "bmsrs-facade-bmson-",
+        &std::process::id().to_string(),
+        ".bmson",
+    ]
+    .concat();
+    let path = std::env::temp_dir().join(name);
+    std::fs::write(&path, r#"{"version":"2.0.0"}"#).expect("write fixture");
+    let error = bmsrs::bms::parse(&path).expect_err("a bmson path is not BMS input");
+    std::fs::remove_file(&path).expect("remove fixture");
+    assert!(matches!(
+        error,
+        bmsrs::bms::ParseError::Format {
+            format: bmsrs::bms::SourceFormat::Bmson
+        }
+    ));
+
+    // Text and bytes carry the format explicitly and hit the same check.
+    let text_error = bmsrs::bms::parse(bmsrs::bms::Input::text(
+        "{}",
+        bmsrs::bms::SourceFormat::Bmson,
+    ))
+    .expect_err("declared Bmson text is not BMS input");
+    assert!(matches!(text_error, bmsrs::bms::ParseError::Format { .. }));
+}

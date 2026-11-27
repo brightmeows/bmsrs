@@ -57,8 +57,8 @@ pub mod bms {
     /// Error type for the whole-pipeline entry points.
     ///
     /// The diagnostic variant is the error that stopped a `FailFast` parse or
-    /// a document that failed to decode; the other two have no position in the
-    /// text.
+    /// a document that failed to decode; the other three have no position in
+    /// the text.
     #[derive(Debug, thiserror::Error)]
     #[non_exhaustive]
     pub enum ParseError {
@@ -68,6 +68,16 @@ pub mod bms {
         /// The file's control-flow blocks diverged from the recording.
         #[error(transparent)]
         Branch(#[from] syntax::BranchMismatch),
+        /// The input declares a format the BMS pipeline does not parse.
+        ///
+        /// A `.bmson` path reaches this check because [`Input::file`] derives
+        /// the format from the extension; the BMS parser would otherwise
+        /// decode the JSON as an empty chart without a single warning.
+        #[error("the BMS entry points do not parse {format:?} input")]
+        Format {
+            /// The rejected source format.
+            format: SourceFormat,
+        },
         /// File read error.
         #[error("failed to read file: {0}")]
         Io(#[from] std::io::Error),
@@ -84,11 +94,11 @@ pub mod bms {
     pub fn parse<'a>(
         input: impl Into<Input<'a>>,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
-        parse_with(
-            input,
-            &syntax::ParseOptions::default(),
-            &mut syntax::FirstBranch,
-        )
+        let source = input.into();
+        let parse_options = with_input_format(source.format(), &syntax::ParseOptions::default())?;
+        let document = source.into_document()?;
+        from_document(&document, &parse_options, &mut syntax::FirstBranch)
+            .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
     }
 
     /// Parse BMS input with explicit options and a control-flow generator.
@@ -114,7 +124,7 @@ pub mod bms {
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         let source = input.into();
-        let parse_options = with_input_format(source.format(), options);
+        let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
         from_document(&document, &parse_options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
@@ -143,7 +153,7 @@ pub mod bms {
         ParseError,
     > {
         let source = input.into();
-        let parse_options = with_input_format(source.format(), options);
+        let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
         let parsed = parser::BmsParser::parse_document_with(&document, &parse_options, rng)
             .map_err(ParseError::from)?;
@@ -176,7 +186,7 @@ pub mod bms {
         options: &syntax::ParseOptions,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         let source = input.into();
-        let parse_options = with_input_format(source.format(), options);
+        let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
         let text = document
             .try_to_text()
@@ -268,14 +278,22 @@ pub mod bms {
     }
 
     /// Apply the input's source format on top of the caller's options.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError::Format`] for [`SourceFormat::Bmson`]: the BMS
+    /// pipeline parses the BMS text family only.
     fn with_input_format(
         format: SourceFormat,
         options: &syntax::ParseOptions,
-    ) -> syntax::ParseOptions {
-        syntax::ParseOptions {
+    ) -> Result<syntax::ParseOptions, ParseError> {
+        if format == SourceFormat::Bmson {
+            return Err(ParseError::Format { format });
+        }
+        Ok(syntax::ParseOptions {
             format,
             ..options.clone()
-        }
+        })
     }
 }
 
