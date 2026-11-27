@@ -9,77 +9,6 @@ use bmsrs_bms_values::{
     PoorBgaMode, SeekIndex, SwBgaParams,
 };
 
-// Owned parameter types
-//
-// The tokenizer's ExBmpParams and SwBgaParams borrow from the input string.
-// Because Bms owns all data, they are converted to owned equivalents here.
-
-/// Owned version of [`ExBmpParams`], with the file name stored as `String`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnedExBmpParams {
-    /// Alpha component (0-255).
-    pub a: u8,
-    /// Red component (0-255).
-    pub r: u8,
-    /// Green component (0-255).
-    pub g: u8,
-    /// Blue component (0-255).
-    pub b: u8,
-    /// Resource file path or name.
-    pub filename: String,
-}
-
-impl From<&ExBmpParams> for OwnedExBmpParams {
-    fn from(p: &ExBmpParams) -> Self {
-        Self {
-            a: p.a,
-            r: p.r,
-            g: p.g,
-            b: p.b,
-            filename: p.filename.clone(),
-        }
-    }
-}
-
-/// Owned version of [`SwBgaParams`], with the pattern stored as `String`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnedSwBgaParams {
-    /// Frame rate.
-    pub fr: u32,
-    /// Transition time in milliseconds.
-    pub time: u32,
-    /// Scanline direction.
-    pub line: u8,
-    /// Whether the transition loops.
-    pub r#loop: bool,
-    /// Alpha component.
-    pub a: u8,
-    /// Red component.
-    pub r: u8,
-    /// Green component.
-    pub g: u8,
-    /// Blue component.
-    pub b: u8,
-    /// Transition pattern name or path.
-    pub pattern: String,
-}
-
-impl From<&SwBgaParams> for OwnedSwBgaParams {
-    fn from(p: &SwBgaParams) -> Self {
-        Self {
-            fr: p.fr,
-            time: p.time,
-            line: p.line,
-            r#loop: p.r#loop,
-            a: p.a,
-            r: p.r,
-            g: p.g,
-            b: p.b,
-            pattern: p.pattern.clone(),
-        }
-    }
-}
-
 // Visual resources
 
 /// Visual and BGA resource definitions.
@@ -93,13 +22,13 @@ pub struct Visual {
     /// Video seek position definitions (`#SEEKxx`).
     pub seek_defs: BTreeMap<SeekIndex, f64>,
     /// Extended BMP definitions with ARGB tinting (`#EXBMPxx`).
-    pub ex_bmp_defs: BTreeMap<BmpIndex, OwnedExBmpParams>,
+    pub ex_bmp_defs: BTreeMap<BmpIndex, ExBmpParams>,
     /// BGA crop-and-place definitions (`#BGAxx`).
     pub crop_defs: BTreeMap<BmpIndex, BgaParams>,
     /// BGA crop-and-place, width/height form (`#@BGAxx`).
     pub alt_crop_defs: BTreeMap<BmpIndex, AtBgaParams>,
     /// Key-bound BGA animation definitions (`#SWBGAxx`).
-    pub sw_bga_defs: BTreeMap<BmpIndex, OwnedSwBgaParams>,
+    pub sw_bga_defs: BTreeMap<BmpIndex, SwBgaParams>,
     /// Per-layer color and alpha overlay definitions (`#ARGBxx`).
     pub argb_defs: BTreeMap<BmpIndex, ArgbParams>,
     /// Video file used as BGA (`#VIDEOFILE`).
@@ -139,10 +68,8 @@ impl Visual {
                     .insert(SeekIndex::from(id.normalize(ext_base)), *value);
             }
             BmsHeaderResDefVisual::ExBmp { id, params } => {
-                self.ex_bmp_defs.insert(
-                    BmpIndex::from(id.normalize(bmp_base)),
-                    OwnedExBmpParams::from(params),
-                );
+                self.ex_bmp_defs
+                    .insert(BmpIndex::from(id.normalize(bmp_base)), params.clone());
             }
             BmsHeaderResDefVisual::Bga { id, params } => {
                 self.crop_defs
@@ -153,10 +80,8 @@ impl Visual {
                     .insert(BmpIndex::from(id.normalize(ext_base)), params.clone());
             }
             BmsHeaderResDefVisual::SwBga { id, params } => {
-                self.sw_bga_defs.insert(
-                    BmpIndex::from(id.normalize(ext_base)),
-                    OwnedSwBgaParams::from(params),
-                );
+                self.sw_bga_defs
+                    .insert(BmpIndex::from(id.normalize(ext_base)), params.clone());
             }
             BmsHeaderResDefVisual::Argb { id, params } => {
                 self.argb_defs

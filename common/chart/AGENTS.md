@@ -109,5 +109,5 @@ queries.
 | Item | Status | Reassess when |
 |------|--------|---------------|
 | Display fields such as `#CHARFILE` | not included in `Chart` | a renderer needs character images |
-| BMS `#EXBMP` per-image transparent color | stored in `Visual` as `OwnedExBmpParams` but not converted; no `Chart` field or event carries the per-image transparency | a renderer needs the transparent color |
+| BMS `#EXBMP` per-image transparent color | stored in `Visual` as `ExBmpParams` but not converted; no `Chart` field or event carries the per-image transparency | a renderer needs the transparent color |
 | BMS `#ARGB` per-layer tinting (as a resource attribute) | already carried as events through `BmsCustomEvent::BgaArgb` (channels A1-A4), so the raw definition is not modeled again | a consumer wants it as a resource attribute instead of an event |

@@ -5,11 +5,10 @@
 //! format command names and values, guaranteeing that the write path uses the
 //! same format templates as the parse path.
 
-use bmsrs_bms_model::{Bms, OwnedExWavParams, OwnedSwBgaParams};
+use bmsrs_bms_model::Bms;
 use bmsrs_bms_values::{
     ArgbParams, AtBgaParams, BgaParams, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderKaleid,
-    BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ExBmpParams,
-    ExWavParams, SwBgaParams, WavCmdParams,
+    BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, WavCmdParams,
 };
 
 /// Serialize all header command lines.
@@ -223,7 +222,7 @@ fn audio(a: &bmsrs_bms_model::Audio, out: &mut Vec<String>) {
         push_header!(
             BmsHeaderResDefAudio::ExWav {
                 id: *id,
-                params: ex_wav_params(params),
+                params: params.clone(),
             },
             out
         );
@@ -265,13 +264,7 @@ fn visual(v: &bmsrs_bms_model::Visual, out: &mut Vec<String>) {
         push_header!(
             BmsHeaderResDefVisual::ExBmp {
                 id: *id,
-                params: ExBmpParams {
-                    a: params.a,
-                    r: params.r,
-                    g: params.g,
-                    b: params.b,
-                    filename: params.filename.clone(),
-                },
+                params: params.clone(),
             },
             out
         );
@@ -314,7 +307,7 @@ fn visual(v: &bmsrs_bms_model::Visual, out: &mut Vec<String>) {
         push_header!(
             BmsHeaderResDefVisual::SwBga {
                 id: *id,
-                params: sw_bga_params(params),
+                params: params.clone(),
             },
             out
         );
@@ -372,30 +365,5 @@ fn stp(events: &[bmsrs_bms_model::StpEvent], out: &mut Vec<String>) {
             format!("#STP {measure:03}.{position} {}", event.duration_ms)
         };
         out.push(line);
-    }
-}
-
-/// `#EXWAV` parameters: parser owned variant to tokenizer composite parameters.
-fn ex_wav_params(p: &OwnedExWavParams) -> ExWavParams {
-    ExWavParams {
-        pan: p.pan,
-        volume: p.volume,
-        frequency: p.frequency,
-        filename: p.filename.clone(),
-    }
-}
-
-/// `#SWBGA` parameters: parser owned variant to tokenizer composite parameters.
-fn sw_bga_params(p: &OwnedSwBgaParams) -> SwBgaParams {
-    SwBgaParams {
-        fr: p.fr,
-        time: p.time,
-        line: p.line,
-        r#loop: p.r#loop,
-        a: p.a,
-        r: p.r,
-        g: p.g,
-        b: p.b,
-        pattern: p.pattern.clone(),
     }
 }

@@ -8,8 +8,9 @@ use bmsrs_bms_model::BmsBgaLayer;
 use bmsrs_bms_model::*;
 use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_values::{
-    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
-    Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ExBmpParams, LnMode, LnType, PlayerMode,
+    PoorBgaMode, Rank, ScrollIndex, SpeedIndex, StopIndex, SwBgaParams, WavCmdKind, WavCmdParams,
+    WavIndex,
 };
 
 /// Helper: parse a BMS string into `Bms` (default C = &str).
@@ -96,17 +97,17 @@ fn sub_struct_types_accessible() {
     let _msgs = Messages::default();
 }
 
-/// Owned parameter types are accessible.
+/// Composite parameter types are stored as the tokenizer's own types.
 #[test]
-fn owned_param_types_accessible() {
-    let _ex = OwnedExBmpParams {
+fn composite_param_types_accessible() {
+    let _ex = ExBmpParams {
         a: 255,
         r: 0,
         g: 128,
         b: 64,
         filename: "overlay.png".into(),
     };
-    let _sw = OwnedSwBgaParams {
+    let _sw = SwBgaParams {
         fr: 30,
         time: 60,
         line: 1,
