@@ -156,3 +156,49 @@ fn unparsable_bpm_value_produces_warning() {
         })
     )));
 }
+
+#[test]
+fn negative_volwav_is_dropped_with_warning() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.vol_wav = Some(-5.0);
+
+    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    // A negative value used to saturate to Some(0) and silence the chart.
+    assert_eq!(processed.value.chart.chart_info().volwav_percent, None);
+    assert!(processed.warnings.iter().any(|w| matches!(
+        w.kind,
+        ProcessWarningKind::NegativeVolWavIgnored { value } if (value - (-5.0)).abs() < f64::EPSILON
+    )));
+}
+
+#[test]
+fn oversized_volwav_is_clamped_with_warning() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.vol_wav = Some(300.0);
+
+    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    assert_eq!(processed.value.chart.chart_info().volwav_percent, Some(255));
+    assert!(processed.warnings.iter().any(|w| matches!(
+        w.kind,
+        ProcessWarningKind::VolWavClamped {
+            value: 300.0,
+            clamped: 255
+        }
+    )));
+}
+
+#[test]
+fn in_range_volwav_produces_no_warning() {
+    let mut bms = Bms::default();
+    bms.timing.bpm = Some(120.0);
+    bms.gameplay.vol_wav = Some(120.0);
+
+    let processed = BmsProcessor::process_with(&bms, Bme).unwrap();
+    assert_eq!(processed.value.chart.chart_info().volwav_percent, Some(120));
+    assert!(!processed.warnings.iter().any(|w| matches!(
+        w.kind,
+        ProcessWarningKind::NegativeVolWavIgnored { .. } | ProcessWarningKind::VolWavClamped { .. }
+    )));
+}

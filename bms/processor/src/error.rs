@@ -257,4 +257,21 @@ pub enum ProcessWarningKind {
         /// Whether playable second-side notes exist.
         second_side_present: bool,
     },
+
+    /// A negative `#VOLWAV` value was ignored; the chart keeps the caller's
+    /// default volume.
+    #[error("negative #VOLWAV {value} ignored")]
+    NegativeVolWavIgnored {
+        /// The declared value.
+        value: f64,
+    },
+
+    /// A `#VOLWAV` value above 255 was clamped to 255.
+    #[error("#VOLWAV {value} above 255 clamped to {clamped}")]
+    VolWavClamped {
+        /// The declared value.
+        value: f64,
+        /// The clamped value.
+        clamped: u8,
+    },
 }

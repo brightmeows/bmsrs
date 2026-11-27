@@ -658,7 +658,7 @@ impl BmsConverter<'_> {
     #[expect(clippy::cast_possible_truncation, reason = "play level fits in u64")]
     #[expect(clippy::cast_sign_loss, reason = "play level is non-negative")]
     fn build_metadata(
-        &self,
+        &mut self,
         bmp_map: &BTreeMap<BmpIndex, BmpEntry>,
         swbga_resources: Vec<SwBgaResource>,
     ) -> (SongInfo, ChartInfo) {
@@ -728,9 +728,43 @@ impl BmsConverter<'_> {
                 judge_rank,
                 total: self.bms.gameplay.total,
                 total_percent: None,
-                volwav_percent: self.bms.gameplay.vol_wav.map(|v| v.round() as u8),
+                volwav_percent: self.volwav_percent(),
             },
         )
+    }
+
+    /// Resolve `#VOLWAV` into the IR percentage, warning on out-of-range
+    /// values instead of saturating silently.
+    ///
+    /// A negative value has no volume semantics and is dropped with a warning
+    /// so the caller keeps its own default; a value above the `u8` range is
+    /// clamped to 255 with a warning.
+    fn volwav_percent(&mut self) -> Option<u8> {
+        let value = self.bms.gameplay.vol_wav?;
+        if value < 0.0 {
+            self.warnings.push(ProcessWarning::new(
+                None,
+                ProcessWarningKind::NegativeVolWavIgnored { value },
+            ));
+            return None;
+        }
+        let rounded = value.round();
+        if rounded > 255.0 {
+            self.warnings.push(ProcessWarning::new(
+                None,
+                ProcessWarningKind::VolWavClamped {
+                    value,
+                    clamped: 255,
+                },
+            ));
+        }
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the value is non-negative and clamped to 0..=255 before the cast"
+        )]
+        let clamped = rounded.clamp(0.0, 255.0) as u8;
+        Some(clamped)
     }
 
     /// Return the source line span for a measure and candidate channels.
