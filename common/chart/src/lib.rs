@@ -97,6 +97,53 @@ pub mod note;
 pub mod timing;
 pub mod visual;
 
+/// Define a `u32` index newtype with the shared constructor, getter, and
+/// conversions.
+///
+/// [`AudioIndex`], [`BgaResourceId`], and [`SwBgaResourceId`] each name a
+/// different table; the newtype keeps them from being assigned to each other,
+/// and their boilerplate is identical, so it lives here once.
+macro_rules! index_newtype {
+    ($(#[$meta:meta])* $vis:vis struct $name:ident;) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        $vis struct $name(u32);
+
+        impl $name {
+            /// Create the index from a raw value.
+            #[must_use]
+            pub const fn new(value: u32) -> Self {
+                Self(value)
+            }
+
+            /// Return the raw index value.
+            #[must_use]
+            pub const fn get(self) -> u32 {
+                self.0
+            }
+        }
+
+        impl From<u32> for $name {
+            fn from(value: u32) -> Self {
+                Self(value)
+            }
+        }
+
+        impl From<$name> for u32 {
+            fn from(value: $name) -> Self {
+                value.0
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.0.fmt(formatter)
+            }
+        }
+    };
+}
+pub(crate) use index_newtype;
+
 pub use audio::{AudioAsset, AudioIndex};
 pub use event::{CustomEvent, Event, EventKind, NoCustomEvent, Note, NoteExt};
 pub use mode::{Lane, NoteSide};
