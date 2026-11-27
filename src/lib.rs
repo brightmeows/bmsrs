@@ -538,5 +538,3 @@ pub mod prelude {
     pub use crate::pipeline::{DiagnosticCode, Severity, SourceSpan};
     pub use crate::player::Player;
 }
-
-pub use bmsrs_pipeline::{Diagnostic, DiagnosticCode, Outcome, Severity, SourceSpan};
