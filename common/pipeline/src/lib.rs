@@ -7,6 +7,9 @@
 //! - [`SourceSpan`] is a format-neutral byte range.
 //! - [`Diagnostic`], [`Severity`], and [`DiagnosticCode`] describe one
 //!   user-facing diagnostic.
+//! - [`ErrorStrategy`] selects whether a whole-file parse collects every
+//!   error or stops at the first one.
+//! - [`SourceFormat`] names the input dialect selected by the entry layer.
 //!
 //! It intentionally has no dependencies so that `bmsrs-chart` and
 //! `bmsrs-player` remain dependency-free as well.

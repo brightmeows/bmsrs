@@ -169,7 +169,7 @@ pub enum BgaResourceKind {
 /// The dedicated newtype prevents SWBGA definition indices from being assigned
 /// to BGA resource indices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SwBgaResourceId(pub u32);
+pub struct SwBgaResourceId(u32);
 
 impl SwBgaResourceId {
     /// Create an SWBGA definition index from a raw index.
@@ -265,26 +265,5 @@ impl VideoAsset {
             colors: None,
             delay_frames: None,
         }
-    }
-
-    /// Set the frame-rate override (`#VIDEOf/s`).
-    #[must_use]
-    pub const fn with_fps(mut self, fps: f64) -> Self {
-        self.fps = Some(fps);
-        self
-    }
-
-    /// Set the palette depth in bits (`#VIDEOCOLORS`).
-    #[must_use]
-    pub const fn with_colors(mut self, colors: u32) -> Self {
-        self.colors = Some(colors);
-        self
-    }
-
-    /// Set the starting frame delay (`#VIDEODLY`).
-    #[must_use]
-    pub const fn with_delay_frames(mut self, delay_frames: u32) -> Self {
-        self.delay_frames = Some(delay_frames);
-        self
     }
 }
