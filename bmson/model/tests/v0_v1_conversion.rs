@@ -75,7 +75,7 @@ fn make_v1_bmson() -> v1::Bmson {
 #[test]
 fn v1_converts_to_root() {
     let v1 = make_v1_bmson();
-    let root: Bmson = Bmson::from(v1);
+    let root: Bmson = Bmson::try_from(v1).unwrap();
 
     assert_eq!(root.version, "1.0.0");
     assert_eq!(root.song_info.title, "Test Song");
@@ -93,8 +93,8 @@ fn v1_converts_to_root() {
 #[test]
 fn v1_roundtrip_v1_via_root() {
     let v1_original = make_v1_bmson();
-    let root: Bmson = Bmson::from(v1_original);
-    let v1_back: v1::Bmson = v1::Bmson::from(root);
+    let root: Bmson = Bmson::try_from(v1_original).unwrap();
+    let v1_back: v1::Bmson = v1::Bmson::try_from(root).unwrap();
 
     assert_eq!(v1_back.version, "1.0.0");
     assert_eq!(v1_back.info.title, "Test Song");
@@ -210,6 +210,28 @@ fn v0_negative_init_bpm_returns_error() {
     v0.info.init_bpm = -1.0;
     let result: Result<Bmson, _> = v0.try_into();
     assert!(result.is_err());
+}
+
+#[test]
+fn v1_zero_init_bpm_upgrade_returns_invalid_init_bpm() {
+    let mut v1 = make_v1_bmson();
+    v1.info.init_bpm = 0.0;
+    let result: Result<Bmson, _> = v1.try_into();
+    assert_eq!(
+        result.unwrap_err(),
+        UpgradeError::InvalidInitBpm { bpm: 0.0 }
+    );
+}
+
+#[test]
+fn v1_negative_init_bpm_downgrade_returns_invalid_init_bpm() {
+    let mut root: Bmson = make_v1_bmson().try_into().unwrap();
+    root.chart_data.init_bpm = -5.0;
+    let result: Result<v1::Bmson, _> = root.try_into();
+    assert_eq!(
+        result.unwrap_err(),
+        UpgradeError::InvalidInitBpm { bpm: -5.0 }
+    );
 }
 
 #[test]

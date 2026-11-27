@@ -245,38 +245,14 @@ pub struct SoundChannel {
 use crate::{BpmEvent, StopEvent};
 use crate::{ChartData, ChartInfo, SongInfo};
 
-/// Error type for failed v0 to root conversion.
-#[derive(Clone, Debug, derive_more::Display)]
-#[display("v0 conversion error: {message}")]
-pub struct TryFromV0Error {
-    /// Human-readable description of the failure.
-    pub message: String,
-}
-
-impl TryFromV0Error {
-    /// Create a new conversion error with a descriptive message.
-    #[must_use]
-    #[inline]
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-}
-
-impl std::error::Error for TryFromV0Error {}
-
 impl TryFrom<Bmson> for crate::Bmson {
-    type Error = TryFromV0Error;
+    type Error = crate::UpgradeError;
 
     fn try_from(v0: Bmson) -> Result<Self, Self::Error> {
         let info = v0.info;
 
         if info.init_bpm <= 0.0 {
-            return Err(TryFromV0Error::new(format!(
-                "init_bpm must be positive, got {bpm}",
-                bpm = info.init_bpm
-            )));
+            return Err(crate::UpgradeError::InvalidInitBpm { bpm: info.init_bpm });
         }
 
         let song_info = SongInfo {
@@ -382,14 +358,12 @@ fn convert_bar_lines(lines: Vec<BarLine>) -> Vec<crate::BarLine> {
 }
 
 impl TryFrom<crate::Bmson> for Bmson {
-    type Error = TryFromV0Error;
+    type Error = crate::UpgradeError;
 
     fn try_from(root: crate::Bmson) -> Result<Self, Self::Error> {
         let init_bpm = root.chart_data.init_bpm;
         if init_bpm <= 0.0 {
-            return Err(TryFromV0Error::new(format!(
-                "init_bpm must be positive, got {init_bpm}"
-            )));
+            return Err(crate::UpgradeError::InvalidInitBpm { bpm: init_bpm });
         }
 
         let info = BmsonInfo {

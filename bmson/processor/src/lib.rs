@@ -12,7 +12,7 @@
 //! bmsrs_bmson_model::Bmson -> BmsonProcessor::process(bmson, layout) -> Chart<BmsonNoteExt>
 //! ```
 //!
-//! For v0/v1 files, convert to the root schema through `Bmson::from` first.
+//! For v0/v1 files, convert to the root schema through `TryFrom` first.
 //!
 //! # Slicing
 //!

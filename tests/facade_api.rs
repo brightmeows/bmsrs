@@ -505,3 +505,26 @@ fn parse_from_selection_fail_fast_returns_the_first_error() {
         }
     ));
 }
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_v1_zero_init_bpm_fails_at_parse_like_v0() {
+    use bmsrs::raw::bmson::model::{BmsonError, UpgradeError};
+
+    // v1 and v0 used to disagree on where an invalid init_bpm surfaced:
+    // v0 failed at parse, v1 only at process. Both now fail at parse.
+    let bga = r#""bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}"#;
+    let v1 = [
+        r#"{"version":"1.0.0","info":{"title":"T","artist":"A","genre":"G","level":1,"init_bpm":0},"#,
+        bga,
+        "}",
+    ]
+    .concat();
+    let error = bmsrs::bmson::parse_str(&v1).expect_err("v1 init_bpm 0 is rejected");
+    assert!(matches!(
+        error,
+        bmsrs::bmson::BmsonParseError::Version(BmsonError::Upgrade(UpgradeError::InvalidInitBpm {
+            bpm: 0.0
+        }))
+    ));
+}

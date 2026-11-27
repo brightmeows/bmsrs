@@ -345,12 +345,14 @@ pub mod bmson {
             model::DetectedVersion::V2 => Ok(serde_json::from_str(json)?),
             model::DetectedVersion::V1 => {
                 let v1: model::v1::Bmson = serde_json::from_str(json)?;
-                Ok(model::Bmson::from(v1))
+                v1.try_into().map_err(|error: model::UpgradeError| {
+                    BmsonParseError::Version(model::BmsonError::Upgrade(error))
+                })
             }
             model::DetectedVersion::V0 => {
                 let v0: model::v0::Bmson = serde_json::from_str(json)?;
-                v0.try_into().map_err(|error: model::v0::TryFromV0Error| {
-                    BmsonParseError::Version(model::BmsonError::V0Conversion(error))
+                v0.try_into().map_err(|error: model::UpgradeError| {
+                    BmsonParseError::Version(model::BmsonError::Upgrade(error))
                 })
             }
         }

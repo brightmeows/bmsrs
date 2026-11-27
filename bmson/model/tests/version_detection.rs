@@ -117,7 +117,7 @@ fn detect_then_parse_v1() {
         DetectedVersion::V1
     );
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json()).unwrap();
-    let bmson: bmsrs_bmson_model::Bmson = v1.into();
+    let bmson: bmsrs_bmson_model::Bmson = v1.try_into().unwrap();
     assert_eq!(bmson.version, "1.0.0");
     assert_eq!(bmson.song_info.title, "T");
 }
@@ -198,9 +198,9 @@ fn serialize_v2_then_detect() {
 fn serialize_v1_then_detect() {
     let bmson: bmsrs_bmson_model::Bmson = {
         let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json()).unwrap();
-        v1.into()
+        v1.try_into().unwrap()
     };
-    let v1_back: bmsrs_bmson_model::v1::Bmson = bmson.into();
+    let v1_back: bmsrs_bmson_model::v1::Bmson = bmson.try_into().unwrap();
     let out = serde_json::to_string(&v1_back).unwrap();
     assert_eq!(
         bmsrs_bmson_model::DetectedVersion::detect(&out).unwrap(),
@@ -223,7 +223,7 @@ fn detect_v1_with_mode_hint() {
         DetectedVersion::V1
     );
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(json).unwrap();
-    let bmson: bmsrs_bmson_model::Bmson = v1.into();
+    let bmson: bmsrs_bmson_model::Bmson = v1.try_into().unwrap();
     assert_eq!(bmson.chart_data.mode_hint, ModeHint::Popn9k);
 }
 

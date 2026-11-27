@@ -11,15 +11,11 @@
 //!
 //! # Version conversion
 //!
-//! Each version module implements [`From`] / [`TryFrom`] for conversion to the
-//! root (v2) `Bmson`:
-//!
-//! - [`v1::Bmson`] to [`Bmson`]: `From` (infallible; maps with sensible
-//!   defaults)
-//! - [`v0::Bmson`] to [`Bmson`]: `TryFrom` (some mappings are lossy)
-//! - [`Bmson`] to [`v1::Bmson`]: `From`
-//! - [`Bmson`] to [`v0::Bmson`]: `TryFrom` (roundtrips may lose extension
-//!   fields)
+//! Every conversion between the root (v2) [`Bmson`] and a legacy version is a
+//! `TryFrom` whose only failure is [`UpgradeError::InvalidInitBpm`]: the root
+//! schema requires a positive `init_bpm`. v0 mappings additionally drop
+//! `BarLine.k`, and a roundtrip through either version may lose extension
+//! fields the older schema cannot carry.
 //!
 //! # Module layout
 //!
@@ -454,6 +450,21 @@ pub struct ChartData {
     pub life_deltas: Option<LifeDeltas>,
 }
 
+/// A schema conversion between bmson versions failed.
+///
+/// Both legacy versions validate the one field the root schema cannot carry:
+/// a positive `init_bpm`.
+#[derive(Debug, Clone, Copy, PartialEq, thiserror::Error)]
+#[non_exhaustive]
+pub enum UpgradeError {
+    /// The initial BPM must be positive.
+    #[error("init_bpm must be positive, got {bpm}")]
+    InvalidInitBpm {
+        /// The invalid value.
+        bpm: f64,
+    },
+}
+
 /// Errors that can occur during bmson version detection or format conversion.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -465,9 +476,9 @@ pub enum BmsonError {
     #[error("unknown bmson version: {0}")]
     UnknownVersion(String),
 
-    /// Conversion from the legacy v0.2.1 format failed.
-    #[error("{0}")]
-    V0Conversion(v0::TryFromV0Error),
+    /// A conversion between the root schema and a legacy version failed.
+    #[error(transparent)]
+    Upgrade(#[from] UpgradeError),
 }
 
 /// Detected bmson format version, determined by inspecting the `"version"` field

@@ -5,7 +5,8 @@
 //!
 //! # Conversion
 //!
-//! [`Bmson`] and [`crate::Bmson`] convert through [`From`].
+//! [`Bmson`] and [`crate::Bmson`] convert through [`TryFrom`]; the only
+//! failure is a non-positive `init_bpm`.
 //!
 //! v1 to root (v2) splits [`BmsonInfo`] into [`crate::SongInfo`],
 //! [`crate::ChartInfo`], and [`crate::ChartData`]. Root to v1 merges them back.
@@ -327,9 +328,14 @@ pub struct ConditionalBranch {
 
 use crate::{Bmson as RootBmson, ChartData, ChartInfo, SongInfo};
 
-impl From<Bmson> for RootBmson {
-    fn from(v1: Bmson) -> Self {
+impl TryFrom<Bmson> for RootBmson {
+    type Error = crate::UpgradeError;
+
+    fn try_from(v1: Bmson) -> Result<Self, Self::Error> {
         let info = v1.info;
+        if info.init_bpm <= 0.0 {
+            return Err(crate::UpgradeError::InvalidInitBpm { bpm: info.init_bpm });
+        }
 
         let song_info = SongInfo {
             title: info.title,
@@ -386,7 +392,7 @@ impl From<Bmson> for RootBmson {
             life_deltas: None,
         };
 
-        Self {
+        Ok(Self {
             version: v1.version,
             song_info,
             chart_info,
@@ -407,12 +413,19 @@ impl From<Bmson> for RootBmson {
                 .into_iter()
                 .map(v1_block_to_root)
                 .collect(),
-        }
+        })
     }
 }
 
-impl From<RootBmson> for Bmson {
-    fn from(root: RootBmson) -> Self {
+impl TryFrom<RootBmson> for Bmson {
+    type Error = crate::UpgradeError;
+
+    fn try_from(root: RootBmson) -> Result<Self, Self::Error> {
+        if root.chart_data.init_bpm <= 0.0 {
+            return Err(crate::UpgradeError::InvalidInitBpm {
+                bpm: root.chart_data.init_bpm,
+            });
+        }
         let info = BmsonInfo {
             title: root.song_info.title,
             subtitle: root.chart_info.subtitle,
@@ -446,7 +459,7 @@ impl From<RootBmson> for Bmson {
             chara_file: root.chart_info.chara_file,
         };
 
-        Self {
+        Ok(Self {
             version: root.version,
             info,
             lines: root.chart_data.lines,
@@ -478,7 +491,7 @@ impl From<RootBmson> for Bmson {
                 .into_iter()
                 .map(root_block_to_v1)
                 .collect(),
-        }
+        })
     }
 }
 
