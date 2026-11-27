@@ -418,7 +418,6 @@ impl BmsConverter<'_> {
         reason = "channel values are single-byte bounded (0-255) or u32 resource indices"
     )]
     fn collect_judge_rank(&mut self) {
-        let base = self.bms.gameplay.base.unwrap_or_default();
         let non_event = &self.bms.messages.non_event_data;
         for item in non_event
             .iter()
@@ -442,12 +441,13 @@ impl BmsConverter<'_> {
                     .copied()
                 else {
                     let span = self.message_span(item.measure, &[RawChannel::Judge]);
-                    if let Some(key) = obj.to_index_in(base) {
-                        self.warnings.push(ProcessWarning::new(
-                            span,
-                            ProcessWarningKind::MissingExRankDefinition { key, tick },
-                        ));
-                    }
+                    self.warnings.push(ProcessWarning::new(
+                        span,
+                        ProcessWarningKind::MissingExRankDefinition {
+                            key: ExRankIndex::from(*obj),
+                            tick,
+                        },
+                    ));
                     continue;
                 };
                 self.events
@@ -557,7 +557,7 @@ impl BmsConverter<'_> {
                             self.warnings.push(ProcessWarning::new(
                                 span,
                                 ProcessWarningKind::MissingSwBgaDefinition {
-                                    key: obj.to_index().unwrap_or(0),
+                                    key: BmpIndex::from(*obj),
                                     tick,
                                 },
                             ));
@@ -580,7 +580,7 @@ impl BmsConverter<'_> {
                             self.warnings.push(ProcessWarning::new(
                                 span,
                                 ProcessWarningKind::MissingTextDefinition {
-                                    key: obj.to_index().unwrap_or(0),
+                                    key: TextIndex::from(*obj),
                                     tick,
                                 },
                             ));

@@ -107,6 +107,6 @@ fn undefined_object_becomes_blank_frame_and_warns() {
     assert_eq!(frames[1].resource, Some(BgaResourceId::new(0)));
     assert!(processed.warnings.iter().any(|warning| matches!(
         warning.kind,
-        ProcessWarningKind::MissingBmpDefinition { key: 7, .. }
+        ProcessWarningKind::MissingBmpDefinition { key, .. } if key.as_str() == "07"
     )));
 }

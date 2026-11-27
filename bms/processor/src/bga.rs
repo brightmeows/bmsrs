@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bmsrs_bms_model::{BgaEvent, BmsBgaLayer, Position};
-use bmsrs_bms_values::{BmpIndex, BmsBase, BmsChannel as RawChannel, BmsIndex};
+use bmsrs_bms_values::{BmpIndex, BmsChannel as RawChannel, BmsIndex};
 use bmsrs_chart::{
     BgaFrame, BgaResourceContent, BgaResourceId, CropRect, Event, EventKind, SwBgaResource,
     SwBgaResourceId, VideoAsset,
@@ -21,8 +21,7 @@ impl BmsConverter<'_> {
     /// object defines a 500 ms miss animation referenced once at the measure
     /// line, while single-object lines stay timed switches.
     pub fn collect_bga(&mut self, bmp_map: &BTreeMap<BmpIndex, BmpEntry>) {
-        let base = self.bms.gameplay.base.unwrap_or_default();
-        let animated = self.build_poor_animations(bmp_map, base);
+        let animated = self.build_poor_animations(bmp_map);
         let mut emitted_measures = std::collections::BTreeSet::new();
         for be in &self.bms.messages.bga_events {
             if be.layer == BmsBgaLayer::Poor
@@ -54,12 +53,13 @@ impl BmsConverter<'_> {
                     BmsBgaLayer::Layer2 => RawChannel::BgaLayer2,
                 };
                 let span = self.message_span(be.position.measure(), &[channel]);
-                if let Some(key) = be.bmp_id.to_index_in(base) {
-                    self.warnings.push(ProcessWarning::new(
-                        span,
-                        ProcessWarningKind::MissingBmpDefinition { key, tick },
-                    ));
-                }
+                self.warnings.push(ProcessWarning::new(
+                    span,
+                    ProcessWarningKind::MissingBmpDefinition {
+                        key: be.bmp_id,
+                        tick,
+                    },
+                ));
                 None
             };
             self.events.push(Event::new(
@@ -82,7 +82,6 @@ impl BmsConverter<'_> {
     fn build_poor_animations(
         &mut self,
         bmp_map: &BTreeMap<BmpIndex, BmpEntry>,
-        base: BmsBase,
     ) -> BTreeMap<u16, BgaResourceId> {
         let mut by_measure: BTreeMap<u16, Vec<&BgaEvent>> = BTreeMap::new();
         for event in &self.bms.messages.bga_events {
@@ -112,14 +111,15 @@ impl BmsConverter<'_> {
             let mut frames = Vec::with_capacity(events.len());
             for event in events {
                 let resource = bmp_map.get(&event.bmp_id).map(|entry| entry.resource_id);
-                if resource.is_none()
-                    && let Some(key) = event.bmp_id.to_index_in(base)
-                {
+                if resource.is_none() {
                     let tick = self.table.position_to_tick(event.position);
                     let span = self.message_span(*measure, &[RawChannel::BgaPoor]);
                     self.warnings.push(ProcessWarning::new(
                         span,
-                        ProcessWarningKind::MissingBmpDefinition { key, tick },
+                        ProcessWarningKind::MissingBmpDefinition {
+                            key: event.bmp_id,
+                            tick,
+                        },
                     ));
                 }
                 frames.push(BgaFrame {

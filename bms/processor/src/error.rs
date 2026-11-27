@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fmt;
 
 use bmsrs_bms_model::ChannelValueWarning;
+use bmsrs_bms_values::{BmpIndex, BpmIndex, ExRankIndex, StopIndex, TextIndex, WavIndex};
 use bmsrs_pipeline::SourceSpan;
 
 /// Recoverable warning produced while processing BMS.
@@ -68,8 +69,8 @@ pub enum ProcessWarningKind {
         "note at tick {tick} (player {player}, lane {lane}) references undefined WAV key {key}"
     )]
     MissingWavDefinition {
-        /// Undefined WAV key (numeric value in the chart's base).
-        key: u16,
+        /// Undefined WAV key as written in the chart.
+        key: WavIndex,
         /// Player number of the referencing note.
         player: u8,
         /// Lane number of the referencing note.
@@ -110,8 +111,8 @@ pub enum ProcessWarningKind {
     /// A BPM change references a key that is not defined in `#BPMxx`.
     #[error("BPM change at tick {tick} references undefined BPM key {key}")]
     MissingBpmDefinition {
-        /// Undefined BPM key (Base36 numeric value).
-        key: u16,
+        /// Undefined BPM key as written in the chart.
+        key: BpmIndex,
         /// Tick where the event occurs.
         tick: u64,
     },
@@ -119,8 +120,8 @@ pub enum ProcessWarningKind {
     /// A stop event references a key that is not defined in `#STOPxx`.
     #[error("stop event at tick {tick} references undefined STOP key {key}")]
     MissingStopDefinition {
-        /// Undefined STOP key (Base36 numeric value).
-        key: u16,
+        /// Undefined STOP key as written in the chart.
+        key: StopIndex,
         /// Tick where the event occurs.
         tick: u64,
     },
@@ -128,8 +129,8 @@ pub enum ProcessWarningKind {
     /// A BGA event references an undefined BMP index; the layer is cleared.
     #[error("BGA event at tick {tick} references undefined BMP key {key}; the layer is cleared")]
     MissingBmpDefinition {
-        /// Undefined BMP key (numeric value in the chart's base).
-        key: u16,
+        /// Undefined BMP key as written in the chart.
+        key: BmpIndex,
         /// Tick where the event occurs.
         tick: u64,
     },
@@ -138,8 +139,8 @@ pub enum ProcessWarningKind {
     /// skipped.
     #[error("text event at tick {tick} references undefined TEXT key {key}")]
     MissingTextDefinition {
-        /// Undefined TEXT key (numeric value in the chart's base).
-        key: u16,
+        /// Undefined TEXT key as written in the chart.
+        key: TextIndex,
         /// Tick where the event occurs.
         tick: u64,
     },
@@ -148,8 +149,8 @@ pub enum ProcessWarningKind {
     /// the event is skipped.
     #[error("key-bound BGA event at tick {tick} references undefined SWBGA key {key}")]
     MissingSwBgaDefinition {
-        /// Undefined SWBGA key (numeric value in the chart's base).
-        key: u16,
+        /// Undefined SWBGA key as written in the chart.
+        key: BmpIndex,
         /// Tick where the event occurs.
         tick: u64,
     },
@@ -158,8 +159,8 @@ pub enum ProcessWarningKind {
     /// event is skipped.
     #[error("judgment event at tick {tick} references undefined EXRANK key {key}")]
     MissingExRankDefinition {
-        /// Undefined EXRANK key (numeric value in the chart's base).
-        key: u16,
+        /// Undefined EXRANK key as written in the chart.
+        key: ExRankIndex,
         /// Tick where the event occurs.
         tick: u64,
     },

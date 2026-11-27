@@ -5,7 +5,6 @@ use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{BmsProcessor, ProcessWarningKind};
 use bmsrs_bms_syntax::SourceFile;
-use bmsrs_bms_values::BmsBase;
 
 #[test]
 fn missing_wav_key_produces_warning() {
@@ -33,10 +32,9 @@ fn missing_wav_key_produces_warning() {
 }
 
 #[test]
-fn base16_missing_wav_key_uses_hex_numeric_value() {
+fn missing_wav_key_carries_the_source_key() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
-    bms.gameplay.base = Some(BmsBase::Base16);
     bms.messages.note_events.push(NoteEvent {
         position: Position::new(0, 0, 8),
         player: 1,
@@ -48,7 +46,7 @@ fn base16_missing_wav_key_uses_hex_numeric_value() {
     let warnings = BmsProcessor::process_with(&bms, Bme).unwrap().warnings;
     assert!(warnings.iter().any(|warning| matches!(
         warning.kind,
-        ProcessWarningKind::MissingWavDefinition { key: 255, .. }
+        ProcessWarningKind::MissingWavDefinition { key, .. } if key.as_str() == "FF"
     )));
 }
 

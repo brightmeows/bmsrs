@@ -186,11 +186,11 @@ fn undefined_bmp_reference_clears_layer_with_warning() {
     assert!(processed.warnings.iter().any(|warning| {
         matches!(
             warning.kind,
-            // "FF" decodes through the default base36, not hexadecimal.
+            // The key is the source spelling, not a number in any base.
             ProcessWarningKind::MissingBmpDefinition {
-                key: 555,
+                key,
                 tick: 960
-            }
+            } if key.as_str() == "FF"
         )
     }));
 }
@@ -236,7 +236,8 @@ fn undefined_text_reference_warns_and_is_skipped() {
         processed.warnings.iter().any(|warning| {
             matches!(
                 warning.kind,
-                ProcessWarningKind::MissingTextDefinition { key: 2, tick: 960 }
+                ProcessWarningKind::MissingTextDefinition { key, tick: 960 }
+                    if key.as_str() == "02"
             )
         }),
         "undefined TEXT reference should warn"
@@ -270,7 +271,8 @@ fn undefined_swbga_reference_warns_and_is_skipped() {
         processed.warnings.iter().any(|warning| {
             matches!(
                 warning.kind,
-                ProcessWarningKind::MissingSwBgaDefinition { key: 2, tick: 960 }
+                ProcessWarningKind::MissingSwBgaDefinition { key, tick: 960 }
+                    if key.as_str() == "02"
             )
         }),
         "undefined SWBGA reference should warn"
@@ -304,7 +306,8 @@ fn undefined_exrank_reference_warns_and_is_skipped() {
         processed.warnings.iter().any(|warning| {
             matches!(
                 warning.kind,
-                ProcessWarningKind::MissingExRankDefinition { key: 2, tick: 960 }
+                ProcessWarningKind::MissingExRankDefinition { key, tick: 960 }
+                    if key.as_str() == "02"
             )
         }),
         "undefined EXRANK reference should warn"

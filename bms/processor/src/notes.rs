@@ -133,7 +133,6 @@ impl BmsConverter<'_> {
         consumed: &HashSet<usize>,
         unpaired_starts: &[(u8, u8, u64)],
     ) {
-        let base = self.bms.gameplay.base.unwrap_or_default();
         // One marker table per call: the note loop below would otherwise
         // rebuild it for every note.
         let markers = self.ln_markers();
@@ -146,17 +145,11 @@ impl BmsConverter<'_> {
                          tick: u64|
          -> Option<AudioIndex> {
             let audio = wav_map.get(wav_id).copied();
-            // When `to_index()` returns `None`, skip the warning silently:
-            // a non-decomposable WAV key (such as the "ZZ" LNOBJ marker) is
-            // outside the WAV table's definition range and does not produce
-            // a missing-definition warning.
-            if audio.is_none()
-                && let Some(key) = wav_id.0.to_index_in(base)
-            {
+            if audio.is_none() {
                 warnings.push(ProcessWarning::new(
                     None,
                     ProcessWarningKind::MissingWavDefinition {
-                        key,
+                        key: *wav_id,
                         player,
                         lane,
                         tick,
