@@ -78,6 +78,17 @@ impl Diagnostic {
     }
 }
 
+impl From<Diagnostic> for bmsrs_pipeline::Diagnostic {
+    fn from(diagnostic: Diagnostic) -> Self {
+        Self::new(diagnostic.severity, diagnostic.message)
+            .with_span(bmsrs_pipeline::SourceSpan::new(
+                diagnostic.range.start().into(),
+                diagnostic.range.end().into(),
+            ))
+            .with_code(diagnostic.code)
+    }
+}
+
 /// The result of one parse.
 #[derive(Debug, Clone)]
 pub struct SyntaxParse {

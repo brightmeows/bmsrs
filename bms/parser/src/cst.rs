@@ -1,6 +1,7 @@
 //! Build `Bms` from a rowan CST or a lossless document.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::num::NonZeroUsize;
 
 use bmsrs_bms_source::{Document, TextDecodeError};
@@ -9,19 +10,19 @@ use bmsrs_bms_syntax::{
     TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
-use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, SourceSpan};
+use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, Severity, SourceSpan};
 
 use bmsrs_bms_model::Bms;
 
-/// Warning categories produced by CST or document parsing.
+/// What a [`BmsDiagnostic`] reports.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BmsParseWarningKind {
+pub enum BmsDiagnosticKind {
     /// Single-line value parse error.
     Tokenize(BmsTokenizeError),
     /// Document decode error.
     Decode(TextDecodeError),
     /// CST syntax or control-flow diagnostic, with its stable code.
-    Syntax {
+    Cst {
         /// Diagnostic message.
         message: String,
         /// Stable code assigned by the syntax layer.
@@ -29,15 +30,93 @@ pub enum BmsParseWarningKind {
     },
 }
 
-/// A parse warning with a line number.
+/// One diagnostic from CST or document parsing: a recoverable warning, or the
+/// error that stopped a `FailFast` parse.
+///
+/// Severity travels with the diagnostic rather than being implied by the
+/// channel it arrives on: a `CollectAll` parse keeps error-severity
+/// diagnostics in its warning list.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BmsParseWarning {
+pub struct BmsDiagnostic {
     /// One-based line number.
     pub line: NonZeroUsize,
     /// Text range.
     pub range: TextRange,
-    /// Warning category.
-    pub kind: BmsParseWarningKind,
+    /// Severity assigned by the layer that produced the diagnostic.
+    pub severity: Severity,
+    /// What the diagnostic reports.
+    pub kind: BmsDiagnosticKind,
+}
+
+impl BmsDiagnostic {
+    /// A whole-document decode failure: line 1 and an empty range, because the
+    /// text never got far enough to have a position.
+    #[must_use]
+    pub fn decode(error: TextDecodeError) -> Self {
+        Self {
+            line: NonZeroUsize::MIN,
+            range: TextRange::empty(TextSize::from(0)),
+            severity: Severity::Error,
+            kind: BmsDiagnosticKind::Decode(error),
+        }
+    }
+
+    /// Return whether this diagnostic has error severity.
+    #[must_use]
+    pub const fn is_error(&self) -> bool {
+        matches!(self.severity, Severity::Error)
+    }
+}
+
+impl fmt::Display for BmsDiagnostic {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let severity = match self.severity {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            Severity::Information => "information",
+        };
+        match &self.kind {
+            BmsDiagnosticKind::Cst { message, code } => {
+                write!(
+                    formatter,
+                    "{code} {severity} at {:?}: {message}",
+                    self.range
+                )
+            }
+            BmsDiagnosticKind::Tokenize(error) => {
+                write!(formatter, "tokenization error at {:?}: {error}", self.range)
+            }
+            BmsDiagnosticKind::Decode(error) => {
+                write!(formatter, "decode error at {:?}: {error}", self.range)
+            }
+        }
+    }
+}
+
+impl std::error::Error for BmsDiagnostic {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.kind {
+            BmsDiagnosticKind::Cst { .. } => None,
+            BmsDiagnosticKind::Tokenize(error) => Some(error),
+            BmsDiagnosticKind::Decode(error) => Some(error),
+        }
+    }
+}
+
+impl From<BmsDiagnostic> for bmsrs_pipeline::Diagnostic {
+    fn from(diagnostic: BmsDiagnostic) -> Self {
+        let (message, code) = match diagnostic.kind {
+            BmsDiagnosticKind::Cst { message, code } => (message, code),
+            BmsDiagnosticKind::Tokenize(error) => (error.to_string(), DiagnosticCode::Tokenize),
+            BmsDiagnosticKind::Decode(error) => (error.to_string(), DiagnosticCode::Decode),
+        };
+        Self::new(diagnostic.severity, message)
+            .with_span(SourceSpan::new(
+                diagnostic.range.start().into(),
+                diagnostic.range.end().into(),
+            ))
+            .with_code(code)
+    }
 }
 
 /// Result of building `Bms` from a CST.
@@ -47,8 +126,8 @@ pub struct BmsParse {
     pub bms: Bms,
     /// Control-flow selection record.
     pub selection: BranchSelection,
-    /// Warnings.
-    pub warnings: Vec<BmsParseWarning>,
+    /// Diagnostics collected while building the model.
+    pub warnings: Vec<BmsDiagnostic>,
 }
 
 /// Typed token result for one line.
@@ -95,7 +174,7 @@ impl BmsParser {
             options.control_flow_compat,
             options.format,
         );
-        let warnings = token_warnings(&all_tokens)
+        let warnings = token_diagnostics(&all_tokens)
             .into_iter()
             .filter(|warning| selected_ranges.contains(&warning.range))
             .collect();
@@ -106,17 +185,18 @@ impl BmsParser {
         }
     }
 
-    /// Build `Bms` from a lossless document and collect warnings from every
-    /// line.
+    /// Build `Bms` from a lossless document and collect diagnostics from
+    /// every line.
     ///
     /// # Errors
     ///
-    /// Returns [`BmsParseWarning`] when document decoding fails or when `FailFast`
-    /// encounters the first warning.
+    /// Returns the diagnostic when document decoding fails or, under
+    /// `FailFast`, for the first diagnostic of error severity. Warning-severity
+    /// diagnostics stay in the list.
     pub fn parse_document<R: ControlFlowRng + ?Sized>(
         document: &Document,
         rng: &mut R,
-    ) -> Result<BmsParse, BmsParseWarning> {
+    ) -> Result<BmsParse, BmsDiagnostic> {
         Self::parse_document_with(document, &ParseOptions::default(), rng)
     }
 
@@ -124,29 +204,26 @@ impl BmsParser {
     ///
     /// # Errors
     ///
-    /// Returns [`BmsParseWarning`] when document decoding fails or when `FailFast`
-    /// encounters the first warning.
+    /// Returns the diagnostic when document decoding fails or, under
+    /// `FailFast`, for the first diagnostic of error severity. Warning-severity
+    /// diagnostics stay in the list.
     pub fn parse_document_with<R: ControlFlowRng + ?Sized>(
         document: &Document,
         options: &ParseOptions,
         rng: &mut R,
-    ) -> Result<BmsParse, BmsParseWarning> {
-        let text = document.try_to_text().map_err(|error| BmsParseWarning {
-            line: NonZeroUsize::MIN,
-            range: TextRange::empty(TextSize::from(0)),
-            kind: BmsParseWarningKind::Decode(error),
-        })?;
+    ) -> Result<BmsParse, BmsDiagnostic> {
+        let text = document.try_to_text().map_err(BmsDiagnostic::decode)?;
         let parse = SourceFile::parse_with(&text, options);
         let file = parse.source_file();
         let all_tokens = Self::tokenize_lines_with(&file, options);
-        let mut warnings = syntax_warnings(&parse, &file);
-        warnings.extend(token_warnings(&all_tokens));
+        let mut warnings = syntax_diagnostics(&parse, &file);
+        warnings.extend(token_diagnostics(&all_tokens));
         warnings.sort_by_key(|warning| (warning.line, warning.range.start()));
 
         if options.error_strategy == ErrorStrategy::FailFast
-            && let Some(first) = warnings.first()
+            && let Some(first_error) = warnings.iter().find(|warning| warning.is_error())
         {
-            return Err(first.clone());
+            return Err(first_error.clone());
         }
 
         let (bms, selection, _selected_ranges) = build_selected(
@@ -202,47 +279,38 @@ fn build_selected<R: ControlFlowRng + ?Sized>(
     )
 }
 
-/// Collect CST syntax diagnostics.
-fn syntax_warnings(
+/// Collect CST diagnostics, copying the severity the syntax layer assigned.
+fn syntax_diagnostics(
     parse: &bmsrs_bms_syntax::SyntaxParse,
     file: &SourceFile,
-) -> Vec<BmsParseWarning> {
-    let lines: Vec<_> = file.lines().enumerate().collect();
+) -> Vec<BmsDiagnostic> {
     parse
         .errors()
         .iter()
-        .map(|error| {
-            let offset = error.range().start();
-            let line = lines
-                .iter()
-                .find_map(|(index, line)| {
-                    let range = line.range();
-                    (range.start() <= offset && offset < range.end()).then(|| {
-                        NonZeroUsize::new(index.saturating_add(1)).unwrap_or(NonZeroUsize::MIN)
-                    })
-                })
-                .unwrap_or(NonZeroUsize::MIN);
-            BmsParseWarning {
-                line,
-                range: error.range(),
-                kind: BmsParseWarningKind::Syntax {
-                    message: error.message().to_owned(),
-                    code: error.code(),
-                },
-            }
+        .map(|error| BmsDiagnostic {
+            line: file
+                .line_number_at(error.range().start())
+                .unwrap_or(NonZeroUsize::MIN),
+            range: error.range(),
+            severity: error.severity(),
+            kind: BmsDiagnosticKind::Cst {
+                message: error.message().to_owned(),
+                code: error.code(),
+            },
         })
         .collect()
 }
 
 /// Collect single-line token errors.
-fn token_warnings(tokens: &[LineToken]) -> Vec<BmsParseWarning> {
+fn token_diagnostics(tokens: &[LineToken]) -> Vec<BmsDiagnostic> {
     tokens
         .iter()
         .filter_map(|line| {
-            line.token.as_ref().err().map(|error| BmsParseWarning {
+            line.token.as_ref().err().map(|error| BmsDiagnostic {
                 line: line.line,
                 range: line.range,
-                kind: BmsParseWarningKind::Tokenize(error.clone()),
+                severity: Severity::Error,
+                kind: BmsDiagnosticKind::Tokenize(error.clone()),
             })
         })
         .collect()
@@ -384,7 +452,7 @@ impl BmsParser {
                 tokens.push(token);
             }
         }
-        let warnings = token_warnings(&all_tokens)
+        let warnings = token_diagnostics(&all_tokens)
             .into_iter()
             .filter(|warning| selected_ranges.contains(&warning.range))
             .collect();

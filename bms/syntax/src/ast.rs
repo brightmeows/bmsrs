@@ -1,5 +1,7 @@
 //! Typed wrappers over the CST.
 
+use std::num::NonZeroUsize;
+
 use rowan::{TextRange, TextSize};
 
 use crate::{ParseOptions, SyntaxKind, SyntaxLineKind, SyntaxNode, SyntaxParse, SyntaxToken};
@@ -58,6 +60,17 @@ impl SourceFile {
     #[must_use]
     pub fn token_at_offset(&self, offset: TextSize) -> Option<SyntaxToken> {
         self.0.token_at_offset(offset).right_biased()
+    }
+
+    /// Return the one-based number of the line containing `offset`, or `None`
+    /// when no line covers it (an offset past the end of the file).
+    #[must_use]
+    pub fn line_number_at(&self, offset: TextSize) -> Option<NonZeroUsize> {
+        let index = self.lines().position(|line| {
+            let range = line.range();
+            range.start() <= offset && offset < range.end()
+        })?;
+        NonZeroUsize::new(index.saturating_add(1))
     }
 }
 
