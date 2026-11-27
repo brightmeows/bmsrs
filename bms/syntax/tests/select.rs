@@ -1,6 +1,6 @@
 //! Control-flow selection tests.
 
-use bmsrs_bms_syntax::{SourceFile, SyntaxLine};
+use bmsrs_bms_syntax::{ControlFlowCompat, FirstBranch, SourceFile, SyntaxLine};
 
 /// Extract the `#TITLE` values from the selected lines.
 fn titles(lines: &[SyntaxLine]) -> Vec<String> {
@@ -19,7 +19,9 @@ fn titles(lines: &[SyntaxLine]) -> Vec<String> {
 fn random_selects_matching_if_branch() {
     let parse =
         SourceFile::parse("#RANDOM 2\n#IF 1\n#TITLE A\n#ELSE\n#TITLE B\n#ENDIF\n#ENDRANDOM\n");
-    let (lines, selection) = parse.source_file().select_lines(|_| 1);
+    let (lines, selection) = parse
+        .source_file()
+        .select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(titles(&lines), vec!["A".to_owned()]);
     assert_eq!(selection.decisions().len(), 1);
 }
@@ -28,7 +30,9 @@ fn random_selects_matching_if_branch() {
 fn random_selects_else_branch() {
     let parse =
         SourceFile::parse("#RANDOM 2\n#IF 1\n#TITLE A\n#ELSE\n#TITLE B\n#ENDIF\n#ENDRANDOM\n");
-    let (lines, _selection) = parse.source_file().select_lines(|_| 2);
+    let (lines, _selection) = parse
+        .source_file()
+        .select_lines(&mut |_| 2, ControlFlowCompat::Ideal);
     assert_eq!(titles(&lines), vec!["B".to_owned()]);
 }
 
@@ -36,17 +40,22 @@ fn random_selects_else_branch() {
 fn set_random_does_not_call_rng() {
     let parse = SourceFile::parse("#SETRANDOM 1\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n");
     let mut called = false;
-    let (lines, _selection) = parse.source_file().select_lines(|max| {
-        called = true;
-        max
-    });
+    let (lines, _selection) = parse.source_file().select_lines(
+        &mut |max| {
+            called = true;
+            max
+        },
+        ControlFlowCompat::Ideal,
+    );
     assert!(!called && titles(&lines) == vec!["A".to_owned()]);
 }
 
 #[test]
 fn switch_selects_matching_case() {
     let parse = SourceFile::parse("#SWITCH 2\n#CASE 1\n#TITLE A\n#CASE 2\n#TITLE B\n#ENDSW\n");
-    let (lines, selection) = parse.source_file().select_lines(|_| 2);
+    let (lines, selection) = parse
+        .source_file()
+        .select_lines(&mut |_| 2, ControlFlowCompat::Ideal);
     assert_eq!(titles(&lines), vec!["B".to_owned()]);
     assert_eq!(selection.decisions()[0].selected_index(), 1);
 }
@@ -56,7 +65,9 @@ fn switch_falls_through_until_skip() {
     let parse = SourceFile::parse(
         "#SWITCH 1\n#CASE 1\n#TITLE A\n#CASE 2\n#TITLE B\n#SKIP\n#CASE 3\n#TITLE C\n#ENDSW\n",
     );
-    let (lines, _selection) = parse.source_file().select_lines(|_| 1);
+    let (lines, _selection) = parse
+        .source_file()
+        .select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(titles(&lines), vec!["A".to_owned(), "B".to_owned()]);
 }
 
@@ -65,9 +76,27 @@ fn nested_random_selects_inner_branch() {
     let parse = SourceFile::parse(
         "#RANDOM 1\n#IF 1\n#RANDOM 1\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n#ENDIF\n#ENDRANDOM\n",
     );
-    let (lines, selection) = parse.source_file().select_lines(|_| 1);
+    let (lines, selection) = parse
+        .source_file()
+        .select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
     assert_eq!(
         (titles(&lines), selection.decisions().len()),
         (vec!["A".to_owned()], 2)
     );
+}
+
+#[test]
+fn first_branch_matches_the_closure_selector() {
+    let parse =
+        SourceFile::parse("#RANDOM 5\n#IF 1\n#TITLE ONE\n#ENDIF\n#IF 5\n#TITLE FIVE\n#ENDIF\n");
+    let (named_lines, named) = parse
+        .source_file()
+        .select_lines(&mut FirstBranch, ControlFlowCompat::Ideal);
+    let (closure_lines, closure) = parse
+        .source_file()
+        .select_lines(&mut |_| 1, ControlFlowCompat::Ideal);
+
+    assert_eq!(named, closure);
+    assert_eq!(titles(&named_lines), titles(&closure_lines));
+    assert_eq!(titles(&named_lines), vec!["ONE".to_owned()]);
 }

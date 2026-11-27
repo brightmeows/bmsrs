@@ -43,7 +43,7 @@ fn process(bms_text: &str) -> BmsChart {
 /// Parse BMS text with random value 1.
 fn parse_bms(bms_text: &str) -> Bms {
     let source = SourceFile::parse(bms_text);
-    BmsParser::parse(&source.source_file(), |_| 1).bms
+    BmsParser::parse(&source.source_file(), &mut |_| 1).bms
 }
 
 /// Extract every Note event (including kind information).
@@ -607,7 +607,7 @@ fn bmspec_3_scroll_initial_speed() {
 /// Pins branch values with `SETRANDOM` / `SETSWITCH`.
 fn process_with_cf(bms_text: &str) -> BmsChart {
     let source = SourceFile::parse(bms_text);
-    let bms = BmsParser::parse(&source.source_file(), |_| 0).bms;
+    let bms = BmsParser::parse(&source.source_file(), &mut |_| 0).bms;
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
     BmsProcessor::process::<Bme>(&bms)
         .expect("process should succeed")

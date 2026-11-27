@@ -5,7 +5,8 @@ use std::num::NonZeroUsize;
 
 use bmsrs_bms_source::{Document, TextDecodeError};
 use bmsrs_bms_syntax::{
-    BranchMismatch, BranchSelection, ParseOptions, SourceFile, SyntaxLineKind, TextRange, TextSize,
+    BranchMismatch, BranchSelection, ControlFlowRng, ParseOptions, SourceFile, SyntaxLineKind,
+    TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
 use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, SourceSpan};
@@ -68,23 +69,23 @@ pub struct BmsParser;
 impl BmsParser {
     /// Select branches from the CST and build `Bms`.
     ///
-    /// `rng(max)` returns a value in `[1, max]`; `#SETRANDOM` / `#SETSWITCH`
+    /// `rng.draw(max)` returns a value in `[1, max]`; `#SETRANDOM` / `#SETSWITCH`
     /// do not call it.
     ///
     /// Warnings cover selected lines only; errors in unselected branches do
     /// not surface. Use [`BmsParser::parse_document`] to collect warnings
     /// from every line.
     #[must_use]
-    pub fn parse(file: &SourceFile, rng: impl FnMut(u64) -> u64) -> BmsParse {
+    pub fn parse<R: ControlFlowRng + ?Sized>(file: &SourceFile, rng: &mut R) -> BmsParse {
         Self::parse_with(file, &ParseOptions::default(), rng)
     }
 
     /// Select branches from the CST with parse options and build `Bms`.
     #[must_use]
-    pub fn parse_with(
+    pub fn parse_with<R: ControlFlowRng + ?Sized>(
         file: &SourceFile,
         options: &ParseOptions,
-        rng: impl FnMut(u64) -> u64,
+        rng: &mut R,
     ) -> BmsParse {
         let all_tokens = Self::tokenize_lines_with(file, options);
         let (bms, selection, selected_ranges) = build_selected(
@@ -112,9 +113,9 @@ impl BmsParser {
     ///
     /// Returns [`BmsParseWarning`] when document decoding fails or when `FailFast`
     /// encounters the first warning.
-    pub fn parse_document(
+    pub fn parse_document<R: ControlFlowRng + ?Sized>(
         document: &Document,
-        rng: impl FnMut(u64) -> u64,
+        rng: &mut R,
     ) -> Result<BmsParse, BmsParseWarning> {
         Self::parse_document_with(document, &ParseOptions::default(), rng)
     }
@@ -125,10 +126,10 @@ impl BmsParser {
     ///
     /// Returns [`BmsParseWarning`] when document decoding fails or when `FailFast`
     /// encounters the first warning.
-    pub fn parse_document_with(
+    pub fn parse_document_with<R: ControlFlowRng + ?Sized>(
         document: &Document,
         options: &ParseOptions,
-        rng: impl FnMut(u64) -> u64,
+        rng: &mut R,
     ) -> Result<BmsParse, BmsParseWarning> {
         let text = document.try_to_text().map_err(|error| BmsParseWarning {
             line: NonZeroUsize::MIN,
@@ -164,10 +165,10 @@ impl BmsParser {
 }
 
 /// Build the selected branches from the full token list.
-fn build_selected(
+fn build_selected<R: ControlFlowRng + ?Sized>(
     file: &SourceFile,
     all_tokens: &[LineToken],
-    rng: impl FnMut(u64) -> u64,
+    rng: &mut R,
     compat: bmsrs_bms_syntax::ControlFlowCompat,
     format: bmsrs_pipeline::SourceFormat,
 ) -> (Bms, BranchSelection, HashSet<TextRange>) {
@@ -181,7 +182,7 @@ fn build_selected(
         })
         .collect();
 
-    let (lines, selection) = file.select_lines_with_compat(rng, compat);
+    let (lines, selection) = file.select_lines(rng, compat);
     let mut tokens = Vec::new();
     let mut selected_ranges = HashSet::new();
     for line in &lines {
@@ -362,7 +363,7 @@ impl BmsParser {
         options: &ParseOptions,
     ) -> Result<BmsParse, BranchMismatch> {
         let all_tokens = Self::tokenize_lines_with(file, options);
-        let (lines, replayed) = file.select_lines_with(selection)?;
+        let (lines, replayed) = file.replay_lines(selection)?;
         let mut token_map: HashMap<TextRange, BmsToken> = all_tokens
             .iter()
             .filter_map(|line| {

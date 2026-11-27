@@ -1,6 +1,6 @@
 //! Recorded-branch replay tests.
 
-use bmsrs_bms_syntax::{BlockKind, BranchSelection, SourceFile, SyntaxLine};
+use bmsrs_bms_syntax::{BlockKind, BranchSelection, ControlFlowCompat, SourceFile, SyntaxLine};
 
 const FIXTURE: &str = "#RANDOM 5\n\
     #IF 1\n\
@@ -26,9 +26,10 @@ const FIXTURE: &str = "#RANDOM 5\n\
 #[test]
 fn replay_of_rng_selection_reproduces_lines_and_decisions() {
     let parse = SourceFile::parse(FIXTURE);
-    let (rng_lines, selection) = parse.source_file().select_lines(|max| max);
-    let (replay_lines, replay_selection) =
-        parse.source_file().select_lines_with(&selection).unwrap();
+    let (rng_lines, selection) = parse
+        .source_file()
+        .select_lines(&mut |max| max, ControlFlowCompat::Ideal);
+    let (replay_lines, replay_selection) = parse.source_file().replay_lines(&selection).unwrap();
     let rng_text: Vec<_> = rng_lines.iter().map(SyntaxLine::content_range).collect();
     let replay_text: Vec<_> = replay_lines.iter().map(SyntaxLine::content_range).collect();
     assert_eq!(rng_text, replay_text);
@@ -49,12 +50,11 @@ fn replay_of_rng_selection_reproduces_lines_and_decisions() {
 #[test]
 fn replay_rejects_kind_drift() {
     let parse = SourceFile::parse(FIXTURE);
-    let (_, selection) = parse.source_file().select_lines(|max| max);
-    let drifted = SourceFile::parse(&FIXTURE.replace("#SWITCH 3", "#RANDOM 3"));
-    let error = drifted
+    let (_, selection) = parse
         .source_file()
-        .select_lines_with(&selection)
-        .unwrap_err();
+        .select_lines(&mut |max| max, ControlFlowCompat::Ideal);
+    let drifted = SourceFile::parse(&FIXTURE.replace("#SWITCH 3", "#RANDOM 3"));
+    let error = drifted.source_file().replay_lines(&selection).unwrap_err();
     assert_eq!(error.block_index(), 1);
     assert_eq!(error.expected(), Some((BlockKind::Random, Some(3))));
     assert_eq!(error.recorded(), Some((BlockKind::Switch, Some(3))));
@@ -63,12 +63,11 @@ fn replay_rejects_kind_drift() {
 #[test]
 fn replay_rejects_max_drift() {
     let parse = SourceFile::parse(FIXTURE);
-    let (_, selection) = parse.source_file().select_lines(|max| max);
-    let drifted = SourceFile::parse(&FIXTURE.replace("#RANDOM 5", "#RANDOM 4"));
-    let error = drifted
+    let (_, selection) = parse
         .source_file()
-        .select_lines_with(&selection)
-        .unwrap_err();
+        .select_lines(&mut |max| max, ControlFlowCompat::Ideal);
+    let drifted = SourceFile::parse(&FIXTURE.replace("#RANDOM 5", "#RANDOM 4"));
+    let error = drifted.source_file().replay_lines(&selection).unwrap_err();
     assert_eq!(error.block_index(), 0);
     assert_eq!(error.expected(), Some((BlockKind::Random, Some(4))));
     assert_eq!(error.recorded(), Some((BlockKind::Random, Some(5))));
@@ -77,14 +76,13 @@ fn replay_rejects_max_drift() {
 #[test]
 fn replay_rejects_extra_block_in_file() {
     let parse = SourceFile::parse(FIXTURE);
-    let (_, selection) = parse.source_file().select_lines(|max| max);
+    let (_, selection) = parse
+        .source_file()
+        .select_lines(&mut |max| max, ControlFlowCompat::Ideal);
     let drifted = SourceFile::parse(&format!(
         "{FIXTURE}#RANDOM 2\n#IF 1\n#TITLE X\n#ENDIF\n#ENDRANDOM\n"
     ));
-    let error = drifted
-        .source_file()
-        .select_lines_with(&selection)
-        .unwrap_err();
+    let error = drifted.source_file().replay_lines(&selection).unwrap_err();
     assert_eq!(error.block_index(), 3);
     assert_eq!(error.expected(), Some((BlockKind::Random, Some(2))));
     assert_eq!(error.recorded(), None);
@@ -93,9 +91,11 @@ fn replay_rejects_extra_block_in_file() {
 #[test]
 fn replay_takes_setrandom_value_from_current_file() {
     let parse = SourceFile::parse(FIXTURE);
-    let (_, selection) = parse.source_file().select_lines(|max| max);
+    let (_, selection) = parse
+        .source_file()
+        .select_lines(&mut |max| max, ControlFlowCompat::Ideal);
     let edited = SourceFile::parse(&FIXTURE.replace("#SETRANDOM 2", "#SETRANDOM 3"));
-    let (lines, replay) = edited.source_file().select_lines_with(&selection).unwrap();
+    let (lines, replay) = edited.source_file().replay_lines(&selection).unwrap();
     // Value 3 no longer matches `#IF 2`, so the genre line drops out of the
     // selection: the current file, not the recording, drives set values.
     assert!(!lines.iter().any(|line| {
@@ -108,9 +108,10 @@ fn replay_takes_setrandom_value_from_current_file() {
 #[test]
 fn zero_random_block_never_calls_the_rng() {
     let parse = SourceFile::parse("#RANDOM 0\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n");
-    let (lines, selection) = parse
-        .source_file()
-        .select_lines(|_| panic!("the rng must not be called"));
+    let (lines, selection) = parse.source_file().select_lines(
+        &mut |_| panic!("the rng must not be called"),
+        ControlFlowCompat::Ideal,
+    );
     assert_eq!(lines.len(), 0, "value 0 matches no branch");
     assert_eq!(selection.decisions()[0].max(), Some(0));
     assert_eq!(selection.decisions()[0].value(), 0);
@@ -119,8 +120,10 @@ fn zero_random_block_never_calls_the_rng() {
 #[test]
 fn replay_of_a_recorded_zero_block_succeeds() {
     let parse = SourceFile::parse("#RANDOM 0\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n");
-    let (_, selection) = parse.source_file().select_lines(|_| panic!("no rng calls"));
-    let (lines, _) = parse.source_file().select_lines_with(&selection).unwrap();
+    let (_, selection) = parse
+        .source_file()
+        .select_lines(&mut |_| panic!("no rng calls"), ControlFlowCompat::Ideal);
+    let (lines, _) = parse.source_file().replay_lines(&selection).unwrap();
     assert_eq!(lines.len(), 0);
 }
 
@@ -128,7 +131,9 @@ fn replay_of_a_recorded_zero_block_succeeds() {
 #[test]
 fn branch_selection_type_round_trips_through_clone() {
     let parse = SourceFile::parse(FIXTURE);
-    let (_, selection) = parse.source_file().select_lines(|max| max);
+    let (_, selection) = parse
+        .source_file()
+        .select_lines(&mut |max| max, ControlFlowCompat::Ideal);
     let clone: BranchSelection = selection.clone();
     assert_eq!(clone, selection);
 }

@@ -45,7 +45,7 @@ SourceFile
 - `IncrementalParser` reuses the green tree for single-line content edits,
   re-lexes only the changed line, and falls back to a full parse for
   control-flow or structural edits
-- `select_lines_with` replay is strict: drift in block count, kind, or declared
+- `replay_lines` is strict: drift in block count, kind, or declared
   bound fails with `BranchMismatch`; `#SETRANDOM` / `#SETSWITCH` values are
   taken from the current file, not the recording
 - `ParseOptions.header_prefixes` defaults to `['#', '%']`
@@ -60,7 +60,7 @@ SourceFile
 | `#DEF` | Always matches |
 | Zero value | `#RANDOM 0` / `#SWITCH 0` are treated as no match and do not panic; `ControlFlowCompat::Jbms` clamps to `1` and draws once, while LR2's `GetRand(-1)` consumes a word and selects `1` |
 | `#ELSE` / `#ELSEIF` | a real fallback branch; `ControlFlowCompat::Jbms` reproduces jbms-parser, which reserves only RANDOM / IF / ENDIF / ENDRANDOM, so the directive is ignored and every following body stays under the preceding `#IF` |
-| RNG ownership | `select_lines_with_rng` leaves the generator with the caller so the stream continues (LR2's RANDOM lane option relies on it); `random` provides `Lr2Mt19937`, and the facade's `JavaRandom` implements the same draw contract |
+| RNG ownership | `select_lines(&mut rng, compat)` leaves the generator with the caller so the stream continues (LR2's RANDOM lane option relies on it); `random` provides `FirstBranch` and `Lr2Mt19937`, `java_random` provides beatoraja's `JavaRandom`, and every `FnMut(u64) -> u64` closure implements `ControlFlowRng` through a blanket impl |
 
 ## Tests
 

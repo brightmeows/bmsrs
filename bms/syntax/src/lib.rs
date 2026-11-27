@@ -20,6 +20,7 @@
 //! `bmsrs-bms-parser`.
 
 mod ast;
+mod java_random;
 mod language;
 mod lexer;
 mod parser;
@@ -29,10 +30,11 @@ mod syntax_kind;
 
 pub use ast::{SourceFile, SyntaxLine};
 pub use bmsrs_pipeline::{DiagnosticCode, Severity};
+pub use java_random::JavaRandom;
 pub use language::{BmsLanguage, SyntaxElement, SyntaxKindRaw, SyntaxNode, SyntaxToken};
 pub use lexer::SyntaxLineKind;
 pub use parser::{Diagnostic, IncrementalParser, SyntaxParse};
-pub use random::{ControlFlowRng, LR2_SEED_MAX, Lr2Mt19937};
+pub use random::{ControlFlowRng, FirstBranch, LR2_SEED_MAX, Lr2Mt19937};
 pub use rowan::{TextRange, TextSize};
 pub use select::{BlockDecision, BlockKind, BranchMismatch, BranchSelection, ControlFlowCompat};
 pub use syntax_kind::SyntaxKind;
@@ -52,15 +54,6 @@ pub struct ParseOptions {
     /// Error collection strategy; defaults to
     /// [`bmsrs_pipeline::ErrorStrategy::CollectAll`].
     pub error_strategy: bmsrs_pipeline::ErrorStrategy,
-}
-
-impl ParseOptions {
-    /// Default control-flow branch selector: always selects the first branch,
-    /// regardless of the drawn upper bound.
-    #[must_use]
-    pub const fn first_branch(_max: u64) -> u64 {
-        1
-    }
 }
 
 impl Default for ParseOptions {

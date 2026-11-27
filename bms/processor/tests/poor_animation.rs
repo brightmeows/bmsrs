@@ -17,7 +17,7 @@ type Outcome =
 )]
 fn process(text: &str) -> Outcome {
     let parse = SourceFile::parse(text);
-    let bms = BmsParser::parse(&parse.source_file(), |_| 1).bms;
+    let bms = BmsParser::parse(&parse.source_file(), &mut |_| 1).bms;
     BmsProcessor::process::<Bme>(&bms).unwrap()
 }
 

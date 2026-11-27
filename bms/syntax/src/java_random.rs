@@ -5,6 +5,8 @@
 //! number sequence. This mirrors the documented 48-bit linear congruential
 //! generator, including the `nextInt(bound)` rejection loop.
 
+use crate::ControlFlowRng;
+
 /// Scrambling multiplier of the 48-bit state.
 const MULT: u64 = 0x5_DEEC_E66D;
 /// Addend of the 48-bit state.
@@ -14,18 +16,17 @@ const MASK: u64 = (1 << 48) - 1;
 
 /// A replication of `java.util.Random` for BMS branch selection.
 ///
-/// Feed it to [`parse_with`](crate::bms::parse_with) through the `[1, max]`
-/// rng contract via [`JavaRandom::choice`]:
+/// It implements [`ControlFlowRng`], so it plugs into
+/// [`SourceFile::select_lines`](crate::SourceFile::select_lines) directly:
 ///
 /// ```
-/// use bmsrs::bms::{JavaRandom, parse_with};
+/// use bmsrs_bms_syntax::{ControlFlowCompat, JavaRandom, SourceFile};
 ///
+/// let file =
+///     SourceFile::parse("#RANDOM 2\n#IF 1\n#TITLE from-one\n#ENDIF\n").source_file();
 /// let mut rng = JavaRandom::new(123_456_789);
-/// let parsed = parse_with(
-///     "#RANDOM 2\n#IF 1\n#TITLE from-one\n#ENDIF\n",
-///     &Default::default(),
-///     |max| rng.choice(max),
-/// );
+/// let (_lines, selection) = file.select_lines(&mut rng, ControlFlowCompat::Ideal);
+/// assert_eq!(selection.decisions().len(), 1);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct JavaRandom {
@@ -87,9 +88,9 @@ impl JavaRandom {
             }
         }
     }
+}
 
-    /// Generate a value in `[1, max]` for the syntax layer's rng contract.
-    ///
+impl ControlFlowRng for JavaRandom {
     /// Bounds up to [`i32::MAX`] mirror `java.util.Random.nextInt` exactly;
     /// larger bounds (never produced by real charts) fall back to rejection
     /// sampling over 53 drawn bits.
@@ -97,8 +98,7 @@ impl JavaRandom {
     /// # Panics
     ///
     /// Panics when `max` is zero.
-    #[must_use]
-    pub fn choice(&mut self, max: u64) -> u64 {
+    fn draw(&mut self, max: u64) -> u64 {
         assert!(max >= 1, "max must be positive");
         if let Ok(bound) = i32::try_from(max) {
             #[expect(
@@ -121,12 +121,6 @@ impl JavaRandom {
                 }
             }
         }
-    }
-}
-
-impl bmsrs_bms_syntax::ControlFlowRng for JavaRandom {
-    fn draw(&mut self, max: u64) -> u64 {
-        self.choice(max)
     }
 }
 

@@ -3,25 +3,46 @@
 //! Two players define the de-facto layouts:
 //!
 //! - **beatoraja** draws each `#RANDOM` / `#SWITCH` value from
-//!   `java.util.Random` seeded with the requested seed; the facade crate's
-//!   `JavaRandom` reproduces its bit stream exactly.
+//!   `java.util.Random` seeded with the requested seed; [`JavaRandom`]
+//!   reproduces its bit stream exactly.
 //! - **LR2** draws from `DxLib`'s MT19937, whose seeding differs from the
 //!   standard `init_genrand`: `srandMT` fills the state through a 69069 LCG
 //!   taking the high 16 bits of each step. [`Lr2Mt19937`] reproduces the
 //!   stream, the `GetRand` scaling, and the lane shuffle that LR2 applies to
 //!   RANDOM options.
 //!
-//! The facade crate's `JavaRandom` implements [`ControlFlowRng`] in place;
-//! both then share the draw interface accepted by
-//! [`SourceFile::select_lines_with_rng`](crate::SourceFile::select_lines_with_rng).
-//! Because the caller owns the generator, the remaining state stays available
-//! after branch selection; LR2 needs exactly that: `#RANDOM` values are drawn
+//! Both engines implement [`ControlFlowRng`], the draw interface accepted by
+//! [`SourceFile::select_lines`](crate::SourceFile::select_lines). Because the
+//! caller owns the generator, the remaining state stays available after
+//! branch selection; LR2 needs exactly that: `#RANDOM` values are drawn
 //! first, then the RANDOM lane option continues from the same stream.
 
 /// A source of control-flow values.
 pub trait ControlFlowRng {
     /// Draw one value in `[1, max]`. `max` is at least 1.
     fn draw(&mut self, max: u64) -> u64;
+}
+
+impl<F> ControlFlowRng for F
+where
+    F: FnMut(u64) -> u64,
+{
+    fn draw(&mut self, max: u64) -> u64 {
+        self(max)
+    }
+}
+
+/// The default selector: always the first branch, whatever the bound.
+///
+/// It fills the generator slot where a stateful engine would otherwise go,
+/// so `&mut FirstBranch` is the explicit spelling of "take the first branch".
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct FirstBranch;
+
+impl ControlFlowRng for FirstBranch {
+    fn draw(&mut self, _max: u64) -> u64 {
+        1
+    }
 }
 
 /// Number of `u32` words in the MT19937 state.

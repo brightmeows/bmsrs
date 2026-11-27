@@ -16,7 +16,7 @@
 #![expect(clippy::print_stdout, reason = "example prints to stdout by design")]
 
 use bmsrs::raw::parser::BmsParser;
-use bmsrs::raw::syntax::SourceFile;
+use bmsrs::raw::syntax::{ControlFlowCompat, SourceFile};
 
 /// A minimal chart with one `#RANDOM` block; each branch has its own title and
 /// channel messages.
@@ -42,8 +42,8 @@ fn main() {
     let file = parse.source_file();
 
     for value in 1..=2 {
-        let (lines, selection) = file.select_lines(|_| value);
-        let parsed = BmsParser::parse(&file, |_| value);
+        let (lines, selection) = file.select_lines(&mut |_| value, ControlFlowCompat::Ideal);
+        let parsed = BmsParser::parse(&file, &mut |_| value);
         println!(
             "value {value}: {} selected lines, {} decisions, title {:?}",
             lines.len(),
