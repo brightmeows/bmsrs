@@ -701,12 +701,7 @@ impl BmsConverter<'_> {
             },
             ChartInfo {
                 subtitle: self.bms.metadata.subtitle.clone().unwrap_or_default(),
-                chart_name: self
-                    .bms
-                    .display
-                    .play_level
-                    .map(|l| format!("{l:.0}"))
-                    .unwrap_or_default(),
+                chart_name: String::new(),
                 level: self.bms.display.play_level.map_or(0, |l| l as u64),
                 subartists: self
                     .bms

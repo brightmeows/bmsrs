@@ -149,6 +149,9 @@ pub struct ChartInfo {
     /// Song subtitle (may be empty).
     pub subtitle: String,
     /// Chart name / difficulty label (for example, `"HYPER"`, `"ANOTHER"`).
+    ///
+    /// Empty for BMS, which has no label command; its `#PLAYLEVEL` is
+    /// carried by [`level`](Self::level) alone.
     pub chart_name: String,
     /// Numeric difficulty level (usually 1-12 in beat modes).
     pub level: u64,

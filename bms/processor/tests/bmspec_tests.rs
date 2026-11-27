@@ -740,7 +740,8 @@ fn bmspec_1_07_basic_info() {
     assert_eq!(chart.song().title, "BY MY SIDE");
     assert_eq!(chart.song().artist, "flicknote");
     assert_eq!(chart.song().genre, "Trance Core");
-    assert_eq!(chart.chart_info().chart_name, "5");
+    // BMS has no difficulty label; #PLAYLEVEL is carried by `level` alone.
+    assert_eq!(chart.chart_info().chart_name, "");
     assert_eq!(chart.chart_info().level, 5);
 }
 
