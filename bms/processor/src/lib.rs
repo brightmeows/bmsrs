@@ -10,7 +10,7 @@
 //! # Pipeline
 //!
 //! ```text
-//! bmsrs_bms_model::Bms -> BmsProcessor::process_with(bms, layout) -> Chart<(), NoCustomEvent>
+//! bmsrs_bms_model::Bms -> BmsProcessor::process_with(bms, layout) -> Chart<BmsNoteExt, BmsCustomEvent>
 //! ```
 //!
 //! # Mode families
@@ -97,7 +97,7 @@ pub enum ProcessError {
 
 /// Unified event type produced by the BMS processor.
 ///
-/// The generic parameters are fixed to `((), BmsCustomEvent)`, where
+/// The generic parameters are fixed to `(BmsNoteExt, BmsCustomEvent)`, where
 /// `BmsCustomEvent` carries engine-specific events (BGA opacity, ARGB, TEXT,
 /// and so on).
 type BmsEvent = Event<crate::note_ext::BmsNoteExt, BmsCustomEvent>;
@@ -384,7 +384,7 @@ impl BmsProcessor {
 /// Holds the source document [`Bms`], the measure tick table [`MeasureTable`],
 /// and the event buffer being built, so each `collect_*` step writes directly to
 /// the internal `events` without the caller passing `&mut Vec`. Used only inside
-/// [`BmsProcessor::process`].
+/// [`BmsProcessor::process_with_assets`].
 ///
 /// The conversion methods live in domain modules: [`timing`] (BPM, STOP,
 /// SCROLL, SPEED, bar lines), [`notes`] (playable notes, BGM, long notes),
@@ -397,7 +397,7 @@ struct BmsConverter<'a> {
     /// Measure to cumulative tick lookup table.
     table: &'a MeasureTable,
     /// Event vector being built, eventually taken by
-    /// [`BmsProcessor::process`].
+    /// [`BmsProcessor::process_with_assets`].
     events: Vec<BmsEvent>,
     /// Recoverable warnings collected during processing.
     warnings: Vec<ProcessWarning>,

@@ -190,7 +190,8 @@ impl BmsonProcessor {
         }
     }
 
-    /// Public entry point for custom decode logic (internal use).
+    /// Conversion body shared by [`process_with`](Self::process_with) and
+    /// [`process_default`](Self::process_default).
     fn process_body(
         bmson: &bmsrs_bmson_model::Bmson,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,

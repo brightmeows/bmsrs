@@ -673,19 +673,12 @@ pub const fn default_resolution() -> u64 {
     240
 }
 
-/// Deserialize a `u64` resolution field, rejecting `0`.
-///
-/// The bmson specification requires falling back to the default `240` for `0`,
-/// `null`, or `undefined`; this implementation is **stricter than the
-/// specification**: `0` is treated as an authoring-tool defect and rejects the
-/// whole file instead of silently rewriting it. `null`/`undefined` still go
-/// through [`default_resolution`](crate::default_resolution) via
-/// `#[serde(default)]`.
-///
 /// Deserialize the `resolution` field per the bmson specification.
 ///
 /// Negative values take their absolute value; `0` is kept as-is so the
 /// processor can apply the default-240 fallback with a warning.
+/// `null` and a missing field go through [`default_resolution`](crate::default_resolution)
+/// via `#[serde(default)]`.
 ///
 /// # Errors
 ///

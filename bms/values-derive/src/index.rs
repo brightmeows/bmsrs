@@ -1,4 +1,4 @@
-//! `#[derive(BmsIndex)]` proc-macro: generates the standard trait
+//! `#[derive(BmsIndexNewtype)]` proc-macro: generates the standard trait
 //! implementations for a BMS index newtype.
 //!
 //! Input: a single-field tuple struct such as `WavIndex(pub BmsIndex)`.
@@ -35,14 +35,14 @@ pub fn derive_bms_index_impl(ts: TokenStream) -> TokenStream {
             _ => {
                 return syn::Error::new_spanned(
                     name,
-                    "BmsIndex requires a tuple struct with exactly one field",
+                    "BmsIndexNewtype requires a tuple struct with exactly one field",
                 )
                 .to_compile_error()
                 .into();
             }
         },
         _ => {
-            return syn::Error::new_spanned(name, "BmsIndex can only be derived on structs")
+            return syn::Error::new_spanned(name, "BmsIndexNewtype can only be derived on structs")
                 .to_compile_error()
                 .into();
         }

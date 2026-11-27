@@ -16,7 +16,7 @@ crate's crate-level doc states its role.
 
 `bms-lsp` lives in a separate repository:
 <https://github.com/brightmeows/bms-lsp>. It pins this workspace's
-`bmsrs-bms-analysis` and `bmsrs-bms-syntax` through a git `rev`.
+`bmsrs-bms-analysis` and `bmsrs-bms-syntax` at their published versions.
 
 External dependencies are managed through `[workspace.dependencies]`; do not
 specify versions in individual crate `Cargo.toml` files. Internal
