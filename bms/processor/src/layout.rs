@@ -1,7 +1,8 @@
 //! BMS mode-family layouts: channel-to-lane mapping through [`BmsLayout`].
 //!
-//! Each family is a zero-sized newtype that maps a decoded [`ChannelPos`]
-//! `(player, lane)` pair to a `(NoteSide, Lane)` position.
+//! Each family maps a decoded [`ChannelPos`] `(player, lane)` pair to a
+//! `(NoteSide, Lane)` position. Most are zero-sized newtypes; [`PmsLayout`]
+//! is a detected variant that implements the same trait by delegation.
 //!
 //! A family does **not** carry a key count: whether a chart is 5K or 7K depends
 //! on the lanes its notes actually use, not on the family itself.
@@ -66,11 +67,12 @@ impl ChannelPos {
 /// pair, or return `None` when the channel should be dropped.
 ///
 /// The note kind (normal, long note, mine, or invisible) is set by the processor
-/// after this mapping.
+/// after this mapping. The `&self` receiver lets a zero-sized family and a
+/// value chosen at runtime ([`PmsLayout`]) share the trait.
 pub trait BmsLayout {
     /// Map a decoded BMS channel to a note position.
     #[must_use]
-    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)>;
+    fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)>;
 }
 
 /// Construct a `NonZeroU8` from a value known at the call site to be at least 1.
@@ -87,7 +89,7 @@ const fn nz(n: u8) -> Option<NonZeroU8> {
 pub struct Bme;
 
 impl BmsLayout for Bme {
-    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
+    fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -113,7 +115,7 @@ impl BmsLayout for Bme {
 pub struct Nanasi;
 
 impl BmsLayout for Nanasi {
-    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
+    fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -140,7 +142,7 @@ impl BmsLayout for Nanasi {
 pub struct Pms;
 
 impl BmsLayout for Pms {
-    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
+    fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let key = match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => Lane::Key(nz(1)?),
             (1, 2) => Lane::Key(nz(2)?),
@@ -167,7 +169,7 @@ impl BmsLayout for Pms {
 pub struct PmsBme;
 
 impl BmsLayout for PmsBme {
-    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
+    fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
             1 => Lane::Key(nz(1)?),
@@ -230,6 +232,15 @@ impl PmsLayout {
     }
 }
 
+impl BmsLayout for PmsLayout {
+    fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
+        match self {
+            Self::Standard => BmsLayout::map_channel(&Pms, ch),
+            Self::BmeType => BmsLayout::map_channel(&PmsBme, ch),
+        }
+    }
+}
+
 /// Check whether a single `(player, lane)` pair indicates the PMS Standard or
 /// BME-type variant.
 fn check_pms_channel(player: u8, lane: u8, std: &mut bool, bme: &mut bool) {
@@ -248,7 +259,7 @@ fn check_pms_channel(player: u8, lane: u8, std: &mut bool, bme: &mut bool) {
 pub struct DscOctFp;
 
 impl BmsLayout for DscOctFp {
-    fn map_channel(ch: ChannelPos) -> Option<(NoteSide, Lane)> {
+    fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         Some(match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => (NoteSide::P1, Lane::Key(nz(1)?)),
             (1, 2) => (NoteSide::P1, Lane::Key(nz(2)?)),

@@ -125,8 +125,9 @@ impl BmsConverter<'_> {
         clippy::too_many_lines,
         reason = "normal/invisible/LNOBJ/long-note/mine sources share one matching logic; splitting would fragment it"
     )]
-    pub fn collect_notes<L: BmsLayout>(
+    pub fn collect_notes(
         &mut self,
+        layout: &impl BmsLayout,
         wav_map: &BTreeMap<WavIndex, AudioIndex>,
         paired_lns: &[PairedLn],
         consumed: &HashSet<usize>,
@@ -379,8 +380,8 @@ impl BmsConverter<'_> {
 
         // Emit surviving placements.
         for placement in placements.into_iter().flatten() {
-            let Some((note_side, note_lane)) =
-                ChannelPos::new(placement.player, placement.lane).and_then(L::map_channel)
+            let Some((note_side, note_lane)) = ChannelPos::new(placement.player, placement.lane)
+                .and_then(|channel| layout.map_channel(channel))
             else {
                 continue;
             };

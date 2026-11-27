@@ -153,6 +153,12 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::Processed>(),
         named::<bmsrs::bms::ProcessWarning>(),
         named::<bmsrs::bms::ProcessError>(),
+        named::<bmsrs::bms::AssetLookup>(),
+        named::<bmsrs::bms::layout::ChannelPos>(),
+        named::<bmsrs::bms::layout::DscOctFp>(),
+        named::<bmsrs::bms::layout::Nanasi>(),
+        named::<bmsrs::bms::layout::Pms>(),
+        named::<bmsrs::bms::layout::PmsBme>(),
         named::<bmsrs::bms::TextRange>(),
         named::<bmsrs::bms::BmsTokenizeError>(),
         named::<bmsrs::bms::TextDecodeError>(),
@@ -165,13 +171,14 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::FromTextWarning>(),
         named::<bmsrs::bms::ReplayParseError>(),
     ];
-    assert_eq!(resolved.len(), 16);
+    assert_eq!(resolved.len(), 22);
     // `type_name` reports the defining crate, not the re-export path, so the
     // value only has to exist; resolving these paths is the assertion.
     assert!(resolved.iter().all(|name| !name.is_empty()));
 
     // The layout family is a bound, not a value, so name it through a call.
     bms_layout::<bmsrs::bms::Bme>();
+    bms_layout::<bmsrs::bms::layout::PmsLayout>();
 }
 
 #[cfg(feature = "bmson")]
@@ -184,6 +191,7 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
 
     let resolved = [
         named::<bmsrs::bmson::Bmson>(),
+        named::<bmsrs::bmson::layout::GenericLayout>(),
         named::<
             bmsrs::bmson::Outcome<bmsrs::bmson::BmsonProcessed, bmsrs::bmson::BmsonProcessWarning>,
         >(),
@@ -192,10 +200,11 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
         named::<bmsrs::bmson::ProcessError>(),
         named::<bmsrs::bmson::BmsonParseError>(),
     ];
-    assert_eq!(resolved.len(), 6);
+    assert_eq!(resolved.len(), 7);
     assert!(resolved.iter().all(|name| !name.is_empty()));
 
     bmson_layout::<bmsrs::bmson::Beat>();
+    bmson_layout::<bmsrs::bmson::layout::GenericLayout>();
 }
 
 #[test]
