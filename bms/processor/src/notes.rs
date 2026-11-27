@@ -33,7 +33,7 @@ impl BmsConverter<'_> {
                 consumed,
             );
         }
-        if self.bms.gameplay.ln_type == Some(bmsrs_bms_values::LnType::Type2) {
+        if self.bms.gameplay.ln_type == Some(bmsrs_bms_values::LnNotation::Mgq) {
             return (
                 pair_lntype2(&self.bms.messages.long_note_events, self.table),
                 HashSet::new(),

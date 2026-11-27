@@ -508,7 +508,7 @@ fn lntype2_visible_note_inside_range_removed() {
         bmsrs_bms_model::WavSource::File("c.wav".to_owned()),
     );
 
-    bms.gameplay.ln_type = Some(bmsrs_bms_values::LnType::Type2);
+    bms.gameplay.ln_type = Some(bmsrs_bms_values::LnNotation::Mgq);
 
     // LN: AA at slot 0, BB at slot 2, 00 at slot 4 → LN is AA..00 (tick 0..480)
     bms.messages

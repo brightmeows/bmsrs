@@ -3,8 +3,8 @@
 use bmsrs_bms_values::{
     BmpIndex, BmsBase, BmsHeader, BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderFallback,
     BmsHeaderGameplay, BmsHeaderMetadata, BmsHeaderResDefAudio, BmsHeaderResDefVisual,
-    BmsHeaderTiming, BpmIndex, ChangeOptionIndex, DifficultyLevel, ExRankIndex, LnMode, LnObjIndex,
-    LnType, PlayerMode, PoorBgaMode, Rank, ScrollIndex, SeekIndex, SpeedIndex, StopIndex,
+    BmsHeaderTiming, BpmIndex, ChangeOptionIndex, DifficultyLevel, ExRankIndex, LnMode, LnNotation,
+    LnObjIndex, PlayerMode, PoorBgaMode, Rank, ScrollIndex, SeekIndex, SpeedIndex, StopIndex,
     StpParams, TextIndex, WavCmdKind, WavCmdParams, WavIndex,
 };
 
@@ -230,7 +230,7 @@ fn parse_lntype() {
         .unwrap();
     assert_eq!(
         result,
-        BmsHeader::Gameplay(BmsHeaderGameplay::LnType(LnType::Type1))
+        BmsHeader::Gameplay(BmsHeaderGameplay::LnType(LnNotation::Rdm))
     );
 }
 

@@ -34,8 +34,8 @@ pub use channel::{BmsChannel, ExtensionChannel};
 pub use error::{BmsTokenizeError, BmsTryFromError, IntoTokensError, ParseBmsValueError};
 pub use header::{
     ArgbParams, AtBgaParams, BgaOverflow, BgaParams, BmsOptionWord, DifficultyLevel, ExBmpParams,
-    ExWavParams, LnMode, LnType, OptionWords, ParseDifficultyError, PlayerMode, PoorBgaMode, Rank,
-    SongSoundMode, StpParams, SwBgaParams, WavCmdKind, WavCmdParams,
+    ExWavParams, LnMode, LnNotation, OptionWords, ParseDifficultyError, PlayerMode, PoorBgaMode,
+    Rank, SongSoundMode, StpParams, SwBgaParams, WavCmdKind, WavCmdParams,
 };
 pub use header::{
     BmsCondition, BmsConditionOperator, BmsConditionVariable, BmsHeader, BmsHeaderConditional,

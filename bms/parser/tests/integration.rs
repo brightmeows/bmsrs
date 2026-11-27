@@ -8,7 +8,7 @@ use bmsrs_bms_model::BmsBgaLayer;
 use bmsrs_bms_model::*;
 use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_values::{
-    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ExBmpParams, LnMode, LnType, PlayerMode,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ExBmpParams, LnMode, LnNotation, PlayerMode,
     PoorBgaMode, Rank, ScrollIndex, SpeedIndex, StopIndex, SwBgaParams, WavCmdKind, WavCmdParams,
     WavIndex,
 };
@@ -176,7 +176,7 @@ fn full_header_parse() {
     assert_eq!(bms.gameplay.def_ex_rank, Some(3.0));
     assert_eq!(bms.gameplay.total, Some(300.0));
     assert_eq!(bms.gameplay.vol_wav, Some(100.0));
-    assert_eq!(bms.gameplay.ln_type, Some(LnType::Type1));
+    assert_eq!(bms.gameplay.ln_type, Some(LnNotation::Rdm));
     assert!(bms.gameplay.ln_obj.is_some());
     assert_eq!(bms.gameplay.ln_mode, Some(LnMode::Ln));
     assert_eq!(bms.gameplay.base, Some(BmsBase::Base36));

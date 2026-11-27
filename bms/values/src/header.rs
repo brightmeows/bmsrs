@@ -16,7 +16,7 @@ pub use conditional::{
 pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
 pub use gameplay::{
-    BmsHeaderGameplay, BmsOptionWord, LnMode, LnType, OptionWords, PlayerMode, Rank,
+    BmsHeaderGameplay, BmsOptionWord, LnMode, LnNotation, OptionWords, PlayerMode, Rank,
 };
 pub use kaleid::{BgaOverflow, BmsHeaderKaleid, SongSoundMode};
 pub use metadata::BmsHeaderMetadata;
