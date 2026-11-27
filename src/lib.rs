@@ -34,7 +34,7 @@ pub mod bms {
 
     pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
-    pub use parser::{BmsDiagnostic, BmsDiagnosticKind};
+    pub use parser::{Diagnostic, DiagnosticKind};
     pub use processor::layout::{Bme, BmsLayout};
     pub use processor::{AssetLookup, ProcessError, ProcessWarning, Processed};
 
@@ -64,7 +64,7 @@ pub mod bms {
     pub enum ParseError {
         /// A decode, tokenization, or CST diagnostic of error severity.
         #[error(transparent)]
-        Diagnostic(#[from] parser::BmsDiagnostic),
+        Diagnostic(#[from] parser::Diagnostic),
         /// The file's control-flow blocks diverged from the recording.
         #[error(transparent)]
         Branch(#[from] syntax::BranchMismatch),
@@ -93,7 +93,7 @@ pub mod bms {
     /// Returns [`ParseError`] when reading, decoding, or parsing fails.
     pub fn parse<'a>(
         input: impl Into<Input<'a>>,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
         let parse_options = with_input_format(source.format(), &syntax::ParseOptions::default())?;
         let document = source.into_document()?;
@@ -122,7 +122,7 @@ pub mod bms {
         input: impl Into<Input<'a>>,
         options: &syntax::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
         let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
@@ -147,7 +147,7 @@ pub mod bms {
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<
         (
-            bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>,
+            bmsrs_pipeline::Outcome<model::Bms, Diagnostic>,
             syntax::BranchSelection,
         ),
         ParseError,
@@ -185,26 +185,26 @@ pub mod bms {
         input: impl Into<Input<'a>>,
         selection: &syntax::BranchSelection,
         options: &syntax::ParseOptions,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
+    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
         let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
         let text = document
             .try_to_text()
-            .map_err(BmsDiagnostic::decode)
+            .map_err(Diagnostic::decode)
             .map_err(ParseError::from)?;
         let parse = syntax::SourceFile::parse_with(&text, &parse_options);
         let file = parse.source_file();
-        let mut warnings: Vec<BmsDiagnostic> = parse
+        let mut warnings: Vec<Diagnostic> = parse
             .errors()
             .iter()
-            .map(|error| BmsDiagnostic {
+            .map(|error| Diagnostic {
                 line: file
                     .line_number_at(error.range().start())
                     .unwrap_or(std::num::NonZeroUsize::MIN),
                 range: error.range(),
                 severity: error.severity(),
-                kind: BmsDiagnosticKind::Cst {
+                kind: DiagnosticKind::Cst {
                     message: error.message().to_owned(),
                     code: error.code(),
                 },
@@ -277,7 +277,7 @@ pub mod bms {
         document: &source::Document,
         options: &syntax::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<(model::Bms, Vec<BmsDiagnostic>), ParseError> {
+    ) -> Result<(model::Bms, Vec<Diagnostic>), ParseError> {
         let parsed = parser::BmsParser::parse_document_with(document, options, rng)
             .map_err(ParseError::from)?;
         Ok((parsed.bms, parsed.warnings))
@@ -515,14 +515,18 @@ pub mod raw {
 /// player types those signatures name. Functions stay behind their module
 /// (`bmsrs::bms::parse`, `bmsrs::bmson::parse_str`), so a glob import never
 /// puts a bare `parse` or `write` in scope. `tests/facade_api.rs` names every
-/// item, so dropping one fails to compile.
+/// item, so dropping one fails to compile. When two modules export the same
+/// name, the prelude keeps the one a curated entry point names: `Diagnostic`
+/// is the parser wrapper returned by [`bms::parse`], and
+/// the shared [`pipeline::Diagnostic`] stays
+/// behind `pipeline::`.
 pub mod prelude {
     pub use crate::bms::layout::Bme;
     pub use crate::bms::{
-        AssetLookup, Bms, BmsDiagnostic, BmsDiagnosticKind, BmsLayout, BmsTokenizeError,
-        BranchMismatch, BranchSelection, ControlFlowCompat, ControlFlowRng, ErrorStrategy,
-        FirstBranch, Input, JavaRandom, Lr2Mt19937, Outcome, ParseError, ParseOptions,
-        ProcessError, ProcessWarning, Processed, SourceFormat, TextDecodeError, TextRange,
+        AssetLookup, Bms, BmsLayout, BmsTokenizeError, BranchMismatch, BranchSelection,
+        ControlFlowCompat, ControlFlowRng, Diagnostic, DiagnosticKind, ErrorStrategy, FirstBranch,
+        Input, JavaRandom, Lr2Mt19937, Outcome, ParseError, ParseOptions, ProcessError,
+        ProcessWarning, Processed, SourceFormat, TextDecodeError, TextRange,
     };
     #[cfg(feature = "bmson")]
     pub use crate::bmson::layout::Beat;
@@ -533,7 +537,7 @@ pub mod prelude {
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };
-    pub use crate::pipeline::{Diagnostic, DiagnosticCode, Severity, SourceSpan};
+    pub use crate::pipeline::{DiagnosticCode, Severity, SourceSpan};
     pub use crate::player::Player;
 }
 

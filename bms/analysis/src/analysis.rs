@@ -11,7 +11,7 @@ use bmsrs_bms_values::{
 
 use bmsrs_pipeline::DiagnosticCode;
 
-use crate::diagnostic::{AnalysisDiagnostic, Severity};
+use crate::diagnostic::{Diagnostic, Severity};
 use crate::index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};
 
 /// Result of one analysis.
@@ -20,7 +20,7 @@ pub struct Analysis {
     /// Incremental syntax state.
     syntax: IncrementalParser,
     /// Diagnostic list.
-    diagnostics: Vec<AnalysisDiagnostic>,
+    diagnostics: Vec<Diagnostic>,
     /// Symbol index.
     index: SymbolIndex,
 }
@@ -97,7 +97,7 @@ impl Analysis {
 
     /// Return the diagnostics.
     #[must_use]
-    pub fn diagnostics(&self) -> &[AnalysisDiagnostic] {
+    pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
 
@@ -109,13 +109,13 @@ impl Analysis {
 }
 
 /// Build diagnostics and the symbol index from one parse result.
-fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<AnalysisDiagnostic>, SymbolIndex) {
+fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<Diagnostic>, SymbolIndex) {
     let source = parse.source_file();
     let mut diagnostics: Vec<_> = parse
         .errors()
         .iter()
         .map(|error| {
-            AnalysisDiagnostic::new(
+            Diagnostic::new(
                 error.range(),
                 error.severity(),
                 error.message(),
@@ -146,11 +146,7 @@ fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<AnalysisDiagnost
     clippy::too_many_lines,
     reason = "single state machine over conditional directives; splitting hides the ordering rules"
 )]
-fn check_conditional(
-    source: &SourceFile,
-    prefixes: &[char],
-    diagnostics: &mut Vec<AnalysisDiagnostic>,
-) {
+fn check_conditional(source: &SourceFile, prefixes: &[char], diagnostics: &mut Vec<Diagnostic>) {
     let mut depth = 0usize;
     let mut branch_count = 0usize;
     let mut saw_default = false;
@@ -165,7 +161,7 @@ fn check_conditional(
         };
         let BmsHeader::Conditional(command) = header else {
             if depth > 0 && line.kind() == SyntaxLineKind::Header {
-                diagnostics.push(AnalysisDiagnostic::new(
+                diagnostics.push(Diagnostic::new(
                     line.range(),
                     Severity::Warning,
                     "header inside a #CONDITIONAL branch; headers are global in KaleidBeat",
@@ -177,7 +173,7 @@ fn check_conditional(
         match command {
             BmsHeaderConditional::Conditional(position) => {
                 if depth > 0 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "nested #CONDITIONAL block; the outer block is not closed",
@@ -189,7 +185,7 @@ fn check_conditional(
                 saw_default = false;
                 block_start = Some(line.range());
                 if !position.is_finite() || !(0.0..=999.999_999).contains(&position) {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "conditional evaluation position is out of range",
@@ -199,14 +195,14 @@ fn check_conditional(
             }
             BmsHeaderConditional::When(_) => {
                 if depth == 0 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#WHEN outside a #CONDITIONAL block",
                         Some(DiagnosticCode::Conditional),
                     ));
                 } else if saw_default {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#WHEN after #DEFAULT",
@@ -218,21 +214,21 @@ fn check_conditional(
             }
             BmsHeaderConditional::ElseWhen(_) => {
                 if depth == 0 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#ELSEWHEN outside a #CONDITIONAL block",
                         Some(DiagnosticCode::Conditional),
                     ));
                 } else if branch_count == 0 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#ELSEWHEN without a preceding #WHEN",
                         Some(DiagnosticCode::Conditional),
                     ));
                 } else if saw_default {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#ELSEWHEN after #DEFAULT",
@@ -242,21 +238,21 @@ fn check_conditional(
             }
             BmsHeaderConditional::Default => {
                 if depth == 0 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#DEFAULT outside a #CONDITIONAL block",
                         Some(DiagnosticCode::Conditional),
                     ));
                 } else if saw_default {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "duplicate #DEFAULT in a #CONDITIONAL block",
                         Some(DiagnosticCode::Conditional),
                     ));
                 } else if branch_count == 0 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#DEFAULT without a preceding #WHEN",
@@ -267,14 +263,14 @@ fn check_conditional(
             }
             BmsHeaderConditional::EndConditional => {
                 if depth == 0 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#ENDCONDITIONAL without a matching #CONDITIONAL",
                         Some(DiagnosticCode::Conditional),
                     ));
                 } else if !saw_default {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Warning,
                         "#CONDITIONAL block is missing #DEFAULT",
@@ -290,7 +286,7 @@ fn check_conditional(
     }
 
     if let Some(range) = block_start {
-        diagnostics.push(AnalysisDiagnostic::new(
+        diagnostics.push(Diagnostic::new(
             range,
             Severity::Warning,
             "#CONDITIONAL block is not closed by #ENDCONDITIONAL",
@@ -304,7 +300,7 @@ fn collect_lines(
     source: &SourceFile,
     prefixes: &[char],
     index: &mut SymbolIndex,
-    diagnostics: &mut Vec<AnalysisDiagnostic>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (line_index, line) in source.lines().enumerate() {
         collect_line(line_index, &line, prefixes, index, diagnostics);
@@ -318,7 +314,7 @@ fn collect_line(
     line: &SyntaxLine,
     prefixes: &[char],
     index: &mut SymbolIndex,
-    diagnostics: &mut Vec<AnalysisDiagnostic>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let line_number = u32::try_from(line_index).unwrap_or(u32::MAX);
     match line.kind() {
@@ -326,7 +322,7 @@ fn collect_line(
             if let Some(command) = line.command_name()
                 && let Some(name) = extension_command(command.text())
             {
-                diagnostics.push(AnalysisDiagnostic::new(
+                diagnostics.push(Diagnostic::new(
                     command.text_range(),
                     Severity::Information,
                     format!(
@@ -340,7 +336,7 @@ fn collect_line(
                 && let Ok(Some(message)) = BmsMessage::parse(content)
             {
                 if let Some(code) = extension_channel_code(message.channel()) {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         line.range(),
                         Severity::Information,
                         format!(
@@ -378,7 +374,7 @@ fn collect_line_at(
     line_index: u32,
     prefixes: &[char],
     index: &mut SymbolIndex,
-    diagnostics: &mut Vec<AnalysisDiagnostic>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(index_in_file) = usize::try_from(line_index).ok() else {
         return;
@@ -395,7 +391,7 @@ fn collect_header(
     line: &SyntaxLine,
     prefixes: &[char],
     index: &mut SymbolIndex,
-    diagnostics: &mut Vec<AnalysisDiagnostic>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(command) = line.command_name() else {
         return;
@@ -427,7 +423,7 @@ fn collect_header(
             }
         }
         Ok(None) => {}
-        Err(error) => diagnostics.push(AnalysisDiagnostic::new(
+        Err(error) => diagnostics.push(Diagnostic::new(
             line.range(),
             Severity::Error,
             error.to_string(),
@@ -441,7 +437,7 @@ fn collect_message(
     line_index: u32,
     line: &SyntaxLine,
     index: &mut SymbolIndex,
-    diagnostics: &mut Vec<AnalysisDiagnostic>,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(content) = line.content_text() else {
         return;
@@ -450,7 +446,7 @@ fn collect_message(
         Ok(Some(message)) => message,
         Ok(None) => return,
         Err(error) => {
-            diagnostics.push(AnalysisDiagnostic::new(
+            diagnostics.push(Diagnostic::new(
                 line.range(),
                 Severity::Error,
                 error.to_string(),
@@ -460,7 +456,7 @@ fn collect_message(
         }
     };
     if let Some(code) = extension_channel_code(message.channel()) {
-        diagnostics.push(AnalysisDiagnostic::new(
+        diagnostics.push(Diagnostic::new(
             line.range(),
             Severity::Information,
             format!("`KaleidBeat` extension channel {code}: kept in the dialect sidecar"),
@@ -664,7 +660,7 @@ const fn reference_kind(channel: BmsChannel) -> Option<SymbolKind> {
 }
 
 /// Add duplicate-definition diagnostics.
-fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<AnalysisDiagnostic>) {
+fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Diagnostic>) {
     let mut groups: BTreeMap<(SymbolKind, String), Vec<usize>> = BTreeMap::new();
     let definitions: Vec<_> = index.definitions().collect();
     for (position, definition) in definitions.iter().enumerate() {
@@ -679,7 +675,7 @@ fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Analysis
                 if let Some(definition) = definitions.get(position)
                     && let Some(range) = index.range_of_definition(definition)
                 {
-                    diagnostics.push(AnalysisDiagnostic::new(
+                    diagnostics.push(Diagnostic::new(
                         range,
                         Severity::Warning,
                         format!("duplicate definition of {} {}", kind.label(), id),
@@ -692,16 +688,13 @@ fn add_duplicate_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Analysis
 }
 
 /// Add missing-reference diagnostics.
-fn add_missing_reference_diagnostics(
-    index: &SymbolIndex,
-    diagnostics: &mut Vec<AnalysisDiagnostic>,
-) {
+fn add_missing_reference_diagnostics(index: &SymbolIndex, diagnostics: &mut Vec<Diagnostic>) {
     for reference in index.references() {
         let found = index.has_definition(reference.kind(), reference.id())
             || (reference.kind() == SymbolKind::Bga
                 && index.has_definition(SymbolKind::Bmp, reference.id()));
         if !found && let Some(range) = index.range_of_reference(reference) {
-            diagnostics.push(AnalysisDiagnostic::new(
+            diagnostics.push(Diagnostic::new(
                 range,
                 Severity::Warning,
                 format!("undefined {} {}", reference.kind().label(), reference.id()),
@@ -749,13 +742,13 @@ fn diagnostics_from(
     parse: &SyntaxParse,
     options: &ParseOptions,
     index: &SymbolIndex,
-) -> Vec<AnalysisDiagnostic> {
+) -> Vec<Diagnostic> {
     let source = parse.source_file();
     let mut diagnostics: Vec<_> = parse
         .errors()
         .iter()
         .map(|error| {
-            AnalysisDiagnostic::new(
+            Diagnostic::new(
                 error.range(),
                 error.severity(),
                 error.message(),

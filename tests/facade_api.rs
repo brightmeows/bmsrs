@@ -163,7 +163,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
     // into `raw`.
     let resolved = [
         named::<bmsrs::bms::Bms>(),
-        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::BmsDiagnostic>>(),
+        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::Diagnostic>>(),
         named::<bmsrs::bms::Processed>(),
         named::<bmsrs::bms::ProcessWarning>(),
         named::<bmsrs::bms::ProcessError>(),
@@ -183,8 +183,8 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::BranchMismatch>(),
         named::<bmsrs::bms::ControlFlowCompat>(),
         named::<bmsrs::bms::ParseError>(),
-        named::<bmsrs::bms::BmsDiagnostic>(),
-        named::<bmsrs::bms::BmsDiagnosticKind>(),
+        named::<bmsrs::bms::Diagnostic>(),
+        named::<bmsrs::bms::DiagnosticKind>(),
     ];
     assert_eq!(resolved.len(), 23);
     // `type_name` reports the defining crate, not the re-export path, so the
@@ -259,7 +259,7 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
 
 #[test]
 fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
-    use bmsrs::bms::{BmsDiagnosticKind, ParseOptions};
+    use bmsrs::bms::{DiagnosticKind, ParseOptions};
     use bmsrs::pipeline::{DiagnosticCode, ErrorStrategy, Severity};
 
     // An unclosed `#RANDOM` is warning-grade in the syntax layer, so FailFast
@@ -284,7 +284,7 @@ fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
         .find(|warning| {
             matches!(
                 warning.kind,
-                BmsDiagnosticKind::Cst {
+                DiagnosticKind::Cst {
                     code: DiagnosticCode::ControlFlow,
                     ..
                 }
@@ -305,7 +305,7 @@ fn syntax_error_keeps_error_severity_at_the_pipeline_exit() {
     let diagnostic = parsed
         .warnings
         .iter()
-        .find(|warning| matches!(warning.kind, bmsrs::bms::BmsDiagnosticKind::Cst { .. }))
+        .find(|warning| matches!(warning.kind, bmsrs::bms::DiagnosticKind::Cst { .. }))
         .cloned()
         .map(bmsrs::pipeline::Diagnostic::from)
         .expect("one CST diagnostic");
@@ -389,8 +389,8 @@ fn prelude_exports_every_type_and_no_functions() {
     let resolved = [
         named::<AssetLookup>(),
         named::<Bms>(),
-        named::<BmsDiagnostic>(),
-        named::<BmsDiagnosticKind>(),
+        named::<Diagnostic>(),
+        named::<DiagnosticKind>(),
         named::<BranchMismatch>(),
         named::<BranchSelection>(),
         named::<ControlFlowCompat>(),
@@ -399,7 +399,7 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<Input>(),
         named::<JavaRandom>(),
         named::<Lr2Mt19937>(),
-        named::<Outcome<Bms, BmsDiagnostic>>(),
+        named::<Outcome<Bms, Diagnostic>>(),
         named::<ParseError>(),
         named::<ParseOptions>(),
         named::<ProcessError>(),
@@ -425,13 +425,12 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<NoteKind>(),
         named::<NoteRole>(),
         named::<TimingTrack>(),
-        named::<Diagnostic>(),
         named::<DiagnosticCode>(),
         named::<Severity>(),
         named::<SourceSpan>(),
         named::<Player>(),
     ];
-    assert_eq!(resolved.len(), 43);
+    assert_eq!(resolved.len(), 42);
     assert!(resolved.iter().all(|name| !name.is_empty()));
     bounded_by::<Bme>();
     drawn_by::<JavaRandom>();
@@ -499,7 +498,7 @@ fn parse_from_selection_fail_fast_returns_the_first_error() {
     assert!(diagnostic.is_error());
     assert!(matches!(
         diagnostic.kind,
-        bmsrs::bms::BmsDiagnosticKind::Cst {
+        bmsrs::bms::DiagnosticKind::Cst {
             code: DiagnosticCode::Syntax,
             ..
         }

@@ -7,4 +7,4 @@
 mod cst;
 
 pub use bmsrs_pipeline::ErrorStrategy;
-pub use cst::{BmsDiagnostic, BmsDiagnosticKind, BmsParse, BmsParser, LineToken};
+pub use cst::{BmsParse, BmsParser, Diagnostic, DiagnosticKind, LineToken};

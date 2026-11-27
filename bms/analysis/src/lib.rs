@@ -19,6 +19,6 @@ mod docs;
 mod index;
 
 pub use analysis::Analysis;
-pub use diagnostic::{AnalysisDiagnostic, DiagnosticCode, Severity};
+pub use diagnostic::{Diagnostic, DiagnosticCode, Severity};
 pub use docs::{ChannelDoc, Docs, HeaderDoc};
 pub use index::{SymbolDefinition, SymbolId, SymbolIndex, SymbolKind, SymbolReference};

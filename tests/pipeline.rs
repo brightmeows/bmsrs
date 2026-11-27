@@ -31,8 +31,8 @@ fn parse_with_collect_all_reports_tokenize_warnings() {
     .unwrap_or_else(|error| panic!("{error}"));
     assert!(matches!(
         outcome.warnings.as_slice(),
-        [bmsrs::bms::BmsDiagnostic {
-            kind: bmsrs::bms::BmsDiagnosticKind::Tokenize(_),
+        [bmsrs::bms::Diagnostic {
+            kind: bmsrs::bms::DiagnosticKind::Tokenize(_),
             range,
             ..
         }] if !range.is_empty()
@@ -110,8 +110,8 @@ fn parse_with_fail_fast_returns_tokenize_error() {
     let result = bmsrs::bms::parse_with(Input::text(text, SourceFormat::Bms), &options, &mut |_| 1);
     assert!(matches!(
         result,
-        Err(bmsrs::bms::ParseError::Diagnostic(bmsrs::bms::BmsDiagnostic {
-            kind: bmsrs::bms::BmsDiagnosticKind::Tokenize(_),
+        Err(bmsrs::bms::ParseError::Diagnostic(bmsrs::bms::Diagnostic {
+            kind: bmsrs::bms::DiagnosticKind::Tokenize(_),
             range,
             ..
         })) if !range.is_empty()
@@ -129,8 +129,8 @@ fn parse_with_collect_all_reports_unselected_branch_error() {
     .unwrap_or_else(|error| panic!("{error}"));
     assert!(matches!(
         outcome.warnings.as_slice(),
-        [bmsrs::bms::BmsDiagnostic {
-            kind: bmsrs::bms::BmsDiagnosticKind::Tokenize(_),
+        [bmsrs::bms::Diagnostic {
+            kind: bmsrs::bms::DiagnosticKind::Tokenize(_),
             ..
         }]
     ));
