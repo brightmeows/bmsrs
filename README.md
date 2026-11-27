@@ -89,7 +89,7 @@ use std::time::Duration;
 use bmsrs::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let parsed = bmsrs::bms::parse_file("chart.bms")?;
+    let parsed = bmsrs::bms::parse(std::path::Path::new("chart.bms"))?;
     let processed = bmsrs::bms::process(&parsed.value)?;
     let chart = processed.value.chart;
 
@@ -101,9 +101,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`parse_file` uses the first branch for `#RANDOM` / `#SWITCH` and collects all
-warnings. Use `parse_bytes_with` when you need a custom branch selector,
-`ParseOptions`, or `ErrorStrategy`.
+`parse` uses the first branch for `#RANDOM` / `#SWITCH` and collects all
+diagnostics. Every entry takes an [`Input`](https://docs.rs/bmsrs/latest/bmsrs/bms/struct.Input.html):
+a path derives the format from its extension, while text and bytes declare it
+(`Input::text(text, SourceFormat::Bms)`, `Input::bytes(bytes, SourceFormat::Bmd)`).
+Use `parse_with` when you need a custom branch generator, `ParseOptions`, or
+`ErrorStrategy`.
 
 ### BMSON to Chart
 

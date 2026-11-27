@@ -2,8 +2,11 @@
 
 #[test]
 fn bms_parse_and_process_return_outcomes() {
-    let parsed = bmsrs::bms::parse("#TITLE A\n#BPM 120\n#TOTAL 100\n#WAV01 a.wav\n#00111:0100\n")
-        .expect("valid BMS");
+    let parsed = bmsrs::bms::parse(bmsrs::bms::Input::text(
+        "#TITLE A\n#BPM 120\n#TOTAL 100\n#WAV01 a.wav\n#00111:0100\n",
+        bmsrs::pipeline::SourceFormat::Bms,
+    ))
+    .expect("valid BMS");
     assert_eq!(parsed.value.metadata.title.as_deref(), Some("A"));
 
     let processed = bmsrs::bms::process(&parsed.value).expect("valid chart");
@@ -15,23 +18,22 @@ fn bms_parse_and_process_return_outcomes() {
 }
 
 #[test]
-fn bms_parse_file_reads_chart_from_path() {
+fn bms_parse_reads_a_chart_from_a_path() {
     let path = std::env::temp_dir().join(format!("bmsrs-facade-test-{}.bms", std::process::id()));
     std::fs::write(&path, "#TITLE A\n#BPM 120\n#WAV01 a.wav\n#00111:0100\n")
         .expect("write fixture");
-    let parsed = bmsrs::bms::parse_file(&path).expect("valid BMS file");
+    let parsed = bmsrs::bms::parse(&path).expect("valid BMS file");
     std::fs::remove_file(&path).expect("remove fixture");
     assert_eq!(parsed.value.metadata.title.as_deref(), Some("A"));
 }
 
 #[test]
-fn bms_parse_bytes_with_accepts_curated_option_types() {
-    // Both option types a caller needs must resolve through `bms::`, not only
-    // through the low-level `raw` path this facade is meant to hide.
+fn bms_parse_with_accepts_declared_bytes_and_curated_option_types() {
+    // Bytes declare their format; the option types resolve through `bms::`,
+    // not only through the low-level `raw` path this facade is meant to hide.
     let bytes = b"#TITLE A\n#BPM 120\n".to_vec();
-    let parsed = bmsrs::bms::parse_bytes_with(
-        bytes,
-        &bmsrs::bms::DocumentOptions::default(),
+    let parsed = bmsrs::bms::parse_with(
+        bmsrs::bms::Input::bytes(bytes, bmsrs::pipeline::SourceFormat::Bms),
         &bmsrs::bms::ParseOptions::default(),
         &mut |_| 1,
     )
@@ -44,20 +46,32 @@ fn java_random_seed_reproduces_branch_layout_and_replays() {
     let text =
         "#RANDOM 5\n#IF 1\n#TITLE ONE\n#ENDIF\n#IF 5\n#TITLE FIVE\n#ENDIF\n#ENDRANDOM\n#BPM 120\n";
     let mut rng = bmsrs::bms::JavaRandom::new(123_456_789);
-    let (recorded, selection) =
-        bmsrs::bms::parse_with_recording(text, &bmsrs::bms::ParseOptions::default(), &mut rng)
-            .expect("valid BMS");
+    let (recorded, selection) = bmsrs::bms::parse_with_recording(
+        bmsrs::bms::Input::text(text, bmsrs::pipeline::SourceFormat::Bms),
+        &bmsrs::bms::ParseOptions::default(),
+        &mut rng,
+    )
+    .expect("valid BMS");
     let title_from_seed = recorded.value.metadata.title;
     assert!(
         title_from_seed.as_deref() == Some("ONE") || title_from_seed.as_deref() == Some("FIVE"),
         "a branch was selected: {title_from_seed:?}"
     );
 
-    let replayed = bmsrs::bms::parse_from_selection(text, &selection).expect("replay ok");
+    let replayed = bmsrs::bms::parse_from_selection(
+        bmsrs::bms::Input::text(text, bmsrs::pipeline::SourceFormat::Bms),
+        &selection,
+        &bmsrs::bms::ParseOptions::default(),
+    )
+    .expect("replay ok");
     assert_eq!(replayed.value.metadata.title, title_from_seed);
 
     let drifted = text.replace("#RANDOM 5", "#RANDOM 4");
-    let error = bmsrs::bms::parse_from_selection(&drifted, &selection);
+    let error = bmsrs::bms::parse_from_selection(
+        bmsrs::bms::Input::text(&drifted, bmsrs::pipeline::SourceFormat::Bms),
+        &selection,
+        &bmsrs::bms::ParseOptions::default(),
+    );
     assert!(matches!(error, Err(bmsrs::bms::ParseError::Branch(_))));
 }
 
@@ -97,7 +111,10 @@ fn jbms_compat_mode_and_lr2_rng_run_through_the_facade() {
 
     // beatoraja-jbms behavior: `#RANDOM 0` clamps to 1 and draws once.
     let parsed = bmsrs::bms::parse_with(
-        "#RANDOM 0\n#IF 1\n#TITLE zero\n#ENDIF\n",
+        bmsrs::bms::Input::text(
+            "#RANDOM 0\n#IF 1\n#TITLE zero\n#ENDIF\n",
+            bmsrs::pipeline::SourceFormat::Bms,
+        ),
         &bmsrs::bms::ParseOptions {
             control_flow_compat: ControlFlowCompat::Jbms,
             ..bmsrs::bms::ParseOptions::default()
@@ -123,14 +140,14 @@ fn bmd_parse_file_selects_the_dialect_format() {
         "#WAV01 P0 N60 V100 G48\n#00111:01 ; inline comment\n",
     )
     .expect("write fixture");
-    let parsed = bmsrs::bms::parse_file(&path).expect("valid BMD file");
+    let parsed = bmsrs::bms::parse(&path).expect("valid BMD file");
     std::fs::remove_file(&path).expect("remove fixture");
 
     assert_eq!(parsed.value.format, bmsrs::pipeline::SourceFormat::Bmd);
     assert_eq!(parsed.value.audio.wav_sources.len(), 1);
     assert!(matches!(
         parsed.value.audio.wav_sources.values().next(),
-        Some(bmsrs::raw::model::WavSource::Synth(_))
+        Some(bmsrs::raw::bms::model::WavSource::Synth(_))
     ));
 }
 
@@ -160,7 +177,8 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::BmsTokenizeError>(),
         named::<bmsrs::bms::TextDecodeError>(),
         named::<bmsrs::bms::ParseOptions>(),
-        named::<bmsrs::bms::DocumentOptions>(),
+        named::<bmsrs::bms::Input>(),
+        named::<bmsrs::bms::SourceFormat>(),
         named::<bmsrs::bms::BranchSelection>(),
         named::<bmsrs::bms::BranchMismatch>(),
         named::<bmsrs::bms::ControlFlowCompat>(),
@@ -168,7 +186,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::BmsDiagnostic>(),
         named::<bmsrs::bms::BmsDiagnosticKind>(),
     ];
-    assert_eq!(resolved.len(), 22);
+    assert_eq!(resolved.len(), 23);
     // `type_name` reports the defining crate, not the re-export path, so the
     // value only has to exist; resolving these paths is the assertion.
     assert!(resolved.iter().all(|name| !name.is_empty()));
@@ -209,7 +227,11 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
     use bmsrs::pipeline::{Diagnostic, DiagnosticCode};
 
     // An unclosed control-flow block is a structure warning, not a syntax one.
-    let unclosed = bmsrs::bms::parse("#RANDOM 2\n#IF 1\n#TITLE A\n").expect("valid BMS");
+    let unclosed = bmsrs::bms::parse(bmsrs::bms::Input::text(
+        "#RANDOM 2\n#IF 1\n#TITLE A\n",
+        bmsrs::pipeline::SourceFormat::Bms,
+    ))
+    .expect("valid BMS");
     let codes: Vec<_> = unclosed
         .warnings
         .into_iter()
@@ -220,7 +242,11 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
     assert!(!codes.contains(&DiagnosticCode::Syntax));
 
     // A line whose command word is empty is a syntax error.
-    let invalid = bmsrs::bms::parse("# BAD\n").expect("valid BMS");
+    let invalid = bmsrs::bms::parse(bmsrs::bms::Input::text(
+        "# BAD\n",
+        bmsrs::pipeline::SourceFormat::Bms,
+    ))
+    .expect("valid BMS");
     let invalid_codes: Vec<_> = invalid
         .warnings
         .into_iter()
@@ -239,7 +265,10 @@ fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
     // An unclosed `#RANDOM` is warning-grade in the syntax layer, so FailFast
     // keeps parsing and reports it in the list instead of failing.
     let parsed = bmsrs::bms::parse_with(
-        "#RANDOM 2\n#IF 1\n#TITLE A\n",
+        bmsrs::bms::Input::text(
+            "#RANDOM 2\n#IF 1\n#TITLE A\n",
+            bmsrs::pipeline::SourceFormat::Bms,
+        ),
         &ParseOptions {
             error_strategy: ErrorStrategy::FailFast,
             ..ParseOptions::default()
@@ -268,7 +297,11 @@ fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
 
 #[test]
 fn syntax_error_keeps_error_severity_at_the_pipeline_exit() {
-    let parsed = bmsrs::bms::parse("# BAD\n").expect("collect-all parses");
+    let parsed = bmsrs::bms::parse(bmsrs::bms::Input::text(
+        "# BAD\n",
+        bmsrs::pipeline::SourceFormat::Bms,
+    ))
+    .expect("collect-all parses");
     let diagnostic = parsed
         .warnings
         .iter()
@@ -283,4 +316,124 @@ fn syntax_error_keeps_error_severity_at_the_pipeline_exit() {
         Some(bmsrs::pipeline::DiagnosticCode::Syntax)
     );
     assert!(diagnostic.span.is_some_and(|span| !span.is_empty()));
+}
+
+#[test]
+fn bmd_bytes_declare_their_format() {
+    use bmsrs::bms::Input;
+    use bmsrs::pipeline::SourceFormat;
+
+    let bytes = b"#WAV01 P0 N60 V100 G48\n".to_vec();
+    let declared =
+        bmsrs::bms::parse(Input::bytes(bytes.clone(), SourceFormat::Bmd)).expect("valid BMD bytes");
+    assert_eq!(declared.value.format, SourceFormat::Bmd);
+    assert!(matches!(
+        declared.value.audio.wav_sources.values().next(),
+        Some(bmsrs::raw::bms::model::WavSource::Synth(_))
+    ));
+
+    // The same bytes declared as plain BMS keep the literal `#WAV` value.
+    let plain = bmsrs::bms::parse(Input::bytes(bytes, SourceFormat::Bms)).expect("valid BMS bytes");
+    assert_eq!(plain.value.format, SourceFormat::Bms);
+    assert!(matches!(
+        plain.value.audio.wav_sources.values().next(),
+        Some(bmsrs::raw::bms::model::WavSource::File(_))
+    ));
+}
+
+#[test]
+fn replay_takes_the_options_the_recording_was_made_with() {
+    use bmsrs::bms::Input;
+    use bmsrs::pipeline::SourceFormat;
+
+    let bytes = b"#WAV01 P0 N60 V100 G48\n".to_vec();
+    let (recorded, selection) = bmsrs::bms::parse_with_recording(
+        Input::bytes(bytes.clone(), SourceFormat::Bmd),
+        &bmsrs::bms::ParseOptions::default(),
+        &mut |_| 1,
+    )
+    .expect("record");
+    let replayed = bmsrs::bms::parse_from_selection(
+        Input::bytes(bytes, SourceFormat::Bmd),
+        &selection,
+        &bmsrs::bms::ParseOptions::default(),
+    )
+    .expect("replay");
+
+    assert_eq!(recorded.value.format, replayed.value.format);
+    assert_eq!(
+        recorded.value.audio.wav_sources,
+        replayed.value.audio.wav_sources
+    );
+    assert!(matches!(
+        replayed.value.audio.wav_sources.values().next(),
+        Some(bmsrs::raw::bms::model::WavSource::Synth(_))
+    ));
+}
+
+#[test]
+fn prelude_exports_every_type_and_no_functions() {
+    use bmsrs::prelude::*;
+
+    // Traits are named through a bound, not a type argument.
+    fn bounded_by<T: BmsLayout>() {}
+    fn drawn_by<T: ControlFlowRng>() {}
+    fn bmson_bounded_by<T: BmsonLayout>() {}
+
+    fn named<T>() -> &'static str {
+        std::any::type_name::<T>()
+    }
+
+    // The prelude is types and traits only; every item is named here so a
+    // dropped re-export fails to compile.
+    let resolved = [
+        named::<AssetLookup>(),
+        named::<Bms>(),
+        named::<BmsDiagnostic>(),
+        named::<BmsDiagnosticKind>(),
+        named::<BranchMismatch>(),
+        named::<BranchSelection>(),
+        named::<ControlFlowCompat>(),
+        named::<ErrorStrategy>(),
+        named::<FirstBranch>(),
+        named::<Input>(),
+        named::<JavaRandom>(),
+        named::<Lr2Mt19937>(),
+        named::<Outcome<Bms, BmsDiagnostic>>(),
+        named::<ParseError>(),
+        named::<ParseOptions>(),
+        named::<ProcessError>(),
+        named::<ProcessWarning>(),
+        named::<Processed>(),
+        named::<SourceFormat>(),
+        named::<TextDecodeError>(),
+        named::<TextRange>(),
+        named::<BmsTokenizeError>(),
+        named::<Bme>(),
+        named::<Beat>(),
+        named::<GenericLayout>(),
+        named::<Bmson>(),
+        named::<BmsonParseError>(),
+        named::<BmsonProcessed>(),
+        named::<BmsonProcessWarning>(),
+        named::<Chart>(),
+        named::<ChartData>(),
+        named::<Event>(),
+        named::<EventKind<()>>(),
+        named::<Lane>(),
+        named::<Note>(),
+        named::<NoteKind>(),
+        named::<NoteRole>(),
+        named::<TimingTrack>(),
+        named::<Diagnostic>(),
+        named::<DiagnosticCode>(),
+        named::<Severity>(),
+        named::<SourceSpan>(),
+        named::<Player>(),
+    ];
+    assert_eq!(resolved.len(), 43);
+    assert!(resolved.iter().all(|name| !name.is_empty()));
+    bounded_by::<Bme>();
+    drawn_by::<JavaRandom>();
+    bmson_bounded_by::<Beat>();
 }

@@ -16,7 +16,7 @@
 //! use bmsrs::prelude::*;
 //!
 //! let source = "#TITLE Demo\n#BPM 120\n#WAV01 kick.wav\n#00111:0100\n";
-//! let parsed = bmsrs::bms::parse(source).expect("valid BMS");
+//! let parsed = bmsrs::bms::parse(Input::text(source, SourceFormat::Bms)).expect("valid BMS");
 //! let processed = bmsrs::bms::process(&parsed.value).expect("valid chart");
 //!
 //! let mut player = Player::new(processed.value.chart);
@@ -24,11 +24,13 @@
 //! assert_eq!(player.current_tick(), 480);
 //! ```
 //!
+mod input;
+
 /// Parsing and processing for the BMS format.
 pub mod bms {
     // Layer crates live under `raw`; the curated path keeps only the entry
     // points and facade-owned types.
-    use crate::raw::{model, parser, processor, source, syntax, values, writer};
+    use crate::raw::bms::{model, parser, processor, source, syntax, values, writer};
 
     pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
@@ -39,9 +41,10 @@ pub mod bms {
     /// Every BMS mode family: the [`BmsLayout`] trait
     /// and its standard implementations.
     pub mod layout {
-        pub use crate::raw::processor::layout::*;
+        pub use crate::raw::bms::processor::layout::*;
     }
-    pub use source::DocumentOptions;
+    pub use crate::input::Input;
+    pub use bmsrs_pipeline::SourceFormat;
     pub use source::TextDecodeError;
     pub use syntax::TextRange;
     pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
@@ -70,22 +73,28 @@ pub mod bms {
         Io(#[from] std::io::Error),
     }
 
-    /// Parse BMS text with defaults: first branch and `CollectAll`.
+    /// Parse BMS input with defaults: first branch and `CollectAll`.
+    ///
+    /// `input` is an [`Input`]; a `&Path` converts to a file input, so
+    /// `parse(path)` reads the file and derives the format from its extension.
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError`] when parsing fails.
-    pub fn parse(
-        text: &str,
+    /// Returns [`ParseError`] when reading, decoding, or parsing fails.
+    pub fn parse<'a>(
+        input: impl Into<Input<'a>>,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
         parse_with(
-            text,
+            input,
             &syntax::ParseOptions::default(),
             &mut syntax::FirstBranch,
         )
     }
 
-    /// Parse BMS text with explicit options and a control-flow generator.
+    /// Parse BMS input with explicit options and a control-flow generator.
+    ///
+    /// The input decides the source format and overrides `options.format`: a
+    /// file derives it from the extension, text and bytes carry it explicitly.
     ///
     /// The generator stays with the caller, so its remaining stream is
     /// available afterwards; LR2's `#RANDOM` lane option continues from the
@@ -97,44 +106,83 @@ pub mod bms {
     /// # Errors
     ///
     /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
-    /// diagnostic of error severity.
-    pub fn parse_with(
-        text: &str,
+    /// diagnostic of error severity, and [`ParseError::Io`] when a file cannot
+    /// be read.
+    pub fn parse_with<'a>(
+        input: impl Into<Input<'a>>,
         options: &syntax::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
-        let document = source::Document::from_text(text);
-        from_document(&document, options, rng)
+        let source = input.into();
+        let parse_options = with_input_format(source.format(), options);
+        let document = source.into_document()?;
+        from_document(&document, &parse_options, rng)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
     }
 
-    /// Parse BMS text by replaying a recorded [`BranchSelection`].
+    /// Parse BMS input, returning the recorded branch decisions alongside.
     ///
-    /// The replay is strict: when the file's control-flow blocks diverge from
-    /// the recording (count, kind, or declared bound), the call fails with
-    /// [`ParseError::Branch`] naming the first divergent block.
-    /// `#SETRANDOM` / `#SETSWITCH` values are taken from the current file.
-    ///
-    /// Build the recording with `parse` /
-    /// `parse_with` and read the decisions through
-    /// [`BranchSelection::decisions`](syntax::BranchSelection::decisions);
-    /// or drive the recording from [`JavaRandom`] to reproduce a beatoraja /
-    /// `LR2oraja` branch layout from its seed.
+    /// Feed the recording to [`parse_from_selection`] with the same options
+    /// to reproduce this exact branch layout later, or persist the decisions
+    /// for replay tooling.
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError`] when decoding fails or the recording diverges
-    /// from the file.
-    pub fn parse_from_selection(
-        text: &str,
+    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
+    /// diagnostic of error severity, and [`ParseError::Io`] when a file cannot
+    /// be read.
+    pub fn parse_with_recording<'a>(
+        input: impl Into<Input<'a>>,
+        options: &syntax::ParseOptions,
+        rng: &mut impl syntax::ControlFlowRng,
+    ) -> Result<
+        (
+            bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>,
+            syntax::BranchSelection,
+        ),
+        ParseError,
+    > {
+        let source = input.into();
+        let parse_options = with_input_format(source.format(), options);
+        let document = source.into_document()?;
+        let parsed = parser::BmsParser::parse_document_with(&document, &parse_options, rng)
+            .map_err(ParseError::from)?;
+        Ok((
+            bmsrs_pipeline::Outcome::new(parsed.bms, parsed.warnings),
+            parsed.selection,
+        ))
+    }
+
+    /// Parse BMS input by replaying a recorded [`BranchSelection`], under the
+    /// options the recording was taken with.
+    ///
+    /// The replay is strict: when the input's control-flow blocks diverge from
+    /// the recording (count, kind, or declared bound), the call fails with
+    /// [`ParseError::Branch`] naming the first divergent block.
+    /// `#SETRANDOM` / `#SETSWITCH` values are taken from the current input.
+    ///
+    /// Build the recording with [`parse_with_recording`]; or drive the
+    /// generator from [`JavaRandom`] to reproduce a beatoraja / `LR2oraja`
+    /// branch layout from its seed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError::Branch`] when the recording diverges, and
+    /// [`ParseError::Diagnostic`] or [`ParseError::Io`] when the input cannot
+    /// be read or decoded.
+    pub fn parse_from_selection<'a>(
+        input: impl Into<Input<'a>>,
         selection: &syntax::BranchSelection,
+        options: &syntax::ParseOptions,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
-        let document = source::Document::from_text(text);
-        let src = document
+        let source = input.into();
+        let parse_options = with_input_format(source.format(), options);
+        let document = source.into_document()?;
+        let text = document
             .try_to_text()
             .map_err(BmsDiagnostic::decode)
             .map_err(ParseError::from)?;
-        let parse = syntax::SourceFile::parse_with(&src, &syntax::ParseOptions::default());
+        let parse = syntax::SourceFile::parse_with(&text, &parse_options);
         let file = parse.source_file();
         let mut warnings: Vec<BmsDiagnostic> = parse
             .errors()
@@ -151,99 +199,10 @@ pub mod bms {
                 },
             })
             .collect();
-        let parsed =
-            parser::BmsParser::parse_from_selection(&file, selection).map_err(ParseError::from)?;
+        let parsed = parser::BmsParser::parse_from_selection_with(&file, selection, &parse_options)
+            .map_err(ParseError::from)?;
         warnings.extend(parsed.warnings);
         Ok(bmsrs_pipeline::Outcome::new(parsed.bms, warnings))
-    }
-
-    /// Parse BMS text, returning the recorded branch decisions alongside.
-    ///
-    /// Feed the recording to `parse_from_selection`
-    /// to reproduce this exact branch layout later, or persist the decisions
-    /// for replay tooling.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
-    /// diagnostic of error severity.
-    pub fn parse_with_recording(
-        text: &str,
-        options: &syntax::ParseOptions,
-        rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<
-        (
-            bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>,
-            syntax::BranchSelection,
-        ),
-        ParseError,
-    > {
-        let document = source::Document::from_text(text);
-        let parsed = parser::BmsParser::parse_document_with(&document, options, rng)
-            .map_err(ParseError::from)?;
-        Ok((
-            bmsrs_pipeline::Outcome::new(parsed.bms, parsed.warnings),
-            parsed.selection,
-        ))
-    }
-
-    /// Parse BMS bytes with defaults: first branch and `CollectAll`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ParseError`] when parsing or decoding fails.
-    pub fn parse_bytes(
-        bytes: Vec<u8>,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
-        parse_bytes_with(
-            bytes,
-            &source::DocumentOptions::default(),
-            &syntax::ParseOptions::default(),
-            &mut syntax::FirstBranch,
-        )
-    }
-
-    /// Parse BMS bytes with explicit decoding and syntax parse options.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
-    /// diagnostic of error severity.
-    pub fn parse_bytes_with(
-        bytes: Vec<u8>,
-        doc_options: &source::DocumentOptions,
-        parse_options: &syntax::ParseOptions,
-        rng: &mut impl syntax::ControlFlowRng,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
-        let document = source::Document::from_bytes_with(bytes, doc_options);
-        from_document(&document, parse_options, rng)
-            .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
-    }
-
-    /// Read the BMS file at `path` and parse it with the default pipeline.
-    ///
-    /// This is [`parse_bytes`] with file I/O: the file is read with
-    /// [`std::fs::read`] and handed to the same pipeline.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ParseError`] when reading fails or when parsing or
-    /// decoding fails.
-    pub fn parse_file(
-        path: impl AsRef<std::path::Path>,
-    ) -> Result<bmsrs_pipeline::Outcome<model::Bms, BmsDiagnostic>, ParseError> {
-        let file_path = path.as_ref();
-        let options = syntax::ParseOptions {
-            format: bmsrs_pipeline::SourceFormat::from_path(file_path),
-            ..syntax::ParseOptions::default()
-        };
-        let bytes = std::fs::read(file_path)?;
-        parse_bytes_with(
-            bytes,
-            &source::DocumentOptions::default(),
-            &options,
-            &mut syntax::FirstBranch,
-        )
     }
 
     /// Convert `Bms` to a format-agnostic chart with the default layout.
@@ -307,6 +266,17 @@ pub mod bms {
             .map_err(ParseError::from)?;
         Ok((parsed.bms, parsed.warnings))
     }
+
+    /// Apply the input's source format on top of the caller's options.
+    fn with_input_format(
+        format: SourceFormat,
+        options: &syntax::ParseOptions,
+    ) -> syntax::ParseOptions {
+        syntax::ParseOptions {
+            format,
+            ..options.clone()
+        }
+    }
 }
 
 /// Type definitions and converters for the BMSON format.
@@ -327,19 +297,18 @@ pub mod bms {
 pub mod bmson {
     // Bmson layer types resolve through `raw`; the curated path keeps only the
     // entry points and facade-owned types.
-    use crate::raw::bmson_model as model;
-    use crate::raw::bmson_processor as processor;
+    use crate::raw::bmson::{model, processor};
 
     pub use bmsrs_pipeline::Outcome;
     pub use model::Bmson;
-    pub use processor::layout::{Beat, BmsonLayout};
+    pub use processor::layout::{Beat, BmsonLayout, GenericLayout};
     pub use processor::{BmsonProcessWarning, BmsonProcessed, ProcessError};
 
     /// Every BMSON mode family: the [`BmsonLayout`] trait and its standard
     /// implementations, including
-    /// [`GenericLayout`](layout::GenericLayout).
+    /// [`GenericLayout`].
     pub mod layout {
-        pub use crate::raw::bmson_processor::layout::*;
+        pub use crate::raw::bmson::processor::layout::*;
     }
 
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
@@ -451,79 +420,94 @@ pub mod player {
 }
 
 /// Low-level crates for advanced and editor integrations.
+///
+/// The modules mirror the workspace directory tree: `raw::bms::*` maps to
+/// `bms/` and `raw::bmson::*` to `bmson/`.
 pub mod raw {
-    /// BMS source-text layer.
-    pub mod source {
-        pub use bmsrs_bms_source::*;
+    /// The BMS pipeline crates, one module per crate under `bms/`.
+    pub mod bms {
+        /// BMS source-text layer.
+        pub mod source {
+            pub use bmsrs_bms_source::*;
+        }
+
+        /// BMS syntax layer.
+        pub mod syntax {
+            pub use bmsrs_bms_syntax::*;
+        }
+
+        /// BMS single-line values.
+        pub mod values {
+            pub use bmsrs_bms_values::*;
+        }
+
+        /// BMS whole-file model.
+        pub mod model {
+            pub use bmsrs_bms_model::*;
+        }
+
+        /// BMS semantic parser.
+        pub mod parser {
+            pub use bmsrs_bms_parser::*;
+        }
+
+        /// BMS analysis layer: diagnostics, symbol index, and editor data.
+        pub mod analysis {
+            pub use bmsrs_bms_analysis::*;
+        }
+
+        /// BMS processor.
+        pub mod processor {
+            pub use bmsrs_bms_processor::*;
+        }
+
+        /// BMS writer.
+        pub mod writer {
+            pub use bmsrs_bms_writer::*;
+        }
     }
 
-    /// BMS syntax layer.
-    pub mod syntax {
-        pub use bmsrs_bms_syntax::*;
-    }
-
-    /// BMS single-line values.
-    pub mod values {
-        pub use bmsrs_bms_values::*;
-    }
-
-    /// BMS whole-file model.
-    pub mod model {
-        pub use bmsrs_bms_model::*;
-    }
-
-    /// BMS semantic parser.
-    pub mod parser {
-        pub use bmsrs_bms_parser::*;
-    }
-
-    /// BMS analysis layer: diagnostics, symbol index, and editor data.
-    pub mod analysis {
-        pub use bmsrs_bms_analysis::*;
-    }
-
-    /// BMS processor.
-    pub mod processor {
-        pub use bmsrs_bms_processor::*;
-    }
-
-    /// BMS writer.
-    pub mod writer {
-        pub use bmsrs_bms_writer::*;
-    }
-
-    /// BMSON model.
+    /// The BMSON pipeline crates, one module per crate under `bmson/`.
     #[cfg(feature = "bmson")]
-    pub mod bmson_model {
-        pub use bmsrs_bmson_model::*;
-    }
+    pub mod bmson {
+        /// BMSON model.
+        pub mod model {
+            pub use bmsrs_bmson_model::*;
+        }
 
-    /// BMSON processor.
-    #[cfg(feature = "bmson")]
-    pub mod bmson_processor {
-        pub use bmsrs_bmson_processor::*;
+        /// BMSON processor.
+        pub mod processor {
+            pub use bmsrs_bmson_processor::*;
+        }
     }
 }
 
 /// Common imports for application code.
 ///
-/// Covers the default-layout surface end to end: parsing, processing through
-/// the default family, simulation, and the core chart types. Non-default mode
-/// families go through the full [`processor`](crate::raw::processor) paths.
+/// Types and traits only: what the curated [`bms`] and
+/// [`bmson`] modules export, plus the chart, pipeline, and
+/// player types those signatures name. Functions stay behind their module
+/// (`bmsrs::bms::parse`, `bmsrs::bmson::parse_str`), so a glob import never
+/// puts a bare `parse` or `write` in scope. `tests/facade_api.rs` names every
+/// item, so dropping one fails to compile.
 pub mod prelude {
-    pub use crate::bms::process_with;
-    pub use crate::bms::{Bme, Bms, BmsLayout};
+    pub use crate::bms::layout::Bme;
     pub use crate::bms::{
-        BmsDiagnostic, ParseError, parse, parse_bytes, parse_with, process, write,
+        AssetLookup, Bms, BmsDiagnostic, BmsDiagnosticKind, BmsLayout, BmsTokenizeError,
+        BranchMismatch, BranchSelection, ControlFlowCompat, ControlFlowRng, ErrorStrategy,
+        FirstBranch, Input, JavaRandom, Lr2Mt19937, Outcome, ParseError, ParseOptions,
+        ProcessError, ProcessWarning, Processed, SourceFormat, TextDecodeError, TextRange,
     };
     #[cfg(feature = "bmson")]
-    pub use crate::bmson::Bmson;
+    pub use crate::bmson::layout::Beat;
     #[cfg(feature = "bmson")]
-    pub use crate::bmson::BmsonParseError;
+    pub use crate::bmson::{
+        Bmson, BmsonLayout, BmsonParseError, BmsonProcessWarning, BmsonProcessed, GenericLayout,
+    };
     pub use crate::chart::{
         Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
     };
-    pub use crate::pipeline::{Diagnostic, DiagnosticCode, Outcome, Severity, SourceSpan};
+    pub use crate::pipeline::{Diagnostic, DiagnosticCode, Severity, SourceSpan};
     pub use crate::player::Player;
 }
 
