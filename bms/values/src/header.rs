@@ -34,7 +34,7 @@ use crate::BmsTokenizeError;
 /// Dispatch follows the variant declaration order below. A variant marked
 /// `#[bms_fallback]` does not participate in dispatch; it captures anything
 /// that does not match a concrete variant.
-#[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From, derive_more::TryUnwrap)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From)]
 pub enum BmsHeader {
     /// Audio resource definitions (`#WAV`, `#EXWAV`, `#WAVCMD`, and so on).
     ResDefAudio(BmsHeaderResDefAudio),
