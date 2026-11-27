@@ -160,6 +160,10 @@ impl BmsParser {
     }
 
     /// Select branches from the CST with parse options and build `Bms`.
+    ///
+    /// `options.error_strategy` is not consulted: a CST carries no syntax
+    /// diagnostics to fail on. Use [`Self::parse_document_with`] when
+    /// `FailFast` must stop at the first error.
     #[must_use]
     pub fn parse_with<R: ControlFlowRng + ?Sized>(
         file: &SourceFile,
@@ -420,6 +424,10 @@ impl BmsParser {
     }
 
     /// Build `Bms` from a recorded [`BranchSelection`] with parse options.
+    ///
+    /// `options.error_strategy` is not consulted here, for the same reason as
+    /// [`Self::parse_with`]; the facade's replay entry point applies it after
+    /// collecting the syntax diagnostics itself.
     ///
     /// # Errors
     ///

@@ -177,9 +177,10 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError::Branch`] when the recording diverges, and
-    /// [`ParseError::Diagnostic`] or [`ParseError::Io`] when the input cannot
-    /// be read or decoded.
+    /// Returns [`ParseError::Branch`] when the recording diverges,
+    /// [`ParseError::Diagnostic`] when the input cannot be decoded or when
+    /// `error_strategy` is `FailFast` and a diagnostic of error severity was
+    /// collected, and [`ParseError::Io`] when the input cannot be read.
     pub fn parse_from_selection<'a>(
         input: impl Into<Input<'a>>,
         selection: &syntax::BranchSelection,
@@ -212,6 +213,11 @@ pub mod bms {
         let parsed = parser::BmsParser::parse_from_selection_with(&file, selection, &parse_options)
             .map_err(ParseError::from)?;
         warnings.extend(parsed.warnings);
+        if parse_options.error_strategy == ErrorStrategy::FailFast
+            && let Some(first_error) = warnings.iter().find(|warning| warning.is_error())
+        {
+            return Err(ParseError::Diagnostic(first_error.clone()));
+        }
         Ok(bmsrs_pipeline::Outcome::new(parsed.bms, warnings))
     }
 

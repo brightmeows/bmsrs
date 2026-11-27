@@ -467,3 +467,41 @@ fn bms_parse_rejects_a_bmson_path() {
     .expect_err("declared Bmson text is not BMS input");
     assert!(matches!(text_error, bmsrs::bms::ParseError::Format { .. }));
 }
+
+#[test]
+fn parse_from_selection_fail_fast_returns_the_first_error() {
+    use bmsrs::bms::{Input, ParseOptions};
+    use bmsrs::pipeline::{DiagnosticCode, ErrorStrategy, SourceFormat};
+
+    // Record under CollectAll: the syntax error stays in the warning list.
+    let text = "# BAD\n#RANDOM 2\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n#BPM 120\n";
+    let (_, selection) = bmsrs::bms::parse_with_recording(
+        Input::text(text, SourceFormat::Bms),
+        &ParseOptions::default(),
+        &mut |_| 1,
+    )
+    .expect("record under CollectAll");
+
+    // Replaying under FailFast must surface the same error the document
+    // path reports, instead of returning it inside the warning list.
+    let error = bmsrs::bms::parse_from_selection(
+        Input::text(text, SourceFormat::Bms),
+        &selection,
+        &ParseOptions {
+            error_strategy: ErrorStrategy::FailFast,
+            ..ParseOptions::default()
+        },
+    )
+    .expect_err("FailFast stops at the syntax error");
+    let bmsrs::bms::ParseError::Diagnostic(diagnostic) = error else {
+        panic!("expected ParseError::Diagnostic, got {error:?}");
+    };
+    assert!(diagnostic.is_error());
+    assert!(matches!(
+        diagnostic.kind,
+        bmsrs::bms::BmsDiagnosticKind::Cst {
+            code: DiagnosticCode::Syntax,
+            ..
+        }
+    ));
+}
