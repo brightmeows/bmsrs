@@ -800,6 +800,7 @@ const fn ln_mode_to_hint(m: bmsrs_bmson_model::LnMode) -> LnTypeHint {
     match m {
         bmsrs_bmson_model::LnMode::Cn => LnTypeHint::Cn,
         bmsrs_bmson_model::LnMode::Hcn => LnTypeHint::Hcn,
+        bmsrs_bmson_model::LnMode::Hln => LnTypeHint::Hln,
         _ => LnTypeHint::Ln, // Ln plus #[non_exhaustive] fallback.
     }
 }
@@ -809,6 +810,7 @@ const fn ln_type_to_hint(lt: bmsrs_bmson_model::LnType) -> LnTypeHint {
     match lt {
         bmsrs_bmson_model::LnType::Cn => LnTypeHint::Cn,
         bmsrs_bmson_model::LnType::Hcn => LnTypeHint::Hcn,
+        bmsrs_bmson_model::LnType::Hln => LnTypeHint::Hln,
         _ => LnTypeHint::Ln, // Ln plus #[non_exhaustive] fallback.
     }
 }

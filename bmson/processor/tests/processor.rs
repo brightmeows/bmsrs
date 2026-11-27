@@ -1168,6 +1168,40 @@ fn chart_level_ln_hints_propagate() -> TestResult {
 }
 
 #[test]
+fn hln_hint_survives_into_the_chart() -> TestResult {
+    let mut bmson = make_simple_bmson();
+    bmson.chart_data.ln_type_hint = Some(bmsrs_bmson_model::LnType::Hln);
+    bmson.chart_data.sound_channels.push(SoundChannel {
+        name: PathBuf::from("hln.wav"),
+        note_events: vec![NoteEvent {
+            x: 1,
+            y: 0,
+            l: 240,
+            c: false,
+            t: Some(bmsrs_bmson_model::LnMode::Hln),
+            up: None,
+            ln_type_hint: Some(bmsrs_bmson_model::LnType::Hln),
+            ln_judge_hint: None,
+            ln_life_hint: None,
+            vol: None,
+            pan: None,
+        }],
+    });
+
+    let chart = BmsonProcessor::process_with(&bmson, Beat)?.value.chart;
+    assert_eq!(chart.data().ln_type_hint(), Some(LnTypeHint::Hln));
+    let note_hint = chart.data().events().iter().find_map(|event| {
+        if let EventKind::Note(Note { ext, .. }) = &event.kind {
+            ext.ln_type_hint
+        } else {
+            None
+        }
+    });
+    assert_eq!(note_hint, Some(LnTypeHint::Hln));
+    Ok(())
+}
+
+#[test]
 fn zero_resolution_falls_back_to_240_with_warning() -> TestResult {
     let mut bmson = make_simple_bmson();
     bmson.chart_data.resolution = 0;
