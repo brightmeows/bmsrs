@@ -32,9 +32,8 @@ pub mod bms {
     // points and facade-owned types.
     use crate::raw::bms::{model, parser, processor, source, syntax, values, writer};
 
-    pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
+    pub use bmsrs_pipeline::Outcome;
     pub use model::Bms;
-    pub use parser::ParseOptions;
     pub use parser::{Diagnostic, DiagnosticKind};
     pub use processor::layout::{Bme, Layout};
     pub use processor::{AssetLookup, ProcessError, ProcessWarning, Processed};
@@ -57,15 +56,14 @@ pub mod bms {
 
     /// Error type for the whole-pipeline entry points.
     ///
-    /// The diagnostic variant is the error that stopped a `FailFast` parse or
-    /// a document that failed to decode; the other three have no position in
-    /// the text.
+    /// Every variant means no chart value was produced. Recoverable parse
+    /// diagnostics travel in [`Outcome`] instead.
     #[derive(Debug, thiserror::Error)]
     #[non_exhaustive]
     pub enum ParseError {
-        /// A decode, tokenization, or CST diagnostic of error severity.
+        /// The input bytes are not text in the detected or declared encoding.
         #[error(transparent)]
-        Diagnostic(#[from] parser::Diagnostic),
+        Decode(#[from] source::TextDecodeError),
         /// The file's control-flow blocks diverged from the recording.
         #[error(transparent)]
         Branch(#[from] syntax::BranchMismatch),
@@ -84,7 +82,8 @@ pub mod bms {
         Io(#[from] std::io::Error),
     }
 
-    /// Parse BMS input with defaults: first branch and `CollectAll`.
+    /// Parse BMS input with defaults: first branch, collecting every
+    /// diagnostic in the outcome.
     ///
     /// `input` is an [`Input`]; a `&Path` converts to a file input, so
     /// `parse(path)` reads the file and derives the format from its extension.
@@ -96,10 +95,10 @@ pub mod bms {
         input: impl Into<Input<'a>>,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
-        let parse_options = with_input_format(source.format(), &parser::ParseOptions::default())?;
+        let parse_options = with_input_format(source.format(), &syntax::SyntaxOptions::default())?;
         let document = source.into_document()?;
         from_document(&document, &parse_options, &mut syntax::FirstBranch)
-            .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
+            .map(|(bms, diagnostics)| bmsrs_pipeline::Outcome::new(bms, diagnostics))
     }
 
     /// Parse BMS input with explicit options and a control-flow generator.
@@ -116,19 +115,19 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
-    /// diagnostic of error severity, and [`ParseError::Io`] when a file cannot
-    /// be read.
+    /// Returns [`ParseError::Decode`] when the input cannot be decoded,
+    /// [`ParseError::Format`] for a non-BMS format, and [`ParseError::Io`] when
+    /// a file cannot be read.
     pub fn parse_with<'a>(
         input: impl Into<Input<'a>>,
-        options: &parser::ParseOptions,
+        options: &syntax::SyntaxOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
         let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
         from_document(&document, &parse_options, rng)
-            .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
+            .map(|(bms, diagnostics)| bmsrs_pipeline::Outcome::new(bms, diagnostics))
     }
 
     /// Parse BMS input, returning the recorded branch decisions alongside.
@@ -139,12 +138,12 @@ pub mod bms {
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError::Diagnostic`] when `FailFast` meets the first
-    /// diagnostic of error severity, and [`ParseError::Io`] when a file cannot
-    /// be read.
+    /// Returns [`ParseError::Decode`] when the input cannot be decoded,
+    /// [`ParseError::Format`] for a non-BMS format, and [`ParseError::Io`] when
+    /// a file cannot be read.
     pub fn parse_with_recording<'a>(
         input: impl Into<Input<'a>>,
-        options: &parser::ParseOptions,
+        options: &syntax::SyntaxOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<
         (
@@ -156,12 +155,9 @@ pub mod bms {
         let source = input.into();
         let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
-        let parsed = parser::BmsParser::parse_document_with(&document, &parse_options, rng)
-            .map_err(ParseError::from)?;
-        Ok((
-            bmsrs_pipeline::Outcome::new(parsed.bms, parsed.warnings),
-            parsed.selection,
-        ))
+        let (bms, diagnostics, selection) =
+            parse_document_selected(&document, &parse_options, rng)?;
+        Ok((bmsrs_pipeline::Outcome::new(bms, diagnostics), selection))
     }
 
     /// Parse BMS input by replaying a recorded [`BranchSelection`], under the
@@ -179,48 +175,26 @@ pub mod bms {
     /// # Errors
     ///
     /// Returns [`ParseError::Branch`] when the recording diverges,
-    /// [`ParseError::Diagnostic`] when the input cannot be decoded or when
-    /// `error_strategy` is `FailFast` and a diagnostic of error severity was
-    /// collected, and [`ParseError::Io`] when the input cannot be read.
+    /// [`ParseError::Decode`] when the input cannot be decoded,
+    /// [`ParseError::Format`] for a non-BMS format, and [`ParseError::Io`] when
+    /// the input cannot be read.
     pub fn parse_from_selection<'a>(
         input: impl Into<Input<'a>>,
         selection: &syntax::BranchSelection,
-        options: &parser::ParseOptions,
+        options: &syntax::SyntaxOptions,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
         let parse_options = with_input_format(source.format(), options)?;
         let document = source.into_document()?;
-        let text = document
-            .try_to_text()
-            .map_err(Diagnostic::decode)
-            .map_err(ParseError::from)?;
-        let parse = syntax::SourceFile::parse_with(&text, &parse_options.syntax);
+        let text = document.try_to_text().map_err(ParseError::Decode)?;
+        let parse = syntax::SourceFile::parse_with(&text, &parse_options);
         let file = parse.source_file();
-        let mut warnings: Vec<Diagnostic> = parse
-            .errors()
-            .iter()
-            .map(|error| Diagnostic {
-                line: file
-                    .line_number_at(error.range().start())
-                    .unwrap_or(std::num::NonZeroUsize::MIN),
-                range: error.range(),
-                severity: error.severity(),
-                kind: DiagnosticKind::Cst {
-                    message: error.message().to_owned(),
-                    code: error.code(),
-                },
-            })
-            .collect();
-        let parsed =
-            parser::BmsParser::parse_from_selection_with(&file, selection, &parse_options.syntax)
-                .map_err(ParseError::from)?;
-        warnings.extend(parsed.warnings);
-        if parse_options.error_strategy == ErrorStrategy::FailFast
-            && let Some(first_error) = warnings.iter().find(|warning| warning.is_error())
-        {
-            return Err(ParseError::Diagnostic(first_error.clone()));
-        }
-        Ok(bmsrs_pipeline::Outcome::new(parsed.bms, warnings))
+        let mut diagnostics = syntax_diagnostics(&parse, &file);
+        let parsed = parser::BmsParser::parse_from_selection_with(&file, selection, &parse_options)
+            .map_err(ParseError::from)?;
+        diagnostics.extend(parsed.warnings);
+        diagnostics.sort_by_key(|diagnostic| (diagnostic.line, diagnostic.range.start()));
+        Ok(bmsrs_pipeline::Outcome::new(parsed.bms, diagnostics))
     }
 
     /// Convert `Bms` to a format-agnostic chart with the default layout.
@@ -277,12 +251,65 @@ pub mod bms {
     /// Run the full semantic pipeline from an already-built document.
     fn from_document(
         document: &source::Document,
-        options: &parser::ParseOptions,
+        options: &syntax::SyntaxOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<(model::Bms, Vec<Diagnostic>), ParseError> {
-        let parsed = parser::BmsParser::parse_document_with(document, options, rng)
-            .map_err(ParseError::from)?;
-        Ok((parsed.bms, parsed.warnings))
+        let (bms, diagnostics, _selection) = parse_document_selected(document, options, rng)?;
+        Ok((bms, diagnostics))
+    }
+
+    /// Parse a document and return its selected branch record.
+    fn parse_document_selected(
+        document: &source::Document,
+        options: &syntax::SyntaxOptions,
+        rng: &mut impl syntax::ControlFlowRng,
+    ) -> Result<(model::Bms, Vec<Diagnostic>, syntax::BranchSelection), ParseError> {
+        let text = document.try_to_text().map_err(ParseError::Decode)?;
+        let parse = syntax::SourceFile::parse_with(&text, options);
+        let file = parse.source_file();
+        let all_tokens = parser::BmsParser::tokenize_lines_with(&file, options);
+        let mut diagnostics = syntax_diagnostics(&parse, &file);
+        diagnostics.extend(token_diagnostics(&all_tokens));
+        let parsed = parser::BmsParser::parse_with(&file, options, rng);
+        diagnostics.sort_by_key(|diagnostic| (diagnostic.line, diagnostic.range.start()));
+        Ok((parsed.bms, diagnostics, parsed.selection))
+    }
+
+    /// Map CST diagnostics to facade diagnostics.
+    fn syntax_diagnostics(
+        parse: &syntax::SyntaxParse,
+        file: &syntax::SourceFile,
+    ) -> Vec<Diagnostic> {
+        parse
+            .errors()
+            .iter()
+            .map(|error| Diagnostic {
+                line: file
+                    .line_number_at(error.range().start())
+                    .unwrap_or(std::num::NonZeroUsize::MIN),
+                range: error.range(),
+                severity: error.severity(),
+                kind: DiagnosticKind::Cst {
+                    message: error.message().to_owned(),
+                    code: error.code(),
+                },
+            })
+            .collect()
+    }
+
+    /// Map single-line token errors to facade diagnostics.
+    fn token_diagnostics(tokens: &[parser::LineToken]) -> Vec<Diagnostic> {
+        tokens
+            .iter()
+            .filter_map(|line| {
+                line.token.as_ref().err().map(|error| Diagnostic {
+                    line: line.line,
+                    range: line.range,
+                    severity: bmsrs_pipeline::Severity::Error,
+                    kind: DiagnosticKind::Tokenize(error.clone()),
+                })
+            })
+            .collect()
     }
 
     /// Apply the input's source format on top of the caller's options.
@@ -293,13 +320,13 @@ pub mod bms {
     /// pipeline parses the BMS text family only.
     fn with_input_format(
         format: SourceFormat,
-        options: &parser::ParseOptions,
-    ) -> Result<parser::ParseOptions, ParseError> {
+        options: &syntax::SyntaxOptions,
+    ) -> Result<syntax::SyntaxOptions, ParseError> {
         if format == SourceFormat::Bmson {
             return Err(ParseError::Format { format });
         }
         let mut parse_options = options.clone();
-        parse_options.syntax.format = format;
+        parse_options.format = format;
         Ok(parse_options)
     }
 }
@@ -482,6 +509,27 @@ pub mod pipeline {
     pub use bmsrs_pipeline::*;
 }
 
+/// Common diagnostic vocabulary for reporting across pipeline stages.
+///
+/// Typed diagnostics stay with their layers (`bms::Diagnostic`,
+/// `bms::ProcessWarning`, `bmson::ProcessWarning`, and the analysis
+/// diagnostic). Convert them to [`Diagnostic`](crate::diagnostics::Diagnostic)
+/// when collecting one report:
+///
+/// ```
+/// use bmsrs::bms::{Input, parse};
+/// use bmsrs::diagnostics::Diagnostic;
+/// use bmsrs::pipeline::SourceFormat;
+///
+/// let source = "#TITLE A\n#BPM abc\n";
+/// let parsed = parse(Input::text(source, SourceFormat::Bms)).expect("valid BMS");
+/// let report: Vec<Diagnostic> = parsed.diagnostics.iter().map(Diagnostic::from).collect();
+/// assert_eq!(report.len(), 1);
+/// ```
+pub mod diagnostics {
+    pub use bmsrs_pipeline::{Diagnostic, DiagnosticCode, HasSeverity, Severity, SourceSpan};
+}
+
 /// Pure simulation and playback layer.
 pub mod player {
     pub use bmsrs_player::*;
@@ -566,9 +614,9 @@ pub mod prelude {
     pub use crate::bms::layout::Bme;
     pub use crate::bms::{
         AssetLookup, Bms, BmsTokenizeError, BranchMismatch, BranchSelection, ControlFlowCompat,
-        ControlFlowRng, Diagnostic, DiagnosticKind, ErrorStrategy, FirstBranch, Input, JavaRandom,
-        Layout, Lr2Mt19937, Outcome, ParseError, ParseOptions, ProcessError, ProcessWarning,
-        Processed, SourceFormat, TextDecodeError, TextRange,
+        ControlFlowRng, Diagnostic, DiagnosticKind, FirstBranch, Input, JavaRandom, Layout,
+        Lr2Mt19937, Outcome, ParseError, ProcessError, ProcessWarning, Processed, SourceFormat,
+        SyntaxOptions, TextDecodeError, TextRange,
     };
     #[cfg(feature = "bmson")]
     pub use crate::bmson::layout::Beat;

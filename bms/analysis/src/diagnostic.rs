@@ -45,6 +45,10 @@ impl Diagnostic {
     }
 
     /// Return the severity.
+    #[expect(
+        clippy::same_name_method,
+        reason = "the HasSeverity accessor mirrors this inherent getter"
+    )]
     #[must_use]
     pub const fn severity(&self) -> Severity {
         self.severity
@@ -75,6 +79,12 @@ impl From<&Diagnostic> for bmsrs_pipeline::Diagnostic {
             Some(code) => converted.with_code(code),
             None => converted,
         }
+    }
+}
+
+impl bmsrs_pipeline::HasSeverity for Diagnostic {
+    fn severity(&self) -> bmsrs_pipeline::Severity {
+        self.severity
     }
 }
 

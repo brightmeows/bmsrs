@@ -105,8 +105,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 diagnostics. Every entry takes an [`Input`](https://docs.rs/bmsrs/latest/bmsrs/bms/struct.Input.html):
 a path derives the format from its extension, while text and bytes declare it
 (`Input::text(text, SourceFormat::Bms)`, `Input::bytes(bytes, SourceFormat::Bmd)`).
-Use `parse_with` when you need a custom branch generator, `ParseOptions`, or
-`ErrorStrategy`.
+Use `parse_with` when you need a custom branch generator or `SyntaxOptions`.
+The facade always collects diagnostics; call `Outcome::into_result()` when a
+recovered error must fail the parse.
 `bmson::parse` takes the same `Input` and requires the `Bmson` format;
 `bmson::parse_str` is its text shortcut.
 

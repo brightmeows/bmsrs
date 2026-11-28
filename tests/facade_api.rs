@@ -34,7 +34,7 @@ fn bms_parse_with_accepts_declared_bytes_and_curated_option_types() {
     let bytes = b"#TITLE A\n#BPM 120\n".to_vec();
     let parsed = bmsrs::bms::parse_with(
         bmsrs::bms::Input::bytes(bytes, bmsrs::pipeline::SourceFormat::Bms),
-        &bmsrs::bms::ParseOptions::default(),
+        &bmsrs::bms::SyntaxOptions::default(),
         &mut |_| 1,
     )
     .expect("valid BMS bytes");
@@ -48,7 +48,7 @@ fn java_random_seed_reproduces_branch_layout_and_replays() {
     let mut rng = bmsrs::bms::JavaRandom::new(123_456_789);
     let (recorded, selection) = bmsrs::bms::parse_with_recording(
         bmsrs::bms::Input::text(text, bmsrs::pipeline::SourceFormat::Bms),
-        &bmsrs::bms::ParseOptions::default(),
+        &bmsrs::bms::SyntaxOptions::default(),
         &mut rng,
     )
     .expect("valid BMS");
@@ -61,7 +61,7 @@ fn java_random_seed_reproduces_branch_layout_and_replays() {
     let replayed = bmsrs::bms::parse_from_selection(
         bmsrs::bms::Input::text(text, bmsrs::pipeline::SourceFormat::Bms),
         &selection,
-        &bmsrs::bms::ParseOptions::default(),
+        &bmsrs::bms::SyntaxOptions::default(),
     )
     .expect("replay ok");
     assert_eq!(replayed.value.metadata.title, title_from_seed);
@@ -70,7 +70,7 @@ fn java_random_seed_reproduces_branch_layout_and_replays() {
     let error = bmsrs::bms::parse_from_selection(
         bmsrs::bms::Input::text(&drifted, bmsrs::pipeline::SourceFormat::Bms),
         &selection,
-        &bmsrs::bms::ParseOptions::default(),
+        &bmsrs::bms::SyntaxOptions::default(),
     );
     assert!(matches!(error, Err(bmsrs::bms::ParseError::Branch(_))));
 }
@@ -115,11 +115,8 @@ fn jbms_compat_mode_and_lr2_rng_run_through_the_facade() {
             "#RANDOM 0\n#IF 1\n#TITLE zero\n#ENDIF\n",
             bmsrs::pipeline::SourceFormat::Bms,
         ),
-        &bmsrs::bms::ParseOptions {
-            syntax: bmsrs::bms::SyntaxOptions {
-                control_flow_compat: ControlFlowCompat::Jbms,
-                ..Default::default()
-            },
+        &bmsrs::bms::SyntaxOptions {
+            control_flow_compat: ControlFlowCompat::Jbms,
             ..Default::default()
         },
         &mut |_| 1,
@@ -179,7 +176,6 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::TextRange>(),
         named::<bmsrs::bms::BmsTokenizeError>(),
         named::<bmsrs::bms::TextDecodeError>(),
-        named::<bmsrs::bms::ParseOptions>(),
         named::<bmsrs::bms::SyntaxOptions>(),
         named::<bmsrs::bms::Input>(),
         named::<bmsrs::bms::SourceFormat>(),
@@ -190,7 +186,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::Diagnostic>(),
         named::<bmsrs::bms::DiagnosticKind>(),
     ];
-    assert_eq!(resolved.len(), 24);
+    assert_eq!(resolved.len(), 23);
     // `type_name` reports the defining crate, not the re-export path, so the
     // value only has to exist; resolving these paths is the assertion.
     assert!(resolved.iter().all(|name| !name.is_empty()));
@@ -262,21 +258,18 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
 }
 
 #[test]
-fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
-    use bmsrs::bms::{DiagnosticKind, ParseOptions};
-    use bmsrs::pipeline::{DiagnosticCode, ErrorStrategy, Severity};
+fn control_flow_warning_stays_in_diagnostics() {
+    use bmsrs::bms::{DiagnosticKind, SyntaxOptions};
+    use bmsrs::pipeline::{DiagnosticCode, Severity};
 
-    // An unclosed `#RANDOM` is warning-grade in the syntax layer, so FailFast
-    // keeps parsing and reports it in the list instead of failing.
+    // An unclosed `#RANDOM` is warning-grade in the syntax layer; the facade
+    // keeps parsing and reports it in the diagnostics list.
     let parsed = bmsrs::bms::parse_with(
         bmsrs::bms::Input::text(
             "#RANDOM 2\n#IF 1\n#TITLE A\n",
             bmsrs::pipeline::SourceFormat::Bms,
         ),
-        &ParseOptions {
-            error_strategy: ErrorStrategy::FailFast,
-            ..ParseOptions::default()
-        },
+        &SyntaxOptions::default(),
         &mut |_| 1,
     )
     .expect("a control-flow warning is not fatal");
@@ -353,14 +346,14 @@ fn replay_takes_the_options_the_recording_was_made_with() {
     let bytes = b"#WAV01 P0 N60 V100 G48\n".to_vec();
     let (recorded, selection) = bmsrs::bms::parse_with_recording(
         Input::bytes(bytes.clone(), SourceFormat::Bmd),
-        &bmsrs::bms::ParseOptions::default(),
+        &bmsrs::bms::SyntaxOptions::default(),
         &mut |_| 1,
     )
     .expect("record");
     let replayed = bmsrs::bms::parse_from_selection(
         Input::bytes(bytes, SourceFormat::Bmd),
         &selection,
-        &bmsrs::bms::ParseOptions::default(),
+        &bmsrs::bms::SyntaxOptions::default(),
     )
     .expect("replay");
 
@@ -399,14 +392,13 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<BranchMismatch>(),
         named::<BranchSelection>(),
         named::<ControlFlowCompat>(),
-        named::<ErrorStrategy>(),
         named::<FirstBranch>(),
         named::<Input>(),
         named::<JavaRandom>(),
         named::<Lr2Mt19937>(),
         named::<Outcome<Bms, Diagnostic>>(),
         named::<ParseError>(),
-        named::<ParseOptions>(),
+        named::<SyntaxOptions>(),
         named::<ProcessError>(),
         named::<ProcessWarning>(),
         named::<Processed>(),
@@ -433,7 +425,7 @@ fn prelude_exports_every_type_and_no_functions() {
     let bmson_only = [named::<Beat>(), named::<GenericLayout>(), named::<Bmson>()];
     #[cfg(not(feature = "bmson"))]
     let bmson_only: [&'static str; 0] = [];
-    let expected = if cfg!(feature = "bmson") { 39 } else { 36 };
+    let expected = if cfg!(feature = "bmson") { 38 } else { 35 };
     assert_eq!(resolved.len() + bmson_only.len(), expected);
     assert!(resolved.iter().all(|name| !name.is_empty()));
     assert!(bmson_only.iter().all(|name| !name.is_empty()));
@@ -472,34 +464,31 @@ fn bms_parse_rejects_a_bmson_path() {
 }
 
 #[test]
-fn parse_from_selection_fail_fast_returns_the_first_error() {
-    use bmsrs::bms::{Input, ParseOptions};
-    use bmsrs::pipeline::{DiagnosticCode, ErrorStrategy, SourceFormat};
+fn parse_from_selection_returns_recovered_error_in_diagnostics() {
+    use bmsrs::bms::{Input, SyntaxOptions};
+    use bmsrs::pipeline::{DiagnosticCode, SourceFormat};
 
-    // Record under CollectAll: the syntax error stays in the warning list.
+    // The syntax error stays in the diagnostics list.
     let text = "# BAD\n#RANDOM 2\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n#BPM 120\n";
     let (_, selection) = bmsrs::bms::parse_with_recording(
         Input::text(text, SourceFormat::Bms),
-        &ParseOptions::default(),
+        &SyntaxOptions::default(),
         &mut |_| 1,
     )
-    .expect("record under CollectAll");
+    .expect("record");
 
-    // Replaying under FailFast must surface the same error the document
-    // path reports, instead of returning it inside the warning list.
-    let error = bmsrs::bms::parse_from_selection(
+    // Replay returns the chart value plus the recovered error diagnostic.
+    let replay = bmsrs::bms::parse_from_selection(
         Input::text(text, SourceFormat::Bms),
         &selection,
-        &ParseOptions {
-            error_strategy: ErrorStrategy::FailFast,
-            ..ParseOptions::default()
-        },
+        &SyntaxOptions::default(),
     )
-    .expect_err("FailFast stops at the syntax error");
-    let bmsrs::bms::ParseError::Diagnostic(diagnostic) = error else {
-        panic!("expected ParseError::Diagnostic, got {error:?}");
-    };
-    assert!(diagnostic.is_error());
+    .expect("replay collects diagnostics");
+    let diagnostic = replay
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.is_error())
+        .expect("the syntax error is recovered");
     assert!(matches!(
         diagnostic.kind,
         bmsrs::bms::DiagnosticKind::Cst {
@@ -507,6 +496,7 @@ fn parse_from_selection_fail_fast_returns_the_first_error() {
             ..
         }
     ));
+    assert!(replay.into_result().is_err());
 }
 
 #[cfg(feature = "bmson")]
