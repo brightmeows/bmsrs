@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.4](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-analysis-v0.0.3...bmsrs-bms-analysis-v0.0.4) - 2026-11-28
+
+### Documentation
+
+- correct stale passages found in the full read
+- prune AGENTS.md and co-locate the boundary registers
+- refresh the release version and record the visibility rules
+
+### Features
+
+- *(facade)* [**breaking**] accept Input on the BMSON entry points (migration: bmson::ParseError::Utf8 is replaced by Decode(TextDecodeError) and the enum is non_exhaustive with a new Format variant; SourceFormat::from_path now maps .json to Bmson.)
+
+### Refactoring
+
+- *(parser,analysis)* [**breaking**] name layer diagnostics after their module (migration: BmsDiagnostic and BmsDiagnosticKind are renamed Diagnostic and DiagnosticKind; AnalysisDiagnostic is renamed Diagnostic; prelude::Diagnostic is now the parser wrapper, import bmsrs::pipeline::Diagnostic explicitly for the shared vocabulary.)
+- *(facade)* [**breaking**] collapse the parse entry points behind Input (migration: `bms::parse_bytes`, `parse_bytes_with`, and
+`parse_file` are removed; build an `Input` (`Input::text(text, format)`,)
+- *(parser)* [**breaking**] carry severity through the parse pipeline (migration: `BmsParseWarning` / `BmsParseWarningKind` are
+`BmsDiagnostic` / `BmsDiagnosticKind` with a `severity` field and the
+`Syntax` variant renamed `Cst`; `FailFast` fails only on error-severity
+diagnostics. The facade's `FromTextError`, `FromTextWarning`, and
+`ReplayParseError` are replaced by `ParseError { Diagnostic(BmsDiagnostic),
+Branch(BranchMismatch), Io(io::Error) }`; every `bms::parse*` entry
+returns `Result<Outcome<Bms, BmsDiagnostic>, ParseError>`.)
+- *(pipeline)* [**breaking**] make DiagnosticCode the only diagnostic vocabulary (migration: `syntax::DiagnosticKind` is removed in favour of)
 ## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-analysis-v0.0.2...bmsrs-bms-analysis-v0.0.3) - 2026-11-22
 
 ### Bug Fixes

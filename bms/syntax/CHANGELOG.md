@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.4](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-syntax-v0.0.3...bmsrs-bms-syntax-v0.0.4) - 2026-11-28
+
+### Bug Fixes
+
+- *(facade)* honor FailFast on the replay entry point
+
+### Documentation
+
+- *(syntax)* rename select_lines_with in the API notes
+- prune AGENTS.md and co-locate the boundary registers
+- refresh the release version and record the visibility rules
+
+### Features
+
+- *(facade)* [**breaking**] accept Input on the BMSON entry points (migration: bmson::ParseError::Utf8 is replaced by Decode(TextDecodeError) and the enum is non_exhaustive with a new Format variant; SourceFormat::from_path now maps .json to Bmson.)
+
+### Refactoring
+
+- *(facade)* [**breaking**] collapse the parse entry points behind Input (migration: `bms::parse_bytes`, `parse_bytes_with`, and
+`parse_file` are removed; build an `Input` (`Input::text(text, format)`,)
+- *(parser)* [**breaking**] carry severity through the parse pipeline (migration: `BmsParseWarning` / `BmsParseWarningKind` are
+`BmsDiagnostic` / `BmsDiagnosticKind` with a `severity` field and the
+`Syntax` variant renamed `Cst`; `FailFast` fails only on error-severity
+diagnostics. The facade's `FromTextError`, `FromTextWarning`, and
+`ReplayParseError` are replaced by `ParseError { Diagnostic(BmsDiagnostic),
+Branch(BranchMismatch), Io(io::Error) }`; every `bms::parse*` entry
+returns `Result<Outcome<Bms, BmsDiagnostic>, ParseError>`.)
+- *(parser)* [**breaking**] take ControlFlowRng in the parser and facade entry points (migration: `BmsParser::parse`, `parse_with`, `parse_document`, and
+`parse_document_with` take `&mut R` (`R: ControlFlowRng`) instead of a
+closure by value; pass `&mut |_| 1` or `&mut FirstBranch`. The facade's
+`parse_with`, `parse_with_recording`, and `parse_bytes_with` follow
+suit, `bms::parse_with_rng` is removed, and `ParseOptions::first_branch`
+is replaced by `bmsrs_bms_syntax::FirstBranch` (re-exported as)
+- *(syntax)* [**breaking**] move JavaRandom from the facade into the syntax crate (migration: `JavaRandom::choice` is gone; call)
+- *(syntax)* [**breaking**] replace the select_lines_* family with select_lines and replay_lines (migration: `SourceFile::select_lines(next)` becomes
+`select_lines(&mut rng, ControlFlowCompat::Ideal)` (a closure still
+works through the `ControlFlowRng` blanket impl);
+`select_lines_with_compat` and `select_lines_with_rng` merge into
+`select_lines`; `select_lines_with(selection)` is renamed
+`replay_lines(selection)`.)
+- *(syntax)* [**breaking**] implement ControlFlowRng for closures and add FirstBranch (migration: the trait gained a blanket implementation over
+closures, so a downstream `ControlFlowRng` impl for a closure type is
+no longer possible.)
+- *(syntax)* [**breaking**] move the first branch selector onto ParseOptions (migration: `bmsrs::bms::first_branch` is removed; call)
+- *(pipeline)* [**breaking**] make DiagnosticCode the only diagnostic vocabulary (migration: `syntax::DiagnosticKind` is removed in favour of)
+- [**breaking**] route error strategy through ParseOptions (migration: parse_with, parse_bytes_with, and
+parse_with_recording lose the trailing ErrorStrategy parameter; set
+ParseOptions.error_strategy instead. ErrorStrategy is re-exported
+from the facade bms module as before.)
 ## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-syntax-v0.0.2...bmsrs-bms-syntax-v0.0.3) - 2026-11-22
 
 ### Bug Fixes

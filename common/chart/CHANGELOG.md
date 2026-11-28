@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.4](https://github.com/brightmeows/bmsrs/compare/bmsrs-chart-v0.0.3...bmsrs-chart-v0.0.4) - 2026-11-28
+
+### Bug Fixes
+
+- *(processor)* leave chart_name empty for BMS charts
+
+### Documentation
+
+- apply the three CodeRabbit findings on the prune
+- prune AGENTS.md and co-locate the boundary registers
+- refresh the release version and record the visibility rules
+
+### Features
+
+- *(facade)* [**breaking**] accept Input on the BMSON entry points (migration: bmson::ParseError::Utf8 is replaced by Decode(TextDecodeError) and the enum is non_exhaustive with a new Format variant; SourceFormat::from_path now maps .json to Bmson.)
+
+### Refactoring
+
+- *(chart)* share the u32 index newtype boilerplate through a private macro
+- *(model)* [**breaking**] drop the Owned parameter duplicates (migration: OwnedExWavParams, OwnedExBmpParams, and OwnedSwBgaParams are removed; read ExWavParams, ExBmpParams, and SwBgaParams from bmsrs-bms-values instead.)
+- *(facade)* [**breaking**] collapse the parse entry points behind Input (migration: `bms::parse_bytes`, `parse_bytes_with`, and
+`parse_file` are removed; build an `Input` (`Input::text(text, format)`,)
+- *(chart)* [**breaking**] hide the SwBgaResourceId inner value (migration: read an `SwBgaResourceId` through `get()`,)
+- *(chart)* [**breaking**] remove the with_* setters that duplicate public fields (migration: construct `VideoAsset` through `VideoAsset::new` plus
+field assignment (or a struct literal) instead of `with_fps`,
+`with_colors`, and `with_delay_frames`; replace `Note::with_ext(x)` with
+`Note { ext: x, ..note }`.)
+- *(chart)* [**breaking**] put resolution second in TimingTrack::new (migration: `TimingTrack::new` now takes `(init_bpm, resolution,
+bpm_changes, stops)`; move the resolution argument from fourth to second.)
 ## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-chart-v0.0.2...bmsrs-chart-v0.0.3) - 2026-11-22
 
 ### Documentation
