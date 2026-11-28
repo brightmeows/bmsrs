@@ -1,6 +1,9 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_model::{KeyType, NoteEvent, Position};
+mod helper;
+use helper::pos;
+
+use bmsrs_bms_model::{KeyType, NoteEvent};
 use bmsrs_bms_processor::Processor;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_chart::{EventKind, Note, NoteKind};
@@ -28,7 +31,7 @@ fn visible_note_inside_lntype1_range_removed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 2, 8),
+            position: pos(0, 2, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -37,7 +40,7 @@ fn visible_note_inside_lntype1_range_removed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 6, 8),
+            position: pos(0, 6, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -45,7 +48,7 @@ fn visible_note_inside_lntype1_range_removed() {
 
     // ch11 (visible) at slot 4 with wav CC — inside LN range (tick 480, LN is 240-719)
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 4, 8),
+        position: pos(0, 4, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -53,7 +56,7 @@ fn visible_note_inside_lntype1_range_removed() {
     });
     // ch11 (visible) at measure 1 slot 0 with wav AA — outside LN range
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -105,7 +108,7 @@ fn visible_note_at_ln_start_tick_suppressed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 0, 8),
+            position: pos(0, 0, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -113,7 +116,7 @@ fn visible_note_at_ln_start_tick_suppressed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 4, 8),
+            position: pos(0, 4, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -121,7 +124,7 @@ fn visible_note_at_ln_start_tick_suppressed() {
 
     // Visible at the same tick as LN start
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -159,7 +162,7 @@ fn visible_note_at_ln_end_tick_suppressed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 0, 8),
+            position: pos(0, 0, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -167,7 +170,7 @@ fn visible_note_at_ln_end_tick_suppressed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 4, 8),
+            position: pos(0, 4, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -175,7 +178,7 @@ fn visible_note_at_ln_end_tick_suppressed() {
 
     // Visible at the same tick as LN end (slot 4 = tick 480)
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 4, 8),
+        position: pos(0, 4, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -218,7 +221,7 @@ fn visible_note_on_different_lane_preserved() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 0, 8),
+            position: pos(0, 0, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -226,7 +229,7 @@ fn visible_note_on_different_lane_preserved() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 4, 8),
+            position: pos(0, 4, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -234,7 +237,7 @@ fn visible_note_on_different_lane_preserved() {
 
     // Visible note on lane 2 (different lane)
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 2, 8),
+        position: pos(0, 2, 8),
         player: 1,
         lane: 2,
         key_type: KeyType::Visible,
@@ -288,7 +291,7 @@ fn visible_note_at_unpaired_ln_start_suppressed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 2, 8),
+            position: pos(0, 2, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -296,7 +299,7 @@ fn visible_note_at_unpaired_ln_start_suppressed() {
 
     // Visible note at the same tick
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 2, 8),
+        position: pos(0, 2, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -342,7 +345,7 @@ fn visible_note_in_gap_between_lns_preserved() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 0, 8),
+            position: pos(0, 0, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -350,7 +353,7 @@ fn visible_note_in_gap_between_lns_preserved() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 2, 8),
+            position: pos(0, 2, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -359,7 +362,7 @@ fn visible_note_in_gap_between_lns_preserved() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 6, 8),
+            position: pos(0, 6, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -367,7 +370,7 @@ fn visible_note_in_gap_between_lns_preserved() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(1, 2, 8),
+            position: pos(1, 2, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -376,7 +379,7 @@ fn visible_note_in_gap_between_lns_preserved() {
     // Visible note in the gap between LN1 (0-240) and LN2 (720-1200)
     // Gap is tick 240 to 720; slot 4 = tick 480
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 4, 8),
+        position: pos(0, 4, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -430,14 +433,14 @@ fn lnobj_visible_note_inside_range_removed() {
 
     // LN: start at slot 0 (wav AA), end at slot 4 (wav FF — LNOBJ marker)
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
         wav_id: "AA".parse().unwrap(),
     });
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 4, 8),
+        position: pos(0, 4, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -446,7 +449,7 @@ fn lnobj_visible_note_inside_range_removed() {
 
     // Visible note inside LN range (slot 2, tick 240)
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 2, 8),
+        position: pos(0, 2, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -455,7 +458,7 @@ fn lnobj_visible_note_inside_range_removed() {
 
     // Visible note outside LN range (measure 1 slot 0)
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -514,7 +517,7 @@ fn lntype2_visible_note_inside_range_removed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 0, 8),
+            position: pos(0, 0, 8),
             player: 1,
             lane: 1,
             wav_id: "AA".parse().unwrap(),
@@ -522,7 +525,7 @@ fn lntype2_visible_note_inside_range_removed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 2, 8),
+            position: pos(0, 2, 8),
             player: 1,
             lane: 1,
             wav_id: "BB".parse().unwrap(),
@@ -530,7 +533,7 @@ fn lntype2_visible_note_inside_range_removed() {
     bms.messages
         .long_note_events
         .push(bmsrs_bms_model::LongNoteEvent {
-            position: Position::new(0, 4, 8),
+            position: pos(0, 4, 8),
             player: 1,
             lane: 1,
             wav_id: "00".parse().unwrap(),
@@ -538,7 +541,7 @@ fn lntype2_visible_note_inside_range_removed() {
 
     // Visible note inside LN range (slot 2, tick 240)
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 2, 8),
+        position: pos(0, 2, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,

@@ -4,6 +4,8 @@
 //! external consumers would. The whole-pipeline entry point (`from_text`) has
 //! moved to the `bmsrs` facade, and its tests moved with it.
 
+use std::num::NonZeroU32;
+
 use bmsrs_bms_model::BmsBgaLayer;
 use bmsrs_bms_model::*;
 use bmsrs_bms_parser::BmsParser;
@@ -12,6 +14,13 @@ use bmsrs_bms_values::{
     PoorBgaMode, Rank, ScrollIndex, SpeedIndex, StopIndex, SwBgaParams, WavCmdKind, WavCmdParams,
     WavIndex,
 };
+
+/// Build a position for fixtures; panics when `denom` is zero.
+fn pos(measure: u16, numer: u32, denom: u32) -> Position {
+    let denom_nonzero = NonZeroU32::new(denom)
+        .unwrap_or_else(|| panic!("test position denominator must be non-zero"));
+    Position::new(measure, numer, denom_nonzero)
+}
 
 /// Helper: parse a BMS string into `Bms` (default C = &str).
 fn parse(input: &str) -> Bms {
@@ -31,7 +40,7 @@ fn parse_string(input: &str) -> Bms {
 #[test]
 fn event_types_accessible() {
     // Position
-    let pos = Position::new(1, 0, 4);
+    let pos = pos(1, 0, 4);
     let _frac = pos.fraction();
 
     // Event types are constructible

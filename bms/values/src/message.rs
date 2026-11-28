@@ -61,7 +61,11 @@ use bmsrs_pipeline::SourceSpan;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BmsMessage {
     /// Raw address string (before `:`).
-    pub addr: String,
+    ///
+    /// Read it through [`addr`](Self::addr); rebuild the message through
+    /// [`compose`](Self::compose) so the decoded track and channel stay in
+    /// sync with the address.
+    addr: String,
     /// Raw body string (after `:`).
     pub body: String,
     /// Whole-line source span, when the message came from parsed text.
@@ -87,6 +91,12 @@ impl BmsMessage {
     /// but has an invalid address or channel suffix.
     pub fn parse(line: &str) -> Result<Option<Self>, BmsTokenizeError> {
         parse_message_line(line)
+    }
+
+    /// Return the raw address string before the `:` separator.
+    #[must_use]
+    pub fn addr(&self) -> &str {
+        &self.addr
     }
 
     /// Return the zero-based measure number.

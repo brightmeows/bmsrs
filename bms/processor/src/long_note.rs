@@ -259,7 +259,7 @@ mod tests {
 
     fn ln_event(player: u8, lane: u8, measure: u16, numer: u32, wav: &str) -> LongNoteEvent {
         LongNoteEvent {
-            position: Position::new(measure, numer, 8),
+            position: Position::new(measure, numer, crate::nonzero(8)),
             player,
             lane,
             wav_id: wav.parse().unwrap(),
@@ -268,7 +268,7 @@ mod tests {
 
     fn note_event(player: u8, lane: u8, measure: u16, numer: u32, wav: &str) -> NoteEvent {
         NoteEvent {
-            position: Position::new(measure, numer, 8),
+            position: Position::new(measure, numer, crate::nonzero(8)),
             player,
             lane,
             key_type: bmsrs_bms_model::KeyType::Visible,

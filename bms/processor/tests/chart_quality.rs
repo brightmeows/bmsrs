@@ -1,6 +1,9 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_model::{BgmEvent, Bms, KeyType, MineEvent, NoteEvent, Position};
+mod helper;
+use helper::pos;
+
+use bmsrs_bms_model::{BgmEvent, Bms, KeyType, MineEvent, NoteEvent};
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{ProcessWarningKind, Processor};
 use bmsrs_bms_values::PlayerMode;
@@ -17,7 +20,7 @@ fn chart_with_first_side_note() -> Bms {
         bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -73,7 +76,7 @@ fn tail_padding_over_30s_produces_warning() {
     // the chart end to 36 seconds, so the tail after the note at tick 0 is
     // 36 seconds.
     bms.messages.bgm_events.push(BgmEvent {
-        position: Position::new(8, 0, 1),
+        position: pos(8, 0, 1),
         wav_id: "01".parse().unwrap(),
     });
     let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
@@ -90,7 +93,7 @@ fn tail_padding_over_30s_produces_warning() {
 fn tail_padding_under_30s_produces_no_warning() {
     let mut bms = chart_with_first_side_note();
     bms.messages.bgm_events.push(BgmEvent {
-        position: Position::new(2, 0, 1),
+        position: pos(2, 0, 1),
         wav_id: "01".parse().unwrap(),
     });
     let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
@@ -106,7 +109,7 @@ fn mine_only_chart_produces_no_tail_warning() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(60.0);
     bms.messages.mine_events.push(MineEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         raw_value: Some(1),
@@ -124,7 +127,7 @@ fn single_player_with_second_side_notes_produces_warning() {
     let mut bms = chart_with_first_side_note();
     bms.gameplay.player = Some(PlayerMode::Single);
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 2,
         lane: 1,
         key_type: KeyType::Visible,

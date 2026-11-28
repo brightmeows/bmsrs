@@ -106,19 +106,27 @@ impl MeasureTable {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::*;
     use bmsrs_bms_model::MeasureLength;
 
     const RES: u64 = 240;
 
+    fn pos(measure: u16, numer: u32, denom: u32) -> Position {
+        let denom_nonzero = NonZeroU32::new(denom)
+            .unwrap_or_else(|| panic!("test position denominator must be non-zero"));
+        Position::new(measure, numer, denom_nonzero)
+    }
+
     #[test]
     fn constant_meter_position_to_tick() {
         let table = MeasureTable::new(4, &[], RES);
 
-        assert_eq!(table.position_to_tick(Position::new(0, 0, 8)), 0);
-        assert_eq!(table.position_to_tick(Position::new(0, 4, 8)), 480);
-        assert_eq!(table.position_to_tick(Position::new(0, 8, 8)), 960);
-        assert_eq!(table.position_to_tick(Position::new(1, 0, 8)), 960);
+        assert_eq!(table.position_to_tick(pos(0, 0, 8)), 0);
+        assert_eq!(table.position_to_tick(pos(0, 4, 8)), 480);
+        assert_eq!(table.position_to_tick(pos(0, 8, 8)), 960);
+        assert_eq!(table.position_to_tick(pos(1, 0, 8)), 960);
     }
 
     #[test]
@@ -131,10 +139,10 @@ mod tests {
         let table = MeasureTable::new(3, &lengths, RES);
 
         // Measure 0 = 960 ticks, measure 1 = 480 ticks, measure 2 = 960 ticks.
-        assert_eq!(table.position_to_tick(Position::new(0, 0, 1)), 0);
-        assert_eq!(table.position_to_tick(Position::new(1, 0, 1)), 960);
-        assert_eq!(table.position_to_tick(Position::new(2, 0, 1)), 1440);
-        assert_eq!(table.position_to_tick(Position::new(3, 0, 1)), 2400);
+        assert_eq!(table.position_to_tick(pos(0, 0, 1)), 0);
+        assert_eq!(table.position_to_tick(pos(1, 0, 1)), 960);
+        assert_eq!(table.position_to_tick(pos(2, 0, 1)), 1440);
+        assert_eq!(table.position_to_tick(pos(3, 0, 1)), 2400);
     }
 
     #[test]
@@ -146,7 +154,7 @@ mod tests {
         let table = MeasureTable::new(1, &lengths, RES);
 
         // Measure 0 is 480 ticks. Position 1/2 is tick 240.
-        assert_eq!(table.position_to_tick(Position::new(0, 1, 2)), 240);
+        assert_eq!(table.position_to_tick(pos(0, 1, 2)), 240);
     }
 
     #[test]
@@ -159,9 +167,9 @@ mod tests {
         let table = MeasureTable::new(2, &lengths, RES);
 
         // Measure 0 totals 720 ticks. Position 3/4 lands at tick 540.
-        assert_eq!(table.position_to_tick(Position::new(0, 3, 4)), 540);
-        assert_eq!(table.position_to_tick(Position::new(0, 4, 4)), 720);
-        assert_eq!(table.position_to_tick(Position::new(1, 0, 1)), 720);
+        assert_eq!(table.position_to_tick(pos(0, 3, 4)), 540);
+        assert_eq!(table.position_to_tick(pos(0, 4, 4)), 720);
+        assert_eq!(table.position_to_tick(pos(1, 0, 1)), 720);
     }
 
     #[test]
@@ -176,20 +184,20 @@ mod tests {
 
         // measure_len = 7.
         // Position 1/2: exact 3.5 rounds to 4 (old truncation gave 3).
-        assert_eq!(table.position_to_tick(Position::new(0, 1, 2)), 4);
+        assert_eq!(table.position_to_tick(pos(0, 1, 2)), 4);
         // Position 1/8: exact 0.875 rounds to 1 (old truncation gave 0,
         // colliding with the measure start).
-        assert_eq!(table.position_to_tick(Position::new(0, 1, 8)), 1);
+        assert_eq!(table.position_to_tick(pos(0, 1, 8)), 1);
         // Position 1/192: exact 0.036 rounds to 0.
-        assert_eq!(table.position_to_tick(Position::new(0, 1, 192)), 0);
+        assert_eq!(table.position_to_tick(pos(0, 1, 192)), 0);
     }
 
     #[test]
     fn exact_positions_unchanged_by_rounding() {
         // Exact divisions must not be affected by rounding.
         let table = MeasureTable::new(4, &[], RES);
-        assert_eq!(table.position_to_tick(Position::new(0, 1, 3)), 320);
-        assert_eq!(table.position_to_tick(Position::new(0, 1, 6)), 160);
-        assert_eq!(table.position_to_tick(Position::new(0, 5, 6)), 800);
+        assert_eq!(table.position_to_tick(pos(0, 1, 3)), 320);
+        assert_eq!(table.position_to_tick(pos(0, 1, 6)), 160);
+        assert_eq!(table.position_to_tick(pos(0, 5, 6)), 800);
     }
 }

@@ -19,7 +19,7 @@ fn idx(s: &str) -> ChannelIndex {
 fn parse_basic_message() {
     let result = parse_msg("#00111:11223344").unwrap();
     let msg = result.expect("should parse");
-    assert_eq!(msg.addr, "00111");
+    assert_eq!(msg.addr(), "00111");
     assert_eq!(msg.body, "11223344");
     assert_eq!(msg.track(), 1);
     assert_eq!(msg.channel(), BmsChannel::Note(idx("11")));

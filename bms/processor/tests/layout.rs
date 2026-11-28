@@ -1,13 +1,16 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_model::{Bms, KeyType, LongNoteEvent, MineEvent, NoteEvent, Position};
+mod helper;
+use helper::pos;
+
+use bmsrs_bms_model::{Bms, KeyType, LongNoteEvent, MineEvent, NoteEvent};
 use bmsrs_bms_processor::layout::PmsLayout;
 
 #[test]
 fn detect_standard_pms_from_player2_channels() {
     let mut bms = Bms::default();
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 1),
+        position: pos(0, 0, 1),
         player: 2,
         lane: 3,
         key_type: KeyType::Visible,
@@ -20,7 +23,7 @@ fn detect_standard_pms_from_player2_channels() {
 fn detect_bme_type_pms_from_player1_channels() {
     let mut bms = Bms::default();
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 1),
+        position: pos(0, 0, 1),
         player: 1,
         lane: 7,
         key_type: KeyType::Visible,
@@ -39,7 +42,7 @@ fn standard_defaults_when_no_pms_channels() {
 fn standard_from_long_note_player2_channels() {
     let mut bms = Bms::default();
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 1),
+        position: pos(0, 0, 1),
         player: 2,
         lane: 4,
         wav_id: "01".parse().unwrap(),
@@ -51,7 +54,7 @@ fn standard_from_long_note_player2_channels() {
 fn bme_type_from_mine_player1_channels() {
     let mut bms = Bms::default();
     bms.messages.mine_events.push(MineEvent {
-        position: Position::new(0, 0, 1),
+        position: pos(0, 0, 1),
         player: 1,
         lane: 8,
         raw_value: Some(2),
@@ -64,7 +67,7 @@ fn both_standard_and_bme_prefers_standard() {
     let mut bms = Bms::default();
     // Standard-indicating: player 2, lane 3
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 1),
+        position: pos(0, 0, 1),
         player: 2,
         lane: 3,
         key_type: KeyType::Visible,
@@ -72,7 +75,7 @@ fn both_standard_and_bme_prefers_standard() {
     });
     // BME-type-indicating: player 1, lane 7
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 1),
+        position: pos(0, 0, 1),
         player: 1,
         lane: 7,
         key_type: KeyType::Visible,
