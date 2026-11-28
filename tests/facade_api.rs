@@ -411,9 +411,6 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<TextRange>(),
         named::<BmsTokenizeError>(),
         named::<Bme>(),
-        named::<Beat>(),
-        named::<GenericLayout>(),
-        named::<Bmson>(),
         named::<Chart>(),
         named::<ChartData>(),
         named::<Event>(),
@@ -428,8 +425,14 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<SourceSpan>(),
         named::<Player>(),
     ];
-    assert_eq!(resolved.len(), 39);
+    #[cfg(feature = "bmson")]
+    let bmson_only = [named::<Beat>(), named::<GenericLayout>(), named::<Bmson>()];
+    #[cfg(not(feature = "bmson"))]
+    let bmson_only: [&'static str; 0] = [];
+    let expected = if cfg!(feature = "bmson") { 39 } else { 36 };
+    assert_eq!(resolved.len() + bmson_only.len(), expected);
     assert!(resolved.iter().all(|name| !name.is_empty()));
+    assert!(bmson_only.iter().all(|name| !name.is_empty()));
     bounded_by::<Bme>();
     drawn_by::<JavaRandom>();
 }
