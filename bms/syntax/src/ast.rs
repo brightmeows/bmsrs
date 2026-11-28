@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 
 use rowan::{TextRange, TextSize};
 
-use crate::{ParseOptions, SyntaxKind, SyntaxLineKind, SyntaxNode, SyntaxParse, SyntaxToken};
+use crate::{SyntaxKind, SyntaxLineKind, SyntaxNode, SyntaxOptions, SyntaxParse, SyntaxToken};
 
 /// Document root node.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -14,12 +14,12 @@ impl SourceFile {
     /// Parse text and return the CST.
     #[must_use]
     pub fn parse(text: &str) -> SyntaxParse {
-        Self::parse_with(text, &ParseOptions::default())
+        Self::parse_with(text, &SyntaxOptions::default())
     }
 
     /// Parse text with options.
     #[must_use]
-    pub fn parse_with(text: &str, options: &ParseOptions) -> SyntaxParse {
+    pub fn parse_with(text: &str, options: &SyntaxOptions) -> SyntaxParse {
         crate::parser::parse_with(text, options)
     }
 
@@ -33,7 +33,7 @@ impl SourceFile {
     #[must_use]
     pub fn parse_document_with(
         document: &bmsrs_bms_source::Document,
-        options: &ParseOptions,
+        options: &SyntaxOptions,
     ) -> SyntaxParse {
         Self::parse_with(&document.to_text(), options)
     }

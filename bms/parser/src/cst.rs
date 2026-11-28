@@ -6,13 +6,15 @@ use std::num::NonZeroUsize;
 
 use bmsrs_bms_source::{Document, TextDecodeError};
 use bmsrs_bms_syntax::{
-    BranchMismatch, BranchSelection, ControlFlowRng, ParseOptions, SourceFile, SyntaxLineKind,
+    BranchMismatch, BranchSelection, ControlFlowRng, SourceFile, SyntaxLineKind, SyntaxOptions,
     TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
 use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, Severity, SourceSpan};
 
 use bmsrs_bms_model::Bms;
+
+use crate::ParseOptions;
 
 /// What a [`Diagnostic`] reports.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -171,18 +173,18 @@ impl BmsParser {
     /// from every line.
     #[must_use]
     pub fn parse<R: ControlFlowRng + ?Sized>(file: &SourceFile, rng: &mut R) -> BmsParse {
-        Self::parse_with(file, &ParseOptions::default(), rng)
+        Self::parse_with(file, &SyntaxOptions::default(), rng)
     }
 
-    /// Select branches from the CST with parse options and build `Bms`.
+    /// Select branches from the CST with syntax options and build `Bms`.
     ///
-    /// `options.error_strategy` is not consulted: a CST carries no syntax
-    /// diagnostics to fail on. Use [`Self::parse_document_with`] when
-    /// `FailFast` must stop at the first error.
+    /// No error strategy is consulted here: a CST carries no syntax diagnostics
+    /// to fail on. Use [`Self::parse_document_with`] when `FailFast` must stop
+    /// at the first error.
     #[must_use]
     pub fn parse_with<R: ControlFlowRng + ?Sized>(
         file: &SourceFile,
-        options: &ParseOptions,
+        options: &SyntaxOptions,
         rng: &mut R,
     ) -> BmsParse {
         let all_tokens = Self::tokenize_lines_with(file, options);
@@ -232,9 +234,9 @@ impl BmsParser {
         rng: &mut R,
     ) -> Result<BmsParse, Diagnostic> {
         let text = document.try_to_text().map_err(Diagnostic::decode)?;
-        let parse = SourceFile::parse_with(&text, options);
+        let parse = SourceFile::parse_with(&text, &options.syntax);
         let file = parse.source_file();
-        let all_tokens = Self::tokenize_lines_with(&file, options);
+        let all_tokens = Self::tokenize_lines_with(&file, &options.syntax);
         let mut warnings = syntax_diagnostics(&parse, &file);
         warnings.extend(token_diagnostics(&all_tokens));
         warnings.sort_by_key(|warning| (warning.line, warning.range.start()));
@@ -249,8 +251,8 @@ impl BmsParser {
             &file,
             &all_tokens,
             rng,
-            options.control_flow_compat,
-            options.format,
+            options.syntax.control_flow_compat,
+            options.syntax.format,
         );
         Ok(BmsParse {
             bms,
@@ -336,13 +338,13 @@ impl BmsParser {
     /// Extract typed tokens from every Header/Message line in the CST.
     #[must_use]
     pub fn tokenize_lines(file: &SourceFile) -> Vec<LineToken> {
-        Self::tokenize_lines_with(file, &ParseOptions::default())
+        Self::tokenize_lines_with(file, &SyntaxOptions::default())
     }
 
-    /// Extract typed tokens from every Header/Message line in the CST with parse
-    /// options.
+    /// Extract typed tokens from every Header/Message line in the CST with
+    /// syntax options.
     #[must_use]
-    pub fn tokenize_lines_with(file: &SourceFile, options: &ParseOptions) -> Vec<LineToken> {
+    pub fn tokenize_lines_with(file: &SourceFile, options: &SyntaxOptions) -> Vec<LineToken> {
         file.lines()
             .enumerate()
             .filter_map(|(index, line)| {
@@ -432,12 +434,12 @@ impl BmsParser {
         file: &SourceFile,
         selection: &BranchSelection,
     ) -> Result<BmsParse, BranchMismatch> {
-        Self::parse_from_selection_with(file, selection, &ParseOptions::default())
+        Self::parse_from_selection_with(file, selection, &SyntaxOptions::default())
     }
 
-    /// Build `Bms` from a recorded [`BranchSelection`] with parse options.
+    /// Build `Bms` from a recorded [`BranchSelection`] with syntax options.
     ///
-    /// `options.error_strategy` is not consulted here, for the same reason as
+    /// No error strategy is consulted here, for the same reason as
     /// [`Self::parse_with`]; the facade's replay entry point applies it after
     /// collecting the syntax diagnostics itself.
     ///
@@ -448,7 +450,7 @@ impl BmsParser {
     pub fn parse_from_selection_with(
         file: &SourceFile,
         selection: &BranchSelection,
-        options: &ParseOptions,
+        options: &SyntaxOptions,
     ) -> Result<BmsParse, BranchMismatch> {
         let all_tokens = Self::tokenize_lines_with(file, options);
         let (lines, replayed) = file.replay_lines(selection)?;

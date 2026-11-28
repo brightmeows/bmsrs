@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use bmsrs_bms_syntax::{
-    IncrementalParser, ParseOptions, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxParse,
+    IncrementalParser, SourceFile, SyntaxLine, SyntaxLineKind, SyntaxOptions, SyntaxParse,
 };
 use bmsrs_bms_values::{
     BmsChannel, BmsHeader, BmsHeaderConditional, BmsHeaderGameplay, BmsMessage, BodyCells,
@@ -29,12 +29,12 @@ impl Analysis {
     /// Analyze BMS text.
     #[must_use]
     pub fn from_text(text: &str) -> Self {
-        Self::from_text_with(text, &ParseOptions::default())
+        Self::from_text_with(text, &SyntaxOptions::default())
     }
 
-    /// Analyze BMS text with parse options.
+    /// Analyze BMS text with syntax options.
     #[must_use]
-    pub fn from_text_with(text: &str, options: &ParseOptions) -> Self {
+    pub fn from_text_with(text: &str, options: &SyntaxOptions) -> Self {
         let syntax = IncrementalParser::new(text, options.clone());
         let (diagnostics, index) = analyze(syntax.parse(), options);
         Self {
@@ -109,7 +109,7 @@ impl Analysis {
 }
 
 /// Build diagnostics and the symbol index from one parse result.
-fn analyze(parse: &SyntaxParse, options: &ParseOptions) -> (Vec<Diagnostic>, SymbolIndex) {
+fn analyze(parse: &SyntaxParse, options: &SyntaxOptions) -> (Vec<Diagnostic>, SymbolIndex) {
     let source = parse.source_file();
     let mut diagnostics: Vec<_> = parse
         .errors()
@@ -740,7 +740,7 @@ fn single_line_change(old: &str, new: &str) -> Option<u32> {
 /// Build diagnostics from a parse result and an already-built index.
 fn diagnostics_from(
     parse: &SyntaxParse,
-    options: &ParseOptions,
+    options: &SyntaxOptions,
     index: &SymbolIndex,
 ) -> Vec<Diagnostic> {
     let source = parse.source_file();

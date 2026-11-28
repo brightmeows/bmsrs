@@ -5,8 +5,7 @@
 //! as external consumers expect.
 
 use bmsrs::bms::ErrorStrategy;
-use bmsrs::bms::{Input, SourceFormat};
-use bmsrs::raw::bms::syntax::ParseOptions;
+use bmsrs::bms::{Input, ParseOptions, SourceFormat, SyntaxOptions};
 
 #[test]
 fn parse_with_collect_all_keeps_tokens_after_error() {
@@ -139,7 +138,10 @@ fn parse_with_collect_all_reports_unselected_branch_error() {
 #[test]
 fn parse_with_accepts_custom_header_prefix() {
     let options = ParseOptions {
-        header_prefixes: vec!['@'],
+        syntax: SyntaxOptions {
+            header_prefixes: vec!['@'],
+            ..Default::default()
+        },
         ..ParseOptions::default()
     };
     let outcome = bmsrs::bms::parse_with(

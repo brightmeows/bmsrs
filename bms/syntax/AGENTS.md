@@ -48,7 +48,7 @@ SourceFile
 - `replay_lines` is strict: drift in block count, kind, or declared
   bound fails with `BranchMismatch`; `#SETRANDOM` / `#SETSWITCH` values are
   taken from the current file, not the recording
-- `ParseOptions.header_prefixes` defaults to `['#', '%']`
+- `SyntaxOptions.header_prefixes` defaults to `['#', '%']`
 
 ## Control-flow selection
 
