@@ -33,7 +33,7 @@ use std::time::Duration;
 use bmsrs_bmson_model::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaFrame, BgaLayer, BgaResourceContent, BgaResourceId, BpmChange,
-    Chart, ChartData, ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint,
+    Chart, ChartData, ChartError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint,
     LnLifeHint, LnTypeHint, Note, NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo,
     StopEvent, TimingTrack, TimingTrackError,
 };
@@ -82,6 +82,7 @@ impl NoteExt for BmsonNoteExt {
 
 /// Errors that can occur while processing BMSON.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ProcessError {
     /// Timing track construction failed (invalid initial BPM or zero
     /// resolution).
@@ -93,7 +94,7 @@ pub enum ProcessError {
     Timing(#[from] TimingTrackError),
     /// Chart data construction or validation failed.
     #[error(transparent)]
-    ChartData(#[from] ChartDataError),
+    ChartData(#[from] ChartError),
     /// The `generic-nkeys` mode key count must be positive and within `u8`
     /// (the index bound of [`Lane::Key`]).
     #[error("generic-nkeys key count must be in 1..=255, got {0}")]
@@ -599,6 +600,7 @@ impl BmsonConverter<'_> {
         clippy::cast_possible_truncation,
         reason = "audio asset count fits in u32 for practical charts"
     )]
+    #[expect(clippy::expect_used, reason = "JSON numbers never deserialize as NaN")]
     fn process_mine_channels(&mut self) -> Result<(), ProcessError> {
         for mc in &self.bmson.mine_channels {
             let path = normalize_path(&mc.name)?;
@@ -619,7 +621,7 @@ impl BmsonConverter<'_> {
                         side,
                         lane,
                         kind: NoteKind::Mine {
-                            damage: Damage::new(mn.damage),
+                            damage: Damage::new(mn.damage).expect("bmson mine damage is never NaN"),
                         },
                         role: NoteRole::Normal,
                         audio: NoteAudio::one(mine_audio_idx),

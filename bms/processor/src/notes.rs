@@ -125,6 +125,10 @@ impl BmsConverter<'_> {
         clippy::too_many_lines,
         reason = "normal/invisible/LNOBJ/long-note/mine sources share one matching logic; splitting would fragment it"
     )]
+    #[expect(
+        clippy::expect_used,
+        reason = "mine_damage returns a finite value or infinity, never NaN"
+    )]
     pub fn collect_notes(
         &mut self,
         layout: &impl Layout,
@@ -282,7 +286,8 @@ impl BmsConverter<'_> {
                 player: me.player,
                 lane: me.lane,
                 kind: PlacementKind::Mine {
-                    damage: Damage::new(mine_damage(me.raw_value)),
+                    damage: Damage::new(mine_damage(me.raw_value))
+                        .expect("mine_damage never returns NaN"),
                 },
             }));
         }

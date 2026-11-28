@@ -59,7 +59,7 @@ fn note_role_default_is_normal() {
 #[test]
 fn note_kind_clone_equal() {
     let kind = NoteKind::Mine {
-        damage: Damage::new(12.5),
+        damage: Damage::new(12.5).expect("test damage is finite"),
     };
     assert_eq!(kind.clone(), kind);
 }
