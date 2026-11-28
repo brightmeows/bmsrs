@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.4](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-model-v0.0.3...bmsrs-bms-model-v0.0.4) - 2026-11-28
+
+### Documentation
+
+- prune AGENTS.md and co-locate the boundary registers
+- refresh the release version and record the visibility rules
+- record the interface-shape convention and the deferred input model
+
+### Features
+
+- *(facade)* [**breaking**] accept Input on the BMSON entry points (migration: bmson::ParseError::Utf8 is replaced by Decode(TextDecodeError) and the enum is non_exhaustive with a new Format variant; SourceFormat::from_path now maps .json to Bmson.)
+
+### Refactoring
+
+- *(values)* [**breaking**] rename LnType to LnNotation to free the name (migration: LnType is renamed LnNotation and its Type1 and Type2 variants are Rdm and Mgq; BmsHeaderGameplay::LnType now carries an LnNotation.)
+- *(model)* [**breaking**] remove the unused implicit-subtitle parser (migration: Metadata::parse_implicit_subtitle is removed; split titles in the consumer if a player needs the behaviour.)
+- *(model)* [**breaking**] drop the Owned parameter duplicates (migration: OwnedExWavParams, OwnedExBmpParams, and OwnedSwBgaParams are removed; read ExWavParams, ExBmpParams, and SwBgaParams from bmsrs-bms-values instead.)
+- *(facade)* [**breaking**] collapse the parse entry points behind Input (migration: `bms::parse_bytes`, `parse_bytes_with`, and
+`parse_file` are removed; build an `Input` (`Input::text(text, format)`,)
 ## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-model-v0.0.2...bmsrs-bms-model-v0.0.3) - 2026-11-22
 
 ### Documentation

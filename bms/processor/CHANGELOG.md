@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.4](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-processor-v0.0.3...bmsrs-bms-processor-v0.0.4) - 2026-11-28
+
+### Bug Fixes
+
+- *(processor)* leave chart_name empty for BMS charts
+- *(processor)* warn on out-of-range VOLWAV instead of saturating silently
+
+### Documentation
+
+- correct stale passages found in the full read
+- apply the three CodeRabbit findings on the prune
+- prune AGENTS.md and co-locate the boundary registers
+- refresh the release version and record the visibility rules
+
+### Features
+
+- *(facade)* [**breaking**] accept Input on the BMSON entry points (migration: bmson::ParseError::Utf8 is replaced by Decode(TextDecodeError) and the enum is non_exhaustive with a new Format variant; SourceFormat::from_path now maps .json to Bmson.)
+
+### Refactoring
+
+- *(pipeline)* [**breaking**] rename Outcome warnings to diagnostics (migration: Outcome::warnings is now Outcome::diagnostics, and Outcome::map_warnings is now Outcome::map_diagnostics.)
+- *(values)* [**breaking**] rename LnType to LnNotation to free the name (migration: LnType is renamed LnNotation and its Type1 and Type2 variants are Rdm and Mgq; BmsHeaderGameplay::LnType now carries an LnNotation.)
+- *(processor,writer,facade)* [**breaking**] name results and namespace types after their module (migration: BmsonProcessed, BmsonProcessWarning, and BmsonParseError lose their Bmson prefix; BmsProcessor and BmsonProcessor are Processor, BmsWriter is Writer, BmsLayout and BmsonLayout are Layout; prelude no longer exports the bmson Processed, ProcessWarning, ParseError, or Layout.)
+- *(processor)* [**breaking**] carry the source key in missing-definition warnings (migration: ProcessWarningKind::Missing*Definition key fields are typed indices instead of u16; read the spelling through key.as_str().)
+- *(model)* [**breaking**] drop the Owned parameter duplicates (migration: OwnedExWavParams, OwnedExBmpParams, and OwnedSwBgaParams are removed; read ExWavParams, ExBmpParams, and SwBgaParams from bmsrs-bms-values instead.)
+- *(facade)* [**breaking**] collapse the parse entry points behind Input (migration: `bms::parse_bytes`, `parse_bytes_with`, and
+`parse_file` are removed; build an `Input` (`Input::text(text, format)`,)
+- *(processor)* [**breaking**] take layouts by value through process_with (migration: `BmsProcessor::process::<L>(bms)` becomes
+`process_with(bms, L)`; `BmsonProcessor::process::<L>(bmson)` becomes
+`process_with(bmson, L)`; `process_nkeys(bmson, keys)` becomes
+`process_with(bmson, GenericLayout::new(keys)?)`;)
+- *(parser)* [**breaking**] take ControlFlowRng in the parser and facade entry points (migration: `BmsParser::parse`, `parse_with`, `parse_document`, and
+`parse_document_with` take `&mut R` (`R: ControlFlowRng`) instead of a
+closure by value; pass `&mut |_| 1` or `&mut FirstBranch`. The facade's
+`parse_with`, `parse_with_recording`, and `parse_bytes_with` follow
+suit, `bms::parse_with_rng` is removed, and `ParseOptions::first_branch`
+is replaced by `bmsrs_bms_syntax::FirstBranch` (re-exported as)
+- *(bms-processor)* [**breaking**] stop exporting the internal LnMarker (migration: `bmsrs_bms_processor::LnMarker` is no longer public; it
+was an internal pairing input with no public use.)
+- *(bms-processor)* derive the standard traits on BmsProcessor
+- *(chart)* [**breaking**] remove the with_* setters that duplicate public fields (migration: construct `VideoAsset` through `VideoAsset::new` plus
+field assignment (or a struct literal) instead of `with_fps`,
+`with_colors`, and `with_delay_frames`; replace `Note::with_ext(x)` with
+`Note { ext: x, ..note }`.)
+- *(pipeline)* [**breaking**] split Diagnostic::new into required fields plus setters (migration: `Diagnostic::new` now takes `(severity, message)`; chain
+`with_span(span)` and `with_code(code)` for the optional fields.)
+- *(chart)* [**breaking**] put resolution second in TimingTrack::new (migration: `TimingTrack::new` now takes `(init_bpm, resolution,
+bpm_changes, stops)`; move the resolution argument from fourth to second.)
 ## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-processor-v0.0.2...bmsrs-bms-processor-v0.0.3) - 2026-11-22
 
 ### Bug Fixes

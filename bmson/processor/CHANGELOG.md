@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.4](https://github.com/brightmeows/bmsrs/compare/bmsrs-bmson-processor-v0.0.3...bmsrs-bmson-processor-v0.0.4) - 2026-11-28
+
+### Bug Fixes
+
+- *(bmson-processor)* keep Hln through the LN hint conversion
+
+### Documentation
+
+- correct stale passages found in the full read
+- apply the three CodeRabbit findings on the prune
+- prune AGENTS.md and co-locate the boundary registers
+- refresh the release version and record the visibility rules
+
+### Features
+
+- *(facade)* [**breaking**] accept Input on the BMSON entry points (migration: bmson::ParseError::Utf8 is replaced by Decode(TextDecodeError) and the enum is non_exhaustive with a new Format variant; SourceFormat::from_path now maps .json to Bmson.)
+
+### Refactoring
+
+- *(pipeline)* [**breaking**] rename Outcome warnings to diagnostics (migration: Outcome::warnings is now Outcome::diagnostics, and Outcome::map_warnings is now Outcome::map_diagnostics.)
+- *(processor,writer,facade)* [**breaking**] name results and namespace types after their module (migration: BmsonProcessed, BmsonProcessWarning, and BmsonParseError lose their Bmson prefix; BmsProcessor and BmsonProcessor are Processor, BmsWriter is Writer, BmsLayout and BmsonLayout are Layout; prelude no longer exports the bmson Processed, ProcessWarning, ParseError, or Layout.)
+- *(bmson-model)* [**breaking**] validate init_bpm on every schema conversion (migration: From<v1::Bmson> for Bmson and From<Bmson> for v1::Bmson are now TryFrom with UpgradeError; v0::TryFromV0Error is replaced by UpgradeError and BmsonError::V0Conversion by BmsonError::Upgrade.)
+- *(facade)* [**breaking**] collapse the parse entry points behind Input (migration: `bms::parse_bytes`, `parse_bytes_with`, and
+`parse_file` are removed; build an `Input` (`Input::text(text, format)`,)
+- *(processor)* [**breaking**] take layouts by value through process_with (migration: `BmsProcessor::process::<L>(bms)` becomes
+`process_with(bms, L)`; `BmsonProcessor::process::<L>(bmson)` becomes
+`process_with(bmson, L)`; `process_nkeys(bmson, keys)` becomes
+`process_with(bmson, GenericLayout::new(keys)?)`;)
+- *(bmson-processor)* derive the standard traits on BmsonProcessor
+- *(pipeline)* [**breaking**] split Diagnostic::new into required fields plus setters (migration: `Diagnostic::new` now takes `(severity, message)`; chain
+`with_span(span)` and `with_code(code)` for the optional fields.)
+- *(chart)* [**breaking**] put resolution second in TimingTrack::new (migration: `TimingTrack::new` now takes `(init_bpm, resolution,
+bpm_changes, stops)`; move the resolution argument from fourth to second.)
 ## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bmson-processor-v0.0.2...bmsrs-bmson-processor-v0.0.3) - 2026-11-22
 
 ### Bug Fixes

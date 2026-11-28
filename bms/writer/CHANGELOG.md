@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.0.4](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-writer-v0.0.3...bmsrs-bms-writer-v0.0.4) - 2026-11-28
+
+### Documentation
+
+- prune AGENTS.md and co-locate the boundary registers
+- refresh the release version and record the visibility rules
+
+### Features
+
+- *(facade)* [**breaking**] accept Input on the BMSON entry points (migration: bmson::ParseError::Utf8 is replaced by Decode(TextDecodeError) and the enum is non_exhaustive with a new Format variant; SourceFormat::from_path now maps .json to Bmson.)
+
+### Refactoring
+
+- *(processor,writer,facade)* [**breaking**] name results and namespace types after their module (migration: BmsonProcessed, BmsonProcessWarning, and BmsonParseError lose their Bmson prefix; BmsProcessor and BmsonProcessor are Processor, BmsWriter is Writer, BmsLayout and BmsonLayout are Layout; prelude no longer exports the bmson Processed, ProcessWarning, ParseError, or Layout.)
+- *(model)* [**breaking**] drop the Owned parameter duplicates (migration: OwnedExWavParams, OwnedExBmpParams, and OwnedSwBgaParams are removed; read ExWavParams, ExBmpParams, and SwBgaParams from bmsrs-bms-values instead.)
+- *(facade)* [**breaking**] collapse the parse entry points behind Input (migration: `bms::parse_bytes`, `parse_bytes_with`, and
+`parse_file` are removed; build an `Input` (`Input::text(text, format)`,)
+- *(parser)* [**breaking**] take ControlFlowRng in the parser and facade entry points (migration: `BmsParser::parse`, `parse_with`, `parse_document`, and
+`parse_document_with` take `&mut R` (`R: ControlFlowRng`) instead of a
+closure by value; pass `&mut |_| 1` or `&mut FirstBranch`. The facade's
+`parse_with`, `parse_with_recording`, and `parse_bytes_with` follow
+suit, `bms::parse_with_rng` is removed, and `ParseOptions::first_branch`
+is replaced by `bmsrs_bms_syntax::FirstBranch` (re-exported as)
 ## [0.0.3](https://github.com/brightmeows/bmsrs/compare/bmsrs-bms-writer-v0.0.2...bmsrs-bms-writer-v0.0.3) - 2026-11-22
 
 ### Bug Fixes
