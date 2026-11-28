@@ -30,7 +30,7 @@ fn parse_with_collect_all_reports_tokenize_warnings() {
     )
     .unwrap_or_else(|error| panic!("{error}"));
     assert!(matches!(
-        outcome.warnings.as_slice(),
+        outcome.diagnostics.as_slice(),
         [bmsrs::bms::Diagnostic {
             kind: bmsrs::bms::DiagnosticKind::Tokenize(_),
             range,
@@ -45,9 +45,9 @@ fn colon_separated_definitions_flow_through_pipeline() {
     let parsed = bmsrs::bms::parse(Input::text(text, SourceFormat::Bms))
         .unwrap_or_else(|error| panic!("{error}"));
     assert!(
-        parsed.warnings.is_empty(),
+        parsed.diagnostics.is_empty(),
         "colon definitions must not produce tokenize warnings: {:?}",
-        parsed.warnings
+        parsed.diagnostics
     );
     assert_eq!(
         parsed.value.timing.stop_defs.get(&"01".parse().unwrap()),
@@ -87,7 +87,7 @@ fn diagnostic_converts_tokenize_warning() {
     .unwrap_or_else(|error| panic!("{error}"));
 
     let warning = outcome
-        .warnings
+        .diagnostics
         .into_iter()
         .next()
         .unwrap_or_else(|| panic!("expected a tokenize warning"));
@@ -128,7 +128,7 @@ fn parse_with_collect_all_reports_unselected_branch_error() {
     )
     .unwrap_or_else(|error| panic!("{error}"));
     assert!(matches!(
-        outcome.warnings.as_slice(),
+        outcome.diagnostics.as_slice(),
         [bmsrs::bms::Diagnostic {
             kind: bmsrs::bms::DiagnosticKind::Tokenize(_),
             ..

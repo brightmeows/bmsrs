@@ -23,7 +23,7 @@ fn missing_wav_key_produces_warning() {
         wav_id: "ZZ".parse().unwrap(),
     });
 
-    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
     assert!(
         warnings
             .iter()
@@ -43,7 +43,7 @@ fn missing_wav_key_carries_the_source_key() {
         wav_id: "FF".parse().unwrap(),
     });
 
-    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
     assert!(warnings.iter().any(|warning| matches!(
         warning.kind,
         ProcessWarningKind::MissingWavDefinition { key, .. } if key.as_str() == "FF"
@@ -66,7 +66,7 @@ fn untermined_long_note_produces_warning() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
     assert!(
         warnings
             .iter()
@@ -91,7 +91,7 @@ fn normal_chart_produces_no_warnings() {
         wav_id: "01".parse().unwrap(),
     });
 
-    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
     assert_eq!(warnings, [] as [bmsrs_bms_processor::ProcessWarning; 0]);
 }
 
@@ -106,7 +106,7 @@ fn missing_bpm_definition_produces_warning() {
         value: BpmValue::Reference(bpm_id),
     });
 
-    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
     let count = warnings
         .iter()
         .filter(|w| matches!(&w.kind, ProcessWarningKind::MissingBpmDefinition { .. }))
@@ -144,7 +144,7 @@ fn unparsable_bpm_value_produces_warning() {
 ";
     let source = SourceFile::parse(text);
     let bms = BmsParser::parse(&source.source_file(), &mut |_| 1).bms;
-    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
 
     assert!(warnings.iter().any(|w| matches!(
         w.kind,
@@ -164,7 +164,7 @@ fn negative_volwav_is_dropped_with_warning() {
     let processed = Processor::process_with(&bms, Bme).unwrap();
     // A negative value used to saturate to Some(0) and silence the chart.
     assert_eq!(processed.value.chart.chart_info().volwav_percent, None);
-    assert!(processed.warnings.iter().any(|w| matches!(
+    assert!(processed.diagnostics.iter().any(|w| matches!(
         w.kind,
         ProcessWarningKind::NegativeVolWavIgnored { value } if (value - (-5.0)).abs() < f64::EPSILON
     )));
@@ -178,7 +178,7 @@ fn oversized_volwav_is_clamped_with_warning() {
 
     let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(processed.value.chart.chart_info().volwav_percent, Some(255));
-    assert!(processed.warnings.iter().any(|w| matches!(
+    assert!(processed.diagnostics.iter().any(|w| matches!(
         w.kind,
         ProcessWarningKind::VolWavClamped {
             value: 300.0,
@@ -195,7 +195,7 @@ fn in_range_volwav_produces_no_warning() {
 
     let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(processed.value.chart.chart_info().volwav_percent, Some(120));
-    assert!(!processed.warnings.iter().any(|w| matches!(
+    assert!(!processed.diagnostics.iter().any(|w| matches!(
         w.kind,
         ProcessWarningKind::NegativeVolWavIgnored { .. } | ProcessWarningKind::VolWavClamped { .. }
     )));
