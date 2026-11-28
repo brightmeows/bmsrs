@@ -33,9 +33,9 @@ use std::time::Duration;
 use bmsrs_bmson_model::{BpmEvent, StopEvent as BmsonStopEvent};
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaFrame, BgaLayer, BgaResourceContent, BgaResourceId, BpmChange,
-    Chart, ChartData, ChartError, ChartInfo, Damage, Event, EventKind, Lane, LnJudgeHint,
-    LnLifeHint, LnTypeHint, Note, NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide, SongInfo,
-    StopEvent, TimingTrack, TimingTrackError,
+    Chart, ChartData, ChartDataOverlays, ChartError, ChartInfo, Damage, Event, EventKind, Lane,
+    LnJudgeHint, LnLifeHint, LnTypeHint, Note, NoteAudio, NoteExt, NoteKind, NoteRole, NoteSide,
+    SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
@@ -261,13 +261,15 @@ impl Processor {
             conv.events,
             conv.audio_assets,
         )?
-        .with_judge_multiplier(Some(bmson_data.judge_multiplier))
-        .with_life_multiplier(Some(bmson_data.life_multiplier))
-        .with_ln_type_hint(bmson_data.ln_type_hint.map(ln_type_to_hint))
-        .with_ln_judge_hint(ln_judge_to_hint(bmson_data.ln_judge_hint))
-        .with_ln_life_hint(ln_life_to_hint(bmson_data.ln_life_hint))
-        .with_judge_deltas(judge_deltas)
-        .with_life_deltas(life_deltas);
+        .with_overlays(ChartDataOverlays {
+            judge_multiplier: Some(bmson_data.judge_multiplier),
+            life_multiplier: Some(bmson_data.life_multiplier),
+            ln_type_hint: bmson_data.ln_type_hint.map(ln_type_to_hint),
+            ln_judge_hint: ln_judge_to_hint(bmson_data.ln_judge_hint),
+            ln_life_hint: ln_life_to_hint(bmson_data.ln_life_hint),
+            judge_deltas,
+            life_deltas,
+        });
 
         let kaleid = BmsonKaleid::from_bmson(bmson, conv.filters);
         Ok(Outcome::new(
