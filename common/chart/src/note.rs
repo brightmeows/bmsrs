@@ -14,13 +14,15 @@ pub struct Damage(f64);
 impl Damage {
     /// Create a damage value from `f64`.
     ///
-    /// # Panics (debug builds only)
-    ///
-    /// Panics in debug builds when `value` is NaN.
+    /// Returns `None` when `value` is NaN. Infinity is allowed: BMS mine value
+    /// `1295` maps to infinite damage.
     #[must_use]
-    pub fn new(value: f64) -> Self {
-        debug_assert!(!value.is_nan(), "damage must not be NaN");
-        Self(value)
+    pub const fn new(value: f64) -> Option<Self> {
+        if value.is_nan() {
+            None
+        } else {
+            Some(Self(value))
+        }
     }
 
     /// Return the raw damage value.

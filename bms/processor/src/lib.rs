@@ -55,7 +55,7 @@ use bmsrs_bms_values::{
     SeekIndex, TextIndex,
 };
 use bmsrs_chart::{
-    BgaResourceContent, BpmLookup, Chart, ChartData, ChartDataError, ChartInfo, Event, EventKind,
+    BgaResourceContent, BpmLookup, Chart, ChartData, ChartError, ChartInfo, Event, EventKind,
     JudgeRankKind, JudgeRankSpec, Lane, Note, NoteKind, NoteSide, SongInfo, SwBgaResource,
     SwBgaResourceId, TimingTrack, TimingTrackError,
 };
@@ -86,6 +86,7 @@ pub(crate) const fn nonzero(value: u32) -> NonZeroU32 {
 
 /// Errors that can occur while processing BMS.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ProcessError {
     /// Timing track construction failed (invalid initial BPM or zero
     /// resolution).
@@ -97,7 +98,7 @@ pub enum ProcessError {
     Timing(#[from] TimingTrackError),
     /// Chart data construction or validation failed.
     #[error(transparent)]
-    ChartData(#[from] ChartDataError),
+    ChartData(#[from] ChartError),
     /// Initial BPM is zero.
     ///
     /// In some implementations BMS `#BPM 0` means the chart does not scroll, but

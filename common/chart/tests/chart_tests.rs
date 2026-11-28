@@ -7,9 +7,8 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaFrame, BgaLayer, BgaResourceContent, BgaResourceId, BpmChange,
-    Chart, ChartData, ChartDataError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent,
-    Note, NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack,
-    TimingTrackError,
+    Chart, ChartData, ChartError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent, Note,
+    NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 
 const fn nz(n: u8) -> NonZeroU8 {
@@ -125,7 +124,7 @@ fn validate_rejects_dangling_audio_index() {
             vec![],
         )
         .err(),
-        Some(ChartDataError::DanglingAudioIndex {
+        Some(ChartError::DanglingAudioIndex {
             index: AudioIndex::new(3),
             len: 0
         })
@@ -179,7 +178,7 @@ fn chart_data_new_rejects_negative_init_bpm() {
     let result = ChartData::<(), NoCustomEvent>::new(-120.0, 240, vec![], vec![]);
     assert_eq!(
         result.err(),
-        Some(ChartDataError::Timing(TimingTrackError::InvalidBpm {
+        Some(ChartError::Timing(TimingTrackError::InvalidBpm {
             bpm: -120.0
         }))
     );
@@ -191,7 +190,7 @@ fn chart_data_new_rejects_invalid_bpm_event() {
         ChartData::<(), NoCustomEvent>::new(120.0, 240, vec![Event::bpm(240, -60.0)], vec![]);
     assert_eq!(
         result.err(),
-        Some(ChartDataError::InvalidBpmEvent {
+        Some(ChartError::InvalidBpmEvent {
             tick: 240,
             bpm: -60.0
         })
@@ -208,7 +207,7 @@ fn chart_data_new_rejects_non_finite_visual_rate() {
     );
     assert!(matches!(
         result,
-        Err(ChartDataError::InvalidVisualRate { tick: 240, .. })
+        Err(ChartError::InvalidVisualRate { tick: 240, .. })
     ));
 }
 
@@ -325,7 +324,7 @@ fn event_note_with_ext() {
             side: NoteSide::P2,
             lane: Lane::Scratch(nz(1)),
             kind: NoteKind::Mine {
-                damage: Damage::new(25.0),
+                damage: Damage::new(25.0).expect("test damage is finite"),
             },
             role: NoteRole::Normal,
             audio: NoteAudio::one(AudioIndex::new(0)),
@@ -370,7 +369,7 @@ fn note_kind_long_duration() {
 #[test]
 fn note_kind_mine_damage() {
     let nk = NoteKind::Mine {
-        damage: Damage::new(5.0),
+        damage: Damage::new(5.0).expect("test damage is finite"),
     };
     if let NoteKind::Mine { damage } = nk {
         assert!((damage.get() - 5.0).abs() < f64::EPSILON);
@@ -383,7 +382,7 @@ fn note_kind_mine_damage() {
 
 #[test]
 fn damage_creation() {
-    let d = Damage::new(10.0);
+    let d = Damage::new(10.0).expect("test damage is finite");
     assert!((d.get() - 10.0).abs() < f64::EPSILON);
 }
 
@@ -395,8 +394,14 @@ fn damage_default() {
 
 #[test]
 fn damage_eq() {
-    assert_eq!(Damage::new(5.0), Damage::new(5.0));
-    assert_ne!(Damage::new(5.0), Damage::new(10.0));
+    assert_eq!(
+        Damage::new(5.0).expect("test damage is finite"),
+        Damage::new(5.0).expect("test damage is finite")
+    );
+    assert_ne!(
+        Damage::new(5.0).expect("test damage is finite"),
+        Damage::new(10.0).expect("test damage is finite")
+    );
 }
 
 // NoteSide & Lane
@@ -491,7 +496,7 @@ fn sequence_frames_with_dangling_reference_fail_validation() {
 
     assert_eq!(
         Chart::new(SongInfo::default(), chart_info, data).unwrap_err(),
-        ChartDataError::DanglingBgaResource {
+        ChartError::DanglingBgaResource {
             id: BgaResourceId::new(9),
             len: 2,
         }
@@ -840,7 +845,7 @@ fn validate_rejects_dangling_bga_resource() {
 
     assert_eq!(
         Chart::new(SongInfo::default(), chart_info, data).err(),
-        Some(ChartDataError::DanglingBgaResource {
+        Some(ChartError::DanglingBgaResource {
             id: BgaResourceId::new(2),
             len: 1
         })

@@ -286,7 +286,7 @@ pub struct LifeDeltas {
 /// `ChartData` validation error type.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
-pub enum ChartDataError {
+pub enum ChartError {
     /// The initial BPM or beat resolution is invalid.
     Timing(TimingTrackError),
     /// A BPM event carries a non-positive or non-finite value.
@@ -320,11 +320,9 @@ pub enum ChartDataError {
         /// BGA resource table length.
         len: usize,
     },
-    /// Events are not sorted ascending by `(tick, priority)`.
-    UnsortedEvents,
 }
 
-impl fmt::Display for ChartDataError {
+impl fmt::Display for ChartError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Timing(error) => error.fmt(f),
@@ -346,14 +344,13 @@ impl fmt::Display for ChartDataError {
             Self::DanglingBgaResource { id, len } => {
                 write!(f, "bga resource id {id} out of range (0..{len})")
             }
-            Self::UnsortedEvents => write!(f, "events are not sorted by (tick, priority)"),
         }
     }
 }
 
-impl std::error::Error for ChartDataError {}
+impl std::error::Error for ChartError {}
 
-impl From<TimingTrackError> for ChartDataError {
+impl From<TimingTrackError> for ChartError {
     fn from(error: TimingTrackError) -> Self {
         Self::Timing(error)
     }
@@ -410,14 +407,14 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when the initial BPM or resolution is invalid,
+    /// Returns [`ChartError`] when the initial BPM or resolution is invalid,
     /// an event value is invalid, or an audio reference is out of range.
     pub fn new(
         init_bpm: f64,
         resolution: u64,
         mut events: Vec<Event<T, C>>,
         audio_assets: Vec<AudioAsset>,
-    ) -> Result<Self, ChartDataError> {
+    ) -> Result<Self, ChartError> {
         events.sort_by_key(Event::sort_key);
         let data = Self {
             init_bpm,
@@ -561,9 +558,9 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when the shifted event stream violates a
+    /// Returns [`ChartError`] when the shifted event stream violates a
     /// chart invariant.
-    pub fn with_start_margin(self, margin: Duration) -> Result<Self, ChartDataError> {
+    pub fn with_start_margin(self, margin: Duration) -> Result<Self, ChartError> {
         let timing = TimingTrack::from_events(self.init_bpm, self.resolution, &self.events)?;
         let Some(first_tick) = self.events.iter().find_map(|event| match &event.kind {
             EventKind::Note(note) if note.kind != NoteKind::Invisible => Some(event.tick()),
@@ -622,8 +619,8 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when any check fails.
-    fn validate(&self) -> Result<(), ChartDataError> {
+    /// Returns [`ChartError`] when any check fails.
+    fn validate(&self) -> Result<(), ChartError> {
         if !BpmChange::is_valid(self.init_bpm) {
             return Err(TimingTrackError::InvalidBpm { bpm: self.init_bpm }.into());
         }
@@ -631,21 +628,17 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
             return Err(TimingTrackError::ZeroResolution.into());
         }
 
-        if !self.events.is_sorted_by_key(Event::sort_key) {
-            return Err(ChartDataError::UnsortedEvents);
-        }
-
         let len = self.audio_assets.len();
         for event in &self.events {
             match &event.kind {
                 EventKind::Bpm { bpm } if !BpmChange::is_valid(*bpm) => {
-                    return Err(ChartDataError::InvalidBpmEvent {
+                    return Err(ChartError::InvalidBpmEvent {
                         tick: event.tick(),
                         bpm: *bpm,
                     });
                 }
                 EventKind::Scroll { rate } | EventKind::Speed { rate } if !rate.is_finite() => {
-                    return Err(ChartDataError::InvalidVisualRate {
+                    return Err(ChartError::InvalidVisualRate {
                         tick: event.tick(),
                         rate: *rate,
                     });
@@ -653,7 +646,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
                 EventKind::Note(Note { audio, .. }) => {
                     for &audio_index in audio.as_slice() {
                         if audio_index.get() as usize >= len {
-                            return Err(ChartDataError::DanglingAudioIndex {
+                            return Err(ChartError::DanglingAudioIndex {
                                 index: audio_index,
                                 len,
                             });
@@ -661,7 +654,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
                     }
                 }
                 EventKind::Bgm { audio_index } if audio_index.get() as usize >= len => {
-                    return Err(ChartDataError::DanglingAudioIndex {
+                    return Err(ChartError::DanglingAudioIndex {
                         index: *audio_index,
                         len,
                     });
@@ -685,12 +678,12 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     /// To change the `CustomEvent` type or filter events at the same time, use
     /// [`try_filter_map_events`](Self::try_filter_map_events).
     ///
-    /// The result is re-sorted and re-validated. Returns [`ChartDataError`] when
+    /// The result is re-sorted and re-validated. Returns [`ChartError`] when
     /// the mapped events violate a chart invariant.
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when the mapped events violate a chart
+    /// Returns [`ChartError`] when the mapped events violate a chart
     /// invariant.
     ///
     /// # Example
@@ -706,7 +699,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     pub fn try_map_events<U: NoteExt>(
         self,
         mut f: impl FnMut(Event<T, C>) -> Event<U, C>,
-    ) -> Result<ChartData<U, C>, ChartDataError> {
+    ) -> Result<ChartData<U, C>, ChartError> {
         self.rebuild_events(|e| Some(f(e)))
     }
 
@@ -727,7 +720,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when the mapped events violate a chart
+    /// Returns [`ChartError`] when the mapped events violate a chart
     /// invariant.
     ///
     /// # Example
@@ -753,7 +746,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     pub fn try_filter_map_events<U: NoteExt, D: CustomEvent>(
         self,
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
-    ) -> Result<ChartData<U, D>, ChartDataError> {
+    ) -> Result<ChartData<U, D>, ChartError> {
         self.rebuild_events(f)
     }
 
@@ -767,7 +760,7 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     fn rebuild_events<U: NoteExt, D: CustomEvent>(
         self,
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
-    ) -> Result<ChartData<U, D>, ChartDataError> {
+    ) -> Result<ChartData<U, D>, ChartError> {
         let Self {
             init_bpm,
             resolution,
@@ -831,13 +824,13 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when a BGA event references an out-of-range
+    /// Returns [`ChartError`] when a BGA event references an out-of-range
     /// resource.
     pub fn new(
         song: SongInfo,
         chart: ChartInfo,
         data: ChartData<T, C>,
-    ) -> Result<Self, ChartDataError> {
+    ) -> Result<Self, ChartError> {
         let validated = Self { song, chart, data };
         validated.validate_bga()?;
         Ok(validated)
@@ -868,9 +861,9 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError::DanglingBgaResource`] when an event references
+    /// Returns [`ChartError::DanglingBgaResource`] when an event references
     /// an out-of-range resource.
-    fn validate_bga(&self) -> Result<(), ChartDataError> {
+    fn validate_bga(&self) -> Result<(), ChartError> {
         let len = self.chart.bga_resources.len();
         for event in &self.data.events {
             if let EventKind::Bga {
@@ -879,7 +872,7 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
             } = &event.kind
                 && resource_id.get() as usize >= len
             {
-                return Err(ChartDataError::DanglingBgaResource {
+                return Err(ChartError::DanglingBgaResource {
                     id: *resource_id,
                     len,
                 });
@@ -888,7 +881,7 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
         for swbga in &self.chart.swbga_resources {
             for frame in swbga.pattern.iter().flatten() {
                 if frame.get() as usize >= len {
-                    return Err(ChartDataError::DanglingBgaResource { id: *frame, len });
+                    return Err(ChartError::DanglingBgaResource { id: *frame, len });
                 }
             }
         }
@@ -896,7 +889,7 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
             if let BgaResourceContent::Sequence { frames } = resource {
                 for frame in frames.iter().filter_map(|frame| frame.resource) {
                     if frame.get() as usize >= len {
-                        return Err(ChartDataError::DanglingBgaResource { id: frame, len });
+                        return Err(ChartError::DanglingBgaResource { id: frame, len });
                     }
                 }
             }
@@ -911,12 +904,12 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when the mapped events violate a chart
+    /// Returns [`ChartError`] when the mapped events violate a chart
     /// invariant.
     pub fn try_map_events<U: NoteExt>(
         self,
         f: impl FnMut(Event<T, C>) -> Event<U, C>,
-    ) -> Result<Chart<U, C>, ChartDataError> {
+    ) -> Result<Chart<U, C>, ChartError> {
         let Self { song, chart, data } = self;
         Chart::<U, C>::new(song, chart, data.try_map_events(f)?)
     }
@@ -928,12 +921,12 @@ impl<T: NoteExt, C: CustomEvent> Chart<T, C> {
     ///
     /// # Errors
     ///
-    /// Returns [`ChartDataError`] when the mapped events violate a chart
+    /// Returns [`ChartError`] when the mapped events violate a chart
     /// invariant.
     pub fn try_filter_map_events<U: NoteExt, D: CustomEvent>(
         self,
         f: impl FnMut(Event<T, C>) -> Option<Event<U, D>>,
-    ) -> Result<Chart<U, D>, ChartDataError> {
+    ) -> Result<Chart<U, D>, ChartError> {
         let Self { song, chart, data } = self;
         Chart::<U, D>::new(song, chart, data.try_filter_map_events(f)?)
     }
