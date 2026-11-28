@@ -142,6 +142,21 @@ pub struct LineToken {
 }
 
 /// BMS semantic parser.
+///
+/// Three input kinds, two diagnostic policies, two error types:
+///
+/// | Entry | Input | Diagnostics collected | Reads `error_strategy` | Error |
+/// |-------|-------|-----------------------|------------------------|-------|
+/// | [`parse`](Self::parse), [`parse_with`](Self::parse_with) | CST | token errors on the selected branches | no | none |
+/// | [`parse_document`](Self::parse_document), [`parse_document_with`](Self::parse_document_with) | lossless `Document` | syntax and token errors from every line | yes | [`Diagnostic`](crate::Diagnostic) |
+/// | [`parse_from_selection`](Self::parse_from_selection), [`parse_from_selection_with`](Self::parse_from_selection_with) | CST plus a recorded [`BranchSelection`] | token errors on the replayed branches | no | [`BranchMismatch`] |
+/// | [`tokenize_lines`](Self::tokenize_lines), [`tokenize_lines_with`](Self::tokenize_lines_with) | CST | token errors as `Err` entries | no | none |
+///
+/// A CST carries no syntax diagnostics (they live in the syntax crate's
+/// `SyntaxParse`), which is why only the `Document` entries can honor
+/// `FailFast`; the facade's replay entry point collects the syntax
+/// diagnostics itself and applies the strategy on top of
+/// [`parse_from_selection_with`](Self::parse_from_selection_with).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BmsParser;
 
