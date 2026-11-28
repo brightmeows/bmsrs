@@ -7,7 +7,8 @@ use std::time::Duration;
 
 use bmsrs_chart::{
     AudioAsset, AudioIndex, BgaFrame, BgaLayer, BgaResourceContent, BgaResourceId, BpmChange,
-    Chart, ChartData, ChartError, ChartInfo, Damage, Event, EventKind, Lane, NoCustomEvent, Note,
+    Chart, ChartData, ChartDataOverlays, ChartError, ChartInfo, Damage, Event, EventKind,
+    JudgementDeltas, Lane, LifeDeltas, LnJudgeHint, LnLifeHint, LnTypeHint, NoCustomEvent, Note,
     NoteAudio, NoteKind, NoteRole, NoteSide, SongInfo, StopEvent, TimingTrack, TimingTrackError,
 };
 
@@ -959,4 +960,38 @@ fn start_margin_keeps_chart_when_first_note_is_late_enough() {
         .with_start_margin(Duration::from_secs(1))
         .expect("unchanged chart should be valid");
     assert_eq!(shifted.events(), data.events());
+}
+
+#[test]
+fn chart_data_with_overlays_applies_every_field() {
+    let overlays = ChartDataOverlays {
+        judge_multiplier: Some(0.5),
+        life_multiplier: Some(1.5),
+        ln_type_hint: Some(LnTypeHint::Cn),
+        ln_judge_hint: LnJudgeHint::Ticks,
+        ln_life_hint: LnLifeHint::Ticks,
+        judge_deltas: Some(JudgementDeltas {
+            perfect: 1,
+            great: 2,
+            good: 3,
+            miss: 4,
+        }),
+        life_deltas: Some(LifeDeltas {
+            perfect: 1.0,
+            great: 2.0,
+            good: 3.0,
+            miss: 4.0,
+        }),
+    };
+    let data: ChartData = ChartData::new(120.0, 240, vec![], vec![])
+        .expect("valid empty chart data")
+        .with_overlays(overlays);
+
+    assert_eq!(data.judge_multiplier(), Some(0.5));
+    assert_eq!(data.life_multiplier(), Some(1.5));
+    assert_eq!(data.ln_type_hint(), Some(LnTypeHint::Cn));
+    assert_eq!(data.ln_judge_hint(), LnJudgeHint::Ticks);
+    assert_eq!(data.ln_life_hint(), LnLifeHint::Ticks);
+    assert_eq!(data.judge_deltas(), overlays.judge_deltas);
+    assert_eq!(data.life_deltas(), overlays.life_deltas);
 }

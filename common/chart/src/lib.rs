@@ -283,6 +283,29 @@ pub struct LifeDeltas {
     pub miss: f64,
 }
 
+/// Optional chart-level overlays applied together.
+///
+/// Groups the fields that the BMSON processor sets as one block. The
+/// individual `ChartData::with_*` setters remain available for callers that
+/// change a single field.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ChartDataOverlays {
+    /// Judgment window multiplier (`Some(1.0)` is standard).
+    pub judge_multiplier: Option<f64>,
+    /// Life gauge multiplier (`Some(1.0)` is standard).
+    pub life_multiplier: Option<f64>,
+    /// Chart-level long-note type hint.
+    pub ln_type_hint: Option<LnTypeHint>,
+    /// Chart-level long-note judgment hint.
+    pub ln_judge_hint: LnJudgeHint,
+    /// Chart-level long-note life hint.
+    pub ln_life_hint: LnLifeHint,
+    /// Custom judgment-window offsets.
+    pub judge_deltas: Option<JudgementDeltas>,
+    /// Custom life gauge deltas.
+    pub life_deltas: Option<LifeDeltas>,
+}
+
 /// `ChartData` validation error type.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -545,6 +568,21 @@ impl<T: NoteExt, C: CustomEvent> ChartData<T, C> {
     #[must_use]
     pub const fn with_life_deltas(mut self, value: Option<LifeDeltas>) -> Self {
         self.life_deltas = value;
+        self
+    }
+
+    /// Apply a group of chart-level overlays.
+    ///
+    /// Equivalent to calling the individual `with_*` setters for every field.
+    #[must_use]
+    pub const fn with_overlays(mut self, overlays: ChartDataOverlays) -> Self {
+        self.judge_multiplier = overlays.judge_multiplier;
+        self.life_multiplier = overlays.life_multiplier;
+        self.ln_type_hint = overlays.ln_type_hint;
+        self.ln_judge_hint = overlays.ln_judge_hint;
+        self.ln_life_hint = overlays.ln_life_hint;
+        self.judge_deltas = overlays.judge_deltas;
+        self.life_deltas = overlays.life_deltas;
         self
     }
 

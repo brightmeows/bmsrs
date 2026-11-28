@@ -110,7 +110,7 @@ Pick the construction shape by what varies, not by habit:
 | Configuration reused across calls | options struct with public fields | `ParseOptions`, `DocumentOptions` |
 | Mutually exclusive input kinds | closed sum type with constructors | `Input::text` / `Input::bytes` / `Input::file` |
 | A stage the caller must not skip | consuming finalizer | `MessagesBuilder::finish` |
-| Optional overlays that repeat as a set | preset `for_*` constructor | none yet; the trigger is a second call site setting the same seven `ChartData` overlays |
+| Optional overlays that repeat as a set | overlay struct plus consuming `with_overlays` | `ChartDataOverlays` |
 
 An options struct implements `Default` only when the default is specified
 behavior (first branch, `CollectAll`), not an arbitrary guess; a caller with a

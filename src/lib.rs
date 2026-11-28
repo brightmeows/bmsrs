@@ -623,7 +623,8 @@ pub mod prelude {
     #[cfg(feature = "bmson")]
     pub use crate::bmson::{Bmson, GenericLayout};
     pub use crate::chart::{
-        Chart, ChartData, Event, EventKind, Lane, Note, NoteKind, NoteRole, TimingTrack,
+        Chart, ChartData, ChartDataOverlays, Event, EventKind, Lane, Note, NoteKind, NoteRole,
+        TimingTrack,
     };
     pub use crate::pipeline::{DiagnosticCode, Severity, SourceSpan};
     pub use crate::player::Player;

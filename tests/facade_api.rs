@@ -409,6 +409,7 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<Bme>(),
         named::<Chart>(),
         named::<ChartData>(),
+        named::<ChartDataOverlays>(),
         named::<Event>(),
         named::<EventKind<()>>(),
         named::<Lane>(),
@@ -425,7 +426,7 @@ fn prelude_exports_every_type_and_no_functions() {
     let bmson_only = [named::<Beat>(), named::<GenericLayout>(), named::<Bmson>()];
     #[cfg(not(feature = "bmson"))]
     let bmson_only: [&'static str; 0] = [];
-    let expected = if cfg!(feature = "bmson") { 38 } else { 35 };
+    let expected = if cfg!(feature = "bmson") { 39 } else { 36 };
     assert_eq!(resolved.len() + bmson_only.len(), expected);
     assert!(resolved.iter().all(|name| !name.is_empty()));
     assert!(bmson_only.iter().all(|name| !name.is_empty()));
