@@ -38,13 +38,15 @@ fix live in `.pre-commit-config.yaml`. Workspace tests run with
 
 ## Conventions
 
-### Commit format
+### Commit and pull request format
 
 Conventional Commits with a scope, matching the `release-plz.toml` changelog
 groups. Titles and bodies are English, a repository-level override of the
 Chinese default. Mark breaking changes with `!` and add a
 `BREAKING CHANGE: <migration note>` footer; release-plz renders it into the
-changelog entry.
+changelog entry. Pull request titles use the same format: the repository
+merges with merge commits whose subject is the PR title followed by `(#N)`,
+so a free-form title lands on `main` verbatim.
 
 ### Worktree directory
 
