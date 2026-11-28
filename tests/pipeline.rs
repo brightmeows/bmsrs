@@ -1,18 +1,17 @@
 //! Integration tests for the `bmsrs` whole-pipeline entry points.
 //!
 //! The `bms::parse` family assembles CST parsing, control-flow selection, and
-//! single-line parsing; these tests verify that both error strategies behave
-//! as external consumers expect.
+//! single-line parsing; the facade always collects diagnostics, so these tests
+//! verify the collected results and the strict `into_result` conversion.
 
-use bmsrs::bms::ErrorStrategy;
-use bmsrs::bms::{Input, ParseOptions, SourceFormat, SyntaxOptions};
+use bmsrs::bms::{Input, SourceFormat, SyntaxOptions};
 
 #[test]
 fn parse_with_collect_all_keeps_tokens_after_error() {
     let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
     let outcome = bmsrs::bms::parse_with(
         Input::text(text, SourceFormat::Bms),
-        &ParseOptions::default(),
+        &SyntaxOptions::default(),
         &mut |_| 1,
     )
     .unwrap_or_else(|error| panic!("{error}"));
@@ -24,7 +23,7 @@ fn parse_with_collect_all_reports_tokenize_warnings() {
     let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
     let outcome = bmsrs::bms::parse_with(
         Input::text(text, SourceFormat::Bms),
-        &ParseOptions::default(),
+        &SyntaxOptions::default(),
         &mut |_| 1,
     )
     .unwrap_or_else(|error| panic!("{error}"));
@@ -80,7 +79,7 @@ fn diagnostic_converts_tokenize_warning() {
     let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
     let outcome = bmsrs::bms::parse_with(
         Input::text(text, SourceFormat::Bms),
-        &ParseOptions::default(),
+        &SyntaxOptions::default(),
         &mut |_| 1,
     )
     .unwrap_or_else(|error| panic!("{error}"));
@@ -100,20 +99,24 @@ fn diagnostic_converts_tokenize_warning() {
 }
 
 #[test]
-fn parse_with_fail_fast_returns_tokenize_error() {
+fn parse_with_recovered_error_fails_into_result() {
     let text = "#TITLE A\n#BPM abc\n#ARTIST B\n";
-    let options = ParseOptions {
-        error_strategy: ErrorStrategy::FailFast,
-        ..ParseOptions::default()
-    };
-    let result = bmsrs::bms::parse_with(Input::text(text, SourceFormat::Bms), &options, &mut |_| 1);
+    let outcome = bmsrs::bms::parse_with(
+        Input::text(text, SourceFormat::Bms),
+        &SyntaxOptions::default(),
+        &mut |_| 1,
+    )
+    .unwrap_or_else(|error| panic!("{error}"));
+    let diagnostics = outcome
+        .into_result()
+        .expect_err("a tokenize error is recovered as an error diagnostic");
     assert!(matches!(
-        result,
-        Err(bmsrs::bms::ParseError::Diagnostic(bmsrs::bms::Diagnostic {
+        diagnostics.as_slice(),
+        [bmsrs::bms::Diagnostic {
             kind: bmsrs::bms::DiagnosticKind::Tokenize(_),
             range,
             ..
-        })) if !range.is_empty()
+        }] if !range.is_empty()
     ));
 }
 
@@ -122,7 +125,7 @@ fn parse_with_collect_all_reports_unselected_branch_error() {
     let text = "#RANDOM 2\n#IF 1\n#BPM 120\n#ENDIF\n#IF 2\n#BPM abc\n#ENDIF\n#ENDRANDOM\n";
     let outcome = bmsrs::bms::parse_with(
         Input::text(text, SourceFormat::Bms),
-        &ParseOptions::default(),
+        &SyntaxOptions::default(),
         &mut |_| 1,
     )
     .unwrap_or_else(|error| panic!("{error}"));
@@ -137,12 +140,9 @@ fn parse_with_collect_all_reports_unselected_branch_error() {
 
 #[test]
 fn parse_with_accepts_custom_header_prefix() {
-    let options = ParseOptions {
-        syntax: SyntaxOptions {
-            header_prefixes: vec!['@'],
-            ..Default::default()
-        },
-        ..ParseOptions::default()
+    let options = SyntaxOptions {
+        header_prefixes: vec!['@'],
+        ..SyntaxOptions::default()
     };
     let outcome = bmsrs::bms::parse_with(
         Input::text("@TITLE A\n", SourceFormat::Bms),

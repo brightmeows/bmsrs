@@ -10,7 +10,7 @@ use bmsrs_bms_syntax::{
     TextRange, TextSize,
 };
 use bmsrs_bms_values::{BmsToken, BmsTokenizeError};
-use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, Severity, SourceSpan};
+use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, HasSeverity, Severity, SourceSpan};
 
 use bmsrs_bms_model::Bms;
 
@@ -70,6 +70,12 @@ impl Diagnostic {
     }
 }
 
+impl HasSeverity for Diagnostic {
+    fn severity(&self) -> Severity {
+        self.severity
+    }
+}
+
 impl fmt::Display for Diagnostic {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let severity = match self.severity {
@@ -118,6 +124,12 @@ impl From<Diagnostic> for bmsrs_pipeline::Diagnostic {
                 diagnostic.range.end().into(),
             ))
             .with_code(code)
+    }
+}
+
+impl From<&Diagnostic> for bmsrs_pipeline::Diagnostic {
+    fn from(diagnostic: &Diagnostic) -> Self {
+        Self::from(diagnostic.clone())
     }
 }
 

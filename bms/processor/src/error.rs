@@ -60,6 +60,18 @@ impl From<ProcessWarning> for bmsrs_pipeline::Diagnostic {
     }
 }
 
+impl From<&ProcessWarning> for bmsrs_pipeline::Diagnostic {
+    fn from(warning: &ProcessWarning) -> Self {
+        Self::from(warning.clone())
+    }
+}
+
+impl bmsrs_pipeline::HasSeverity for ProcessWarning {
+    fn severity(&self) -> bmsrs_pipeline::Severity {
+        bmsrs_pipeline::Severity::Warning
+    }
+}
+
 /// Warning payload.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
