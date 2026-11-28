@@ -3,7 +3,8 @@
 //! This crate is the dependency-free vocabulary shared by the BMS and BMSON
 //! processors and the public facade:
 //!
-//! - [`Outcome`] pairs a produced value with recoverable warnings.
+//! - [`Outcome`] pairs a produced value with the diagnostics collected while
+//!   producing it.
 //! - [`SourceSpan`] is a format-neutral byte range.
 //! - [`Diagnostic`], [`Severity`], and [`DiagnosticCode`] describe one
 //!   user-facing diagnostic.
@@ -16,43 +17,84 @@
 
 use std::fmt;
 
-/// A produced value plus recoverable warnings.
+/// A produced value plus the diagnostics collected while producing it.
+///
+/// The severity of each diagnostic travels with the diagnostic itself. An
+/// outcome can hold a value while also holding diagnostics of error severity
+/// that the producer recovered from, so [`diagnostics`](Self::diagnostics) is
+/// not limited to warning severity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Outcome<T, W> {
+pub struct Outcome<T, D> {
     /// Produced value.
     pub value: T,
-    /// Recoverable warnings collected while producing the value.
-    pub warnings: Vec<W>,
+    /// Diagnostics collected while producing the value.
+    pub diagnostics: Vec<D>,
 }
 
-impl<T, W> Outcome<T, W> {
-    /// Construct an outcome from a value and its warnings.
+impl<T, D> Outcome<T, D> {
+    /// Construct an outcome from a value and its diagnostics.
     #[must_use]
-    pub const fn new(value: T, warnings: Vec<W>) -> Self {
-        Self { value, warnings }
+    pub const fn new(value: T, diagnostics: Vec<D>) -> Self {
+        Self { value, diagnostics }
     }
 
-    /// Split into the value and the warning list.
+    /// Split into the value and the diagnostic list.
     #[must_use]
-    pub fn into_parts(self) -> (T, Vec<W>) {
-        (self.value, self.warnings)
+    pub fn into_parts(self) -> (T, Vec<D>) {
+        (self.value, self.diagnostics)
     }
 
-    /// Map the value, keeping warnings unchanged.
+    /// Map the value, keeping diagnostics unchanged.
     #[must_use]
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Outcome<U, W> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Outcome<U, D> {
         Outcome {
             value: f(self.value),
-            warnings: self.warnings,
+            diagnostics: self.diagnostics,
         }
     }
 
-    /// Map every warning, keeping the value unchanged.
+    /// Map every diagnostic, keeping the value unchanged.
     #[must_use]
-    pub fn map_warnings<V>(self, f: impl FnMut(W) -> V) -> Outcome<T, V> {
+    pub fn map_diagnostics<V>(self, f: impl FnMut(D) -> V) -> Outcome<T, V> {
         Outcome {
             value: self.value,
-            warnings: self.warnings.into_iter().map(f).collect(),
+            diagnostics: self.diagnostics.into_iter().map(f).collect(),
+        }
+    }
+}
+
+impl<T, D: HasSeverity> Outcome<T, D> {
+    /// Return whether any diagnostic has error severity.
+    #[must_use]
+    pub fn has_errors(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity() == Severity::Error)
+    }
+
+    /// Iterate over diagnostics with error severity.
+    pub fn errors(&self) -> impl Iterator<Item = &D> {
+        self.diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity() == Severity::Error)
+    }
+
+    /// Convert into a strict result.
+    ///
+    /// Returns `Err` with every diagnostic, in collection order, when at least
+    /// one diagnostic has error severity. Without errors, returns the value
+    /// and discards the diagnostics; use [`into_parts`](Self::into_parts) when
+    /// the diagnostics are needed on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns every collected diagnostic when at least one has error
+    /// severity.
+    pub fn into_result(self) -> Result<T, Vec<D>> {
+        if self.has_errors() {
+            Err(self.diagnostics)
+        } else {
+            Ok(self.value)
         }
     }
 }
@@ -122,6 +164,17 @@ pub enum Severity {
     Warning,
     /// Information.
     Information,
+}
+
+/// Diagnostic severity access.
+///
+/// Implemented by every diagnostic and warning type that can travel in an
+/// [`Outcome`]. Keeping the accessor on a trait lets [`Outcome::has_errors`]
+/// and [`Outcome::into_result`] work across the pipeline's typed diagnostic
+/// shapes.
+pub trait HasSeverity {
+    /// Return the diagnostic severity.
+    fn severity(&self) -> Severity;
 }
 
 /// Stable diagnostic code.
@@ -221,6 +274,12 @@ impl Diagnostic {
     #[must_use]
     pub const fn is_error(&self) -> bool {
         matches!(self.severity, Severity::Error)
+    }
+}
+
+impl HasSeverity for Diagnostic {
+    fn severity(&self) -> Severity {
+        self.severity
     }
 }
 

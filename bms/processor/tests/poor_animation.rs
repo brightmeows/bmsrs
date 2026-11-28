@@ -105,7 +105,7 @@ fn undefined_object_becomes_blank_frame_and_warns() {
     };
     assert_eq!(frames[0].resource, None, "undefined 07 is a blank frame");
     assert_eq!(frames[1].resource, Some(BgaResourceId::new(0)));
-    assert!(processed.warnings.iter().any(|warning| matches!(
+    assert!(processed.diagnostics.iter().any(|warning| matches!(
         warning.kind,
         ProcessWarningKind::MissingBmpDefinition { key, .. } if key.as_str() == "07"
     )));

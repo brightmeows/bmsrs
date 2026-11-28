@@ -15,7 +15,7 @@ enter downstream dependency trees.
 ## Architecture
 
 Three crates: `bmsrs-chart` (the `Chart<T>` central IR), `bmsrs-player`
-(pure simulation queries), and `bmsrs-pipeline` (`Outcome<T, W>`,
+(pure simulation queries), and `bmsrs-pipeline` (`Outcome<T, D>`,
 `SourceSpan`, `Diagnostic`). The time model is documented in
 `bmsrs-chart`'s crate-level docs.
 

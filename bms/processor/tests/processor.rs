@@ -183,7 +183,7 @@ fn undefined_bmp_reference_clears_layer_with_warning() {
         })
         .collect();
     assert_eq!(bga, vec![(BgaLayer::Base, None, 960)]);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             warning.kind,
             // The key is the source spelling, not a number in any base.
@@ -233,7 +233,7 @@ fn undefined_text_reference_warns_and_is_skipped() {
 
     let processed = Processor::process_with(&bms, Bme).unwrap();
     assert!(
-        processed.warnings.iter().any(|warning| {
+        processed.diagnostics.iter().any(|warning| {
             matches!(
                 warning.kind,
                 ProcessWarningKind::MissingTextDefinition { key, tick: 960 }
@@ -268,7 +268,7 @@ fn undefined_swbga_reference_warns_and_is_skipped() {
 
     let processed = Processor::process_with(&bms, Bme).unwrap();
     assert!(
-        processed.warnings.iter().any(|warning| {
+        processed.diagnostics.iter().any(|warning| {
             matches!(
                 warning.kind,
                 ProcessWarningKind::MissingSwBgaDefinition { key, tick: 960 }
@@ -303,7 +303,7 @@ fn undefined_exrank_reference_warns_and_is_skipped() {
 
     let processed = Processor::process_with(&bms, Bme).unwrap();
     assert!(
-        processed.warnings.iter().any(|warning| {
+        processed.diagnostics.iter().any(|warning| {
             matches!(
                 warning.kind,
                 ProcessWarningKind::MissingExRankDefinition { key, tick: 960 }
@@ -453,7 +453,7 @@ fn negative_stp_entry_warns_and_is_skipped() {
     assert_eq!(stops.len(), 1);
     // 1000 ms at default BPM 130 = 520 ticks, at measure 2 (tick 1920).
     assert_eq!(stops[0], (1920, Duration::from_millis(1000)));
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             warning.kind,
             ProcessWarningKind::StopDurationClipped { tick: 960, .. }
@@ -614,7 +614,7 @@ fn process_nan_bpm_change_produces_warning() {
         value: BpmValue::Absolute(f64::NAN),
     });
 
-    let warnings = Processor::process_with(&bms, Bme).unwrap().warnings;
+    let warnings = Processor::process_with(&bms, Bme).unwrap().diagnostics;
     // NaN cannot be compared with assert_eq; use matches! to check the variant
     // and value.
     assert_eq!(warnings.len(), 1);
@@ -1100,7 +1100,7 @@ fn duplicate_same_position_note_keeps_last_definition() {
         .collect();
     // Only the later definition (WAV 02, audio index 1) survives.
     assert_eq!(notes, vec![Some(1)]);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::DuplicateNotePosition {
@@ -1138,7 +1138,7 @@ fn mine_on_occupied_note_position_is_dropped() {
     let processed = Processor::process_with(&bms, Bme).unwrap();
     let mines = count_mines(&processed.value.chart);
     assert_eq!(mines, 0);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::MineNoteConflict {
@@ -1184,7 +1184,7 @@ fn note_on_mine_position_replaces_mine() {
         .iter()
         .any(|e| matches!(&e.kind, EventKind::Note(note) if note.kind == NoteKind::Normal));
     assert!(has_note);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::MineNoteConflict { tick: 960, .. }
@@ -1223,7 +1223,7 @@ fn mine_inside_long_note_range_is_dropped() {
 
     let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(count_mines(&processed.value.chart), 0);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::MineNoteConflict { tick: 360, .. }
@@ -1257,7 +1257,7 @@ fn mine_on_unterminated_long_note_start_is_dropped() {
 
     let processed = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(count_mines(&processed.value.chart), 0);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::MineNoteConflict { tick: 0, .. }
@@ -1314,7 +1314,7 @@ fn note_on_long_note_start_with_other_wav_moves_to_bgm() {
         .collect();
     // The layer note moved to BGM at tick 0 (WAV 02, audio index 1).
     assert_eq!(bgm_ticks, vec![(0, 1)]);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::NoteCoveredByLongNote { tick: 0, .. }
@@ -1362,7 +1362,7 @@ fn note_on_long_note_start_with_same_wav_is_dropped() {
         .filter(|e| matches!(&e.kind, EventKind::Bgm { .. }))
         .count();
     assert_eq!(bgm_count, 0);
-    assert!(!processed.warnings.iter().any(|warning| {
+    assert!(!processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::NoteCoveredByLongNote { .. }
@@ -1439,7 +1439,7 @@ fn lnobj_end_position_note_moves_to_bgm() {
         })
         .collect();
     assert_eq!(bgm_ticks, vec![(960, 1)]);
-    assert!(processed.warnings.iter().any(|warning| {
+    assert!(processed.diagnostics.iter().any(|warning| {
         matches!(
             &warning.kind,
             ProcessWarningKind::NoteCoveredByLongNote { tick: 960, .. }
@@ -1545,7 +1545,7 @@ fn asset_probe_reports_missing_sound_and_image_files() {
         .expect("process should succeed");
 
     let missing: Vec<_> = processed
-        .warnings
+        .diagnostics
         .iter()
         .filter_map(|warning| match &warning.kind {
             ProcessWarningKind::MissingAssetFile { path } => Some(path.as_str()),
@@ -1566,7 +1566,7 @@ fn declared_asset_lookup_never_touches_the_probe() {
         .expect("process should succeed");
     assert!(
         processed
-            .warnings
+            .diagnostics
             .iter()
             .all(|warning| !matches!(warning.kind, ProcessWarningKind::MissingAssetFile { .. }))
     );

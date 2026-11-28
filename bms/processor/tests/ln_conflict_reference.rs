@@ -54,7 +54,7 @@ fn lntype1_consecutive_events_pair_in_order() {
 
     let outcome = Processor::process_with(&bms, Bme).unwrap();
     assert_eq!(long_notes(&outcome.value.chart), [(0, 240), (480, 240)]);
-    assert!(!outcome.warnings.iter().any(|warning| matches!(
+    assert!(!outcome.diagnostics.iter().any(|warning| matches!(
         warning.kind,
         ProcessWarningKind::UnterminatedLongNote { .. }
     )));
@@ -83,7 +83,7 @@ fn unpaired_ln_start_emits_no_note_and_warns() {
         .filter(|event| matches!(event.kind, EventKind::Note(_)))
         .count();
     assert_eq!(note_count, 0, "the unpaired long-note start is dropped");
-    assert!(outcome.warnings.iter().any(|warning| matches!(
+    assert!(outcome.diagnostics.iter().any(|warning| matches!(
         warning.kind,
         ProcessWarningKind::UnterminatedLongNote {
             player: 1,
@@ -136,7 +136,7 @@ fn covered_note_keysound_moves_to_bgm_and_warns() {
         .collect();
     assert_eq!(bgm_paths, ["c.wav"], "the covered keysound moves to BGM");
     assert!(
-        outcome.warnings.iter().any(|warning| matches!(
+        outcome.diagnostics.iter().any(|warning| matches!(
             warning.kind,
             ProcessWarningKind::NoteCoveredByLongNote {
                 player: 1,

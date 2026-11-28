@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("usage: quick_start <chart.bms>")?;
 
     let parsed = bmsrs::bms::parse(std::path::Path::new(&path))?;
-    println!("parse warnings: {}", parsed.warnings.len());
+    println!("parse diagnostics: {}", parsed.diagnostics.len());
 
     let processed = bmsrs::bms::process(&parsed.value)?;
     println!("events: {}", processed.value.chart.data().events().len());

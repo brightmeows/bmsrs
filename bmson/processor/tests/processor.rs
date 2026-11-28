@@ -200,7 +200,7 @@ fn process_layered_long_notes_warn_on_length_mismatch() -> TestResult {
 
     assert!(
         processed
-            .warnings
+            .diagnostics
             .contains(&ProcessWarning::LayeredNoteLengthMismatch {
                 tick: 0,
                 first: 240,
@@ -566,7 +566,7 @@ fn process_default_other_mode_hint_produces_warning() -> TestResult {
     // fallback itself must be observable.
     let mut bmson = make_simple_bmson();
     bmson.chart_data.mode_hint = ModeHint::Other("somewhere-new".to_owned());
-    let warnings = Processor::process_default(&bmson)?.warnings;
+    let warnings = Processor::process_default(&bmson)?.diagnostics;
     assert_eq!(
         warnings,
         vec![ProcessWarning::UnknownModeHint {
@@ -1210,7 +1210,7 @@ fn zero_resolution_falls_back_to_240_with_warning() -> TestResult {
     assert_eq!(processed.value.chart.data().resolution(), 240);
     assert!(
         processed
-            .warnings
+            .diagnostics
             .iter()
             .any(|w| matches!(w, ProcessWarning::ZeroResolutionFallback)),
         "resolution fallback should warn"

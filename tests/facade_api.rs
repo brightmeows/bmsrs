@@ -11,7 +11,7 @@ fn bms_parse_and_process_return_outcomes() {
 
     let processed = bmsrs::bms::process(&parsed.value).expect("valid chart");
     assert_ne!(processed.value.chart.data().events().len(), 0);
-    assert_eq!(processed.warnings.len(), 0);
+    assert_eq!(processed.diagnostics.len(), 0);
 
     let text = bmsrs::bms::write(&parsed.value);
     assert!(text.contains("#TITLE A"));
@@ -233,7 +233,7 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
     ))
     .expect("valid BMS");
     let codes: Vec<_> = unclosed
-        .warnings
+        .diagnostics
         .into_iter()
         .map(Diagnostic::from)
         .filter_map(|diagnostic| diagnostic.code)
@@ -248,7 +248,7 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
     ))
     .expect("valid BMS");
     let invalid_codes: Vec<_> = invalid
-        .warnings
+        .diagnostics
         .into_iter()
         .map(Diagnostic::from)
         .filter_map(|diagnostic| diagnostic.code)
@@ -279,7 +279,7 @@ fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
     assert_eq!(parsed.value.metadata.title.as_deref(), Some("A"));
 
     let unclosed = parsed
-        .warnings
+        .diagnostics
         .iter()
         .find(|warning| {
             matches!(
@@ -303,7 +303,7 @@ fn syntax_error_keeps_error_severity_at_the_pipeline_exit() {
     ))
     .expect("collect-all parses");
     let diagnostic = parsed
-        .warnings
+        .diagnostics
         .iter()
         .find(|warning| matches!(warning.kind, bmsrs::bms::DiagnosticKind::Cst { .. }))
         .cloned()

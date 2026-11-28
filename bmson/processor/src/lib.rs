@@ -182,7 +182,7 @@ impl Processor {
             bmsrs_bmson_model::ModeHint::Other(hint) => {
                 let mut processed = Self::process_with(bmson, Beat)?;
                 processed
-                    .warnings
+                    .diagnostics
                     .push(ProcessWarning::UnknownModeHint { hint: hint.clone() });
                 Ok(processed)
             }
