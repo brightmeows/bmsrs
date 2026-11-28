@@ -8,6 +8,7 @@
 // per measure. See the event_pos helper.
 
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 use crate::warnings::ChannelValueWarning;
 use bmsrs_bms_values::{
@@ -25,8 +26,8 @@ use bmsrs_pipeline::SourceSpan;
 /// corresponds to `numer = i` and `denom = N`.
 ///
 /// The fields are private and can only be constructed through
-/// [`Position::new`], which guarantees the `denom > 0` invariant at the type
-/// level so external code cannot bypass it.
+/// [`Position::new`], whose denominator is a [`NonZeroU32`], so a zero
+/// denominator is unrepresentable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     /// Measure number (0-999).
@@ -35,20 +36,15 @@ pub struct Position {
     numer: u32,
     /// Denominator (the total number of objects for this channel in this
     /// measure).
-    denom: u32,
+    denom: NonZeroU32,
 }
 
 impl Position {
     /// Create a new position.
     ///
-    /// # Panics
-    ///
-    /// Panics when `denom == 0`; a position with a zero denominator is
-    /// meaningless.
     #[inline]
     #[must_use]
-    pub fn new(measure: u16, numer: u32, denom: u32) -> Self {
-        assert!(denom > 0, "Position denom must be non-zero");
+    pub const fn new(measure: u16, numer: u32, denom: NonZeroU32) -> Self {
         Self {
             measure,
             numer,
@@ -73,19 +69,18 @@ impl Position {
     /// Return the denominator (the total number of objects for this channel in
     /// this measure).
     ///
-    /// Guaranteed to be greater than 0; validated by [`Position::new`] at
-    /// construction.
+    /// Guaranteed to be greater than 0; the stored type is [`NonZeroU32`].
     #[inline]
     #[must_use]
     pub const fn denom(self) -> u32 {
-        self.denom
+        self.denom.get()
     }
 
     /// Return the fractional position within the measure, `numer / denom`.
     #[inline]
     #[must_use]
     pub fn fraction(self) -> f64 {
-        f64::from(self.numer) / f64::from(self.denom)
+        f64::from(self.numer) / f64::from(self.denom.get())
     }
 }
 
@@ -501,8 +496,8 @@ impl PartialEq for Messages {
     clippy::cast_possible_truncation,
     reason = "BMS per-channel per-measure value count fits in u32"
 )]
-fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
-    Position::new(measure, i as u32, denom)
+const fn event_pos(i: usize, measure: u16, denom: u32) -> Position {
+    Position::new(measure, i as u32, crate::nonzero(denom))
 }
 
 impl Messages {

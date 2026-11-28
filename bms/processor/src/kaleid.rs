@@ -143,7 +143,7 @@ fn collect_objects(bms: &Bms) -> Vec<KaleidObject> {
                 let Ok(index) = cell.index.try_into() else {
                     continue;
                 };
-                let position = Position::new(measure, index, total);
+                let position = Position::new(measure, index, crate::nonzero(total));
                 let Some(kind) = object_kind(extension, cell.text, base) else {
                     continue;
                 };

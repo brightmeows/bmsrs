@@ -3,9 +3,18 @@
 //! These tests consume the `Messages` struct only through the public API, using
 //! `MessagesBuilder`.
 
+use std::num::NonZeroU32;
+
 use bmsrs_bms_model::BmsBgaLayer;
 use bmsrs_bms_model::*;
 use bmsrs_bms_values::{BmsBase, BmsChannel, BmsMessage, BpmIndex, WavIndex};
+
+/// Build a position for fixtures; panics when `denom` is zero.
+fn pos(measure: u16, numer: u32, denom: u32) -> Position {
+    let denom_nonzero = NonZeroU32::new(denom)
+        .unwrap_or_else(|| panic!("test position denominator must be non-zero"));
+    Position::new(measure, numer, denom_nonzero)
+}
 
 /// Helper: parse one standard message line (`#xxxYY:body`) through `Messages`,
 /// using Base36.
@@ -25,7 +34,7 @@ fn parse_one_with_base(line: &str, base: BmsBase) -> Messages {
 
 #[test]
 fn position_new_and_fraction() {
-    let pos = Position::new(1, 1, 4);
+    let pos = pos(1, 1, 4);
     assert_eq!(pos.measure(), 1);
     assert_eq!(pos.numer(), 1);
     assert_eq!(pos.denom(), 4);
@@ -33,27 +42,21 @@ fn position_new_and_fraction() {
 }
 
 #[test]
-#[should_panic(expected = "Position denom must be non-zero")]
-fn position_zero_denom_panics() {
-    let _position = Position::new(0, 5, 0);
-}
-
-#[test]
 fn position_at_measure_start() {
-    let pos = Position::new(2, 0, 3);
+    let pos = pos(2, 0, 3);
     assert!(pos.fraction().abs() < f64::EPSILON);
 }
 
 #[test]
 fn position_at_measure_end() {
     // 3/3 is at the measure boundary; fraction is 1.0.
-    let pos = Position::new(1, 3, 3);
+    let pos = pos(1, 3, 3);
     assert!((pos.fraction() - 1.0).abs() < f64::EPSILON);
 }
 
 #[test]
 fn bgm_event_fields() {
-    let pos = Position::new(1, 0, 1);
+    let pos = pos(1, 0, 1);
     let id: WavIndex = "01".try_into().unwrap();
     let ev = BgmEvent {
         position: pos,
@@ -65,7 +68,7 @@ fn bgm_event_fields() {
 
 #[test]
 fn note_event_visible() {
-    let pos = Position::new(1, 0, 1);
+    let pos = pos(1, 0, 1);
     let id: WavIndex = "AA".try_into().unwrap();
     let ev = NoteEvent {
         position: pos,
@@ -81,7 +84,7 @@ fn note_event_visible() {
 
 #[test]
 fn bpm_change_absolute() {
-    let pos = Position::new(0, 0, 1);
+    let pos = pos(0, 0, 1);
     let ev = BpmChange {
         position: pos,
         value: BpmValue::Absolute(180.0),
@@ -98,7 +101,7 @@ fn bpm_change_absolute() {
 
 #[test]
 fn bpm_change_reference() {
-    let pos = Position::new(0, 0, 1);
+    let pos = pos(0, 0, 1);
     let id: BpmIndex = "05".try_into().unwrap();
     let ev = BpmChange {
         position: pos,
@@ -123,7 +126,7 @@ fn key_type_variants() {
 
 #[test]
 fn mine_event_fields() {
-    let pos = Position::new(2, 1, 4);
+    let pos = pos(2, 1, 4);
     let ev = MineEvent {
         position: pos,
         player: 2,
@@ -137,7 +140,7 @@ fn mine_event_fields() {
 
 #[test]
 fn stp_event_fields() {
-    let pos = Position::new(1, 128, 1000);
+    let pos = pos(1, 128, 1000);
     let ev = StpEvent {
         position: pos,
         duration_ms: 500.0,

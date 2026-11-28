@@ -45,6 +45,7 @@ mod timing;
 pub mod layout;
 
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -71,6 +72,17 @@ use crate::custom_event::BmsCustomEvent;
 use crate::layout::{Bme, DscOctFp, Layout};
 use crate::position::MeasureTable;
 use crate::timing::build_bar_events;
+
+/// Convert a value known to be non-zero into a [`NonZeroU32`].
+///
+/// Used where the source format guarantees a positive count, such as a
+/// channel body whose cells are already being iterated.
+pub(crate) const fn nonzero(value: u32) -> NonZeroU32 {
+    match NonZeroU32::new(value) {
+        Some(non_zero) => non_zero,
+        None => panic!("value must be non-zero"),
+    }
+}
 
 /// Errors that can occur while processing BMS.
 #[derive(Debug, Error)]
@@ -431,7 +443,7 @@ impl BmsConverter<'_> {
                 let tick = self.table.position_to_tick(bmsrs_bms_model::Position::new(
                     item.measure,
                     i as u32,
-                    total,
+                    nonzero(total),
                 ));
                 let Some(percent) = self
                     .bms
@@ -513,7 +525,7 @@ impl BmsConverter<'_> {
                 let tick = self.table.position_to_tick(bmsrs_bms_model::Position::new(
                     item.measure,
                     i as u32,
-                    total,
+                    nonzero(total),
                 ));
 
                 let payload = match item.channel {

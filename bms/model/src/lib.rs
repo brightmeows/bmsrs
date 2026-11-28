@@ -16,6 +16,8 @@ mod timing;
 mod visual;
 mod warnings;
 
+use std::num::NonZeroU32;
+
 use bmsrs_bms_values::{
     BmsBase, BmsHeader, BmsHeaderConditional, BmsHeaderGameplay, BmsHeaderTiming, BmsToken,
 };
@@ -37,6 +39,17 @@ pub use synth::SynthParams;
 pub use timing::Timing;
 pub use visual::Visual;
 pub use warnings::ChannelValueWarning;
+
+/// Convert a value known to be non-zero into a [`NonZeroU32`].
+///
+/// Used where the source format guarantees a positive count, such as a
+/// channel body with at least one cell or the fixed `#STP` denominator.
+pub(crate) const fn nonzero(value: u32) -> NonZeroU32 {
+    match NonZeroU32::new(value) {
+        Some(non_zero) => non_zero,
+        None => panic!("value must be non-zero"),
+    }
+}
 
 // Bms: root document model
 
@@ -210,7 +223,7 @@ impl Bms {
                         position: messages::Position::new(
                             params.measure,
                             u32::from(params.position),
-                            1000,
+                            nonzero(1000),
                         ),
                         duration_ms: params.duration_ms,
                     });

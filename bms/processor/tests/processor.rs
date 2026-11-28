@@ -1,12 +1,15 @@
 #![expect(missing_docs, reason = "integration test")]
 
+mod helper;
+use helper::pos;
+
 use std::num::NonZeroU8;
 use std::path::Path;
 use std::time::Duration;
 
 use bmsrs_bms_model::{
     BgaEvent, BgmEvent, Bms, BmsBgaLayer, BpmChange, BpmValue, KeyType, LongNoteEvent, MineEvent,
-    NonEventData, NoteEvent, Position, StpEvent,
+    NonEventData, NoteEvent, StpEvent,
 };
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::{Bme, ChannelPos, DscOctFp, Layout as _, Nanasi, Pms, PmsBme};
@@ -91,7 +94,7 @@ fn process_basic_note() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -130,7 +133,7 @@ fn process_key_count_uses_used_lanes() {
     );
     for lane in [1, 2, 3, 4, 5, 8, 9] {
         bms.messages.note_events.push(NoteEvent {
-            position: Position::new(0, 0, 8),
+            position: pos(0, 0, 8),
             player: 1,
             lane,
             key_type: KeyType::Visible,
@@ -162,7 +165,7 @@ fn undefined_bmp_reference_clears_layer_with_warning() {
         .bmp_files
         .insert("01".parse().unwrap(), "a.bmp".to_owned());
     bms.messages.bga_events.push(BgaEvent {
-        position: Position::new(1, 0, 1),
+        position: pos(1, 0, 1),
         layer: BmsBgaLayer::Base,
         bmp_id: "FF".parse().unwrap(),
     });
@@ -390,11 +393,11 @@ fn stp_entries_at_same_position_accumulate() {
     // for 4500 ms in total, not last-wins.
     let mut bms = Bms::default();
     bms.messages.stp_events.push(StpEvent {
-        position: Position::new(1, 500, 1000),
+        position: pos(1, 500, 1000),
         duration_ms: 500.0,
     });
     bms.messages.stp_events.push(StpEvent {
-        position: Position::new(1, 500, 1000),
+        position: pos(1, 500, 1000),
         duration_ms: 4000.0,
     });
 
@@ -426,11 +429,11 @@ fn stp_entries_at_same_position_accumulate() {
 fn negative_stp_entry_warns_and_is_skipped() {
     let mut bms = Bms::default();
     bms.messages.stp_events.push(StpEvent {
-        position: Position::new(1, 0, 1),
+        position: pos(1, 0, 1),
         duration_ms: -500.0,
     });
     bms.messages.stp_events.push(StpEvent {
-        position: Position::new(2, 0, 1),
+        position: pos(2, 0, 1),
         duration_ms: 1000.0,
     });
 
@@ -514,7 +517,7 @@ fn process_default_detects_oct_fp_layout() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 2,
         lane: 2,
         key_type: KeyType::Visible,
@@ -543,7 +546,7 @@ fn process_key7_note_lands_on_key_seven() {
         bmsrs_bms_model::WavSource::File("k7.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 9, // Channel 19 gives KEY7.
         key_type: KeyType::Visible,
@@ -591,7 +594,7 @@ fn process_nan_bpm_change_never_enters_event_stream() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(1, 0, 4),
+        position: pos(1, 0, 4),
         value: BpmValue::Absolute(f64::NAN),
     });
 
@@ -610,7 +613,7 @@ fn process_nan_bpm_change_produces_warning() {
     bms.timing.bpm = Some(120.0);
     bms.gameplay.total = Some(100.0);
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(1, 0, 4),
+        position: pos(1, 0, 4),
         value: BpmValue::Absolute(f64::NAN),
     });
 
@@ -633,7 +636,7 @@ fn process_bgm_events_mapped() {
         bmsrs_bms_model::WavSource::File("bgm.wav".to_owned()),
     );
     bms.messages.bgm_events.push(BgmEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         wav_id: "01".parse().unwrap(),
     });
 
@@ -681,14 +684,14 @@ fn process_default_uses_bme_and_maps_both_sides() {
         bmsrs_bms_model::WavSource::File("a.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 2,
         lane: 1,
         key_type: KeyType::Visible,
@@ -728,14 +731,14 @@ fn process_lnobj_produces_long_note() {
     let ln_obj: LnObjIndex = "02".parse().unwrap();
     bms.gameplay.ln_obj = Some(ln_obj);
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -781,7 +784,7 @@ fn lnobj_preserves_long_note_channel_events_as_normal() {
     );
     bms.gameplay.ln_obj = Some("02".parse::<LnObjIndex>().unwrap());
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 4),
+        position: pos(0, 0, 4),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
@@ -819,7 +822,7 @@ fn process_bpm_change_reference_resolved() {
     let bpm_id: BpmIndex = "01".parse().unwrap();
     bms.timing.bpm_defs.insert(bpm_id, 200.0);
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         value: BpmValue::Reference(bpm_id),
     });
 
@@ -842,15 +845,15 @@ fn process_bpm_changes_dedup_preserves_mid_change() {
     // Simulate parser output order: within the measure, ch03 (1/4, 3/4) comes
     // first, then ch08 (1/2).
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(0, 1, 4),
+        position: pos(0, 1, 4),
         value: BpmValue::Absolute(120.0),
     });
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(0, 3, 4),
+        position: pos(0, 3, 4),
         value: BpmValue::Absolute(120.0),
     });
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(0, 1, 2),
+        position: pos(0, 1, 2),
         value: BpmValue::Reference(bpm_id),
     });
 
@@ -887,7 +890,7 @@ fn process_invisible_note_mapped() {
         bmsrs_bms_model::WavSource::File("se.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Invisible,
@@ -992,7 +995,7 @@ fn lnobj_end_marker_emits_no_bgm() {
     bms.gameplay.ln_obj = Some(ln_obj);
     // Long-note start (a visible note with WAV 01).
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1000,7 +1003,7 @@ fn lnobj_end_marker_emits_no_bgm() {
     });
     // Long-note end marker (LNOBJ WAV FF at measure 1).
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1042,7 +1045,7 @@ fn orphan_lnobj_marker_emits_no_bgm() {
     bms.gameplay.ln_obj = Some(ln_obj);
     // An LNOBJ marker with no predecessor on the same (player, lane).
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1076,7 +1079,7 @@ fn duplicate_same_position_note_keeps_last_definition() {
     );
     for wav in ["01", "02"] {
         bms.messages.note_events.push(NoteEvent {
-            position: Position::new(1, 0, 8),
+            position: pos(1, 0, 8),
             player: 1,
             lane: 1,
             key_type: KeyType::Visible,
@@ -1122,14 +1125,14 @@ fn mine_on_occupied_note_position_is_dropped() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.mine_events.push(MineEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         raw_value: None,
@@ -1161,13 +1164,13 @@ fn note_on_mine_position_replaces_mine() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
     bms.messages.mine_events.push(MineEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         raw_value: None,
     });
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1202,20 +1205,20 @@ fn mine_inside_long_note_range_is_dropped() {
     );
     // Long note on lane 1 across measure 0 (ch51): start at 0/8, end at 8/8.
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 7, 8),
+        position: pos(0, 7, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
     });
     // Mine in the middle of the long-note range.
     bms.messages.mine_events.push(MineEvent {
-        position: Position::new(0, 3, 8),
+        position: pos(0, 3, 8),
         player: 1,
         lane: 1,
         raw_value: None,
@@ -1243,13 +1246,13 @@ fn mine_on_unterminated_long_note_start_is_dropped() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.mine_events.push(MineEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         raw_value: None,
@@ -1281,20 +1284,20 @@ fn note_on_long_note_start_with_other_wav_moves_to_bgm() {
     );
     // Long note on lane 1 (ch51): start at 0/8, end at 4/8.
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 3, 8),
+        position: pos(0, 3, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
     });
     // Layered keysound exactly on the long-note start (WAV 02).
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1333,19 +1336,19 @@ fn note_on_long_note_start_with_same_wav_is_dropped() {
         bmsrs_bms_model::WavSource::File("start.wav".to_owned()),
     );
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 3, 8),
+        position: pos(0, 3, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1393,14 +1396,14 @@ fn lnobj_end_position_note_moves_to_bgm() {
     bms.gameplay.ln_obj = Some(ln_obj);
     // Long-note start (WAV 01) and the LNOBJ end marker (WAV FF) on lane 1.
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
         wav_id: "01".parse().unwrap(),
     });
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1408,7 +1411,7 @@ fn lnobj_end_position_note_moves_to_bgm() {
     });
     // Another visible note on the end marker's position.
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
@@ -1462,15 +1465,15 @@ fn dedup_adjacent_same_bpm() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(0, 0, 1),
+        position: pos(0, 0, 1),
         value: BpmValue::Absolute(120.0),
     });
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(0, 1, 2),
+        position: pos(0, 1, 2),
         value: BpmValue::Absolute(120.0),
     });
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(1, 0, 1),
+        position: pos(1, 0, 1),
         value: BpmValue::Absolute(140.0),
     });
 

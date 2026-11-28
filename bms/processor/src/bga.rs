@@ -29,7 +29,9 @@ impl BmsConverter<'_> {
             {
                 let measure = be.position.measure();
                 if emitted_measures.insert(measure) {
-                    let tick = self.table.position_to_tick(Position::new(measure, 0, 1));
+                    let tick =
+                        self.table
+                            .position_to_tick(Position::new(measure, 0, super::nonzero(1)));
                     self.events.push(Event::new(
                         tick,
                         EventKind::Bga {

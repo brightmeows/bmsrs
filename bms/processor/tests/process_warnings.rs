@@ -1,6 +1,9 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_model::{Bms, BpmChange, BpmValue, LongNoteEvent, NoteEvent, Position};
+mod helper;
+use helper::pos;
+
+use bmsrs_bms_model::{Bms, BpmChange, BpmValue, LongNoteEvent, NoteEvent};
 use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{ProcessWarningKind, Processor};
@@ -16,7 +19,7 @@ fn missing_wav_key_produces_warning() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: bmsrs_bms_model::KeyType::Visible,
@@ -36,7 +39,7 @@ fn missing_wav_key_carries_the_source_key() {
     let mut bms = Bms::default();
     bms.timing.bpm = Some(120.0);
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: bmsrs_bms_model::KeyType::Visible,
@@ -60,7 +63,7 @@ fn untermined_long_note_produces_warning() {
     );
     // In LNTYPE 1 mode, a single long-note event cannot be paired.
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
@@ -84,7 +87,7 @@ fn normal_chart_produces_no_warnings() {
         bmsrs_bms_model::WavSource::File("kick.wav".to_owned()),
     );
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: bmsrs_bms_model::KeyType::Visible,
@@ -102,7 +105,7 @@ fn missing_bpm_definition_produces_warning() {
     let bpm_id: bmsrs_bms_values::BpmIndex = "ZZ".parse().unwrap();
     // Reference an undefined BPM key.
     bms.messages.bpm_changes.push(BpmChange {
-        position: Position::new(1, 0, 8),
+        position: pos(1, 0, 8),
         value: BpmValue::Reference(bpm_id),
     });
 
@@ -123,7 +126,7 @@ fn process_still_returns_ok_with_warnings() {
     bms.timing.bpm = Some(120.0);
     // Reference an undefined WAV.
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         key_type: bmsrs_bms_model::KeyType::Visible,

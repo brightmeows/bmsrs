@@ -1,6 +1,9 @@
 #![expect(missing_docs, reason = "integration test")]
 
-use bmsrs_bms_model::{Bms, KeyType, LongNoteEvent, NoteEvent, Position};
+mod helper;
+use helper::pos;
+
+use bmsrs_bms_model::{Bms, KeyType, LongNoteEvent, NoteEvent};
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_processor::{ProcessWarningKind, Processor};
 use bmsrs_chart::{CustomEvent, EventKind, NoteExt, NoteKind};
@@ -45,7 +48,7 @@ fn lntype1_consecutive_events_pair_in_order() {
     let mut bms = chart_with_wav(&["a.wav", "a.wav", "a.wav", "a.wav"]);
     for slot in [0u32, 2, 4, 6] {
         bms.messages.long_note_events.push(LongNoteEvent {
-            position: Position::new(0, slot, 8),
+            position: pos(0, slot, 8),
             player: 1,
             lane: 1,
             wav_id: "01".parse().unwrap(),
@@ -67,7 +70,7 @@ fn lntype1_consecutive_events_pair_in_order() {
 fn unpaired_ln_start_emits_no_note_and_warns() {
     let mut bms = chart_with_wav(&["a.wav"]);
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         wav_id: "01".parse().unwrap(),
@@ -99,19 +102,19 @@ fn unpaired_ln_start_emits_no_note_and_warns() {
 fn covered_note_keysound_moves_to_bgm_and_warns() {
     let mut bms = chart_with_wav(&["a.wav", "a.wav", "b.wav", "c.wav"]);
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 0, 8),
+        position: pos(0, 0, 8),
         player: 1,
         lane: 1,
         wav_id: "BB".parse().unwrap(),
     });
     bms.messages.long_note_events.push(LongNoteEvent {
-        position: Position::new(0, 6, 8),
+        position: pos(0, 6, 8),
         player: 1,
         lane: 1,
         wav_id: "BB".parse().unwrap(),
     });
     bms.messages.note_events.push(NoteEvent {
-        position: Position::new(0, 4, 8),
+        position: pos(0, 4, 8),
         player: 1,
         lane: 1,
         key_type: KeyType::Visible,
