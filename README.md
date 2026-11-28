@@ -107,6 +107,8 @@ a path derives the format from its extension, while text and bytes declare it
 (`Input::text(text, SourceFormat::Bms)`, `Input::bytes(bytes, SourceFormat::Bmd)`).
 Use `parse_with` when you need a custom branch generator, `ParseOptions`, or
 `ErrorStrategy`.
+`bmson::parse` takes the same `Input` and requires the `Bmson` format;
+`bmson::parse_str` is its text shortcut.
 
 ### BMSON to Chart
 

@@ -245,7 +245,8 @@ pub enum SourceFormat {
 impl SourceFormat {
     /// Infer the format from a file path's extension.
     ///
-    /// Unknown extensions fall back to [`Bms`](Self::Bms).
+    /// `.bmson` and `.json` select [`Bmson`](Self::Bmson); every other
+    /// extension, including an unknown one, falls back to [`Bms`](Self::Bms).
     #[must_use]
     pub fn from_path(path: &std::path::Path) -> Self {
         match path
@@ -256,7 +257,7 @@ impl SourceFormat {
         {
             Some("bmd") => Self::Bmd,
             Some("bmc") => Self::Bmc,
-            Some("bmson") => Self::Bmson,
+            Some("bmson" | "json") => Self::Bmson,
             _ => Self::Bms,
         }
     }

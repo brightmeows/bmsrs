@@ -33,8 +33,11 @@ enum Inner {
 }
 
 impl SourceEncoding {
-    /// Internal UTF-8 constant (construction always succeeds).
-    pub(crate) const UTF8: Self = Self(Inner::Encoding(encoding_rs::UTF_8));
+    /// UTF-8.
+    ///
+    /// Exposed as a constant because construction always succeeds; every
+    /// other encoding goes through [`new`](Self::new).
+    pub const UTF8: Self = Self(Inner::Encoding(encoding_rs::UTF_8));
 
     /// Internal UTF-32 constant.
     pub(crate) const fn utf32(big_endian: bool) -> Self {

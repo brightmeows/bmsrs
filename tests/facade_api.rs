@@ -206,6 +206,8 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
 
     let resolved = [
         named::<bmsrs::bmson::Bmson>(),
+        named::<bmsrs::bmson::Input>(),
+        named::<bmsrs::bmson::SourceFormat>(),
         named::<bmsrs::bmson::layout::GenericLayout>(),
         named::<bmsrs::bmson::Outcome<bmsrs::bmson::Processed, bmsrs::bmson::ProcessWarning>>(),
         named::<bmsrs::bmson::Processed>(),
@@ -213,7 +215,7 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
         named::<bmsrs::bmson::ProcessError>(),
         named::<bmsrs::bmson::ParseError>(),
     ];
-    assert_eq!(resolved.len(), 7);
+    assert_eq!(resolved.len(), 9);
     assert!(resolved.iter().all(|name| !name.is_empty()));
 
     bmson_layout::<bmsrs::bmson::Beat>();
@@ -521,4 +523,73 @@ fn bmson_v1_zero_init_bpm_fails_at_parse_like_v0() {
             bpm: 0.0
         }))
     ));
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_parse_reads_a_json_path_through_input() {
+    use bmsrs::bmson::Input;
+
+    // `.json` was never a BMS text extension; it now selects the BMSON
+    // format so parse_file can be a thin wrapper over parse(Input::file).
+    // The leading BOM is stripped by the lossless document.
+    let name = [
+        "bmsrs-facade-json-",
+        &std::process::id().to_string(),
+        ".json",
+    ]
+    .concat();
+    let path = std::env::temp_dir().join(name);
+    std::fs::write(
+        &path,
+        "\u{FEFF}{\"version\":\"2.0.0\",\"song_info\":{\"title\":\"T\",\"artist\":\"A\",\"genre\":\"G\"},\
+         \"chart_info\":{\"level\":1,\"bga\":{\"bga_header\":[],\"bga_events\":[],\"layer_events\":[],\"poor_events\":[]}},\
+         \"chart_data\":{\"init_bpm\":120}}",
+    )
+    .expect("write fixture");
+    let bmson = bmsrs::bmson::parse(Input::file(&path)).expect("valid BMSON file");
+    std::fs::remove_file(&path).expect("remove fixture");
+    assert_eq!(bmson.song_info.title, "T");
+
+    // parse_file is the same call with the path wrapped for the caller.
+    let file_name = [
+        "bmsrs-facade-json-file-",
+        &std::process::id().to_string(),
+        ".json",
+    ]
+    .concat();
+    let file_path = std::env::temp_dir().join(file_name);
+    std::fs::write(&file_path, "{\"version\":\"2.0.0\"}").expect("write fixture");
+    let result = bmsrs::bmson::parse_file(&file_path);
+    std::fs::remove_file(&file_path).expect("remove fixture");
+    // The `.json` extension passed the format gate; a bare version object
+    // fails later as JSON, not as Format.
+    assert!(matches!(result, Err(bmsrs::bmson::ParseError::Json(_))));
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_parse_rejects_a_non_bmson_format() {
+    use bmsrs::bmson::Input;
+    use bmsrs::pipeline::SourceFormat;
+
+    let error = bmsrs::bmson::parse(Input::text("{}", SourceFormat::Bms))
+        .expect_err("declared BMS text is not BMSON input");
+    assert!(matches!(
+        error,
+        bmsrs::bmson::ParseError::Format {
+            format: SourceFormat::Bms
+        }
+    ));
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_parse_slice_reports_undecodable_bytes() {
+    // JSON is UTF-8; the lossless document is pinned to UTF-8 so invalid
+    // bytes surface as a decode error instead of being claimed by another
+    // encoding detector.
+    let error = bmsrs::bmson::parse_slice(&[0xFF, 0xFE, 0x00, 0x7B])
+        .expect_err("invalid UTF-8 is rejected");
+    assert!(matches!(error, bmsrs::bmson::ParseError::Decode(_)));
 }

@@ -323,7 +323,8 @@ pub mod bmson {
     // entry points and facade-owned types.
     use crate::raw::bmson::{model, processor};
 
-    pub use bmsrs_pipeline::Outcome;
+    pub use crate::input::Input;
+    pub use bmsrs_pipeline::{Outcome, SourceFormat};
     pub use model::Bmson;
     pub use processor::layout::{Beat, GenericLayout, Layout};
     pub use processor::{ProcessError, ProcessWarning, Processed};
@@ -335,7 +336,38 @@ pub mod bmson {
         pub use crate::raw::bmson::processor::layout::*;
     }
 
+    /// Parse BMSON input, upgrading v0/v1 to the root v2 schema.
+    ///
+    /// Every [`Input`] source is accepted: text and bytes must declare
+    /// [`SourceFormat::Bmson`], and a path must end in `.bmson` or `.json`.
+    /// Any other format fails with [`ParseError::Format`] before reading.
+    /// The bytes are decoded as UTF-8 through the lossless
+    /// [`Document`](bmsrs_bms_source::Document), which strips a UTF-8 BOM.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError::Format`] for a non-BMSON format,
+    /// [`ParseError::Io`] when a file cannot be read, [`ParseError::Decode`]
+    /// when the bytes are not UTF-8, and the JSON or version variants as
+    /// for [`parse_str`].
+    pub fn parse<'a>(input: impl Into<Input<'a>>) -> Result<model::Bmson, ParseError> {
+        let source = input.into();
+        let format = source.format();
+        if format != SourceFormat::Bmson {
+            return Err(ParseError::Format { format });
+        }
+        // JSON is UTF-8 by specification; pinning the encoding keeps the
+        // strictness of the former from_utf8 step instead of letting the
+        // detector claim another encoding for invalid bytes.
+        let document = source
+            .with_encoding(bmsrs_bms_source::SourceEncoding::UTF8)
+            .into_document()?;
+        parse_str(&document.try_to_text()?)
+    }
+
     /// Parse a BMSON JSON string, upgrading v0/v1 to the root v2 schema.
+    ///
+    /// The text shortcut of [`parse`].
     ///
     /// # Errors
     ///
@@ -360,27 +392,29 @@ pub mod bmson {
 
     /// Parse BMSON JSON bytes, upgrading v0/v1 to the root v2 schema.
     ///
+    /// [`parse`] with the format declared in code.
+    ///
     /// # Errors
     ///
-    /// Returns [`ParseError`] when the JSON, UTF-8, or version is invalid.
+    /// Returns [`ParseError`] when the bytes are not UTF-8 or when the JSON
+    /// or version is invalid.
     pub fn parse_slice(bytes: &[u8]) -> Result<model::Bmson, ParseError> {
-        let json = std::str::from_utf8(bytes)?;
-        parse_str(json)
+        parse(Input::bytes(bytes, SourceFormat::Bmson))
     }
 
     /// Read the BMSON file at `path` and parse it, upgrading v0/v1 to the
     /// root v2 schema.
     ///
-    /// This is [`parse_slice`] with file I/O: the file is read with
-    /// [`std::fs::read`] and handed to the same pipeline.
+    /// [`parse`] with [`Input::file`]; a `.bmson` or `.json` extension
+    /// selects the format and any other extension fails with
+    /// [`ParseError::Format`].
     ///
     /// # Errors
     ///
-    /// Returns [`ParseError`] when reading fails or when the JSON,
-    /// UTF-8, or version is invalid.
+    /// Returns [`ParseError`] when reading fails or when the bytes, JSON,
+    /// or version is invalid.
     pub fn parse_file(path: impl AsRef<std::path::Path>) -> Result<model::Bmson, ParseError> {
-        let bytes = std::fs::read(path)?;
-        parse_slice(&bytes)
+        parse(Input::file(path.as_ref()))
     }
 
     /// Convert `Bmson` to a format-agnostic chart with the default layout.
@@ -414,13 +448,20 @@ pub mod bmson {
 
     /// BMSON parse error.
     #[derive(Debug, thiserror::Error)]
+    #[non_exhaustive]
     pub enum ParseError {
+        /// The input declares a format other than BMSON.
+        #[error("the BMSON entry points do not parse {format:?} input")]
+        Format {
+            /// The rejected source format.
+            format: SourceFormat,
+        },
         /// JSON parse error.
         #[error("JSON parse error: {0}")]
         Json(#[from] serde_json::Error),
-        /// Input is not valid UTF-8.
-        #[error("BMSON input is not UTF-8: {0}")]
-        Utf8(#[from] std::str::Utf8Error),
+        /// The input is not UTF-8 text.
+        #[error("BMSON input cannot be decoded: {0}")]
+        Decode(#[from] bmsrs_bms_source::TextDecodeError),
         /// Version detection or conversion error.
         #[error("BMSON version error: {0}")]
         Version(#[from] model::BmsonError),
