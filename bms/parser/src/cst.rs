@@ -14,9 +14,9 @@ use bmsrs_pipeline::{DiagnosticCode, ErrorStrategy, Severity, SourceSpan};
 
 use bmsrs_bms_model::Bms;
 
-/// What a [`BmsDiagnostic`] reports.
+/// What a [`Diagnostic`] reports.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BmsDiagnosticKind {
+pub enum DiagnosticKind {
     /// Single-line value parse error.
     Tokenize(BmsTokenizeError),
     /// Document decode error.
@@ -37,7 +37,7 @@ pub enum BmsDiagnosticKind {
 /// channel it arrives on: a `CollectAll` parse keeps error-severity
 /// diagnostics in its warning list.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BmsDiagnostic {
+pub struct Diagnostic {
     /// One-based line number.
     pub line: NonZeroUsize,
     /// Text range.
@@ -45,10 +45,10 @@ pub struct BmsDiagnostic {
     /// Severity assigned by the layer that produced the diagnostic.
     pub severity: Severity,
     /// What the diagnostic reports.
-    pub kind: BmsDiagnosticKind,
+    pub kind: DiagnosticKind,
 }
 
-impl BmsDiagnostic {
+impl Diagnostic {
     /// A whole-document decode failure: line 1 and an empty range, because the
     /// text never got far enough to have a position.
     #[must_use]
@@ -57,7 +57,7 @@ impl BmsDiagnostic {
             line: NonZeroUsize::MIN,
             range: TextRange::empty(TextSize::from(0)),
             severity: Severity::Error,
-            kind: BmsDiagnosticKind::Decode(error),
+            kind: DiagnosticKind::Decode(error),
         }
     }
 
@@ -68,7 +68,7 @@ impl BmsDiagnostic {
     }
 }
 
-impl fmt::Display for BmsDiagnostic {
+impl fmt::Display for Diagnostic {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let severity = match self.severity {
             Severity::Error => "error",
@@ -76,39 +76,39 @@ impl fmt::Display for BmsDiagnostic {
             Severity::Information => "information",
         };
         match &self.kind {
-            BmsDiagnosticKind::Cst { message, code } => {
+            DiagnosticKind::Cst { message, code } => {
                 write!(
                     formatter,
                     "{code} {severity} at {:?}: {message}",
                     self.range
                 )
             }
-            BmsDiagnosticKind::Tokenize(error) => {
+            DiagnosticKind::Tokenize(error) => {
                 write!(formatter, "tokenization error at {:?}: {error}", self.range)
             }
-            BmsDiagnosticKind::Decode(error) => {
+            DiagnosticKind::Decode(error) => {
                 write!(formatter, "decode error at {:?}: {error}", self.range)
             }
         }
     }
 }
 
-impl std::error::Error for BmsDiagnostic {
+impl std::error::Error for Diagnostic {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.kind {
-            BmsDiagnosticKind::Cst { .. } => None,
-            BmsDiagnosticKind::Tokenize(error) => Some(error),
-            BmsDiagnosticKind::Decode(error) => Some(error),
+            DiagnosticKind::Cst { .. } => None,
+            DiagnosticKind::Tokenize(error) => Some(error),
+            DiagnosticKind::Decode(error) => Some(error),
         }
     }
 }
 
-impl From<BmsDiagnostic> for bmsrs_pipeline::Diagnostic {
-    fn from(diagnostic: BmsDiagnostic) -> Self {
+impl From<Diagnostic> for bmsrs_pipeline::Diagnostic {
+    fn from(diagnostic: Diagnostic) -> Self {
         let (message, code) = match diagnostic.kind {
-            BmsDiagnosticKind::Cst { message, code } => (message, code),
-            BmsDiagnosticKind::Tokenize(error) => (error.to_string(), DiagnosticCode::Tokenize),
-            BmsDiagnosticKind::Decode(error) => (error.to_string(), DiagnosticCode::Decode),
+            DiagnosticKind::Cst { message, code } => (message, code),
+            DiagnosticKind::Tokenize(error) => (error.to_string(), DiagnosticCode::Tokenize),
+            DiagnosticKind::Decode(error) => (error.to_string(), DiagnosticCode::Decode),
         };
         Self::new(diagnostic.severity, message)
             .with_span(SourceSpan::new(
@@ -127,7 +127,7 @@ pub struct BmsParse {
     /// Control-flow selection record.
     pub selection: BranchSelection,
     /// Diagnostics collected while building the model.
-    pub warnings: Vec<BmsDiagnostic>,
+    pub warnings: Vec<Diagnostic>,
 }
 
 /// Typed token result for one line.
@@ -142,6 +142,21 @@ pub struct LineToken {
 }
 
 /// BMS semantic parser.
+///
+/// Three input kinds, two diagnostic policies, two error types:
+///
+/// | Entry | Input | Diagnostics collected | Reads `error_strategy` | Error |
+/// |-------|-------|-----------------------|------------------------|-------|
+/// | [`parse`](Self::parse), [`parse_with`](Self::parse_with) | CST | token errors on the selected branches | no | none |
+/// | [`parse_document`](Self::parse_document), [`parse_document_with`](Self::parse_document_with) | lossless `Document` | syntax and token errors from every line | yes | [`Diagnostic`](crate::Diagnostic) |
+/// | [`parse_from_selection`](Self::parse_from_selection), [`parse_from_selection_with`](Self::parse_from_selection_with) | CST plus a recorded [`BranchSelection`] | token errors on the replayed branches | no | [`BranchMismatch`] |
+/// | [`tokenize_lines`](Self::tokenize_lines), [`tokenize_lines_with`](Self::tokenize_lines_with) | CST | token errors as `Err` entries | no | none |
+///
+/// A CST carries no syntax diagnostics (they live in the syntax crate's
+/// `SyntaxParse`), which is why only the `Document` entries can honor
+/// `FailFast`; the facade's replay entry point collects the syntax
+/// diagnostics itself and applies the strategy on top of
+/// [`parse_from_selection_with`](Self::parse_from_selection_with).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BmsParser;
 
@@ -160,6 +175,10 @@ impl BmsParser {
     }
 
     /// Select branches from the CST with parse options and build `Bms`.
+    ///
+    /// `options.error_strategy` is not consulted: a CST carries no syntax
+    /// diagnostics to fail on. Use [`Self::parse_document_with`] when
+    /// `FailFast` must stop at the first error.
     #[must_use]
     pub fn parse_with<R: ControlFlowRng + ?Sized>(
         file: &SourceFile,
@@ -196,7 +215,7 @@ impl BmsParser {
     pub fn parse_document<R: ControlFlowRng + ?Sized>(
         document: &Document,
         rng: &mut R,
-    ) -> Result<BmsParse, BmsDiagnostic> {
+    ) -> Result<BmsParse, Diagnostic> {
         Self::parse_document_with(document, &ParseOptions::default(), rng)
     }
 
@@ -211,8 +230,8 @@ impl BmsParser {
         document: &Document,
         options: &ParseOptions,
         rng: &mut R,
-    ) -> Result<BmsParse, BmsDiagnostic> {
-        let text = document.try_to_text().map_err(BmsDiagnostic::decode)?;
+    ) -> Result<BmsParse, Diagnostic> {
+        let text = document.try_to_text().map_err(Diagnostic::decode)?;
         let parse = SourceFile::parse_with(&text, options);
         let file = parse.source_file();
         let all_tokens = Self::tokenize_lines_with(&file, options);
@@ -280,20 +299,17 @@ fn build_selected<R: ControlFlowRng + ?Sized>(
 }
 
 /// Collect CST diagnostics, copying the severity the syntax layer assigned.
-fn syntax_diagnostics(
-    parse: &bmsrs_bms_syntax::SyntaxParse,
-    file: &SourceFile,
-) -> Vec<BmsDiagnostic> {
+fn syntax_diagnostics(parse: &bmsrs_bms_syntax::SyntaxParse, file: &SourceFile) -> Vec<Diagnostic> {
     parse
         .errors()
         .iter()
-        .map(|error| BmsDiagnostic {
+        .map(|error| Diagnostic {
             line: file
                 .line_number_at(error.range().start())
                 .unwrap_or(NonZeroUsize::MIN),
             range: error.range(),
             severity: error.severity(),
-            kind: BmsDiagnosticKind::Cst {
+            kind: DiagnosticKind::Cst {
                 message: error.message().to_owned(),
                 code: error.code(),
             },
@@ -302,15 +318,15 @@ fn syntax_diagnostics(
 }
 
 /// Collect single-line token errors.
-fn token_diagnostics(tokens: &[LineToken]) -> Vec<BmsDiagnostic> {
+fn token_diagnostics(tokens: &[LineToken]) -> Vec<Diagnostic> {
     tokens
         .iter()
         .filter_map(|line| {
-            line.token.as_ref().err().map(|error| BmsDiagnostic {
+            line.token.as_ref().err().map(|error| Diagnostic {
                 line: line.line,
                 range: line.range,
                 severity: Severity::Error,
-                kind: BmsDiagnosticKind::Tokenize(error.clone()),
+                kind: DiagnosticKind::Tokenize(error.clone()),
             })
         })
         .collect()
@@ -420,6 +436,10 @@ impl BmsParser {
     }
 
     /// Build `Bms` from a recorded [`BranchSelection`] with parse options.
+    ///
+    /// `options.error_strategy` is not consulted here, for the same reason as
+    /// [`Self::parse_with`]; the facade's replay entry point applies it after
+    /// collecting the syntax diagnostics itself.
     ///
     /// # Errors
     ///

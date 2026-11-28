@@ -3,7 +3,7 @@
 //! `#BASE`.
 //!
 //! This module also defines the domain types used by [`BmsHeaderGameplay`]:
-//! [`PlayerMode`], [`Rank`], [`LnType`], [`LnMode`], and [`BmsBaseMode`].
+//! [`PlayerMode`], [`Rank`], [`LnNotation`], [`LnMode`], and [`BmsBase`].
 
 use std::fmt;
 use std::str::FromStr;
@@ -53,10 +53,10 @@ pub enum PlayerMode {
 
 /// Long-note notation specified by `#LNTYPE`.
 ///
-/// - **RDM** (`Type1`, `#LNTYPE 1`): a long note starts at the first non-`00`
+/// - **RDM** (`Rdm`, `#LNTYPE 1`): a long note starts at the first non-`00`
 ///   note and ends at the next non-`00` note. This is the modern default;
 ///   omitting `#LNTYPE` means RDM.
-/// - **MGQ** (`Type2`, `#LNTYPE 2`): a long note continues while non-`00`
+/// - **MGQ** (`Mgq`, `#LNTYPE 2`): a long note continues while non-`00`
 ///   notes are consecutive and closes at a `00`. **Deprecated**: no modern
 ///   player uses MGQ notation.
 ///
@@ -65,15 +65,15 @@ pub enum PlayerMode {
 /// index as a long-note terminator marker, letting authors edit long notes on
 /// ordinary `#xxx11-29` channels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BmsTokenAttr)]
-pub enum LnType {
+pub enum LnNotation {
     /// RDM-type long notes (`#LNTYPE 1`).
     #[bms_token("1")]
     #[bms_token("01")]
-    Type1,
+    Rdm,
     /// MGQ-type long notes (`#LNTYPE 2`).
     #[bms_token("2")]
     #[bms_token("02")]
-    Type2,
+    Mgq,
 }
 
 /// Long-note mode specified by `#LNMODE` (beatoraja extension; `4` is a
@@ -321,7 +321,7 @@ pub enum BmsHeaderGameplay {
     ///
     /// `1` means RDM (default); `2` means MGQ (deprecated).
     #[bms_token("#LNTYPE {}")]
-    LnType(LnType),
+    LnType(LnNotation),
     /// `#LNOBJ`: designates a `#WAV` index as a long-note terminator marker.
     ///
     /// When a note with this index appears on channels `#xxx11-29`, it acts as
@@ -432,21 +432,21 @@ mod tests {
 
     #[test]
     fn ln_type_1() {
-        assert_eq!("1".parse::<LnType>().unwrap(), LnType::Type1);
-        assert_eq!("01".parse::<LnType>().unwrap(), LnType::Type1);
+        assert_eq!("1".parse::<LnNotation>().unwrap(), LnNotation::Rdm);
+        assert_eq!("01".parse::<LnNotation>().unwrap(), LnNotation::Rdm);
     }
 
     #[test]
     fn ln_type_2() {
-        assert_eq!("2".parse::<LnType>().unwrap(), LnType::Type2);
-        assert_eq!("02".parse::<LnType>().unwrap(), LnType::Type2);
+        assert_eq!("2".parse::<LnNotation>().unwrap(), LnNotation::Mgq);
+        assert_eq!("02".parse::<LnNotation>().unwrap(), LnNotation::Mgq);
     }
 
     #[test]
     fn ln_type_invalid() {
-        assert!("0".parse::<LnType>().is_err());
-        assert!("3".parse::<LnType>().is_err());
-        assert!("abc".parse::<LnType>().is_err());
+        assert!("0".parse::<LnNotation>().is_err());
+        assert!("3".parse::<LnNotation>().is_err());
+        assert!("abc".parse::<LnNotation>().is_err());
     }
 
     #[test]

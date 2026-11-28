@@ -29,7 +29,7 @@ full crate matrix.
 | Layers do not cross boundaries | values does no whole-file work, syntax does no semantic values, parser does no control-flow expansion, processor introduces no I/O |
 | Exactly one whole-file loop | line splitting, the comment state machine, encoding, and line endings all live in `bmsrs-bms-source`; the CST processes only decoded text |
 | Value types are owned | single-line entry points do not borrow input; string fields uniformly use `String`, so cross-layer passing needs no lifetime parameters |
-| Mode families decoupled | key mapping is implemented through zero-sized types implementing the `BmsLayout` trait; mode information is not stored in `Chart` |
+| Mode families decoupled | key mapping is implemented through zero-sized types implementing the `Layout` trait; mode information is not stored in `Chart` |
 
 ## Responsibility criteria
 

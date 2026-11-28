@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use bmsrs_bms_values::{
-    BmsBase, BmsHeaderGameplay, ChangeOptionIndex, ExRankIndex, LnMode, LnObjIndex, LnType,
+    BmsBase, BmsHeaderGameplay, ChangeOptionIndex, ExRankIndex, LnMode, LnNotation, LnObjIndex,
     OptionWords, PlayerMode, Rank,
 };
 
@@ -26,7 +26,7 @@ pub struct Gameplay {
     /// Master volume percentage (`#VOLWAV`).
     pub vol_wav: Option<f64>,
     /// Long-note notation (`#LNTYPE`).
-    pub ln_type: Option<LnType>,
+    pub ln_type: Option<LnNotation>,
     /// WAV index used as a long-note terminator marker (`#LNOBJ`).
     pub ln_obj: Option<LnObjIndex>,
     /// WAV index used as a charge-note terminator marker (`#CNOBJ`).

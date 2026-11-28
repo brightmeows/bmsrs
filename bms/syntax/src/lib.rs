@@ -53,6 +53,11 @@ pub struct ParseOptions {
     pub control_flow_compat: ControlFlowCompat,
     /// Error collection strategy; defaults to
     /// [`bmsrs_pipeline::ErrorStrategy::CollectAll`].
+    ///
+    /// Only whole-document entry points act on it: a parse from an existing
+    /// CST has no syntax diagnostics to fail on, so `FailFast` applies to the
+    /// parser crate's `parse_document_with` and to the facade entry points,
+    /// not to a parse that takes a `SourceFile`.
     pub error_strategy: bmsrs_pipeline::ErrorStrategy,
 }
 

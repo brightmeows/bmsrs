@@ -3,7 +3,7 @@
 ## Role
 
 Processor that converts `Bms` into a format-agnostic `Chart`. BMS player and
-key mapping are decoupled through the `BmsLayout` mode family.
+key mapping are decoupled through the `Layout` mode family.
 
 The processor performs **lossy conversions**: merge priority (`#BGA`/`#BMP`),
 reference resolution (WAV/BPM), and table lookup (def tables) all live here. See
@@ -30,9 +30,9 @@ same-position entries accumulate per the specification.
 
 ## Mode families
 
-Mode families implement the `BmsLayout` trait through a `&self` receiver, so a
+Mode families implement the `Layout` trait through a `&self` receiver, so a
 zero-sized family and a runtime-selected value take the same parameter:
-`BmsProcessor::process_with(bms, layout)`. Each family is a mapping table from
+`Processor::process_with(bms, layout)`. Each family is a mapping table from
 `(player, lane)` to `Option<(NoteSide, Lane)>`.
 
 Standard families are in the public `layout` module. `Bme` covers
@@ -45,7 +45,7 @@ implements the trait by delegating to `Pms` or `PmsBme`.
 
 | Module | Content |
 |--------|---------|
-| `layout` | `BmsLayout` trait plus standard mode families (`Bme` and others) |
+| `layout` | `Layout` trait plus standard mode families (`Bme` and others) |
 | `custom_event` | `BmsCustomEvent` enum: BMS-specific events (BGA opacity, text, options, and so on) used as the `CustomEvent` type parameter of `Chart` |
 
 ## Non-obvious rules
@@ -119,7 +119,7 @@ side silently.
 ### Always
 
 - Register new event types in a `collect_*` method on `BmsConverter` and call it
-  from `BmsProcessor::process`
+  from `Processor::process`
 - When adding an `EventKind` variant, update `priority` and
   `map_custom`/`map_ext` in `bmsrs-chart` at the same time
 

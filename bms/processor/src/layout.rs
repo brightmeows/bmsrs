@@ -1,4 +1,4 @@
-//! BMS mode-family layouts: channel-to-lane mapping through [`BmsLayout`].
+//! BMS mode-family layouts: channel-to-lane mapping through [`Layout`].
 //!
 //! Each family maps a decoded [`ChannelPos`] `(player, lane)` pair to a
 //! `(NoteSide, Lane)` position. Most are zero-sized newtypes; [`PmsLayout`]
@@ -69,7 +69,7 @@ impl ChannelPos {
 /// The note kind (normal, long note, mine, or invisible) is set by the processor
 /// after this mapping. The `&self` receiver lets a zero-sized family and a
 /// value chosen at runtime ([`PmsLayout`]) share the trait.
-pub trait BmsLayout {
+pub trait Layout {
     /// Map a decoded BMS channel to a note position.
     #[must_use]
     fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)>;
@@ -88,7 +88,7 @@ const fn nz(n: u8) -> Option<NonZeroU8> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Bme;
 
-impl BmsLayout for Bme {
+impl Layout for Bme {
     fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
@@ -114,7 +114,7 @@ impl BmsLayout for Bme {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Nanasi;
 
-impl BmsLayout for Nanasi {
+impl Layout for Nanasi {
     fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
@@ -141,7 +141,7 @@ impl BmsLayout for Nanasi {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Pms;
 
-impl BmsLayout for Pms {
+impl Layout for Pms {
     fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let key = match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => Lane::Key(nz(1)?),
@@ -168,7 +168,7 @@ impl BmsLayout for Pms {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PmsBme;
 
-impl BmsLayout for PmsBme {
+impl Layout for PmsBme {
     fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         let side = ch.note_side();
         let key = match ch.lane() {
@@ -232,11 +232,11 @@ impl PmsLayout {
     }
 }
 
-impl BmsLayout for PmsLayout {
+impl Layout for PmsLayout {
     fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         match self {
-            Self::Standard => BmsLayout::map_channel(&Pms, ch),
-            Self::BmeType => BmsLayout::map_channel(&PmsBme, ch),
+            Self::Standard => Layout::map_channel(&Pms, ch),
+            Self::BmeType => Layout::map_channel(&PmsBme, ch),
         }
     }
 }
@@ -258,7 +258,7 @@ fn check_pms_channel(player: u8, lane: u8, std: &mut bool, bme: &mut bool) {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DscOctFp;
 
-impl BmsLayout for DscOctFp {
+impl Layout for DscOctFp {
     fn map_channel(&self, ch: ChannelPos) -> Option<(NoteSide, Lane)> {
         Some(match (ch.note_side().as_u8(), ch.lane()) {
             (1, 1) => (NoteSide::P1, Lane::Key(nz(1)?)),

@@ -16,7 +16,7 @@ pub use conditional::{
 pub use control_flow::BmsHeaderControlFlow;
 pub use display::{BmsHeaderDisplay, DifficultyLevel, ParseDifficultyError, PoorBgaMode};
 pub use gameplay::{
-    BmsHeaderGameplay, BmsOptionWord, LnMode, LnType, OptionWords, PlayerMode, Rank,
+    BmsHeaderGameplay, BmsOptionWord, LnMode, LnNotation, OptionWords, PlayerMode, Rank,
 };
 pub use kaleid::{BgaOverflow, BmsHeaderKaleid, SongSoundMode};
 pub use metadata::BmsHeaderMetadata;
@@ -34,7 +34,7 @@ use crate::BmsTokenizeError;
 /// Dispatch follows the variant declaration order below. A variant marked
 /// `#[bms_fallback]` does not participate in dispatch; it captures anything
 /// that does not match a concrete variant.
-#[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From, derive_more::TryUnwrap)]
+#[derive(Debug, Clone, PartialEq, BmsTokenAttr, derive_more::From)]
 pub enum BmsHeader {
     /// Audio resource definitions (`#WAV`, `#EXWAV`, `#WAVCMD`, and so on).
     ResDefAudio(BmsHeaderResDefAudio),
@@ -100,9 +100,6 @@ pub struct BmsHeaderFallback {
 ///
 /// Returns `Err(BmsTokenizeError)` when a header command is recognized but its
 /// value cannot be parsed into the expected type.
-/// Explicitly resolve the parent trait for C (avoiding `E0283` from the
-/// `BmsStr` blanket implementation). Tests use the non-generic
-/// `parse_header_line_default` wrapper.
 #[expect(
     clippy::string_slice,
     reason = "BMS header lines are ASCII-only; byte indexing at whitespace boundaries is safe"

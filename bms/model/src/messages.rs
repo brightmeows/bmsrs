@@ -137,7 +137,7 @@ pub struct NoteEvent {
 /// 10-35.
 ///
 /// The long-note type (LN / CN / HCN) is determined by the chart-level
-/// [`LnType`](bmsrs_bms_values::LnType) and [`LnMode`](bmsrs_bms_values::LnMode) header
+/// [`LnNotation`](bmsrs_bms_values::LnNotation) and [`LnMode`](bmsrs_bms_values::LnMode) header
 /// commands, not stored per event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LongNoteEvent {

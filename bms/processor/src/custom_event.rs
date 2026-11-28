@@ -1,6 +1,6 @@
 //! BMS engine-specific custom event types.
 //!
-//! These events are converted by [`BmsProcessor`](crate::BmsProcessor) from BMS
+//! These events are converted by [`Processor`](crate::Processor) from BMS
 //! channels (such as BGA opacity, ARGB color, TEXT, and OPTION) and stored in
 //! the [`EventKind::Custom`](bmsrs_chart::EventKind::Custom) variant. The tick
 //! is stored uniformly by [`Event`](bmsrs_chart::Event); variants of this type

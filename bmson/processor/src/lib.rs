@@ -1,18 +1,18 @@
 //! BMSON to `Chart` conversion processor.
 //!
-//! [`BmsonProcessor`] converts a `bmsrs_bmson_model::Bmson` (v2 root schema) into a
-//! format-agnostic `Chart<BmsonNoteExt>` by applying a [`BmsonLayout`] mode
+//! [`Processor`] converts a `bmsrs_bmson_model::Bmson` (v2 root schema) into a
+//! format-agnostic `Chart<BmsonNoteExt>` by applying a [`Layout`] mode
 //! family ([`Beat`], [`Pms`], or [`GenericLayout`] for n-keys).
 //!
-//! Mode families and the [`BmsonLayout`] trait live in the [`layout`] module.
+//! Mode families and the [`Layout`] trait live in the [`layout`] module.
 //!
 //! # Pipeline
 //!
 //! ```text
-//! bmsrs_bmson_model::Bmson -> BmsonProcessor::process(bmson, layout) -> Chart<BmsonNoteExt>
+//! bmsrs_bmson_model::Bmson -> Processor::process(bmson, layout) -> Chart<BmsonNoteExt>
 //! ```
 //!
-//! For v0/v1 files, convert to the root schema through `Bmson::from` first.
+//! For v0/v1 files, convert to the root schema through `TryFrom` first.
 //!
 //! # Slicing
 //!
@@ -40,10 +40,10 @@ use bmsrs_chart::{
 use bmsrs_pipeline::Outcome;
 use thiserror::Error;
 
-pub use crate::error::BmsonProcessWarning;
+pub use crate::error::ProcessWarning;
 pub use crate::kaleid::BmsonKaleid;
 
-use crate::layout::{Beat, BmsonLayout, GenericLayout, Pms};
+use crate::layout::{Beat, GenericLayout, Layout, Pms};
 
 use crate::slice::slice_channel;
 
@@ -110,7 +110,7 @@ pub enum ProcessError {
 
 /// bmson processing result.
 #[derive(Debug)]
-pub struct BmsonProcessed {
+pub struct Processed {
     /// Chart produced by processing.
     pub chart: Chart<BmsonNoteExt>,
     /// `KaleidBeat` extensions, when present.
@@ -126,9 +126,9 @@ pub struct BmsonProcessed {
 /// [`process_default`](Self::process_default) to choose automatically from
 /// `mode_hint`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct BmsonProcessor;
+pub struct Processor;
 
-impl BmsonProcessor {
+impl Processor {
     /// Process a BMSON chart with an explicit mode-family layout.
     ///
     /// Zero-sized families and the stateful [`GenericLayout`] both go here, by
@@ -145,8 +145,8 @@ impl BmsonProcessor {
     )]
     pub fn process_with(
         bmson: &bmsrs_bmson_model::Bmson,
-        layout: impl BmsonLayout,
-    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
+        layout: impl Layout,
+    ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         Self::process_body(bmson, &|x| layout.map_x(x))
     }
 
@@ -169,7 +169,7 @@ impl BmsonProcessor {
     ///   empty key mapping.
     pub fn process_default(
         bmson: &bmsrs_bmson_model::Bmson,
-    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
+    ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         match &bmson.chart_data.mode_hint {
             bmsrs_bmson_model::ModeHint::Popn5k | bmsrs_bmson_model::ModeHint::Popn9k => {
                 Self::process_with(bmson, Pms)
@@ -183,18 +183,19 @@ impl BmsonProcessor {
                 let mut processed = Self::process_with(bmson, Beat)?;
                 processed
                     .warnings
-                    .push(BmsonProcessWarning::UnknownModeHint { hint: hint.clone() });
+                    .push(ProcessWarning::UnknownModeHint { hint: hint.clone() });
                 Ok(processed)
             }
             _ => Self::process_with(bmson, Beat),
         }
     }
 
-    /// Public entry point for custom decode logic (internal use).
+    /// Conversion body shared by [`process_with`](Self::process_with) and
+    /// [`process_default`](Self::process_default).
     fn process_body(
         bmson: &bmsrs_bmson_model::Bmson,
         decode: &impl Fn(u64) -> Option<(NoteSide, Lane)>,
-    ) -> Result<Outcome<BmsonProcessed, BmsonProcessWarning>, ProcessError> {
+    ) -> Result<Outcome<Processed, ProcessWarning>, ProcessError> {
         let bmson_data = &bmson.chart_data;
 
         // A resolution of 0 falls back to the default 240 per the
@@ -203,7 +204,7 @@ impl BmsonProcessor {
         let mut warnings = Vec::new();
         let resolution = match bmson_data.resolution {
             0 => {
-                warnings.push(BmsonProcessWarning::ZeroResolutionFallback);
+                warnings.push(ProcessWarning::ZeroResolutionFallback);
                 240
             }
             n => n,
@@ -269,7 +270,7 @@ impl BmsonProcessor {
 
         let kaleid = BmsonKaleid::from_bmson(bmson, conv.filters);
         Ok(Outcome::new(
-            BmsonProcessed {
+            Processed {
                 chart: Chart::new(song_info, chart_info, data)?,
                 kaleid,
             },
@@ -284,7 +285,7 @@ impl BmsonProcessor {
 /// precomputed timing cache, along with `audio_assets` and `events` accumulator
 /// buffers, so conversion steps are organized as `&mut self` methods rather than
 /// free functions with `&mut` parameters. Used only inside
-/// [`BmsonProcessor::process_body`].
+/// [`Processor::process_body`].
 struct BmsonConverter<'a> {
     /// Source BMSON document.
     bmson: &'a bmsrs_bmson_model::Bmson,
@@ -302,7 +303,7 @@ struct BmsonConverter<'a> {
     /// Event vector being built.
     events: Vec<Event<BmsonNoteExt>>,
     /// Recoverable warnings collected during processing.
-    warnings: Vec<BmsonProcessWarning>,
+    warnings: Vec<ProcessWarning>,
     /// Filter objects keyed by the first sliced audio asset of their channel.
     filters: BTreeMap<AudioIndex, bmsrs_bmson_model::SoundFilter>,
 }
@@ -352,7 +353,7 @@ const fn lane_key(lane: Lane) -> (u8, u8) {
 /// Merge one judgeable note into the layered table.
 fn merge_layered_note(
     notes: &mut BTreeMap<(NoteSide, u8, u8, u64), LayeredNote>,
-    warnings: &mut Vec<BmsonProcessWarning>,
+    warnings: &mut Vec<ProcessWarning>,
     note: PendingNote,
 ) {
     let PendingNote {
@@ -389,7 +390,7 @@ fn merge_layered_note(
         (NoteKind::Long { duration: first }, NoteKind::Long { duration: other })
             if first != other =>
         {
-            warnings.push(BmsonProcessWarning::LayeredNoteLengthMismatch { tick, first, other });
+            warnings.push(ProcessWarning::LayeredNoteLengthMismatch { tick, first, other });
         }
         (NoteKind::Normal, NoteKind::Long { .. }) => {
             entry.kind = kind;
@@ -405,13 +406,12 @@ impl BmsonConverter<'_> {
         for e in &self.bmson.chart_data.bpm_events {
             if e.bpm == 0.0 {
                 self.warnings
-                    .push(BmsonProcessWarning::ZeroBpmChangeIgnored { tick: e.y });
+                    .push(ProcessWarning::ZeroBpmChangeIgnored { tick: e.y });
             } else if !BpmChange::is_valid(e.bpm) {
-                self.warnings
-                    .push(BmsonProcessWarning::InvalidBpmChangeIgnored {
-                        tick: e.y,
-                        bpm: e.bpm,
-                    });
+                self.warnings.push(ProcessWarning::InvalidBpmChangeIgnored {
+                    tick: e.y,
+                    bpm: e.bpm,
+                });
             } else {
                 self.events.push(Event::bpm(e.y, e.bpm));
             }
@@ -800,6 +800,7 @@ const fn ln_mode_to_hint(m: bmsrs_bmson_model::LnMode) -> LnTypeHint {
     match m {
         bmsrs_bmson_model::LnMode::Cn => LnTypeHint::Cn,
         bmsrs_bmson_model::LnMode::Hcn => LnTypeHint::Hcn,
+        bmsrs_bmson_model::LnMode::Hln => LnTypeHint::Hln,
         _ => LnTypeHint::Ln, // Ln plus #[non_exhaustive] fallback.
     }
 }
@@ -809,6 +810,7 @@ const fn ln_type_to_hint(lt: bmsrs_bmson_model::LnType) -> LnTypeHint {
     match lt {
         bmsrs_bmson_model::LnType::Cn => LnTypeHint::Cn,
         bmsrs_bmson_model::LnType::Hcn => LnTypeHint::Hcn,
+        bmsrs_bmson_model::LnType::Hln => LnTypeHint::Hln,
         _ => LnTypeHint::Ln, // Ln plus #[non_exhaustive] fallback.
     }
 }

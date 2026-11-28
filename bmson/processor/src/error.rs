@@ -2,12 +2,12 @@
 
 /// Recoverable warnings produced while processing BMSON.
 ///
-/// Corresponds to `ProcessWarning` on the BMS side. BMSON data is parsed through
+/// Mirrors `ProcessWarning` in `bmsrs-bms-processor`. BMSON data is parsed through
 /// typed serde structures, so there are no corrupted-value warnings; parse
 /// failures are reported during deserialization.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 #[non_exhaustive]
-pub enum BmsonProcessWarning {
+pub enum ProcessWarning {
     /// A BPM change with value 0 was ignored.
     #[error("zero BPM change at tick {tick} ignored")]
     ZeroBpmChangeIgnored {
@@ -56,8 +56,8 @@ pub enum BmsonProcessWarning {
     },
 }
 
-impl From<BmsonProcessWarning> for bmsrs_pipeline::Diagnostic {
-    fn from(warning: BmsonProcessWarning) -> Self {
+impl From<ProcessWarning> for bmsrs_pipeline::Diagnostic {
+    fn from(warning: ProcessWarning) -> Self {
         Self::new(bmsrs_pipeline::Severity::Warning, warning.to_string())
             .with_code(bmsrs_pipeline::DiagnosticCode::BmsonProcess)
     }

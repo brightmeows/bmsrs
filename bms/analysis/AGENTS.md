@@ -9,7 +9,7 @@ repository.
 ## Output
 
 `Analysis` carries CST/tokenizer diagnostics, duplicate-definition and
-missing-reference warnings, a symbol index over eleven resource kinds, and
+missing-reference warnings, a symbol index over twelve resource kinds, and
 incremental refresh through `Analysis::update`.
 
 `docs.rs` is a manually maintained summary; the BMS command memo linked from

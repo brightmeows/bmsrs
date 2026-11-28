@@ -9,7 +9,7 @@ warnings, and the `BmsParser` entry points.
 ## Entry points
 
 `BmsParser` and its warning semantics are documented on the type. Every entry
-returns `BmsDiagnostic`, which carries the severity the syntax layer assigned;
+returns `Diagnostic`, which carries the severity the syntax layer assigned;
 `FailFast` returns the first error-severity diagnostic as `Err` and leaves
 warning-severity ones in the list. Key distinction: `parse`/`parse_with` report
 diagnostics from selected branches only; `parse_document` collects them from
@@ -26,7 +26,7 @@ Completion: `cargo test -p bmsrs-bms-parser` green.
 
 - Keep `BmsParser` as a zero-sized type; operations are associated functions
 - Route model construction through `Bms::from_flat_tokens`
-- Keep line numbers 1-based in `LineToken` and `BmsDiagnostic`
+- Keep line numbers 1-based in `LineToken` and `Diagnostic`
 
 ### Ask
 

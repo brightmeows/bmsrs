@@ -9,7 +9,7 @@
 
 use bmsrs_bms_model::Bms;
 use bmsrs_bms_parser::BmsParser;
-use bmsrs_bms_processor::BmsProcessor;
+use bmsrs_bms_processor::Processor;
 use bmsrs_bms_processor::custom_event::BmsCustomEvent;
 use bmsrs_bms_processor::layout::Bme;
 use bmsrs_bms_syntax::SourceFile;
@@ -34,7 +34,7 @@ fn timing(chart: &BmsChart) -> TimingTrack {
 /// Pipeline helper: BMS text to `Chart<(), BmsCustomEvent>`.
 #[expect(clippy::expect_used, reason = "test helper panics on process failure")]
 fn process(bms_text: &str) -> BmsChart {
-    BmsProcessor::process_with(&parse_bms(bms_text), Bme)
+    Processor::process_with(&parse_bms(bms_text), Bme)
         .expect("process should succeed")
         .value
         .chart
@@ -609,7 +609,7 @@ fn process_with_cf(bms_text: &str) -> BmsChart {
     let source = SourceFile::parse(bms_text);
     let bms = BmsParser::parse(&source.source_file(), &mut |_| 0).bms;
     #[expect(clippy::expect_used, reason = "test helper panics on failure")]
-    BmsProcessor::process_with(&bms, Bme)
+    Processor::process_with(&bms, Bme)
         .expect("process should succeed")
         .value
         .chart
@@ -740,7 +740,8 @@ fn bmspec_1_07_basic_info() {
     assert_eq!(chart.song().title, "BY MY SIDE");
     assert_eq!(chart.song().artist, "flicknote");
     assert_eq!(chart.song().genre, "Trance Core");
-    assert_eq!(chart.chart_info().chart_name, "5");
+    // BMS has no difficulty label; #PLAYLEVEL is carried by `level` alone.
+    assert_eq!(chart.chart_info().chart_name, "");
     assert_eq!(chart.chart_info().level, 5);
 }
 

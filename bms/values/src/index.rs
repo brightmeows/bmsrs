@@ -72,7 +72,6 @@ pub enum BmsBase {
     #[bms_token("36")]
     Base36,
     /// Base-62 (`0`-`9`, `A`-`Z`, `a`-`z`; 62 values per position).
-    /// This is the default character set for most BMS indices.
     #[bms_token("62")]
     Base62,
 }

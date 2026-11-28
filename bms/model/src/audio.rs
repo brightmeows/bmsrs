@@ -9,31 +9,6 @@ use bmsrs_pipeline::SourceFormat;
 
 use crate::SynthParams;
 
-/// Owned parameters for `#EXWAV` (the owned counterpart of the tokenizer's
-/// `ExWavParams`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnedExWavParams {
-    /// Pan.
-    pub pan: Option<i32>,
-    /// Volume attenuation.
-    pub volume: Option<i32>,
-    /// Frequency.
-    pub frequency: Option<u32>,
-    /// File name.
-    pub filename: String,
-}
-
-impl From<&ExWavParams> for OwnedExWavParams {
-    fn from(p: &ExWavParams) -> Self {
-        Self {
-            pan: p.pan,
-            volume: p.volume,
-            frequency: p.frequency,
-            filename: p.filename.clone(),
-        }
-    }
-}
-
 /// One `#WAV` source.
 ///
 /// `File` is the standard BMS file reference. `Synth` is a `KaleidBeat`
@@ -69,7 +44,7 @@ pub struct Audio {
     /// only contain [`WavSource::File`].
     pub wav_sources: BTreeMap<WavIndex, WavSource>,
     /// `#EXWAV` effect parameters by index (pan, volume, frequency).
-    pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
+    pub ex_wav_params: BTreeMap<WavIndex, ExWavParams>,
     /// Audio playback command (`#WAVCMD`).
     pub wav_cmd: Option<WavCmdParams>,
     /// CD track reference (`#CDDA`).
@@ -103,8 +78,7 @@ impl Audio {
                 let nid = WavIndex::from(id.normalize(base));
                 self.wav_sources
                     .insert(nid, WavSource::File(params.filename.clone()));
-                self.ex_wav_params
-                    .insert(nid, OwnedExWavParams::from(params));
+                self.ex_wav_params.insert(nid, params.clone());
             }
             BmsHeaderResDefAudio::WavCmd { params } => {
                 self.wav_cmd = Some(params.clone());

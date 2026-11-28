@@ -13,7 +13,7 @@ use bmsrs_bmson_model::{
 /// `KaleidBeat` extensions carried by a bmson file.
 ///
 /// `KaleidBeat` extension: none of these fields are part of the bmson schema or
-/// beatoraja. Ordinary charts leave [`BmsonProcessed::kaleid`](crate::BmsonProcessed::kaleid)
+/// beatoraja. Ordinary charts leave [`Processed::kaleid`](crate::Processed::kaleid)
 /// as `None`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BmsonKaleid {

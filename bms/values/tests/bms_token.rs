@@ -6,7 +6,7 @@
 use bmsrs_bms_values::{
     BmsHeaderControlFlow, BmsHeaderDisplay, BmsHeaderGameplay, BmsHeaderMetadata,
     BmsHeaderResDefAudio, BmsHeaderResDefVisual, BmsHeaderTiming, ChangeOptionIndex,
-    DifficultyLevel, LnMode, LnType, PlayerMode, Rank, TextIndex, WavCmdKind, WavCmdParams,
+    DifficultyLevel, LnMode, LnNotation, PlayerMode, Rank, TextIndex, WavCmdKind, WavCmdParams,
 };
 
 #[test]
@@ -171,7 +171,7 @@ fn gameplay_lntype_roundtrip() {
     let parsed = BmsHeaderGameplay::try_match_header("LNTYPE", "1")
         .unwrap()
         .unwrap();
-    assert_eq!(parsed, BmsHeaderGameplay::LnType(LnType::Type1));
+    assert_eq!(parsed, BmsHeaderGameplay::LnType(LnNotation::Rdm));
     let (cmd, val) = parsed.format_header();
     assert_eq!(cmd, "#LNTYPE");
     assert_eq!(val, "1");

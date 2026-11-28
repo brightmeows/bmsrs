@@ -3,7 +3,7 @@
 
 use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_processor::layout::Bme;
-use bmsrs_bms_processor::{BmsProcessor, ProcessWarningKind};
+use bmsrs_bms_processor::{ProcessWarningKind, Processor};
 use bmsrs_bms_syntax::SourceFile;
 use bmsrs_chart::{BgaLayer, BgaResourceContent, BgaResourceId, EventKind};
 
@@ -18,7 +18,7 @@ type Outcome =
 fn process(text: &str) -> Outcome {
     let parse = SourceFile::parse(text);
     let bms = BmsParser::parse(&parse.source_file(), &mut |_| 1).bms;
-    BmsProcessor::process_with(&bms, Bme).unwrap()
+    Processor::process_with(&bms, Bme).unwrap()
 }
 
 fn poor_events(processed: &Outcome) -> Vec<(u64, Option<u32>)> {
@@ -107,6 +107,6 @@ fn undefined_object_becomes_blank_frame_and_warns() {
     assert_eq!(frames[1].resource, Some(BgaResourceId::new(0)));
     assert!(processed.warnings.iter().any(|warning| matches!(
         warning.kind,
-        ProcessWarningKind::MissingBmpDefinition { key: 7, .. }
+        ProcessWarningKind::MissingBmpDefinition { key, .. } if key.as_str() == "07"
     )));
 }

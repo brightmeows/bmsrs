@@ -134,11 +134,6 @@ impl fmt::Display for ParseBmsValueError {
 /// Used when extracting a header or message from a
 /// [`BmsToken`](crate::BmsToken) or a
 /// `(NonZeroUsize, Result<BmsToken, BmsTokenizeError>)` tuple.
-///
-/// **Note**: sub-enum extraction (such as `BmsHeader::try_unwrap_gameplay`) no
-/// longer reports errors through this type; it returns
-/// [`derive_more::TryUnwrapError`] instead. The `WrongHeaderType` variant was
-/// removed during the `0.1.0` cycle.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum BmsTryFromError {
     /// The source `(NonZeroUsize, Result<BmsToken, ...>)` contained an `Err`.

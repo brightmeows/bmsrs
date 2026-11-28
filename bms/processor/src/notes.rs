@@ -10,7 +10,7 @@ use bmsrs_chart::{
 
 use crate::note_ext::BmsNoteExt;
 
-use crate::layout::{BmsLayout, ChannelPos};
+use crate::layout::{ChannelPos, Layout};
 use crate::long_note::{
     LnMarker, LnPairingResult, PairedLn, pair_lnobj, pair_lntype1, pair_lntype2,
 };
@@ -33,7 +33,7 @@ impl BmsConverter<'_> {
                 consumed,
             );
         }
-        if self.bms.gameplay.ln_type == Some(bmsrs_bms_values::LnType::Type2) {
+        if self.bms.gameplay.ln_type == Some(bmsrs_bms_values::LnNotation::Mgq) {
             return (
                 pair_lntype2(&self.bms.messages.long_note_events, self.table),
                 HashSet::new(),
@@ -127,13 +127,12 @@ impl BmsConverter<'_> {
     )]
     pub fn collect_notes(
         &mut self,
-        layout: &impl BmsLayout,
+        layout: &impl Layout,
         wav_map: &BTreeMap<WavIndex, AudioIndex>,
         paired_lns: &[PairedLn],
         consumed: &HashSet<usize>,
         unpaired_starts: &[(u8, u8, u64)],
     ) {
-        let base = self.bms.gameplay.base.unwrap_or_default();
         // One marker table per call: the note loop below would otherwise
         // rebuild it for every note.
         let markers = self.ln_markers();
@@ -146,17 +145,11 @@ impl BmsConverter<'_> {
                          tick: u64|
          -> Option<AudioIndex> {
             let audio = wav_map.get(wav_id).copied();
-            // When `to_index()` returns `None`, skip the warning silently:
-            // a non-decomposable WAV key (such as the "ZZ" LNOBJ marker) is
-            // outside the WAV table's definition range and does not produce
-            // a missing-definition warning.
-            if audio.is_none()
-                && let Some(key) = wav_id.0.to_index_in(base)
-            {
+            if audio.is_none() {
                 warnings.push(ProcessWarning::new(
                     None,
                     ProcessWarningKind::MissingWavDefinition {
-                        key,
+                        key: *wav_id,
                         player,
                         lane,
                         tick,

@@ -59,19 +59,16 @@ impl BmsConverter<'_> {
         tick: u64,
         span: Option<bmsrs_pipeline::SourceSpan>,
     ) -> f64 {
-        let base = self.bms.gameplay.base.unwrap_or_default();
         match value {
             BpmValue::Absolute(bpm) => bpm,
             BpmValue::Reference(id) => {
                 if let Some(bpm) = self.bms.timing.bpm_defs.get(&id).copied() {
                     bpm
                 } else {
-                    if let Some(key) = id.to_index_in(base) {
-                        self.warnings.push(ProcessWarning::new(
-                            span,
-                            ProcessWarningKind::MissingBpmDefinition { key, tick },
-                        ));
-                    }
+                    self.warnings.push(ProcessWarning::new(
+                        span,
+                        ProcessWarningKind::MissingBpmDefinition { key: id, tick },
+                    ));
                     120.0
                 }
             }
@@ -85,7 +82,6 @@ impl BmsConverter<'_> {
     /// parse layer; beatoraja instead plays the absolute value, a deliberate
     /// difference here.
     pub fn build_stops_from_defs(&mut self, bpm_lookup: &BpmLookup<'_>) -> Vec<StopEvent> {
-        let base = self.bms.gameplay.base.unwrap_or_default();
         self.bms
             .messages
             .stop_events
@@ -112,12 +108,13 @@ impl BmsConverter<'_> {
                             .unwrap_or(Duration::ZERO),
                     })
                 } else {
-                    if let Some(key) = se.stop_id.to_index_in(base) {
-                        self.warnings.push(ProcessWarning::new(
-                            span,
-                            ProcessWarningKind::MissingStopDefinition { key, tick },
-                        ));
-                    }
+                    self.warnings.push(ProcessWarning::new(
+                        span,
+                        ProcessWarningKind::MissingStopDefinition {
+                            key: se.stop_id,
+                            tick,
+                        },
+                    ));
                     None
                 }
             })

@@ -30,7 +30,7 @@ fn v1_to_root_basic() {
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
-    let root: Bmson = v1.into();
+    let root: Bmson = v1.try_into().unwrap();
 
     assert_eq!(root.song_info.title, "Test");
     assert_eq!(root.chart_info.subtitle, "Sub");
@@ -66,8 +66,8 @@ fn root_to_v1_round_trip() {
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
-    let root: Bmson = v1.clone().into();
-    let back: bmsrs_bmson_model::v1::Bmson = root.into();
+    let root: Bmson = v1.clone().try_into().unwrap();
+    let back: bmsrs_bmson_model::v1::Bmson = root.try_into().unwrap();
 
     assert_eq!(back.version, v1.version);
     assert_eq!(back.info.title, v1.info.title);
@@ -178,7 +178,7 @@ fn v1_to_root_with_t_field_mapping() {
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
-    let root: Bmson = v1.into();
+    let root: Bmson = v1.try_into().unwrap();
 
     let notes = &root.chart_data.sound_channels[0].note_events;
     assert_eq!(notes[0].t, Some(LnMode::Cn));
@@ -204,7 +204,7 @@ fn v1_ln_type_maps_to_ln_type_hint() {
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     assert_eq!(v1.info.ln_type, Some(bmsrs_bmson_model::LnMode::Cn));
 
-    let root: Bmson = v1.into();
+    let root: Bmson = v1.try_into().unwrap();
     assert_eq!(
         root.chart_data.ln_type_hint,
         Some(bmsrs_bmson_model::LnType::Cn)
@@ -227,7 +227,7 @@ fn v1_ln_type_default_none() {
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     assert_eq!(v1.info.ln_type, None);
 
-    let root: Bmson = v1.into();
+    let root: Bmson = v1.try_into().unwrap();
     // An undeclared v1 `lnType` upgrades to `None`: the unspecified state is
     // preserved instead of being folded into the `ln` default.
     assert_eq!(root.chart_data.ln_type_hint, None);
@@ -248,8 +248,8 @@ fn v1_root_to_v1_ln_type_roundtrip() {
         "bga": {"bga_header": [], "bga_events": [], "layer_events": [], "poor_events": []}
     }"#;
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
-    let root: Bmson = v1.clone().into();
-    let back: bmsrs_bmson_model::v1::Bmson = root.into();
+    let root: Bmson = v1.clone().try_into().unwrap();
+    let back: bmsrs_bmson_model::v1::Bmson = root.try_into().unwrap();
     assert_eq!(back.info.ln_type, v1.info.ln_type);
 }
 
@@ -272,13 +272,13 @@ fn v1_explicit_ln_roundtrips_as_explicit() {
     let v1: bmsrs_bmson_model::v1::Bmson = serde_json::from_str(v1_json).unwrap();
     assert_eq!(v1.info.ln_type, Some(bmsrs_bmson_model::LnMode::Ln));
 
-    let root: Bmson = v1.into();
+    let root: Bmson = v1.try_into().unwrap();
     assert_eq!(
         root.chart_data.ln_type_hint,
         Some(bmsrs_bmson_model::LnType::Ln)
     );
 
-    let back: bmsrs_bmson_model::v1::Bmson = root.into();
+    let back: bmsrs_bmson_model::v1::Bmson = root.try_into().unwrap();
     assert_eq!(back.info.ln_type, Some(bmsrs_bmson_model::LnMode::Ln));
 }
 
@@ -378,7 +378,7 @@ fn v0_init_bpm_negative_is_error() {
     let result: Result<Bmson, _> = v0.try_into();
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(err.message.contains("init_bpm"), "error: {}", err.message);
+    assert!(err.to_string().contains("init_bpm"), "error: {err}");
 }
 
 #[test]
@@ -454,7 +454,7 @@ fn root_to_v0_invalid_init_bpm_errors() {
     let result: Result<bmsrs_bmson_model::v0::Bmson, _> = root.try_into();
     assert!(result.is_err());
     assert!(
-        result.unwrap_err().message.contains("init_bpm"),
+        result.unwrap_err().to_string().contains("init_bpm"),
         "expected init_bpm error"
     );
 }

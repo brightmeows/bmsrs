@@ -1,7 +1,6 @@
 //! Analysis diagnostics.
 
 use bmsrs_bms_syntax::TextRange;
-pub use bmsrs_pipeline::Diagnostic;
 pub use bmsrs_pipeline::DiagnosticCode;
 
 /// Diagnostic severity.
@@ -12,7 +11,7 @@ pub use bmsrs_pipeline::Severity;
 
 /// An analysis diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnalysisDiagnostic {
+pub struct Diagnostic {
     /// Text range.
     range: TextRange,
     /// Severity.
@@ -23,7 +22,7 @@ pub struct AnalysisDiagnostic {
     code: Option<DiagnosticCode>,
 }
 
-impl AnalysisDiagnostic {
+impl Diagnostic {
     /// Construct a diagnostic.
     pub(crate) fn new(
         range: TextRange,
@@ -64,8 +63,8 @@ impl AnalysisDiagnostic {
     }
 }
 
-impl From<&AnalysisDiagnostic> for Diagnostic {
-    fn from(diagnostic: &AnalysisDiagnostic) -> Self {
+impl From<&Diagnostic> for bmsrs_pipeline::Diagnostic {
+    fn from(diagnostic: &Diagnostic) -> Self {
         let converted = Self::new(diagnostic.severity, diagnostic.message.clone()).with_span(
             bmsrs_pipeline::SourceSpan::new(
                 diagnostic.range.start().into(),
@@ -79,8 +78,8 @@ impl From<&AnalysisDiagnostic> for Diagnostic {
     }
 }
 
-impl From<AnalysisDiagnostic> for Diagnostic {
-    fn from(diagnostic: AnalysisDiagnostic) -> Self {
+impl From<Diagnostic> for bmsrs_pipeline::Diagnostic {
+    fn from(diagnostic: Diagnostic) -> Self {
         Self::from(&diagnostic)
     }
 }

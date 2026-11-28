@@ -8,8 +8,9 @@ use bmsrs_bms_model::BmsBgaLayer;
 use bmsrs_bms_model::*;
 use bmsrs_bms_parser::BmsParser;
 use bmsrs_bms_values::{
-    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, LnMode, LnType, PlayerMode, PoorBgaMode,
-    Rank, ScrollIndex, SpeedIndex, StopIndex, WavCmdKind, WavCmdParams, WavIndex,
+    BmpIndex, BmsBase, BmsChannel, BmsIndex, BpmIndex, ExBmpParams, LnMode, LnNotation, PlayerMode,
+    PoorBgaMode, Rank, ScrollIndex, SpeedIndex, StopIndex, SwBgaParams, WavCmdKind, WavCmdParams,
+    WavIndex,
 };
 
 /// Helper: parse a BMS string into `Bms` (default C = &str).
@@ -96,17 +97,17 @@ fn sub_struct_types_accessible() {
     let _msgs = Messages::default();
 }
 
-/// Owned parameter types are accessible.
+/// Composite parameter types are stored as the tokenizer's own types.
 #[test]
-fn owned_param_types_accessible() {
-    let _ex = OwnedExBmpParams {
+fn composite_param_types_accessible() {
+    let _ex = ExBmpParams {
         a: 255,
         r: 0,
         g: 128,
         b: 64,
         filename: "overlay.png".into(),
     };
-    let _sw = OwnedSwBgaParams {
+    let _sw = SwBgaParams {
         fr: 30,
         time: 60,
         line: 1,
@@ -175,7 +176,7 @@ fn full_header_parse() {
     assert_eq!(bms.gameplay.def_ex_rank, Some(3.0));
     assert_eq!(bms.gameplay.total, Some(300.0));
     assert_eq!(bms.gameplay.vol_wav, Some(100.0));
-    assert_eq!(bms.gameplay.ln_type, Some(LnType::Type1));
+    assert_eq!(bms.gameplay.ln_type, Some(LnNotation::Rdm));
     assert!(bms.gameplay.ln_obj.is_some());
     assert_eq!(bms.gameplay.ln_mode, Some(LnMode::Ln));
     assert_eq!(bms.gameplay.base, Some(BmsBase::Base36));
@@ -1192,138 +1193,6 @@ fn video_colors_stored() {
 fn video_dly_stored() {
     let bms = parse("#VIDEODLY 1.5");
     assert_eq!(bms.visual.video_dly, Some(1.5));
-}
-
-// Implicit subtitle
-
-#[test]
-fn implicit_subtitle_hyphen_splits() {
-    let mut meta = Metadata {
-        title: Some("main-sub-".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("main"));
-    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
-}
-
-#[test]
-fn implicit_subtitle_tilde_splits() {
-    let mut meta = Metadata {
-        title: Some("main～sub～".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("main"));
-    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
-}
-
-#[test]
-fn implicit_subtitle_parens_splits() {
-    let mut meta = Metadata {
-        title: Some("main(sub)".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("main"));
-    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
-}
-
-#[test]
-fn implicit_subtitle_brackets_splits() {
-    let mut meta = Metadata {
-        title: Some("main[sub]".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("main"));
-    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
-}
-
-#[test]
-fn implicit_subtitle_angles_splits() {
-    let mut meta = Metadata {
-        title: Some("main<sub>".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("main"));
-    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
-}
-
-#[test]
-fn implicit_subtitle_explicit_takes_precedence() {
-    let mut meta = Metadata {
-        title: Some("main-sub-".into()),
-        subtitle: Some("explicit".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("main-sub-"));
-    assert_eq!(meta.subtitle.as_deref(), Some("explicit"));
-}
-
-#[test]
-fn implicit_subtitle_none_title_noop() {
-    let mut meta = Metadata::default();
-    meta.parse_implicit_subtitle();
-    assert!(meta.title.is_none());
-    assert!(meta.subtitle.is_none());
-}
-
-#[test]
-fn implicit_subtitle_no_separator_noop() {
-    let mut meta = Metadata {
-        title: Some("plain title".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("plain title"));
-    assert!(meta.subtitle.is_none());
-}
-
-#[test]
-fn implicit_subtitle_priority_hyphen_wins() {
-    // `-` has the highest priority and should match before `()`.
-    let mut meta = Metadata {
-        title: Some("a(b)-c-".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("a(b)"));
-    assert_eq!(meta.subtitle.as_deref(), Some("c"));
-}
-
-#[test]
-fn implicit_subtitle_empty_subject_noop() {
-    let mut meta = Metadata {
-        title: Some(String::new()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some(""));
-    assert!(meta.subtitle.is_none());
-}
-
-#[test]
-fn implicit_subtitle_whitespace_trimmed() {
-    let mut meta = Metadata {
-        title: Some("main  - sub -  ".into()),
-        ..Default::default()
-    };
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("main"));
-    assert_eq!(meta.subtitle.as_deref(), Some("sub"));
-}
-
-#[test]
-fn implicit_subtitle_from_parse_then_call_splits_title() {
-    // Called manually after parsing.
-    let bms = parse("#TITLE song<ver2>\n");
-    let mut meta = bms.metadata;
-    meta.parse_implicit_subtitle();
-    assert_eq!(meta.title.as_deref(), Some("song"));
-    assert_eq!(meta.subtitle.as_deref(), Some("ver2"));
 }
 
 #[test]

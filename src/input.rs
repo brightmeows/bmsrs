@@ -1,4 +1,4 @@
-//! Where a BMS chart comes from.
+//! Where a chart comes from.
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -6,13 +6,14 @@ use std::path::{Path, PathBuf};
 use bmsrs_bms_source::{Document, DocumentOptions, SourceEncoding};
 use bmsrs_pipeline::SourceFormat;
 
-/// Where a BMS chart comes from.
+/// Where a chart comes from.
 ///
 /// The input decides the source format: [`Input::file`] derives it from the
 /// path extension, while [`Input::text`] and [`Input::bytes`] take it
 /// explicitly, because nothing in the content says whether it is `.bms`,
-/// `.bme`, or `.bmd`. Every `bms::parse*` entry accepts `impl Into<Input>>`,
-/// and a `&Path` converts to [`Input::file`].
+/// `.bme`, or `.bmd`. Every `bms::parse*` entry and `bmson::parse` accept
+/// `impl Into<Input>>`: the BMS entries reject [`SourceFormat::Bmson`] and
+/// `bmson::parse` requires it. A `&Path` converts to [`Input::file`].
 ///
 /// ```
 /// use bmsrs::bms::{Input, parse};

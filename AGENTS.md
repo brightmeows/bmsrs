@@ -16,7 +16,7 @@ crate's crate-level doc states its role.
 
 `bms-lsp` lives in a separate repository:
 <https://github.com/brightmeows/bms-lsp>. It pins this workspace's
-`bmsrs-bms-analysis` and `bmsrs-bms-syntax` through a git `rev`.
+`bmsrs-bms-analysis` and `bmsrs-bms-syntax` at their published versions.
 
 External dependencies are managed through `[workspace.dependencies]`; do not
 specify versions in individual crate `Cargo.toml` files. Internal
@@ -38,13 +38,15 @@ fix live in `.pre-commit-config.yaml`. Workspace tests run with
 
 ## Conventions
 
-### Commit format
+### Commit and pull request format
 
 Conventional Commits with a scope, matching the `release-plz.toml` changelog
 groups. Titles and bodies are English, a repository-level override of the
 Chinese default. Mark breaking changes with `!` and add a
 `BREAKING CHANGE: <migration note>` footer; release-plz renders it into the
-changelog entry.
+changelog entry. Pull request titles use the same format: the repository
+merges with merge commits whose subject is the PR title followed by `(#N)`,
+so a free-form title lands on `main` verbatim.
 
 ### Worktree directory
 
@@ -73,10 +75,10 @@ correctness rule.
 
 The facade may flatten an associated function into a free entry point when the
 body is a single delegation to it and the receiver would be the only argument
-(`bms::write` is `BmsWriter::write`). The condition is that no second
+(`bms::write` is `Writer::write`). The condition is that no second
 implementation exists to keep in sync.
 
-A zero-sized namespace type (`BmsProcessor`, `BmsonProcessor`, `BmsWriter`)
+A zero-sized namespace type (`Processor` in each processor crate, `Writer`)
 groups operations that share a parameter set or a conversion process; it is not
 a builder. Builder means a type with a terminal method that consumes it, and
 `MessagesBuilder` is the only one in the workspace.
@@ -84,6 +86,18 @@ a builder. Builder means a type with a terminal method that consumes it, and
 Diagnostic codes come from `bmsrs_pipeline::DiagnosticCode` only. A layer may
 wrap it in its own warning type, but no layer may invent a second string
 vocabulary; `DiagnosticCode::as_str` is the only place a code becomes a string.
+
+Type names follow module-as-namespace: a wrapper or result type carries no
+format or layer prefix when its module already names one. Every layer's
+diagnostic wrapper is `Diagnostic`, every processor exposes `Processed`,
+`ProcessWarning`, and `ProcessError`, the zero-sized namespace types are
+`Processor` and `Writer`, and both layout traits are `Layout`. Two families
+keep a prefix because the prefix says which format and nothing else does: the
+values vocabulary (`BmsHeader`, `BmsIndex`, `BmsMessage`, and so on) and the
+processor sidecars and extensions (`BmsKaleid`, `BmsNoteExt`, `BmsCustomEvent`,
+and so on). Model mirrors of IR types (`BpmChange`, `StopEvent`) stay
+unprefixed; the collision with the chart IR is invisible at the facade, and
+`raw` users qualify.
 
 ### Interface shapes
 
@@ -114,7 +128,9 @@ Every type named by a curated facade entry point must resolve from the same
 module. `tests/facade_api.rs` names them, so dropping a re-export fails to
 compile. `raw` is the escape hatch for everything else, which means `prelude`
 imports from the curated modules and never from `raw`; it exports types and
-traits only, so functions stay behind `bms::` and `bmson::`.
+traits only, so functions stay behind `bms::` and `bmson::`. When `bms` and
+`bmson` export the same name, the prelude exports the `bms` one and the bmson
+one stays behind `bmsrs::bmson::`.
 
 `pub` inside a private module is the house style: `clippy::redundant_pub_crate`
 is denied, and the private module already caps visibility. The compiler's
@@ -134,6 +150,8 @@ Deferred interface work, with the trigger that reopens it:
 | `Viewport` options struct | `Viewport::new` takes two `f64`, so a swapped pair compiles | a third display parameter arrives; `Viewport::new` already clamps both scalars, so a new field would grow a `new_with_*` ladder |
 | A recoverable-warning channel for `bmson::parse_str` | a tool handling both formats branches on the return shape, since `bms::parse` returns `Outcome` and `bmson::parse_str` does not | BMSON parsing produces its first recoverable warning |
 | One return shape for range queries (`Player::events_in_range` yields a slice, `notes_in_range` an iterator) | one loop must call `.iter()` on one query and not the other | a consumer ranges over both in the same loop and has to convert |
+| One warning shape for both processors (`ProcessWarning { span, kind }` on the BMS side, a bare enum on the BMSON side) | a tool handling both formats branches on the shape | BMSON parsing gains source spans, the only thing the BMS shape carries extra |
+| `analysis::SymbolId` reuses `values::BmsIndex` | two `[u8; 2]` index newtypes with different case policies | a third index newtype appears |
 | `#[non_exhaustive]` on `DiagnosticCode`, `SourceFormat`, and `SymbolKind` | every added variant breaks a downstream exhaustive match; free before 1.0 | 1.0, where semver starts to matter |
 
 ### Format sources

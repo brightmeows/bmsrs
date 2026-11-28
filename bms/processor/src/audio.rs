@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use bmsrs_bms_model::{Audio, OwnedExWavParams};
-use bmsrs_bms_values::{WavCmdParams, WavIndex};
+use bmsrs_bms_model::Audio;
+use bmsrs_bms_values::{ExWavParams, WavCmdParams, WavIndex};
 use bmsrs_chart::{AudioAsset, AudioIndex};
 
 use super::BmsConverter;
@@ -23,7 +23,7 @@ use super::BmsConverter;
 #[derive(Debug, Clone, PartialEq)]
 pub struct BmsAudio {
     /// Per-WAV effect parameters from `#EXWAV`.
-    pub ex_wav_params: BTreeMap<WavIndex, OwnedExWavParams>,
+    pub ex_wav_params: BTreeMap<WavIndex, ExWavParams>,
     /// `#WAVCMD` global playback command.
     pub wav_cmd: Option<WavCmdParams>,
     /// `#CDDA` track reference.

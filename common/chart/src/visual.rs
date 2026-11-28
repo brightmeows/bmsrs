@@ -25,44 +25,13 @@ pub enum BgaLayer {
     Layer2,
 }
 
-/// Index into [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources).
-///
-/// The vector index is the unique identifier; the dedicated newtype prevents
-/// accidental assignment between this and raw `u32` values such as audio
-/// indices.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BgaResourceId(u32);
-
-impl BgaResourceId {
-    /// Create a BGA resource index from a raw index.
-    #[must_use]
-    pub const fn new(value: u32) -> Self {
-        Self(value)
-    }
-
-    /// Return the raw index value.
-    #[must_use]
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
-
-impl From<u32> for BgaResourceId {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-
-impl From<BgaResourceId> for u32 {
-    fn from(value: BgaResourceId) -> Self {
-        value.0
-    }
-}
-
-impl std::fmt::Display for BgaResourceId {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(formatter)
-    }
+crate::index_newtype! {
+    /// Index into [`ChartInfo::bga_resources`](crate::ChartInfo::bga_resources).
+    ///
+    /// The vector index is the unique identifier; the dedicated newtype
+    /// prevents accidental assignment between this and raw `u32` values such
+    /// as audio indices.
+    pub struct BgaResourceId;
 }
 
 /// Image crop and placement definition (BMS `#BGA` / `#@BGA`).
@@ -164,43 +133,12 @@ pub enum BgaResourceKind {
     Video,
 }
 
-/// Index into [`ChartInfo::swbga_resources`](crate::ChartInfo::swbga_resources).
-///
-/// The dedicated newtype prevents SWBGA definition indices from being assigned
-/// to BGA resource indices.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SwBgaResourceId(u32);
-
-impl SwBgaResourceId {
-    /// Create an SWBGA definition index from a raw index.
-    #[must_use]
-    pub const fn new(value: u32) -> Self {
-        Self(value)
-    }
-
-    /// Return the raw index value.
-    #[must_use]
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
-
-impl From<u32> for SwBgaResourceId {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-
-impl From<SwBgaResourceId> for u32 {
-    fn from(value: SwBgaResourceId) -> Self {
-        value.0
-    }
-}
-
-impl std::fmt::Display for SwBgaResourceId {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(formatter)
-    }
+crate::index_newtype! {
+    /// Index into [`ChartInfo::swbga_resources`](crate::ChartInfo::swbga_resources).
+    ///
+    /// The dedicated newtype prevents SWBGA definition indices from being
+    /// assigned to BGA resource indices.
+    pub struct SwBgaResourceId;
 }
 
 /// Key-bound BGA animation definition (nanasi `#SWBGAxx`).

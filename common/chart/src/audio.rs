@@ -7,43 +7,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Index into [`ChartData::audio_assets`](crate::ChartData::audio_assets).
-///
-/// The dedicated newtype prevents accidental assignment between audio indices
-/// and raw `u32` values such as BGA resource indices.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AudioIndex(u32);
-
-impl AudioIndex {
-    /// Create an audio index from a raw index.
-    #[must_use]
-    pub const fn new(value: u32) -> Self {
-        Self(value)
-    }
-
-    /// Return the raw index value.
-    #[must_use]
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
-
-impl From<u32> for AudioIndex {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-
-impl From<AudioIndex> for u32 {
-    fn from(value: AudioIndex) -> Self {
-        value.0
-    }
-}
-
-impl std::fmt::Display for AudioIndex {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(formatter)
-    }
+crate::index_newtype! {
+    /// Index into [`ChartData::audio_assets`](crate::ChartData::audio_assets).
+    ///
+    /// The dedicated newtype prevents accidental assignment between audio
+    /// indices and raw `u32` values such as BGA resource indices.
+    pub struct AudioIndex;
 }
 
 /// Audio asset: a segment of one audio file.

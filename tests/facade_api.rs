@@ -156,14 +156,14 @@ fn curated_modules_name_the_types_their_signatures_use() {
     fn named<T>() -> &'static str {
         std::any::type_name::<T>()
     }
-    fn bms_layout<T: bmsrs::bms::BmsLayout>() {}
+    fn bms_layout<T: bmsrs::bms::Layout>() {}
 
     // Each path below appears in a curated entry point's signature, so a
     // caller must be able to name it from the same module without reaching
     // into `raw`.
     let resolved = [
         named::<bmsrs::bms::Bms>(),
-        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::BmsDiagnostic>>(),
+        named::<bmsrs::bms::Outcome<bmsrs::bms::Bms, bmsrs::bms::Diagnostic>>(),
         named::<bmsrs::bms::Processed>(),
         named::<bmsrs::bms::ProcessWarning>(),
         named::<bmsrs::bms::ProcessError>(),
@@ -183,8 +183,8 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::BranchMismatch>(),
         named::<bmsrs::bms::ControlFlowCompat>(),
         named::<bmsrs::bms::ParseError>(),
-        named::<bmsrs::bms::BmsDiagnostic>(),
-        named::<bmsrs::bms::BmsDiagnosticKind>(),
+        named::<bmsrs::bms::Diagnostic>(),
+        named::<bmsrs::bms::DiagnosticKind>(),
     ];
     assert_eq!(resolved.len(), 23);
     // `type_name` reports the defining crate, not the re-export path, so the
@@ -202,20 +202,20 @@ fn curated_bmson_module_names_the_types_its_signatures_use() {
     fn named<T>() -> &'static str {
         std::any::type_name::<T>()
     }
-    fn bmson_layout<T: bmsrs::bmson::BmsonLayout>() {}
+    fn bmson_layout<T: bmsrs::bmson::Layout>() {}
 
     let resolved = [
         named::<bmsrs::bmson::Bmson>(),
+        named::<bmsrs::bmson::Input>(),
+        named::<bmsrs::bmson::SourceFormat>(),
         named::<bmsrs::bmson::layout::GenericLayout>(),
-        named::<
-            bmsrs::bmson::Outcome<bmsrs::bmson::BmsonProcessed, bmsrs::bmson::BmsonProcessWarning>,
-        >(),
-        named::<bmsrs::bmson::BmsonProcessed>(),
-        named::<bmsrs::bmson::BmsonProcessWarning>(),
+        named::<bmsrs::bmson::Outcome<bmsrs::bmson::Processed, bmsrs::bmson::ProcessWarning>>(),
+        named::<bmsrs::bmson::Processed>(),
+        named::<bmsrs::bmson::ProcessWarning>(),
         named::<bmsrs::bmson::ProcessError>(),
-        named::<bmsrs::bmson::BmsonParseError>(),
+        named::<bmsrs::bmson::ParseError>(),
     ];
-    assert_eq!(resolved.len(), 7);
+    assert_eq!(resolved.len(), 9);
     assert!(resolved.iter().all(|name| !name.is_empty()));
 
     bmson_layout::<bmsrs::bmson::Beat>();
@@ -259,7 +259,7 @@ fn pipeline_diagnostics_keep_the_syntax_control_flow_distinction() {
 
 #[test]
 fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
-    use bmsrs::bms::{BmsDiagnosticKind, ParseOptions};
+    use bmsrs::bms::{DiagnosticKind, ParseOptions};
     use bmsrs::pipeline::{DiagnosticCode, ErrorStrategy, Severity};
 
     // An unclosed `#RANDOM` is warning-grade in the syntax layer, so FailFast
@@ -284,7 +284,7 @@ fn fail_fast_keeps_parsing_past_a_control_flow_warning() {
         .find(|warning| {
             matches!(
                 warning.kind,
-                BmsDiagnosticKind::Cst {
+                DiagnosticKind::Cst {
                     code: DiagnosticCode::ControlFlow,
                     ..
                 }
@@ -305,7 +305,7 @@ fn syntax_error_keeps_error_severity_at_the_pipeline_exit() {
     let diagnostic = parsed
         .warnings
         .iter()
-        .find(|warning| matches!(warning.kind, bmsrs::bms::BmsDiagnosticKind::Cst { .. }))
+        .find(|warning| matches!(warning.kind, bmsrs::bms::DiagnosticKind::Cst { .. }))
         .cloned()
         .map(bmsrs::pipeline::Diagnostic::from)
         .expect("one CST diagnostic");
@@ -376,21 +376,22 @@ fn prelude_exports_every_type_and_no_functions() {
     use bmsrs::prelude::*;
 
     // Traits are named through a bound, not a type argument.
-    fn bounded_by<T: BmsLayout>() {}
+    fn bounded_by<T: Layout>() {}
     fn drawn_by<T: ControlFlowRng>() {}
-    fn bmson_bounded_by<T: BmsonLayout>() {}
 
     fn named<T>() -> &'static str {
         std::any::type_name::<T>()
     }
 
     // The prelude is types and traits only; every item is named here so a
-    // dropped re-export fails to compile.
+    // dropped re-export fails to compile. The bmson Processed, ProcessWarning,
+    // ParseError, and Layout share their names with bms and stay behind
+    // `bmsrs::bmson::`.
     let resolved = [
         named::<AssetLookup>(),
         named::<Bms>(),
-        named::<BmsDiagnostic>(),
-        named::<BmsDiagnosticKind>(),
+        named::<Diagnostic>(),
+        named::<DiagnosticKind>(),
         named::<BranchMismatch>(),
         named::<BranchSelection>(),
         named::<ControlFlowCompat>(),
@@ -399,7 +400,7 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<Input>(),
         named::<JavaRandom>(),
         named::<Lr2Mt19937>(),
-        named::<Outcome<Bms, BmsDiagnostic>>(),
+        named::<Outcome<Bms, Diagnostic>>(),
         named::<ParseError>(),
         named::<ParseOptions>(),
         named::<ProcessError>(),
@@ -410,12 +411,6 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<TextRange>(),
         named::<BmsTokenizeError>(),
         named::<Bme>(),
-        named::<Beat>(),
-        named::<GenericLayout>(),
-        named::<Bmson>(),
-        named::<BmsonParseError>(),
-        named::<BmsonProcessed>(),
-        named::<BmsonProcessWarning>(),
         named::<Chart>(),
         named::<ChartData>(),
         named::<Event>(),
@@ -425,15 +420,179 @@ fn prelude_exports_every_type_and_no_functions() {
         named::<NoteKind>(),
         named::<NoteRole>(),
         named::<TimingTrack>(),
-        named::<Diagnostic>(),
         named::<DiagnosticCode>(),
         named::<Severity>(),
         named::<SourceSpan>(),
         named::<Player>(),
     ];
-    assert_eq!(resolved.len(), 43);
+    #[cfg(feature = "bmson")]
+    let bmson_only = [named::<Beat>(), named::<GenericLayout>(), named::<Bmson>()];
+    #[cfg(not(feature = "bmson"))]
+    let bmson_only: [&'static str; 0] = [];
+    let expected = if cfg!(feature = "bmson") { 39 } else { 36 };
+    assert_eq!(resolved.len() + bmson_only.len(), expected);
     assert!(resolved.iter().all(|name| !name.is_empty()));
+    assert!(bmson_only.iter().all(|name| !name.is_empty()));
     bounded_by::<Bme>();
     drawn_by::<JavaRandom>();
-    bmson_bounded_by::<Beat>();
+}
+
+#[test]
+fn bms_parse_rejects_a_bmson_path() {
+    // A `.bmson` path used to decode as an empty BMS chart with zero
+    // warnings; the BMS entry points refuse the format before reading.
+    let name = [
+        "bmsrs-facade-bmson-",
+        &std::process::id().to_string(),
+        ".bmson",
+    ]
+    .concat();
+    let path = std::env::temp_dir().join(name);
+    std::fs::write(&path, r#"{"version":"2.0.0"}"#).expect("write fixture");
+    let error = bmsrs::bms::parse(&path).expect_err("a bmson path is not BMS input");
+    std::fs::remove_file(&path).expect("remove fixture");
+    assert!(matches!(
+        error,
+        bmsrs::bms::ParseError::Format {
+            format: bmsrs::bms::SourceFormat::Bmson
+        }
+    ));
+
+    // Text and bytes carry the format explicitly and hit the same check.
+    let text_error = bmsrs::bms::parse(bmsrs::bms::Input::text(
+        "{}",
+        bmsrs::bms::SourceFormat::Bmson,
+    ))
+    .expect_err("declared Bmson text is not BMS input");
+    assert!(matches!(text_error, bmsrs::bms::ParseError::Format { .. }));
+}
+
+#[test]
+fn parse_from_selection_fail_fast_returns_the_first_error() {
+    use bmsrs::bms::{Input, ParseOptions};
+    use bmsrs::pipeline::{DiagnosticCode, ErrorStrategy, SourceFormat};
+
+    // Record under CollectAll: the syntax error stays in the warning list.
+    let text = "# BAD\n#RANDOM 2\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n#BPM 120\n";
+    let (_, selection) = bmsrs::bms::parse_with_recording(
+        Input::text(text, SourceFormat::Bms),
+        &ParseOptions::default(),
+        &mut |_| 1,
+    )
+    .expect("record under CollectAll");
+
+    // Replaying under FailFast must surface the same error the document
+    // path reports, instead of returning it inside the warning list.
+    let error = bmsrs::bms::parse_from_selection(
+        Input::text(text, SourceFormat::Bms),
+        &selection,
+        &ParseOptions {
+            error_strategy: ErrorStrategy::FailFast,
+            ..ParseOptions::default()
+        },
+    )
+    .expect_err("FailFast stops at the syntax error");
+    let bmsrs::bms::ParseError::Diagnostic(diagnostic) = error else {
+        panic!("expected ParseError::Diagnostic, got {error:?}");
+    };
+    assert!(diagnostic.is_error());
+    assert!(matches!(
+        diagnostic.kind,
+        bmsrs::bms::DiagnosticKind::Cst {
+            code: DiagnosticCode::Syntax,
+            ..
+        }
+    ));
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_v1_zero_init_bpm_fails_at_parse_like_v0() {
+    use bmsrs::raw::bmson::model::{BmsonError, UpgradeError};
+
+    // v1 and v0 used to disagree on where an invalid init_bpm surfaced:
+    // v0 failed at parse, v1 only at process. Both now fail at parse.
+    let bga = r#""bga":{"bga_header":[],"bga_events":[],"layer_events":[],"poor_events":[]}"#;
+    let v1 = [
+        r#"{"version":"1.0.0","info":{"title":"T","artist":"A","genre":"G","level":1,"init_bpm":0},"#,
+        bga,
+        "}",
+    ]
+    .concat();
+    let error = bmsrs::bmson::parse_str(&v1).expect_err("v1 init_bpm 0 is rejected");
+    assert!(matches!(
+        error,
+        bmsrs::bmson::ParseError::Version(BmsonError::Upgrade(UpgradeError::InvalidInitBpm {
+            bpm: 0.0
+        }))
+    ));
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_parse_reads_a_json_path_through_input() {
+    use bmsrs::bmson::Input;
+
+    // `.json` was never a BMS text extension; it now selects the BMSON
+    // format so parse_file can be a thin wrapper over parse(Input::file).
+    // The leading BOM is stripped by the lossless document.
+    let name = [
+        "bmsrs-facade-json-",
+        &std::process::id().to_string(),
+        ".json",
+    ]
+    .concat();
+    let path = std::env::temp_dir().join(name);
+    std::fs::write(
+        &path,
+        "\u{FEFF}{\"version\":\"2.0.0\",\"song_info\":{\"title\":\"T\",\"artist\":\"A\",\"genre\":\"G\"},\
+         \"chart_info\":{\"level\":1,\"bga\":{\"bga_header\":[],\"bga_events\":[],\"layer_events\":[],\"poor_events\":[]}},\
+         \"chart_data\":{\"init_bpm\":120}}",
+    )
+    .expect("write fixture");
+    let bmson = bmsrs::bmson::parse(Input::file(&path)).expect("valid BMSON file");
+    std::fs::remove_file(&path).expect("remove fixture");
+    assert_eq!(bmson.song_info.title, "T");
+
+    // parse_file is the same call with the path wrapped for the caller.
+    let file_name = [
+        "bmsrs-facade-json-file-",
+        &std::process::id().to_string(),
+        ".json",
+    ]
+    .concat();
+    let file_path = std::env::temp_dir().join(file_name);
+    std::fs::write(&file_path, "{\"version\":\"2.0.0\"}").expect("write fixture");
+    let result = bmsrs::bmson::parse_file(&file_path);
+    std::fs::remove_file(&file_path).expect("remove fixture");
+    // The `.json` extension passed the format gate; a bare version object
+    // fails later as JSON, not as Format.
+    assert!(matches!(result, Err(bmsrs::bmson::ParseError::Json(_))));
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_parse_rejects_a_non_bmson_format() {
+    use bmsrs::bmson::Input;
+    use bmsrs::pipeline::SourceFormat;
+
+    let error = bmsrs::bmson::parse(Input::text("{}", SourceFormat::Bms))
+        .expect_err("declared BMS text is not BMSON input");
+    assert!(matches!(
+        error,
+        bmsrs::bmson::ParseError::Format {
+            format: SourceFormat::Bms
+        }
+    ));
+}
+
+#[cfg(feature = "bmson")]
+#[test]
+fn bmson_parse_slice_reports_undecodable_bytes() {
+    // JSON is UTF-8; the lossless document is pinned to UTF-8 so invalid
+    // bytes surface as a decode error instead of being claimed by another
+    // encoding detector.
+    let error = bmsrs::bmson::parse_slice(&[0xFF, 0xFE, 0x00, 0x7B])
+        .expect_err("invalid UTF-8 is rejected");
+    assert!(matches!(error, bmsrs::bmson::ParseError::Decode(_)));
 }
