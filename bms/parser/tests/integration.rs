@@ -1206,12 +1206,12 @@ fn video_dly_stored() {
 
 #[test]
 fn bmd_forces_base62_and_strips_inline_semicolons() {
-    use bmsrs_bms_syntax::ParseOptions;
+    use bmsrs_bms_syntax::SyntaxOptions;
     use bmsrs_pipeline::SourceFormat;
 
-    let options = ParseOptions {
+    let options = SyntaxOptions {
         format: SourceFormat::Bmd,
-        ..ParseOptions::default()
+        ..SyntaxOptions::default()
     };
     let text = "#WAV01 P0 N60 V100 G48\n#00111:01 ; inline comment\n#00211:0a\n#00211:0b\n";
     let parsed = bmsrs_bms_syntax::SourceFile::parse_with(text, &options);

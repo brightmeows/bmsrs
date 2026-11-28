@@ -7,7 +7,7 @@ use crate::ast::SourceFile;
 use crate::lexer::{LineData, SyntaxLineKind, lex, lex_line, lex_with_states, raw_line_at};
 use bmsrs_bms_source::ScanState;
 
-use crate::{ParseOptions, SyntaxKind};
+use crate::{SyntaxKind, SyntaxOptions};
 
 /// A parse diagnostic.
 ///
@@ -179,7 +179,7 @@ struct SwitchCase<'a> {
 }
 
 /// Parse text and build the CST.
-pub fn parse_with(text: &str, options: &ParseOptions) -> SyntaxParse {
+pub fn parse_with(text: &str, options: &SyntaxOptions) -> SyntaxParse {
     let lines = lex(text, options);
     parse_lines(&lines)
 }
@@ -741,7 +741,7 @@ pub struct IncrementalParser {
     /// Current source text.
     text: String,
     /// Parse options.
-    options: ParseOptions,
+    options: SyntaxOptions,
     /// Current parse result.
     parse: SyntaxParse,
     /// Scan state after each line.
@@ -753,7 +753,7 @@ pub struct IncrementalParser {
 impl IncrementalParser {
     /// Create a parser and parse the initial text.
     #[must_use]
-    pub fn new(text: &str, options: ParseOptions) -> Self {
+    pub fn new(text: &str, options: SyntaxOptions) -> Self {
         let (lines, line_states) = lex_with_states(text, &options);
         Self {
             text: text.to_owned(),
@@ -778,7 +778,7 @@ impl IncrementalParser {
 
     /// Return the parse options.
     #[must_use]
-    pub const fn options(&self) -> &ParseOptions {
+    pub const fn options(&self) -> &SyntaxOptions {
         &self.options
     }
 

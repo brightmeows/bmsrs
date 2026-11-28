@@ -41,7 +41,7 @@ pub use syntax_kind::SyntaxKind;
 
 /// Syntax parsing options.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParseOptions {
+pub struct SyntaxOptions {
     /// Source format selected by the entry layer.
     ///
     /// The syntax layer itself ignores this; the parser uses it for `.bmd`
@@ -51,22 +51,13 @@ pub struct ParseOptions {
     pub header_prefixes: Vec<char>,
     /// Control-flow compatibility mode; defaults to [`ControlFlowCompat::Ideal`].
     pub control_flow_compat: ControlFlowCompat,
-    /// Error collection strategy; defaults to
-    /// [`bmsrs_pipeline::ErrorStrategy::CollectAll`].
-    ///
-    /// Only whole-document entry points act on it: a parse from an existing
-    /// CST has no syntax diagnostics to fail on, so `FailFast` applies to the
-    /// parser crate's `parse_document_with` and to the facade entry points,
-    /// not to a parse that takes a `SourceFile`.
-    pub error_strategy: bmsrs_pipeline::ErrorStrategy,
 }
 
-impl Default for ParseOptions {
+impl Default for SyntaxOptions {
     fn default() -> Self {
         Self {
             header_prefixes: vec!['#', '%'],
             control_flow_compat: ControlFlowCompat::Ideal,
-            error_strategy: bmsrs_pipeline::ErrorStrategy::CollectAll,
             format: bmsrs_pipeline::SourceFormat::Bms,
         }
     }

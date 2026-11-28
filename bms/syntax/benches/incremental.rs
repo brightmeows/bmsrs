@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 use std::hint::black_box;
 
-use bmsrs_bms_syntax::{IncrementalParser, ParseOptions, SourceFile};
+use bmsrs_bms_syntax::{IncrementalParser, SourceFile, SyntaxOptions};
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 
 /// Build an old and a single-line-edited chart.
@@ -32,7 +32,7 @@ fn bench_incremental(c: &mut Criterion) {
             &(old, new),
             |b, (old_text, new_text)| {
                 b.iter_batched(
-                    || IncrementalParser::new(old_text, ParseOptions::default()),
+                    || IncrementalParser::new(old_text, SyntaxOptions::default()),
                     |mut parser| {
                         parser.update(black_box(new_text));
                         black_box(parser.parse().source_file().syntax().to_string());

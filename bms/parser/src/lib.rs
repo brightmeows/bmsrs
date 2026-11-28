@@ -5,6 +5,9 @@
 //! `bmsrs-bms-model`.
 
 mod cst;
+mod options;
 
+pub use bmsrs_bms_syntax::SyntaxOptions;
 pub use bmsrs_pipeline::ErrorStrategy;
 pub use cst::{BmsParse, BmsParser, Diagnostic, DiagnosticKind, LineToken};
+pub use options::ParseOptions;

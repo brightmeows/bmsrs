@@ -1,6 +1,6 @@
 //! CST parsing tests.
 
-use bmsrs_bms_syntax::{ParseOptions, SourceFile, SyntaxKind, SyntaxLineKind};
+use bmsrs_bms_syntax::{SourceFile, SyntaxKind, SyntaxLineKind, SyntaxOptions};
 
 #[test]
 fn cst_text_is_lossless() {
@@ -156,9 +156,9 @@ fn token_at_offset_finds_command_name() {
 
 #[test]
 fn custom_header_prefix_is_recognized() {
-    let options = ParseOptions {
+    let options = SyntaxOptions {
         header_prefixes: vec!['@'],
-        ..ParseOptions::default()
+        ..SyntaxOptions::default()
     };
     let parse = SourceFile::parse_with("@TITLE Song\n", &options);
     let line = parse

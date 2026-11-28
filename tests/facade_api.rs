@@ -116,8 +116,11 @@ fn jbms_compat_mode_and_lr2_rng_run_through_the_facade() {
             bmsrs::pipeline::SourceFormat::Bms,
         ),
         &bmsrs::bms::ParseOptions {
-            control_flow_compat: ControlFlowCompat::Jbms,
-            ..bmsrs::bms::ParseOptions::default()
+            syntax: bmsrs::bms::SyntaxOptions {
+                control_flow_compat: ControlFlowCompat::Jbms,
+                ..Default::default()
+            },
+            ..Default::default()
         },
         &mut |_| 1,
     )
@@ -177,6 +180,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::BmsTokenizeError>(),
         named::<bmsrs::bms::TextDecodeError>(),
         named::<bmsrs::bms::ParseOptions>(),
+        named::<bmsrs::bms::SyntaxOptions>(),
         named::<bmsrs::bms::Input>(),
         named::<bmsrs::bms::SourceFormat>(),
         named::<bmsrs::bms::BranchSelection>(),
@@ -186,7 +190,7 @@ fn curated_modules_name_the_types_their_signatures_use() {
         named::<bmsrs::bms::Diagnostic>(),
         named::<bmsrs::bms::DiagnosticKind>(),
     ];
-    assert_eq!(resolved.len(), 23);
+    assert_eq!(resolved.len(), 24);
     // `type_name` reports the defining crate, not the re-export path, so the
     // value only has to exist; resolving these paths is the assertion.
     assert!(resolved.iter().all(|name| !name.is_empty()));

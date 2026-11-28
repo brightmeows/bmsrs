@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use bmsrs_bms_source::ScanState;
 
-use crate::{ParseOptions, SyntaxKind};
+use crate::{SyntaxKind, SyntaxOptions};
 
 /// A single lexical token.
 #[derive(Debug, Clone, Copy)]
@@ -150,7 +150,7 @@ pub fn raw_line_at(text: &str, start: usize) -> Option<RawLine<'_>> {
 /// Lex line by line, returning the scan state after each line.
 pub fn lex_with_states<'a>(
     text: &'a str,
-    options: &ParseOptions,
+    options: &SyntaxOptions,
 ) -> (Vec<LineData<'a>>, Vec<ScanState>) {
     let mut state = ScanState::default();
     let mut lines = Vec::new();
@@ -163,7 +163,7 @@ pub fn lex_with_states<'a>(
 }
 
 /// Lex line by line.
-pub fn lex<'a>(text: &'a str, options: &ParseOptions) -> Vec<LineData<'a>> {
+pub fn lex<'a>(text: &'a str, options: &SyntaxOptions) -> Vec<LineData<'a>> {
     lex_with_states(text, options).0
 }
 
@@ -171,7 +171,7 @@ pub fn lex<'a>(text: &'a str, options: &ParseOptions) -> Vec<LineData<'a>> {
 pub fn lex_line<'a>(
     line: RawLine<'a>,
     state: &mut ScanState,
-    options: &ParseOptions,
+    options: &SyntaxOptions,
 ) -> LineData<'a> {
     let scanned = state.scan(line.body);
     let mut tokens = Vec::new();
@@ -220,7 +220,7 @@ pub fn lex_line<'a>(
 fn lex_content<'a>(
     text: &'a str,
     absolute: usize,
-    options: &ParseOptions,
+    options: &SyntaxOptions,
     tokens: &mut Vec<LexToken<'a>>,
 ) -> SyntaxLineKind {
     if text.starts_with("##") {

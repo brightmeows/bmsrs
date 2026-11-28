@@ -34,6 +34,7 @@ pub mod bms {
 
     pub use bmsrs_pipeline::{ErrorStrategy, Outcome};
     pub use model::Bms;
+    pub use parser::ParseOptions;
     pub use parser::{Diagnostic, DiagnosticKind};
     pub use processor::layout::{Bme, Layout};
     pub use processor::{AssetLookup, ProcessError, ProcessWarning, Processed};
@@ -47,7 +48,7 @@ pub mod bms {
     pub use bmsrs_pipeline::SourceFormat;
     pub use source::TextDecodeError;
     pub use syntax::TextRange;
-    pub use syntax::{BranchMismatch, BranchSelection, ParseOptions};
+    pub use syntax::{BranchMismatch, BranchSelection, SyntaxOptions};
     pub use values::BmsTokenizeError;
 
     pub use syntax::{
@@ -95,7 +96,7 @@ pub mod bms {
         input: impl Into<Input<'a>>,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
-        let parse_options = with_input_format(source.format(), &syntax::ParseOptions::default())?;
+        let parse_options = with_input_format(source.format(), &parser::ParseOptions::default())?;
         let document = source.into_document()?;
         from_document(&document, &parse_options, &mut syntax::FirstBranch)
             .map(|(bms, warnings)| bmsrs_pipeline::Outcome::new(bms, warnings))
@@ -120,7 +121,7 @@ pub mod bms {
     /// be read.
     pub fn parse_with<'a>(
         input: impl Into<Input<'a>>,
-        options: &syntax::ParseOptions,
+        options: &parser::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
@@ -143,7 +144,7 @@ pub mod bms {
     /// be read.
     pub fn parse_with_recording<'a>(
         input: impl Into<Input<'a>>,
-        options: &syntax::ParseOptions,
+        options: &parser::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<
         (
@@ -184,7 +185,7 @@ pub mod bms {
     pub fn parse_from_selection<'a>(
         input: impl Into<Input<'a>>,
         selection: &syntax::BranchSelection,
-        options: &syntax::ParseOptions,
+        options: &parser::ParseOptions,
     ) -> Result<bmsrs_pipeline::Outcome<model::Bms, Diagnostic>, ParseError> {
         let source = input.into();
         let parse_options = with_input_format(source.format(), options)?;
@@ -193,7 +194,7 @@ pub mod bms {
             .try_to_text()
             .map_err(Diagnostic::decode)
             .map_err(ParseError::from)?;
-        let parse = syntax::SourceFile::parse_with(&text, &parse_options);
+        let parse = syntax::SourceFile::parse_with(&text, &parse_options.syntax);
         let file = parse.source_file();
         let mut warnings: Vec<Diagnostic> = parse
             .errors()
@@ -210,8 +211,9 @@ pub mod bms {
                 },
             })
             .collect();
-        let parsed = parser::BmsParser::parse_from_selection_with(&file, selection, &parse_options)
-            .map_err(ParseError::from)?;
+        let parsed =
+            parser::BmsParser::parse_from_selection_with(&file, selection, &parse_options.syntax)
+                .map_err(ParseError::from)?;
         warnings.extend(parsed.warnings);
         if parse_options.error_strategy == ErrorStrategy::FailFast
             && let Some(first_error) = warnings.iter().find(|warning| warning.is_error())
@@ -275,7 +277,7 @@ pub mod bms {
     /// Run the full semantic pipeline from an already-built document.
     fn from_document(
         document: &source::Document,
-        options: &syntax::ParseOptions,
+        options: &parser::ParseOptions,
         rng: &mut impl syntax::ControlFlowRng,
     ) -> Result<(model::Bms, Vec<Diagnostic>), ParseError> {
         let parsed = parser::BmsParser::parse_document_with(document, options, rng)
@@ -291,15 +293,14 @@ pub mod bms {
     /// pipeline parses the BMS text family only.
     fn with_input_format(
         format: SourceFormat,
-        options: &syntax::ParseOptions,
-    ) -> Result<syntax::ParseOptions, ParseError> {
+        options: &parser::ParseOptions,
+    ) -> Result<parser::ParseOptions, ParseError> {
         if format == SourceFormat::Bmson {
             return Err(ParseError::Format { format });
         }
-        Ok(syntax::ParseOptions {
-            format,
-            ..options.clone()
-        })
+        let mut parse_options = options.clone();
+        parse_options.syntax.format = format;
+        Ok(parse_options)
     }
 }
 

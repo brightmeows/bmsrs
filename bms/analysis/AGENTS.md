@@ -53,7 +53,7 @@ Completion: `cargo test -p bmsrs-bms-analysis` green.
 
 - When adding a resource kind, update `SymbolKind`, the definition prefix table,
   the channel mapping, and diagnostics together
-- Custom header prefixes go through `Analysis::from_text_with(&ParseOptions)`
+- Custom header prefixes go through `Analysis::from_text_with(&SyntaxOptions)`
 - Store `(line, line-offset)` on definitions and references and expose absolute
   ranges through `SymbolIndex::range_of_definition` / `range_of_reference`
 - Use longest-prefix matching for documentation lookup so `BPM` does not steal

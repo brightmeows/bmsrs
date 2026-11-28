@@ -1,6 +1,6 @@
 //! Incremental parser behaviour tests.
 
-use bmsrs_bms_syntax::{IncrementalParser, ParseOptions, SourceFile};
+use bmsrs_bms_syntax::{IncrementalParser, SourceFile, SyntaxOptions};
 use proptest::prelude::*;
 
 fn full(text: &str) -> SourceFile {
@@ -11,7 +11,7 @@ fn full(text: &str) -> SourceFile {
 fn single_line_edit_matches_full_parse() {
     let old = "#TITLE A\n#BPM 120\n#00111:0101\n";
     let new = "#TITLE B\n#BPM 120\n#00111:0101\n";
-    let mut parser = IncrementalParser::new(old, ParseOptions::default());
+    let mut parser = IncrementalParser::new(old, SyntaxOptions::default());
     parser.update(new);
 
     assert_eq!(parser.text(), new);
@@ -26,7 +26,7 @@ fn single_line_edit_matches_full_parse() {
 fn line_insertion_falls_back_and_matches_full_parse() {
     let old = "#TITLE A\n#BPM 120\n";
     let new = "#TITLE A\n#ARTIST B\n#BPM 120\n";
-    let mut parser = IncrementalParser::new(old, ParseOptions::default());
+    let mut parser = IncrementalParser::new(old, SyntaxOptions::default());
     parser.update(new);
 
     assert_eq!(
@@ -40,7 +40,7 @@ fn line_insertion_falls_back_and_matches_full_parse() {
 fn control_flow_edit_falls_back_and_matches_full_parse() {
     let old = "#RANDOM 1\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n";
     let new = "#RANDOM 2\n#IF 1\n#TITLE A\n#ENDIF\n#ENDRANDOM\n";
-    let mut parser = IncrementalParser::new(old, ParseOptions::default());
+    let mut parser = IncrementalParser::new(old, SyntaxOptions::default());
     parser.update(new);
 
     assert_eq!(
@@ -77,7 +77,7 @@ proptest! {
         new_lines[line] = &replacement;
         let new = format!("{}\n", new_lines.join("\n"));
 
-        let mut parser = IncrementalParser::new(&old, ParseOptions::default());
+        let mut parser = IncrementalParser::new(&old, SyntaxOptions::default());
         parser.update(&new);
         let full = SourceFile::parse(&new);
         prop_assert_eq!(
